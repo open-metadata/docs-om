@@ -7,7 +7,7 @@ export const Integrations = () => {
             connector: 'API',
             services: [
                 {
-                    name: 'OpenAPI',
+                    name: 'REST',
                     image: '/public/images/connectors/rest.webp',
                     link: '/connectors/api/rest',
                 },
@@ -17,29 +17,24 @@ export const Integrations = () => {
             connector: 'Database',
             services: [
                 {
-                    name: 'ADLS Data Lake',
-                    image: '/public/images/connectors/adls.webp',
-                    link: '/connectors/database/adls-datalake',
-                },
-                {
-                    name: 'AWS S3 Data Lake',
-                    image: '/public/images/connectors/amazon-s3.webp',
-                    link: '/connectors/database/s3-datalake',
-                },
-                {
                     name: 'Athena',
                     image: '/public/images/connectors/athena.webp',
                     link: '/connectors/database/athena',
                 },
                 {
-                    name: 'AzureSQL',
+                    name: 'Azure SQL',
                     image: '/public/images/connectors/azuresql.webp',
                     link: '/connectors/database/azuresql',
                 },
                 {
-                    name: 'Big Query',
+                    name: 'BigQuery',
                     image: '/public/images/connectors/bigquery.webp',
                     link: '/connectors/database/bigquery',
+                },
+                {
+                    name: 'BigTable',
+                    image: '/public/images/connectors/big-table.webp',
+                    link: '/connectors/database/bigtable',
                 },
                 {
                     name: 'Cassandra',
@@ -62,19 +57,9 @@ export const Integrations = () => {
                     link: '/connectors/database/couchbase',
                 },
                 {
-                    name: 'Databricks',
-                    image: '/public/images/connectors/databrick.webp',
-                    link: '/connectors/database/databricks',
-                },
-                {
                     name: 'Delta Lake',
                     image: '/public/images/connectors/delta-lake.webp',
                     link: '/connectors/database/deltalake',
-                },
-                {
-                    name: 'Domo',
-                    image: '/public/images/connectors/domo.webp',
-                    link: '/connectors/database/domo-database',
                 },
                 {
                     name: 'Druid',
@@ -82,44 +67,24 @@ export const Integrations = () => {
                     link: '/connectors/database/druid',
                 },
                 {
-                    name: 'DynamoDB',
-                    image: '/public/images/connectors/dynamodb.webp',
-                    link: '/connectors/database/dynamodb',
+                    name: 'S3 Datalake',
+                    image: '/public/images/connectors/amazon-s3.webp',
+                    link: '/connectors/database/s3-datalake',
                 },
                 {
-                    name: 'Exasol',
-                    image: '/public/images/connectors/exasol.webp',
-                    link: '/connectors/database/exasol',
+                    name: 'ADLS Datalake',
+                    image: '/public/images/connectors/adls.webp',
+                    link: '/connectors/database/adls-datalake',
                 },
                 {
-                    name: 'Epic',
-                    image: '/public/images/connectors/epic.png',
-                    link: '/connectors/database/epic',
-                },
-                {
-                    name: 'Greenplum',
-                    image: '/public/images/connectors/greenplum.webp',
-                    link: '/connectors/database/greenplum',
-                },
-                {
-                    name: 'Glue',
-                    image: '/public/images/connectors/glue.webp',
-                    link: '/connectors/database/glue',
-                },
-                {
-                    name: 'Impala',
-                    image: '/public/images/connectors/impala.webp',
-                    link: '/connectors/database/impala',
-                },
-                {
-                    name: 'Google Cloud Service',
-                    image: '/public/images/connectors/googleCloudService.webp',
+                    name: 'GCS Datalake',
+                    image: '/public/images/connectors/gcs.webp',
                     link: '/connectors/database/gcs-datalake',
                 },
                 {
-                    name: 'Hive',
-                    image: '/public/images/connectors/hive.webp',
-                    link: '/connectors/database/hive',
+                    name: 'Databricks',
+                    image: '/public/images/connectors/databrick.webp',
+                    link: '/connectors/database/databricks',
                 },
                 {
                     name: 'DB2',
@@ -127,9 +92,49 @@ export const Integrations = () => {
                     link: '/connectors/database/db2',
                 },
                 {
-                    name: 'GCS Data Lake',
-                    image: '/public/images/connectors/gcs.webp',
-                    link: '/connectors/database/gcs-datalake',
+                    name: 'dbt',
+                    image: '/public/images/connectors/dbtcloud.webp',
+                    link: '/connectors/pipeline/dbtcloud',
+                },
+                {
+                    name: 'Domo',
+                    image: '/public/images/connectors/domo.webp',
+                    link: '/connectors/database/domo-database',
+                },
+                {
+                    name: 'Doris',
+                    image: '/public/images/connectors/doris.png',
+                    link: '/connectors/database/doris',
+                },
+                {
+                    name: 'DynamoDB',
+                    image: '/public/images/connectors/dynamodb.webp',
+                    link: '/connectors/database/dynamodb',
+                },
+                {
+                    name: 'Epic',
+                    image: '/public/images/connectors/epic.png',
+                    link: '/connectors/database/epic',
+                },
+                {
+                    name: 'Exasol',
+                    image: '/public/images/connectors/exasol.webp',
+                    link: '/connectors/database/exasol',
+                },
+                {
+                    name: 'Glue',
+                    image: '/public/images/connectors/glue.webp',
+                    link: '/connectors/database/glue',
+                },
+                {
+                    name: 'Greenplum',
+                    image: '/public/images/connectors/greenplum.webp',
+                    link: '/connectors/database/greenplum',
+                },
+                {
+                    name: 'Hive',
+                    image: '/public/images/connectors/hive.webp',
+                    link: '/connectors/database/hive',
                 },
                 {
                     name: 'Iceberg',
@@ -137,14 +142,14 @@ export const Integrations = () => {
                     link: '/connectors/database/iceberg',
                 },
                 {
+                    name: 'Impala',
+                    image: '/public/images/connectors/impala.webp',
+                    link: '/connectors/database/impala',
+                },
+                {
                     name: 'MariaDB',
                     image: '/public/images/connectors/mariadb.webp',
                     link: '/connectors/database/mariadb',
-                },
-                {
-                    name: 'Microsoft SSAS',
-                    image: '/public/images/connectors/mssql.webp',
-                    link: '/connectors/database/ssas',
                 },
                 {
                     name: 'MongoDB',
@@ -167,11 +172,6 @@ export const Integrations = () => {
                     link: '/connectors/database/oracle',
                 },
                 {
-                    name: 'PinotDB',
-                    image: '/public/images/connectors/pinot.webp',
-                    link: '/connectors/database/pinotdb',
-                },
-                {
                     name: 'PostgreSQL',
                     image: '/public/images/connectors/post.webp',
                     link: '/connectors/database/postgres',
@@ -192,9 +192,19 @@ export const Integrations = () => {
                     link: '/connectors/database/salesforce',
                 },
                 {
+                    name: 'SAP ERP',
+                    image: '/public/images/connectors/sap-erp.png',
+                    link: '/connectors/database/sap-erp',
+                },
+                {
                     name: 'SAP HANA',
                     image: '/public/images/connectors/sap-hana.png',
                     link: '/connectors/database/sap-hana',
+                },
+                {
+                    name: 'Snowflake',
+                    image: '/public/images/connectors/snowflakes.webp',
+                    link: '/connectors/database/snowflake',
                 },
                 {
                     name: 'ServiceNow',
@@ -207,16 +217,6 @@ export const Integrations = () => {
                     link: '/connectors/database/singlestore',
                 },
                 {
-                    name: 'Snowflake',
-                    image: '/public/images/connectors/snowflakes.webp',
-                    link: '/connectors/database/snowflake',
-                },
-                {
-                    name: 'SQLite',
-                    image: '/public/images/connectors/sqlite.webp',
-                    link: '/connectors/database/sqlite',
-                },
-                {
                     name: 'Synapse',
                     image: '/public/images/connectors/synapse.webp',
                     link: '/connectors/database/synapse',
@@ -227,9 +227,19 @@ export const Integrations = () => {
                     link: '/connectors/database/teradata',
                 },
                 {
+                    name: 'TimescaleDB',
+                    image: '/public/images/connectors/timescale.webp',
+                    link: '/connectors/database/timescale',
+                },
+                {
                     name: 'Trino',
                     image: '/public/images/connectors/trino.webp',
                     link: '/connectors/database/trino',
+                },
+                {
+                    name: 'Unity Catalog',
+                    image: '/public/images/connectors/databrick.webp',
+                    link: '/connectors/database/unity-catalog',
                 },
                 {
                     name: 'Vertica',
@@ -237,19 +247,24 @@ export const Integrations = () => {
                     link: '/connectors/database/vertica',
                 },
                 {
-                    name: 'Doris',
-                    image: '/public/images/connectors/doris.png',
-                    link: '/connectors/database/doris',
+                    name: 'Pinot',
+                    image: '/public/images/connectors/pinot.webp',
+                    link: '/connectors/database/pinotdb',
                 },
                 {
-                    name: 'SAS Viya',
+                    name: 'SAS',
                     image: '/public/images/connectors/sas.webp',
                     link: '/connectors/database/sas',
                 },
                 {
-                    name: 'SAP ERP',
-                    image: '/public/images/connectors/sap-erp.png',
-                    link: '/connectors/database/sap-erp',
+                    name: 'SQL Lite',
+                    image: '/public/images/connectors/sqlite.webp',
+                    link: '/connectors/database/sqlite',
+                },
+                {
+                    name: 'SSAS',
+                    image: '/public/images/connectors/ssas.png',
+                    link: '/connectors/database/ssas',
                 },
             ],
         },
@@ -262,14 +277,14 @@ export const Integrations = () => {
                     link: '/connectors/messaging/kafka',
                 },
                 {
-                    name: 'Kinesis',
-                    image: '/public/images/connectors/kinesis.webp',
-                    link: '/connectors/messaging/kinesis',
-                },
-                {
                     name: 'Redpanda',
                     image: '/public/images/connectors/redpanda.webp',
                     link: '/connectors/messaging/redpanda',
+                },
+                {
+                    name: 'Kinesis',
+                    image: '/public/images/connectors/kinesis.webp',
+                    link: '/connectors/messaging/kinesis',
                 },
             ],
         },
@@ -277,14 +292,19 @@ export const Integrations = () => {
             connector: 'Dashboard',
             services: [
                 {
+                    name: 'Lightdash',
+                    image: '/public/images/connectors/lightdash.webp',
+                    link: '/connectors/dashboard/lightdash',
+                },
+                {
                     name: 'Grafana',
                     image: '/public/images/connectors/grafana.png',
                     link: '/connectors/dashboard/grafana',
                 },
                 {
-                    name: 'Lightdash',
-                    image: '/public/images/connectors/lightdash.webp',
-                    link: '/connectors/dashboard/lightdash',
+                    name: 'Hex',
+                    image: '/public/images/connectors/hex.webp',
+                    link: '/connectors/dashboard/hex',
                 },
                 {
                     name: 'Looker',
@@ -297,6 +317,11 @@ export const Integrations = () => {
                     link: '/connectors/dashboard/metabase',
                 },
                 {
+                    name: 'MicroStrategy',
+                    image: '/public/images/connectors/microstrategy.webp',
+                    link: '/connectors/dashboard/microstrategy',
+                },
+                {
                     name: 'Mode',
                     image: '/public/images/connectors/mode.webp',
                     link: '/connectors/dashboard/mode',
@@ -307,7 +332,7 @@ export const Integrations = () => {
                     link: '/connectors/dashboard/powerbi',
                 },
                 {
-                    name: 'Power BI Report Server',
+                    name: 'PowerBI Report Server',
                     image: '/public/images/connectors/power-bi.webp',
                     link: '/connectors/dashboard/powerbireportserver',
                 },
@@ -337,14 +362,19 @@ export const Integrations = () => {
                     link: '/connectors/dashboard/thoughtspot',
                 },
                 {
-                    name: 'QuickSight',
-                    image: '/public/images/connectors/quicksight.webp',
-                    link: '/connectors/dashboard/quicksight',
+                    name: 'Qlik Cloud',
+                    image: '/public/images/connectors/qlikcloud.webp',
+                    link: '/connectors/dashboard/qlikcloud',
                 },
                 {
                     name: 'Qlik Sense',
-                    image: '/public/images/connectors/qliksense.webp',
+                    image: '/public/images/connectors/qlik-sense.webp',
                     link: '/connectors/dashboard/qliksense',
+                },
+                {
+                    name: 'QuickSight',
+                    image: '/public/images/connectors/quicksight.webp',
+                    link: '/connectors/dashboard/quicksight',
                 },
             ],
         },
@@ -352,29 +382,14 @@ export const Integrations = () => {
             connector: 'Pipeline',
             services: [
                 {
-                    name: 'Airbyte',
-                    image: '/public/images/connectors/airbyte.webp',
-                    link: '/connectors/pipeline/airbyte',
-                },
-                {
                     name: 'Airflow',
                     image: '/public/images/connectors/airflow.webp',
                     link: '/connectors/pipeline/airflow',
                 },
                 {
-                    name: 'Azure Data Factory',
-                    image: '/public/images/connectors/datafactory.png',
-                    link: '/connectors/pipeline/datafactory',
-                },
-                {
-                    name: 'Fivetran',
-                    image: '/public/images/connectors/fivetran.webp',
-                    link: '/connectors/pipeline/fivetran',
-                },
-                {
-                    name: 'NiFi',
-                    image: '/public/images/connectors/apachenifi.webp',
-                    link: '/connectors/pipeline/nifi',
+                    name: 'Airbyte',
+                    image: '/public/images/connectors/airbyte.webp',
+                    link: '/connectors/pipeline/airbyte',
                 },
                 {
                     name: 'Dagster',
@@ -382,9 +397,24 @@ export const Integrations = () => {
                     link: '/connectors/pipeline/dagster',
                 },
                 {
-                    name: 'Spline',
-                    image: '/public/images/connectors/spline.webp',
-                    link: '/connectors/pipeline/spline',
+                    name: 'Databricks Pipeline',
+                    image: '/public/images/connectors/databrick.webp',
+                    link: '/connectors/pipeline/databricks-pipeline',
+                },
+                {
+                    name: 'Azure Data Factory',
+                    image: '/public/images/connectors/datafactory.png',
+                    link: '/connectors/pipeline/datafactory',
+                },
+                {
+                    name: 'dbt Cloud',
+                    image: '/public/images/connectors/dbtcloud.webp',
+                    link: '/connectors/pipeline/dbtcloud',
+                },
+                {
+                    name: 'Fivetran',
+                    image: '/public/images/connectors/fivetran.webp',
+                    link: '/connectors/pipeline/fivetran',
                 },
                 {
                     name: 'Flink',
@@ -392,19 +422,19 @@ export const Integrations = () => {
                     link: '/connectors/pipeline/flink',
                 },
                 {
-                    name: 'DBT',
-                    image: '/public/images/connectors/dbt.webp',
-                    link: '/connectors/pipeline/dbtcloud',
-                },
-                {
                     name: 'Matillion',
                     image: '/public/images/connectors/matillion.png',
                     link: '/connectors/pipeline/matillion',
                 },
                 {
-                    name: 'Microsoft SSIS',
-                    image: '/public/images/connectors/mssql.webp',
-                    link: '/connectors/pipeline/ssis',
+                    name: 'NiFi',
+                    image: '/public/images/connectors/apachenifi.webp',
+                    link: '/connectors/pipeline/nifi',
+                },
+                {
+                    name: 'OpenLineage',
+                    image: '/public/images/connectors/openlineage.png',
+                    link: '/connectors/pipeline/openlineage',
                 },
                 {
                     name: 'Snowplow',
@@ -412,14 +442,29 @@ export const Integrations = () => {
                     link: '/connectors/pipeline/snowplow',
                 },
                 {
+                    name: 'Spline',
+                    image: '/public/images/connectors/spline.webp',
+                    link: '/connectors/pipeline/spline',
+                },
+                {
                     name: 'Stitch',
                     image: '/public/images/connectors/stitch.png',
                     link: '/connectors/pipeline/stitch',
                 },
                 {
+                    name: 'KinesisFirehose',
+                    image: '/public/images/connectors/kinesis-firehose.webp',
+                    link: '/connectors/pipeline/kinesis-firehose',
+                },
+                {
                     name: 'Wherescape',
                     image: '/public/images/connectors/wherescape.png',
                     link: '/connectors/pipeline/wherescape',
+                },
+                {
+                    name: 'SSIS',
+                    image: '/public/images/connectors/ssis.webp',
+                    link: '/connectors/pipeline/ssis',
                 },
             ],
         },
@@ -432,39 +477,14 @@ export const Integrations = () => {
                     link: '/connectors/ml-model/mlflow',
                 },
                 {
-                    name: 'Sagemaker',
+                    name: 'SageMaker',
                     image: '/public/images/connectors/sagemaker.webp',
                     link: '/connectors/ml-model/sagemaker',
                 },
                 {
-                    name: 'Vertex AI',
+                    name: 'VertexAI',
                     image: '/public/images/connectors/vertexai.png',
                     link: '/connectors/ml-model/vertexai',
-                },
-            ],
-        },
-        {
-            connector: 'Metadata',
-            services: [
-                {
-                    name: 'Amundsen',
-                    image: '/public/images/connectors/amundsen.webp',
-                    link: '/connectors/metadata/amundsen',
-                },
-                {
-                    name: 'Atlas',
-                    image: '/public/images/connectors/atlas.webp',
-                    link: '/connectors/metadata/atlas',
-                },
-                {
-                    name: 'AlationSink',
-                    image: '/public/images/connectors/alation.webp',
-                    link: '/connectors/metadata/alationsink',
-                },
-                {
-                    name: 'Alation',
-                    image: '/public/images/connectors/alation.webp',
-                    link: '/connectors/metadata/alation',
                 },
             ],
         },
@@ -487,44 +507,54 @@ export const Integrations = () => {
             connector: 'Storage',
             services: [
                 {
-                    name: 'Google Cloud Storage',
+                    name: 'ADLS',
+                    image: '/public/images/connectors/adls.webp',
+                    link: '/connectors/storage/adls',
+                },
+                {
+                    name: 'GCS',
                     image: '/public/images/connectors/gcs.webp',
                     link: '/connectors/storage/gcs',
                 },
                 {
-                    name: 'AWS S3 Storage',
+                    name: 'S3 Storage',
                     image: '/public/images/connectors/amazon-s3.webp',
                     link: '/connectors/storage/s3',
                 },
+            ],
+        },
+        {
+            connector: 'Metadata',
+            services: [
                 {
-                    name: 'ADLS Storage',
-                    image: '/public/images/connectors/adls.webp',
-                    link: '/connectors/storage/adls',
+                    name: 'Alation',
+                    image: '/public/images/connectors/alation.webp',
+                    link: '/connectors/metadata/alation',
+                },
+                {
+                    name: 'AlationSink',
+                    image: '/public/images/connectors/alation.webp',
+                    link: '/connectors/metadata/alationsink',
+                },
+                {
+                    name: 'Atlas',
+                    image: '/public/images/connectors/atlas.webp',
+                    link: '/connectors/metadata/atlas',
+                },
+                {
+                    name: 'Collibra',
+                    image: '/public/images/connectors/collibra.webp',
+                    link: '/connectors/metadata/collibra',
                 },
             ],
         },
         {
-            connector: 'Drive',
+            connector: 'Security',
             services: [
                 {
-                    name: 'Google Drive',
-                    image: '/public/images/connectors/googledrive.webp',
-                    link: '/connectors/drive/googledrive',
-                },
-            ],
-        },
-        {
-            connector: 'Others',
-            services: [
-                {
-                    name: 'LDAP',
-                    image: '/public/images/connectors/ldap.webp',
-                    link: '/',
-                },
-                {
-                    name: 'SQL Alchemy',
-                    image: '/public/images/connectors/sqlalchemy.webp',
-                    link: '/',
+                    name: 'Ranger',
+                    image: '/public/images/connectors/ranger.webp',
+                    link: '/connectors/security/ranger',
                 },
             ],
         },
