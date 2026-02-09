@@ -1,0 +1,201 @@
+---
+title: Run the Databricks Connector Externally
+description: Use YAML to ingest Databricks metadata including notebook lineage, schema, and profiling.
+slug: /connectors/database/databricks/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/databrick.webp'
+name="Databricks"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Reverse Metadata (Collate Only)", "Auto-Classification"]}
+unavailableFeatures={["Stored Procedures", "Tags", "Owners"]} />
+<Tip>
+As per the [documentation](https://docs.databricks.com/en/data-governance/unity-catalog/tags.html#manage-tags-with-sql-commands) here, note that we only support metadata `tag` extraction for Databricks version 13.3 version and higher.
+</Tip>
+In this section, we provide guides and references to use the Databricks connector.
+Configure and schedule Databricks metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+- [Reverse Metadata](/applications/reverse-metadata)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Databricks ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[databricks]"
+```
+### Permission Requirement
+To enable full functionality of metadata extraction, profiling, usage, and lineage features in OpenMetadata, the following permissions must be granted to the relevant users in your Databricks environment.
+### Metadata and Profiling Permissions
+These permissions are required on the catalogs, schemas, and tables from which metadata and profiling information will be ingested.
+```sql
+GRANT USE CATALOG ON CATALOG <catalog_name> TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA <schema_name> TO `<user>`;
+GRANT SELECT ON TABLE <table_name> TO `<user>`;
+```
+Ensure these grants are applied to all relevant tables for metadata ingestion and profiling operations.
+### Usage and Lineage
+These permissions enable OpenMetadata to extract query history and construct lineage information.
+```sql
+GRANT SELECT ON SYSTEM.QUERY.HISTORY TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.query TO `<user>`;
+```
+These permissions allow access to Databricks system tables that track query activity, enabling lineage and usage statistics generation.
+<Tip>
+Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
+</Tip>
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/databricksConnection.json)
+you can find the structure to create a connection to Databricks.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Databricks connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Catalog" lines="7">
+
+**catalog**: Catalog of the data source (Example: hive_metastore). This is optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalog.
+
+</ContentSection>
+
+<ContentSection id={3} title="Database Schema" lines="8">
+
+**databaseSchema**: DatabaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.
+
+</ContentSection>
+
+<ContentSection id={4} title="Token" lines="9">
+
+**token**: Generated Token to connect to Databricks.
+
+</ContentSection>
+
+<ContentSection id={5} title="Host Port" lines="10">
+
+**hostPort**: Enter the fully qualified hostname and port number for your Databricks deployment in the Host and Port field.
+
+</ContentSection>
+
+<ContentSection id={6} title="HTTP Path" lines="11">
+
+**httpPath**: Databricks compute resources URL.
+
+</ContentSection>
+
+<ContentSection id={7} title="Connection Timeout" lines="12">
+
+**connectionTimeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
+
+</ContentSection>
+
+<ContentSection id={8} title="Connection Options" lines="13">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Arguments" lines="14">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={10} title="Source Config" lines="17-60">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={11} title="Sink Configuration" lines="61-63">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Workflow Configuration" lines="64-80">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="databricks_config.yaml">
+
+```yaml
+source:
+  type: databricks
+  serviceName: local_databricks
+  serviceConnection:
+    config:
+      type: Databricks
+      catalog: hive_metastore
+      databaseSchema: default
+      token: <databricks token>  # REQUIRED
+      hostPort: <databricks connection host & port>  # REQUIRED
+      httpPath: <http path of databricks cluster>  # REQUIRED
+      connectionTimeout: 120
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<QueryUsage connector="databricks" />
+<Lineage connector="databricks" />
+<DataProfiler connector="databricks" />
+<AutoClassification connector="databricks" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

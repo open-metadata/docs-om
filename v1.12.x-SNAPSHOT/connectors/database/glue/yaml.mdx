@@ -1,0 +1,144 @@
+---
+title: Run the Glue Connector Externally
+description: Configure AWS Glue ingestion using YAML to capture ETL job metadata, source-target lineage, and transformation logic.
+slug: /connectors/database/glue/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import AwsConfigDef from '/snippets/connectors/yaml/common/aws-config-def.mdx'
+import AwsConfig from '/snippets/connectors/yaml/common/aws-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/glue.webp'
+name="Glue"
+stage="PROD"
+availableFeatures={["Metadata", "dbt"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "Sample Data", "Auto-Classification"]} />
+In this section, we provide guides and references to use the Glue connector.
+Configure and schedule Glue metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+User must have `glue:GetDatabases` and `glue:GetTables` permissions to ingest the basic metadata.
+### Python Requirements
+<PythonRequirements />
+To run the Glue ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[glue]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/glueConnection.json)
+you can find the structure to create a connection to Glue.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Glue connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="AWS Configuration" lines="4-12">
+
+<AwsConfigDef />
+
+</ContentSection>
+
+<ContentSection id={3} title="Database Name" lines="8">
+
+**databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use [Glue Catalog ID](https://docs.aws.amazon.com/glue/latest/dg/glue-specifying-resource-arns.html#data-catalog-resource-arns) as the database name.
+
+</ContentSection>
+
+<ContentSection id={4} title="Connection Options" lines="13-56">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={5} title="Connection Arguments" lines="57-59">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={6} title="Source Config" lines="13-56">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Sink Configuration" lines="57-59">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Workflow Configuration" lines="60-76">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="glue_config.yaml">
+
+```yaml
+source:
+  type: glue
+  serviceName: local_glue
+  serviceConnection:
+    config:
+      type: Glue
+      awsConfig:
+      databaseName: database_name
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<AwsConfig />
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+## dbt Integration
+<Columns cols={2}>
+<Card title="dbt Integration" href="/v1.12.x/connectors/ingestion/workflows/dbt">
+  Learn more about how to ingest dbt models
+</Card>
+</Columns>

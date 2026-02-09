@@ -1,0 +1,88 @@
+---
+title: Databricks Connector | Collate Integration Guide
+description: Connect Databricks to Collate effortlessly. Complete setup guide, configuration steps, and metadata extraction for your data lakehouse platform.
+slug: /connectors/database/databricks
+sidebarTitle: Overview
+---
+import ReverseMetadata from '/snippets/connectors/database/databricks/reverse-metadata.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
+import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import Related from '/snippets/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/databrick.webp'
+name="Databricks"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Reverse Metadata (Collate Only)", "Auto-Classification"]}
+unavailableFeatures={["Stored Procedures", "Tags", "Owners"]} />
+<Tip>
+As per the [documentation](https://docs.databricks.com/en/data-governance/unity-catalog/tags.html#manage-tags-with-sql-commands) here, note that we only support metadata `tag` extraction for Databricks version 13.3 version and higher.
+</Tip>
+In this section, we provide guides and references to use the Databricks connector.
+Configure and schedule Databricks metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Unity Catalog](#unity-catalog)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](/connectors/ingestion/workflows/usage)
+- [Data Profiler](/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+- [Data Quality](/how-to-guides/data-quality-observability/quality)
+- [Lineage](/how-to-guides/data-lineage/workflow)
+- [dbt Integration](/connectors/ingestion/workflows/dbt)
+- [Troubleshooting](/connectors/database/databricks/troubleshooting)
+- [Reverse Metadata](#reverse-metadata)
+<ExternalIngestionDeployment />
+## Requirements
+### Permission Requirement
+To enable full functionality of metadata extraction, profiling, usage, and lineage features in OpenMetadata, the following permissions must be granted to the relevant users in your Databricks environment.
+### Metadata and Profiling Permissions
+These permissions are required on the catalogs, schemas, and tables from which metadata and profiling information will be ingested.
+```sql
+GRANT USE CATALOG ON CATALOG <catalog_name> TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA <schema_name> TO `<user>`;
+GRANT SELECT ON TABLE <table_name> TO `<user>`;
+```
+Ensure these grants are applied to all relevant tables for metadata ingestion and profiling operations.
+### Usage and Lineage
+These permissions enable OpenMetadata to extract query history and construct lineage information.
+```sql
+GRANT SELECT ON SYSTEM.QUERY.HISTORY TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.query TO `<user>`;
+```
+These permissions allow access to Databricks system tables that track query activity, enabling lineage and usage statistics generation.
+<Tip>
+Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
+</Tip>
+## Unity Catalog
+If you are using Unity Catalog in Databricks, then checkout the [Unity Catalog](/connectors/database/unity-catalog) connector.
+## Metadata Ingestion
+<MetadataIngestionUi connector={"Databricks"} selectServicePath={"/public/images/connectors/databricks/select-service.png"} addNewServicePath={"/public/images/connectors/databricks/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/databricks/service-connection.png"} />
+# Connection Details
+<Steps>
+<Step title="Connection Details">
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+password: secret:/my/database/password
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+</Tip>
+- **Host and Port**: Enter the fully qualified hostname and port number for your Databricks deployment in the Host and Port field.
+- **Token**: Generated Token to connect to Databricks.
+- **HTTP Path**: Databricks compute resources URL.
+- **connectionTimeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
+- **Catalog**: Catalog of the data source(Example: hive_metastore). This is optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalog.
+- **DatabaseSchema**: databaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.
+</Step>
+<AdvancedConfiguration />
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+<ReverseMetadata />
+<Related />

@@ -1,0 +1,120 @@
+---
+title: Run the ADLS Connector Externally
+description: Use YAML to ingest metadata from Azure Data Lake Storage including file paths, structures, and governance rules.
+slug: /connectors/storage/adls/yaml
+sidebarTitle: Run Externally
+collate: true
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import StorageSourceConfigDef from '/snippets/connectors/yaml/storage/source-config-def.mdx'
+import StorageSourceConfig from '/snippets/connectors/yaml/storage/source-config.mdx'
+import Manifest from '/snippets/connectors/storage/manifest.mdx'
+import AzureConfigDef from '/snippets/connectors/yaml/common/azure-config-def.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/adls.webp'
+name="ADLS"
+stage="PROD"
+availableFeatures={["Metadata"]}
+unavailableFeatures={[]} />
+This page contains the setup guide and reference information for the Azure connector.
+Configure and schedule Azure metadata workflows from the CLI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+<Card title="OpenMetadata 1.0 or later" href="/deployment" >
+    To deploy OpenMetadata, check the Deployment guides.
+  </Card>
+To run the metadata ingestion, we need the following permissions in ADLS:
+### ADLS Permissions
+To extract metadata from Azure ADLS (Storage Account - StorageV2), you will need an **App Registration** with the following permissions on the Storage Account:
+- Storage Blob Data Contributor
+- Storage Queue Data Contributor
+### OpenMetadata Manifest
+In any other connector, extracting metadata happens automatically. In this case, we will be able to extract high-level
+metadata from buckets, but in order to understand their internal structure we need users to provide an `openmetadata.json`
+file at the bucket root.
+`Supported File Formats: [ "csv",  "tsv", "avro", "parquet", "json", "json.gz", "json.zip" ]`
+You can learn more about this [here](/connectors/storage). Keep reading for an example on the shape of the manifest file.
+<Manifest />
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/storage/adlsConnection.json)
+you can find the structure to create a connection to Athena.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Athena:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Azure Configuration" lines="46-47">
+
+<AzureConfigDef />
+
+</ContentSection>
+
+<ContentSection id={2} title="Connection Options (Optional)" lines="7">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to storage service during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={3} title="Connection Arguments (Optional)" lines="9">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to storage service during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: ADLS
+  serviceName: local_adls
+  serviceConnection:
+    config:
+      type: ADLS
+```
+
+<AzureConfig />
+
+```yaml
+# connectionOptions:
+        # key: value
+# connectionArguments:
+        # key: value
+```
+
+<StorageSourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+<IngestionCli />
+## Related
+<Columns cols={2}>
+<Card title="Configure Ingestion Externally" href="/v1.12.x/deployment/ingestion">
+  Deploy, configure, and manage the ingestion workflows externally.
+</Card>
+</Columns>

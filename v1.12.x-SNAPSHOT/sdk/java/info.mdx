@@ -1,0 +1,442 @@
+---
+title: Java SDK Overview
+description: 'Enterprise Java integration client for Collate'
+slug: /sdk/java/info
+sidebarTitle: Java SDK Info
+---
+
+# Java SDK
+
+The Collate Java SDK provides a robust client library for Java applications to interact with the Collate API. It offers comprehensive support for entity management, authentication, and integration with enterprise Java applications.
+
+## Installation
+
+### Maven
+
+Add the Collate Java SDK dependency to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.open-metadata</groupId>
+    <artifactId>collate-java-client</artifactId>
+    <version>1.9.0</version>
+</dependency>
+```
+
+### Gradle
+
+Add the dependency to your `build.gradle`:
+
+```gradle
+implementation 'org.open-metadata:collate-java-client:1.9.0'
+```
+
+## Quick Start
+
+### Basic Connection
+
+```java
+import org.collate.client.CollateClient;
+import org.collate.client.model.*;
+import org.collate.client.auth.BasicAuthProvider;
+
+// Create client with basic authentication
+CollateClient client = CollateClient.builder()
+    .baseUrl("http://localhost:8585/api")
+    .authProvider(new BasicAuthProvider("admin", "admin"))
+    .build();
+
+// Health check
+if (client.healthCheck()) {
+    System.out.println("Successfully connected to Collate!");
+}
+```
+
+### JWT Authentication
+
+```java
+import org.collate.client.auth.JWTAuthProvider;
+
+// Create client with JWT authentication
+CollateClient client = CollateClient.builder()
+    .baseUrl("http://localhost:8585/api")
+    .authProvider(new JWTAuthProvider("your-jwt-token"))
+    .build();
+```
+
+## Core Functionality
+
+### Working with Entities
+
+#### Database Services
+
+```java
+import org.collate.schema.entity.services.DatabaseService;
+import org.collate.schema.api.services.CreateDatabaseService;
+
+// List all database services
+List<DatabaseService> services = client.listDatabaseServices();
+System.out.println("Found " + services.size() + " database services");
+
+// Get specific service by name
+DatabaseService service = client.getDatabaseServiceByName("mysql-prod");
+
+// Create new database service
+CreateDatabaseService createRequest = new CreateDatabaseService()
+    .withName("new-mysql-service")
+    .withServiceType(DatabaseServiceType.MYSQL)
+    .withDescription("Production MySQL database");
+
+DatabaseService newService = client.createDatabaseService(createRequest);
+```
+
+#### Tables
+
+```java
+import org.collate.schema.entity.data.Table;
+import org.collate.schema.api.data.CreateTable;
+
+// Get table by fully qualified name
+Table table = client.getTableByName("mysql-prod.employees.employees");
+if (table != null) {
+    System.out.println("Table: " + table.getName());
+    System.out.println("Columns: " + table.getColumns().size());
+}
+
+// List tables with pagination
+EntityList<Table> tables = client.listTables(
+    10, // limit
+    null, // after cursor
+    "mysql-prod" // service filter
+);
+
+// Create table
+CreateTable createTable = new CreateTable()
+    .withName("new_table")
+    .withDatabaseSchema("mysql-prod.employees")
+    .withColumns(Arrays.asList(
+        new Column()
+            .withName("id")
+            .withDataType(ColumnDataType.BIGINT)
+            .withDescription("Primary key"),
+        new Column()
+            .withName("name")
+            .withDataType(ColumnDataType.VARCHAR)
+            .withDataLength(255)
+            .withDescription("Employee name")
+    ));
+
+Table newTable = client.createTable(createTable);
+```
+
+### Entity Operations
+
+#### CRUD Operations
+
+```java
+// Create or Update
+DatabaseService service = client.createOrUpdateDatabaseService(createRequest);
+
+// Get by ID
+UUID serviceId = UUID.fromString("service-uuid-here");
+DatabaseService service = client.getDatabaseServiceById(serviceId);
+
+// Delete
+client.deleteDatabaseService(serviceId, false); // soft delete
+client.deleteDatabaseService(serviceId, true);  // hard delete
+```
+
+#### Search and Filtering
+
+```java
+// Search tables
+SearchRequest searchRequest = new SearchRequest()
+    .withQuery("customer")
+    .withEntityTypes(Arrays.asList("table"))
+    .withSize(50);
+
+SearchResponse results = client.search(searchRequest);
+for (SearchHit hit : results.getHits()) {
+    System.out.println("Found: " + hit.getDisplayName());
+}
+
+// Advanced filtering
+EntityList<Table> customerTables = client.listTables(
+    100,
+    null,
+    Map.of(
+        "service", "mysql-prod",
+        "database", "ecommerce"
+    )
+);
+```
+
+## Advanced Features
+
+### Authentication Providers
+
+#### Custom Authentication
+
+```java
+import org.collate.client.auth.AuthProvider;
+
+public class CustomAuthProvider implements AuthProvider {
+    private String customToken;
+
+    public CustomAuthProvider(String token) {
+        this.customToken = token;
+    }
+
+    @Override
+    public String getAuthToken() {
+        return "Bearer " + customToken;
+    }
+
+    @Override
+    public void refresh() {
+        // Implement token refresh logic
+    }
+}
+
+// Use custom auth provider
+CollateClient client = CollateClient.builder()
+    .baseUrl("https://your-instance.com/api")
+    .authProvider(new CustomAuthProvider("custom-token"))
+    .build();
+```
+
+#### OAuth 2.0 Integration
+
+```java
+import org.collate.client.auth.OAuth2AuthProvider;
+
+OAuth2AuthProvider authProvider = OAuth2AuthProvider.builder()
+    .clientId("your-client-id")
+    .clientSecret("your-client-secret")
+    .tokenUrl("https://auth.provider.com/oauth/token")
+    .scopes(Arrays.asList("read", "write"))
+    .build();
+
+CollateClient client = CollateClient.builder()
+    .baseUrl("https://your-instance.com/api")
+    .authProvider(authProvider)
+    .build();
+```
+
+### Error Handling
+
+```java
+import org.collate.client.exception.CollateException;
+
+try {
+    Table table = client.getTableByName("non-existent-table");
+} catch (CollateException e) {
+    switch (e.getErrorCode()) {
+        case NOT_FOUND:
+            System.out.println("Table not found");
+            break;
+        case UNAUTHORIZED:
+            System.out.println("Authentication failed");
+            break;
+        case FORBIDDEN:
+            System.out.println("Access denied");
+            break;
+        default:
+            System.out.println("Error: " + e.getMessage());
+    }
+}
+```
+
+### Async Operations
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+// Async client operations
+CompletableFuture<List<DatabaseService>> servicesFuture =
+    client.listDatabaseServicesAsync();
+
+CompletableFuture<Table> tableFuture =
+    client.getTableByNameAsync("mysql-prod.employees.employees");
+
+// Combine async operations
+CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(
+    servicesFuture,
+    tableFuture
+).thenRun(() -> {
+    try {
+        List<DatabaseService> services = servicesFuture.get();
+        Table table = tableFuture.get();
+
+        System.out.println("Found " + services.size() + " services");
+        System.out.println("Table columns: " + table.getColumns().size());
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+});
+```
+
+## Configuration Options
+
+### Client Configuration
+
+```java
+import org.collate.client.config.ClientConfig;
+
+ClientConfig config = ClientConfig.builder()
+    .connectionTimeout(30000)     // 30 seconds
+    .readTimeout(60000)          // 60 seconds
+    .retryCount(3)               // Retry failed requests 3 times
+    .enableLogging(true)         // Enable request/response logging
+    .enableMetrics(true)         // Enable client metrics
+    .userAgent("MyApp/1.0")      // Custom user agent
+    .build();
+
+CollateClient client = CollateClient.builder()
+    .baseUrl("http://localhost:8585/api")
+    .authProvider(authProvider)
+    .config(config)
+    .build();
+```
+
+### Connection Pooling
+
+```java
+import org.collate.client.config.ConnectionPoolConfig;
+
+ConnectionPoolConfig poolConfig = ConnectionPoolConfig.builder()
+    .maxTotal(100)               // Maximum total connections
+    .maxPerRoute(20)             // Maximum connections per route
+    .connectionTTL(300000)       // Connection TTL in milliseconds
+    .validateAfterInactivity(10000) // Validate connections after 10s
+    .build();
+
+ClientConfig config = ClientConfig.builder()
+    .connectionPoolConfig(poolConfig)
+    .build();
+```
+
+## Common Use Cases
+
+### Metadata Discovery
+
+```java
+// Discover all tables in a service
+String serviceName = "mysql-prod";
+List<Table> allTables = new ArrayList<>();
+
+String after = null;
+do {
+    EntityList<Table> batch = client.listTables(100, after, serviceName);
+    allTables.addAll(batch.getData());
+    after = batch.getAfter();
+} while (after != null);
+
+System.out.println("Discovered " + allTables.size() + " tables");
+```
+
+### Bulk Operations
+
+```java
+// Bulk update table descriptions
+List<Table> tables = client.listAllTablesInService("mysql-prod");
+
+for (Table table : tables) {
+    if (table.getDescription() == null || table.getDescription().isEmpty()) {
+        CreateTable updateRequest = new CreateTable()
+            .withName(table.getName())
+            .withDatabaseSchema(table.getDatabaseSchema().getFullyQualifiedName())
+            .withDescription("Auto-generated description for " + table.getName());
+
+        client.createOrUpdateTable(updateRequest);
+    }
+}
+```
+
+### Lineage Operations
+
+```java
+import org.collate.schema.type.EntityLineage;
+
+// Get table lineage
+EntityLineage lineage = client.getTableLineage(
+    "mysql-prod.employees.employees",
+    1, // upstream depth
+    1  // downstream depth
+);
+
+System.out.println("Upstream entities: " + lineage.getUpstreamEdges().size());
+System.out.println("Downstream entities: " + lineage.getDownstreamEdges().size());
+```
+
+## Spring Boot Integration
+
+### Configuration Class
+
+```java
+@Configuration
+@EnableConfigurationProperties(CollateProperties.class)
+public class CollateConfig {
+
+    @Bean
+    public CollateClient openMetadataClient(CollateProperties properties) {
+        return CollateClient.builder()
+            .baseUrl(properties.getBaseUrl())
+            .authProvider(new JWTAuthProvider(properties.getJwtToken()))
+            .build();
+    }
+}
+
+@ConfigurationProperties(prefix = "collate")
+@Data
+public class CollateProperties {
+    private String baseUrl;
+    private String jwtToken;
+}
+```
+
+### Service Layer
+
+```java
+@Service
+public class MetadataService {
+
+    private final CollateClient client;
+
+    public MetadataService(CollateClient client) {
+        this.client = client;
+    }
+
+    public List<Table> getTablesForService(String serviceName) {
+        return client.listAllTablesInService(serviceName);
+    }
+
+    public Table createTable(CreateTableRequest request) {
+        CreateTable createTable = new CreateTable()
+            .withName(request.getName())
+            .withDatabaseSchema(request.getSchemaFqn())
+            .withColumns(request.getColumns());
+
+        return client.createTable(createTable);
+    }
+}
+```
+
+## Best Practices
+
+1. **Resource Management**: Always close clients when done
+2. **Connection Pooling**: Use connection pooling for high-throughput applications
+3. **Error Handling**: Implement proper retry logic and error handling
+4. **Authentication**: Use secure authentication methods in production
+5. **Async Operations**: Use async methods for better performance in concurrent scenarios
+6. **Pagination**: Always handle pagination for large datasets
+7. **Caching**: Implement caching for frequently accessed entities
+
+## Performance Tips
+
+- Use batch operations when possible
+- Implement connection pooling for high-concurrency applications
+- Cache frequently accessed metadata
+- Use async operations for better throughput
+- Specify only required fields when fetching entities
+- Implement proper retry strategies with exponential backoff

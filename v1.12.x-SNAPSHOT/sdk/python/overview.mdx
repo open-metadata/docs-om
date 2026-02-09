@@ -1,0 +1,287 @@
+---
+title: Python SDK Overview
+description: 'Full-featured Python client library for Collate integration'
+---
+
+# Python SDK
+
+The Collate Python SDK provides a comprehensive interface for interacting with the Collate API. It offers type-safe operations for managing metadata entities and seamless integration with your Python applications.
+
+## Installation
+
+Install the Collate Python SDK using pip:
+
+```bash
+pip install collate-ingestion
+```
+
+## Quick Start
+
+### Basic Connection
+
+```python
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    CollateConnection,
+)
+from metadata.ingestion.ometa.ometa_api import Collate
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    CollateJWTClientConfig,
+)
+
+# Configure connection
+server_config = CollateConnection(
+    hostPort="http://localhost:8585/api",
+    authProvider="collate",
+    securityConfig=CollateJWTClientConfig(
+        jwtToken="your-jwt-token"
+    ),
+)
+
+# Create Collate client
+metadata = Collate(server_config)
+
+# Health check
+if metadata.health_check():
+    print("Successfully connected to Collate!")
+```
+
+### Working with Entities
+
+```python
+from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.entity.services.databaseService import DatabaseService
+
+# Get all database services
+services = list(metadata.list_all_entities(entity=DatabaseService))
+print(f"Found {len(services)} database services")
+
+# Get a specific table by name
+table = metadata.get_by_name(
+    entity=Table,
+    fqn="your-service.your-database.your-schema.your-table"
+)
+
+if table:
+    print(f"Table: {table.name}")
+    print(f"Columns: {len(table.columns) if table.columns else 0}")
+```
+
+## Core Functionality
+
+### Entity Management
+
+The Python SDK provides full CRUD operations for all Collate entities:
+
+#### Create or Update Entities
+
+```python
+from metadata.generated.schema.api.data.createTable import CreateTableRequest
+
+# Create table request
+create_table = CreateTableRequest(
+    name="sample_table",
+    databaseSchema="your_database.your_schema",
+    columns=[
+        # Define your columns here
+    ],
+    description="Sample table created via Python SDK"
+)
+
+# Create or update the table
+table = metadata.create_or_update(data=create_table)
+```
+
+#### Retrieve Entities
+
+```python
+# Get by ID
+table = metadata.get_by_id(entity=Table, entity_id="uuid-here")
+
+# Get by fully qualified name
+table = metadata.get_by_name(
+    entity=Table,
+    fqn="service.database.schema.table"
+)
+
+# List entities with pagination
+tables = metadata.list_entities(
+    entity=Table,
+    fields=["owner", "tags"],
+    limit=50
+)
+```
+
+#### List All Entities
+
+```python
+# Generator for large datasets
+all_tables = metadata.list_all_entities(
+    entity=Table,
+    fields=["owner", "columns"],
+    params={"service": "your-service-name"}
+)
+
+for table in all_tables:
+    print(f"Processing table: {table.name}")
+```
+
+### Entity References
+
+```python
+# Get entity reference for relationships
+table_ref = metadata.get_entity_reference(
+    entity=Table,
+    fqn="service.database.schema.table"
+)
+
+# Use in other entity creation
+if table_ref:
+    print(f"Table reference: {table_ref.id}")
+```
+
+## Advanced Features
+
+### Custom Configuration
+
+```python
+# Using custom authentication
+from metadata.generated.schema.security.client.basicAuthenticationProvider import (
+    BasicAuthenticationProvider,
+)
+
+server_config = CollateConnection(
+    hostPort="https://your-collate-instance.com/api",
+    authProvider="basic",
+    securityConfig=BasicAuthenticationProvider(
+        username="your-username",
+        password="your-password"
+    ),
+)
+
+metadata = Collate(server_config)
+```
+
+### Error Handling
+
+```python
+from metadata.ingestion.ometa.ometa_api import (
+    Collate,
+    InvalidEntityException,
+    EmptyPayloadException
+)
+
+try:
+    table = metadata.get_by_name(entity=Table, fqn="non-existent-table")
+except InvalidEntityException as e:
+    print(f"Invalid entity: {e}")
+except EmptyPayloadException as e:
+    print(f"No data received: {e}")
+```
+
+### Working with Versions
+
+```python
+# Get entity version history
+versions = metadata.list_versions(
+    entity_id="your-entity-id",
+    entity=Table
+)
+
+print(f"Found {len(versions.versions)} versions")
+```
+
+## Common Use Cases
+
+### Data Discovery
+
+```python
+# Search for tables containing specific keywords
+all_tables = metadata.list_all_entities(entity=Table)
+
+matching_tables = [
+    table for table in all_tables
+    if "customer" in table.name.lower()
+]
+
+for table in matching_tables:
+    print(f"Found customer table: {table.fullyQualifiedName}")
+```
+
+### Metadata Automation
+
+```python
+# Bulk update table descriptions
+tables_to_update = metadata.list_all_entities(
+    entity=Table,
+    params={"service": "production-db"}
+)
+
+for table in tables_to_update:
+    if not table.description:
+        # Update with a default description
+        table.description = f"Production table: {table.name}"
+        metadata.create_or_update(data=table)
+```
+
+### Lineage Management
+
+```python
+from metadata.generated.schema.type.entityLineage import EntityLineage
+
+# Get table lineage
+lineage = metadata.get_lineage_by_name(
+    entity=Table,
+    fqn="service.database.schema.table"
+)
+
+if lineage:
+    print(f"Upstream entities: {len(lineage.upstreamEdges)}")
+    print(f"Downstream entities: {len(lineage.downstreamEdges)}")
+```
+
+## API Reference
+
+The Python SDK provides a comprehensive API based on the Collate data model:
+
+### Core Classes
+
+- **`Collate`**: Main client class for API interactions
+- **`CollateConnection`**: Connection configuration
+- **Entity Classes**: Type-safe representations of all Collate entities
+
+### Key Methods
+
+- `create_or_update(data)`: Create or update an entity
+- `get_by_name(entity, fqn)`: Retrieve entity by fully qualified name
+- `get_by_id(entity, entity_id)`: Retrieve entity by ID
+- `list_entities(entity, **kwargs)`: List entities with pagination
+- `list_all_entities(entity, **kwargs)`: Generator for all entities
+- `delete(entity, entity_id)`: Delete an entity
+- `health_check()`: Check API connectivity
+
+## Type Safety
+
+The Python SDK is built on generated Pydantic models, providing:
+
+- **Type hints** for better IDE support
+- **Runtime validation** of data structures
+- **Auto-completion** for entity properties
+- **Error prevention** through static typing
+
+```python
+# Type-safe entity creation
+from metadata.generated.schema.entity.data.table import Table
+
+# IDE will provide auto-completion and type checking
+table: Table = metadata.get_by_name(entity=Table, fqn="my.table")
+if table:
+    columns_count: int = len(table.columns) if table.columns else 0
+```
+
+## Best Practices
+
+1. **Connection Management**: Reuse Collate client instances
+2. **Error Handling**: Always handle potential exceptions
+3. **Pagination**: Use `list_all_entities()` for large datasets
+4. **Performance**: Specify only required fields when fetching entities
+5. **Resource Cleanup**: Call `metadata.close()` when done

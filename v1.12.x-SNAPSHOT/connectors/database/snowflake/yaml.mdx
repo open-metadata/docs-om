@@ -1,0 +1,268 @@
+---
+title: Run the Snowflake Connector Externally
+description: Integrate YAML for metadata sync, profiling, and lineage. Start configuring with our easy-to-follow guide.
+slug: /connectors/database/snowflake/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/snowflakes.webp'
+name="Snowflake"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "dbt", "Stored Procedures", "Tags", "Sample Data", "Reverse Metadata (Collate Only)", "Auto-Classification"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Snowflake connector.
+Configure and schedule Snowflake metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+    - [Incremental Extraction](/connectors/ingestion/workflows/metadata/incremental-extraction/snowflake)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+- [Reverse Metadata](/applications/reverse-metadata)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Snowflake ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[snowflake]"
+```
+If you want to run the Usage Connector, you'll also need to install:
+```bash
+pip3 install "openmetadata-ingestion[snowflake-usage]"
+```
+To ingest basic metadata snowflake user must have the following privileges:
+  - `USAGE` Privilege on Warehouse
+  - `USAGE` Privilege on Database
+  - `USAGE` Privilege on Schema
+  - `SELECT` Privilege on Tables
+```sql
+-- Create New Role
+CREATE ROLE NEW_ROLE;
+-- Create New User
+CREATE USER NEW_USER DEFAULT_ROLE=NEW_ROLE PASSWORD='PASSWORD';
+-- Grant role to user
+GRANT ROLE NEW_ROLE TO USER NEW_USER;
+-- Grant USAGE Privilege on Warehouse to New Role
+GRANT USAGE ON WAREHOUSE WAREHOUSE_NAME TO ROLE NEW_ROLE;
+-- Grant USAGE Privilege on Database to New Role
+GRANT USAGE ON DATABASE TEST_DB TO ROLE NEW_ROLE;
+-- Grant USAGE Privilege on required Schemas to New Role
+GRANT USAGE ON SCHEMA TEST_SCHEMA TO ROLE NEW_ROLE;
+-- Grant SELECT Privilege on required tables & views to New Role
+GRANT SELECT ON ALL TABLES IN SCHEMA TEST_SCHEMA TO ROLE NEW_ROLE;
+GRANT SELECT ON ALL EXTERNAL TABLES IN SCHEMA TEST_SCHEMA TO ROLE NEW_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA TEST_SCHEMA TO ROLE NEW_ROLE;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA TEST_SCHEMA TO ROLE NEW_ROLE;
+```
+While running the usage workflow, Openmetadata fetches the query logs by querying `snowflake.account_usage.query_history` table. For this the snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database `SNOWFLAKE`.
+```sql
+-- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to New Role
+GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE NEW_ROLE;
+```
+If ingesting tags, the user should also have permissions to query `snowflake.account_usage.tag_references`.For this the snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database
+```sql
+-- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to New Role
+GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE NEW_ROLE;
+```
+You can find more information about the `account_usage` schema [here](https://docs.snowflake.com/en/sql-reference/account-usage).
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/snowflakeConnection.json)
+you can find the structure to create a connection to Snowflake.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+This is a sample config for Snowflake:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Snowflake connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Username" lines="7">
+
+**username**: Specify the User to connect to Snowflake. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={3} title="Password" lines="8">
+
+**password**: Password to connect to Snowflake.
+
+</ContentSection>
+
+<ContentSection id={4} title="Warehouse" lines="9">
+
+**warehouse**: Snowflake warehouse is required for executing queries to fetch the metadata. Enter the name of warehouse against which you would like to execute these queries.
+
+</ContentSection>
+
+<ContentSection id={5} title="Account" lines="10">
+
+**account**: Snowflake account identifier uniquely identifies a Snowflake account within your organization, as well as throughout the global network of Snowflake-supported cloud platforms and cloud regions. If the Snowflake URL is `https://xyz1234.us-east-1.gcp.snowflakecomputing.com`, then the account is `xyz1234.us-east-1.gcp`.
+
+</ContentSection>
+
+<ContentSection id={6} title="Database" lines="11">
+
+**database**: The database of the data source is an optional parameter, if you would like to restrict the metadata reading to a single database. If left blank, OpenMetadata ingestion attempts to scan all the databases.
+
+</ContentSection>
+
+<ContentSection id={7} title="Account Usage Schema" lines="12">
+
+**accountUsageSchema**: Full name of account usage schema, used in case your used do not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
+
+When using this field make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
+
+</ContentSection>
+
+<ContentSection id={8} title="Include Transient Tables" lines="13">
+
+**includeTransientTables**: Optional configuration for ingestion of TRANSIENT and TEMPORARY tables, By default, it will skip the TRANSIENT and TEMPORARY tables.
+
+</ContentSection>
+
+<ContentSection id={9} title="Include Streams" lines="14">
+
+**includeStreams**: Optional configuration for ingestion of streams, By default, it will skip the streams.
+
+</ContentSection>
+
+<ContentSection id={10} title="Client Session Keep Alive" lines="15">
+
+**clientSessionKeepAlive**: Optional Configuration to keep the session active in case the ingestion job runs for longer duration.
+
+</ContentSection>
+
+<ContentSection id={11} title="Private Key" lines="16">
+
+**privateKey**: If you have configured the key pair authentication for the given user you will have to pass the private key associated with the user in this field. You can checkout [this](https://docs.snowflake.com/en/user-guide/key-pair-auth) doc to get more details about key-pair authentication.
+
+- The multi-line key needs to be converted to one line with `\n` for line endings i.e. `-----BEGIN ENCRYPTED PRIVATE KEY-----\nMII...\n...\n-----END ENCRYPTED PRIVATE KEY-----`
+
+</ContentSection>
+
+<ContentSection id={12} title="Snowflake Private Key Passphrase" lines="17">
+
+**snowflakePrivatekeyPassphrase**: If you have configured the encrypted key pair authentication for the given user you will have to pass the paraphrase associated with the private key in this field. You can checkout [this](https://docs.snowflake.com/en/user-guide/key-pair-auth) doc to get more details about key-pair authentication.
+
+</ContentSection>
+
+<ContentSection id={13} title="Role" lines="18">
+
+**role**: You can specify the role of user that you would like to ingest with, if no role is specified the default roles assigned to user will be selected.
+
+</ContentSection>
+
+<ContentSection id={14} title="Connection Options" lines="19">
+
+#### Advanced Configuration
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={15} title="Connection Arguments" lines="20">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={16} title="Source Config" lines="23-66">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={17} title="Sink Configuration" lines="67-69">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={18} title="Workflow Configuration" lines="70-86">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="snowflake_config.yaml">
+
+```yaml
+source:
+  type: snowflake
+  serviceName: local_snowflake
+  serviceConnection:
+    config:
+      type: Snowflake
+      username: username
+      password: password
+      warehouse: warehouse
+      account: account
+      # database: database
+      # accountUsageSchema: SNOWFLAKE.ACCOUNT_USAGE
+      includeTransientTables: false
+      includeStreams: false
+      clientSessionKeepAlive: false
+      # privateKey: privateKey
+      # snowflakePrivatekeyPassphrase: passphrase
+      # role: role
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<QueryUsage connector="snowflake" />
+<Lineage connector="snowflake" />
+<DataProfiler connector="snowflake" />
+<AutoClassification connector="snowflake" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

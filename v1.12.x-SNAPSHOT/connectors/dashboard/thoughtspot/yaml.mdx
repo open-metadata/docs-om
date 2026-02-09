@@ -1,0 +1,162 @@
+---
+title: Run the ThoughtSpot Connector Externally
+description: Learn to run the ThoughtSpot connector externally in Collate. Configure metadata ingestion via YAML, including API auth, lineage, and SSL setup.
+slug: /connectors/dashboard/thoughtspot/yaml
+sidebarTitle: Run Externally
+collate: true
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/thoughtspot.webp'
+name="ThoughtSpot"
+stage="BETA"
+availableFeatures={["Dashboards", "Charts", "Owners", "Datamodels", "Lineage"]}
+unavailableFeatures={["Projects"]} />
+In this section, we provide guides and references to use the ThoughtSpot connector.
+Configure and schedule ThoughtSpot metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+To access the ThoughtSpot APIs and import liveboards, charts, and data models from ThoughtSpot into OpenMetadata, you need appropriate permissions on your ThoughtSpot instance.
+<Tip>
+- The minimum required role is typically "Developer" or higher, depending on your ThoughtSpot security model.
+- For lineage extraction, ensure TML (ThoughtSpot Modeling Language) export is enabled for your user.
+</Tip>
+### Python Requirements
+<PythonRequirements />
+To run the ThoughtSpot ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[thoughtspot]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/dashboard/thoughtSpotConnection.json)
+you can find the structure to create a connection to ThoughtSpot.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+### 1. Define the YAML Config
+This is a sample config for ThoughtSpot:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name.
+
+</ContentSection>
+
+<ContentSection id={2} title="hostPort" lines="7">
+
+**hostPort**: URL or IP address of your ThoughtSpot instance.
+
+</ContentSection>
+
+<ContentSection id={3} title="authentication" lines="8">
+
+**authentication**: Choose one of the following authentication methods:
+
+- **Basic Authentication:**
+  - username: The ThoughtSpot username
+  - password: The ThoughtSpot password
+- **API Token Authentication:**
+  - apiToken: The ThoughtSpot API token
+
+</ContentSection>
+
+<ContentSection id={4} title="apiVersion" lines="14">
+
+**apiVersion**: (Optional) ThoughtSpot API version. Supported: v1, v2. Default: v2
+
+</ContentSection>
+
+<ContentSection id={5} title="orgId" lines="15">
+
+**orgId**: (Optional) Organization ID for multi-tenant ThoughtSpot Cloud instances.
+
+</ContentSection>
+
+<ContentSection id={6} title="dbServicePrefixes" lines="20">
+
+- **dbServicePrefixes**: Database Service Names for ingesting lineage if the source supports it.
+
+</ContentSection>
+
+<ContentSection id={7} title="To send the metadata to" lines="21">
+
+To send the metadata to OpenMetadata, specify `type: metadata-rest`.
+
+</ContentSection>
+
+<ContentSection id={8} title="Source Config" lines="16-20">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={9} title="Sink Configuration" lines="21-23">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={10} title="Workflow Configuration" lines="24-91">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: thoughtspot
+  serviceName: local_thoughtspot
+  serviceConnection:
+    config:
+      type: ThoughtSpot
+      hostPort: https://my-company.thoughtspot.cloud
+      # Choose one authentication method:
+      authentication:
+        username: myuser
+        password: mypassword
+      # authentication:
+      #   apiToken: my_api_token
+      # apiVersion: v2
+      # orgId: my-org-id
+sourceConfig:
+  config:
+    type: DashboardMetadata
+    lineageInformation:
+        dbServicePrefixes: ["mysql", "mssql"]
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  # loggerLevel: DEBUG  # DEBUG, INFO, WARN or ERROR
+  openMetadataServerConfig:
+    hostPort: <OpenMetadata host and port>
+    authProvider: <OpenMetadata auth provider>
+```
+
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+
+</CodePreview>
+## Securing ThoughtSpot Connection with SSL in OpenMetadata
+<IngestionCli />

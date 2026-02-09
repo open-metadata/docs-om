@@ -1,0 +1,132 @@
+---
+title: Run the ADLS Datalake Connector Externally
+description: Configure ADLS Data Lake connections in Collate with YAML. Step-by-step setup guide, configuration examples, and best practices for Azure integration.
+slug: /connectors/database/adls-datalake/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import AzureConfigDef from '/snippets/connectors/yaml/common/azure-config-def.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import AzureConfig from '/snippets/connectors/yaml/common/azure-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/adls.webp'
+name="ADLS Datalake"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "dbt", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the ADLS Datalake connector.
+Configure and schedule ADLS Datalake metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+**Note:** ADLS Datalake connector supports extracting metadata from file types `JSON`, `CSV`, `TSV` & `Parquet`.
+### ADLS Permissions
+To extract metadata from Azure ADLS (Storage Account - StorageV2), you will need an **App Registration** with the following
+permissions on the Storage Account:
+- Storage Blob Data Reader
+- Storage Queue Data Reader
+### Python Requirements
+<PythonRequirements />
+#### Azure installation
+```bash
+pip3 install "openmetadata-ingestion[datalake-azure]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas. Here you can find the structure to create a connection to Datalake.
+In order to create and run a Metadata Ingestion workflow, we will follow the steps to create a YAML configuration able to connect to the source, process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following JSON Schema.
+## 1. Define the YAML Config
+
+This is a sample config for Datalake using Azure:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="2-4">
+
+Configure the source type and service name for your ADLS Datalake connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Connection Type" lines="3">
+
+**type**: Set to `Datalake` for ADLS Datalake connections.
+
+</ContentSection>
+
+<ContentSection id={3} title="Configuration Source" lines="8-9">
+
+**configSource**: Configuration for the data lake source.
+
+</ContentSection>
+
+<ContentSection id={4} title="Prefix" lines="10">
+
+**prefix**: Prefix path for the data lake files.
+
+</ContentSection>
+
+<ContentSection id={5} title="Source Config" lines="11-54">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={6} title="Sink Configuration" lines="55-57">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Workflow Configuration" lines="58-74">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="adls_datalake_config.yaml">
+
+```yaml
+# Datalake with Azure
+source:
+  type: datalake
+  serviceName: local_datalake
+  serviceConnection:
+    config:
+      type: Datalake
+      configSource:
+        securityConfig:
+```
+
+```yaml
+      prefix: prefix
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+<IngestionCli />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

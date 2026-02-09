@@ -1,0 +1,143 @@
+---
+title: DB2 Connector | Collate Database Integration Guide
+description: Connect DB2 databases to Collate with our comprehensive connector guide. Step-by-step setup, configuration, and metadata extraction instructions.
+slug: /connectors/database/db2
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
+import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import Related from '/snippets/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/ibmdb2.webp'
+name="DB2"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "View Lineage", "View Column-level Lineage", "dbt", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
+<Warning>
+OpenMetadata doesn't ship DB2 connector in the ingestion contain by default.
+Please make sure you install the below Python package in the ingestion container if you are planning on running DB2 Connector.
+If you are running this as part of docker
+```code
+docker exec -it openmetadata_ingestion pip install '.[db2]'
+```
+Using python pip, Please make sure you provide appropriate version of ingestion in below command
+```code
+ pip install 'openmetadata-ingestion[db2]==1.2.4.0'
+```
+</Warning>
+In this section, we provide guides and references to use the DB2 connector.
+Configure and schedule DB2 metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Lineage](/how-to-guides/data-lineage/workflow)
+- [Data Profiler](/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+- [Data Quality](/how-to-guides/data-quality-observability/quality)
+- [dbt Integration](/connectors/ingestion/workflows/dbt)
+- [Troubleshooting](/connectors/database/db2/troubleshooting)
+## Requirements
+To create a new Db2 user please follow the guidelines mentioned [here](https://www.ibm.com/docs/ko/samfess/8.2.0?topic=schema-creating-users-manually)
+Db2 user must have the below permissions to ingest the metadata:
+### DB2 for LUW (Linux, UNIX, Windows)
+- `SELECT` privilege on `SYSCAT.SCHEMATA` to fetch the metadata of schemas.
+```sql
+-- Grant SELECT on tables for schema metadata
+GRANT SELECT ON SYSCAT.SCHEMATA TO USER_NAME;
+```
+### DB2 for z/OS
+
+DB2 for z/OS uses `SYSIBM.*` catalog tables instead of `SYSCAT.*`. The connector auto-detects the platform and uses the appropriate catalog tables. The following permissions are required:
+
+- `SELECT` privilege on `SYSIBM.SYSTABLES` to fetch schemas, table names, and table comments.
+```sql
+GRANT SELECT ON SYSIBM.SYSTABLES TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSCOLUMNS` to fetch column metadata for tables.
+```sql
+GRANT SELECT ON SYSIBM.SYSCOLUMNS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSVIEWS` to fetch view names and definitions.
+```sql
+GRANT SELECT ON SYSIBM.SYSVIEWS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSINDEXES` to fetch index and primary key information.
+```sql
+GRANT SELECT ON SYSIBM.SYSINDEXES TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSTABCONST` to fetch table constraints (primary keys, unique constraints).
+```sql
+GRANT SELECT ON SYSIBM.SYSTABCONST TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSKEYCOLUSE` to fetch key column usage for constraints.
+```sql
+GRANT SELECT ON SYSIBM.SYSKEYCOLUSE TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSFOREIGNKEYS` to fetch foreign key column details.
+```sql
+GRANT SELECT ON SYSIBM.SYSFOREIGNKEYS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSRELS` to fetch foreign key relationships between tables.
+```sql
+GRANT SELECT ON SYSIBM.SYSRELS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSSEQUENCES` to fetch sequence metadata.
+```sql
+GRANT SELECT ON SYSIBM.SYSSEQUENCES TO USER_NAME;
+```
+
+### Profiler & Data Quality
+Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/how-to-guides/data-quality-observability/quality).
+## Metadata Ingestion
+<MetadataIngestionUi connector={"DB2"} selectServicePath={"/public/images/connectors/db2/select-service.png"} addNewServicePath={"/public/images/connectors/db2/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/db2/service-connection.png"} />
+# Connection Details
+<Steps>
+<Step title="Connection Details">
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+password: secret:/my/database/password
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+</Tip>
+- **Username**: Specify the User to connect to DB2. It should have enough privileges to read all the metadata.
+- **Password**: Password to connect to DB2.
+- **database**: Database of the data source.
+- **Host and Port**: Enter the fully qualified hostname and port number for your DB2 deployment in the Host and Port field.
+- **License File Name**: License file name in case the license is required for connection.
+- **License**: Contents of your license file if applicable, make sure to replace new lines with `\n` before pasting it here.
+<Tip>
+If you are using DB2 for IBM i:
+- From advanced config you need to chose `ibmi` scheme
+- In Host and Port you should not add the Port Number.
+</Tip>
+<Tip>
+If you have a **db2jcc_license_cisuz.jar** file, it will not work with **ibm_db**. This file is a **Db2 Connect** license for the Java Driver.
+For **non-Java drivers**, such as the Python Client used in OpenMetadata ingestion, a **Db2 Connect** client-side license is required, typically named **db2con*.lic**.
+The **db2jcc_license_cisuz.jar** is specifically for Java-based clients, whereas OpenMetadata ingestion operates with a Python Client, making the `.jar` file incompatible.
+
+For activating a **non-Java license** for Db2 Connect **Application Server Edition**, **Advanced Application Server Edition**, **Enterprise Edition**, or **Trial**, follow these steps:
+- Download the **license activation kit** from IBM Passport Advantage: [IBM PPA](https://www.ibm.com/software/passportadvantage/pao_customer.html).
+- Unzip the package and locate the **non-Java license file** (e.g., `db2consv_ee.lic`).
+- Apply the `.lic` file to activate the license.
+For further reference, check this IBM post: [Everything About Db2 Connect Licensing](https://community.ibm.com/community/user/datamanagement/blogs/shilu-mathai2/2023/05/05/everything-about-db2-connect-licensing).
+</Tip>
+</Step>
+<AdvancedConfiguration />
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+<Related />

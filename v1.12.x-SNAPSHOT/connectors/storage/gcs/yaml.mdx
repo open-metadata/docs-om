@@ -1,0 +1,147 @@
+---
+title: Run the GCS Connector Externally
+description: Use YAML to configure GCS storage ingestion for metadata visibility into cloud buckets.
+slug: /connectors/storage/gcs/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import GcpConfigDef from '/snippets/connectors/yaml/common/gcp-config-def.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import StorageSourceConfigDef from '/snippets/connectors/yaml/storage/source-config-def.mdx'
+import StorageSourceConfig from '/snippets/connectors/yaml/storage/source-config.mdx'
+import Manifest from '/snippets/connectors/storage/manifest.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/gcs.webp'
+name="GCS"
+stage="PROD"
+availableFeatures={["Metadata"]}
+unavailableFeatures={[]} />
+This page contains the setup guide and reference information for the GCS connector.
+Configure and schedule GCS metadata workflows from the CLI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+To run the GCS ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[datalake-gcs]"
+```
+<Card title="OpenMetadata 1.0 or later" href="/deployment" >
+    To deploy OpenMetadata, check the Deployment guides.
+  </Card>
+We need the following permissions in GCP:
+### GCS Permissions
+For all the buckets that we want to ingest, we need to provide the following:
+- `storage.buckets.get`
+- `storage.buckets.list`
+- `storage.objects.get`
+- `storage.objects.list`
+### OpenMetadata Manifest
+In any other connector, extracting metadata happens automatically. In this case, we will be able to extract high-level
+metadata from buckets, but in order to understand their internal structure we need users to provide an `openmetadata.json`
+file at the bucket root.
+`Supported File Formats: [ "csv",  "tsv", "avro", "parquet", "json", "json.gz", "json.zip" ]`
+You can learn more about this [here](/connectors/storage). Keep reading for an example on the shape of the manifest file.
+<Manifest />
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/storage/GCSConnection.json)
+you can find the structure to create a connection to Athena.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Athena:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="gcpConfig:" lines="8-10">
+
+**gcpConfig:**
+**1.** Passing the raw credential values provided by GCP. This requires us to provide the following information, all provided by GCP:
+<GcpConfigDef />
+**2.**  Passing a local file path that contains the credentials:
+  - **gcpCredentialsPath**
+- If you prefer to pass the credentials file, you can do so as follows:
+```yaml
+source:
+  type: gcs
+  serviceName: local_gcs
+  serviceConnection:
+    config:
+      type: GCS
+      credentials:
+        gcpConfig:
+        path: <path to file>
+```
+- If you want to use [ADC authentication](https://cloud.google.com/docs/authentication#adc) for GCP you can just leave
+the GCP credentials empty. This is why they are not marked as required.
+```yaml
+...
+source:
+  type: gcs
+  serviceName: local_gcs
+  serviceConnection:
+    config:
+      type: GCS
+    credentials:
+      gcpConfig: {}
+...
+```
+
+</ContentSection>
+
+<ContentSection id={2} title="Connection Options (Optional)" lines="12">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to storage service during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={3} title="Connection Arguments (Optional)" lines="14">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to storage service during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: gcs
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: GCS
+credentials:
+        gcpConfig:
+# taxonomyLocation: us
+      # taxonomyProjectID: ["project-id-1", "project-id-2"]
+      # usageLocation: us
+# connectionOptions:
+      #   key: value
+# connectionArguments:
+      #   key: value
+```
+
+<StorageSourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>

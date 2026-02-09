@@ -1,0 +1,263 @@
+---
+title: Handlebars Templating Guide
+description: Learn Handlebars syntax and how to use it in your notification templates.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/handlebars-templating-guide
+sidebarTitle: Handlebars Templating Guide
+---
+
+# Handlebars Templating Guide
+
+Handlebars is a templating language that lets you insert dynamic data and add logic to your templates. This guide covers the basics you need to write notification templates.
+
+## Understanding Handlebars
+
+Handlebars uses double curly braces `{{` and `}}` to mark placeholders where dynamic content will be inserted. For complete Handlebars documentation, see [Handlebars Official Guide](https://handlebarsjs.com/).
+
+## Basic Syntax
+
+| Syntax | Purpose | Example |
+|--------|---------|---------|
+| `{{variableName}}` | Insert a value | `{{entity.name}}` |
+| `{{#if condition}}...{{/if}}` | Conditional display | `{{#if entity.owner}}Owner: {{entity.owner}}{{/if}}` |
+| `{{#each array}}...{{/each}}` | Loop through lists | `{{#each entity.tags}}{{this}}{{/each}}` |
+| `{{helper arg1 arg2}}` | Call a helper function | `{{formatDate entity.updatedAt}}` |
+
+### Variable Interpolation
+
+Insert dynamic values into your templates using `{{variableName}}` syntax:
+
+```handlebars
+Entity: {{entity.name}}
+Updated by: {{event.userName}}
+Type: {{event.entityType}}
+```
+
+When this template renders, the placeholders are replaced with actual values from the event:
+```
+Entity: customer_data
+Updated by: john.doe
+Type: table
+```
+
+### Conditional Logic
+
+Use `{{#if}}` blocks to show content only when a condition is true:
+
+```handlebars
+{{#if entity.owner}}
+  <p>Owner: {{entity.owner}}</p>
+{{/if}}
+```
+
+This section only appears if the entity has an owner. If the field is empty, the entire block is hidden.
+
+#### Else Blocks
+
+Add `{{else}}` to provide alternative content:
+
+```handlebars
+{{#if entity.owner}}
+  <p>Owner: <strong>{{entity.owner}}</strong></p>
+{{else}}
+  <p>This entity has no owner assigned.</p>
+{{/if}}
+```
+
+### Looping Through Lists
+
+Use `{{#each}}` to iterate through arrays:
+
+```handlebars
+<h3>Tags:</h3>
+<ul>
+  {{#each entity.tags}}
+    <li>{{this}}</li>
+  {{/each}}
+</ul>
+```
+
+For each item in the tags array, this creates a list item. Use `{{this}}` to refer to the current item.
+
+**With Object Properties:**
+
+```handlebars
+{{#each entity.tags}}
+  <li>{{tagFQN}}: {{source}}</li>
+{{/each}}
+```
+
+Access properties of objects in the array.
+
+<Tip>
+Combine conditional logic with loops to show content only when list items exist:
+```handlebars
+{{#if (gt (length entity.tags) 0)}}
+  <h3>Tags ({{length entity.tags}}):</h3>
+  <ul>
+    {{#each entity.tags}}
+      <li>{{tagFQN}}</li>
+    {{/each}}
+  </ul>
+{{/if}}
+```
+</Tip>
+
+### Nested Logic
+
+You can nest conditions and loops:
+
+```handlebars
+{{#if entity.owner}}
+  {{#if entity.tags}}
+    <p>{{entity.owner}} manages this entity with {{length entity.tags}} tags</p>
+  {{/if}}
+{{/if}}
+```
+
+## Using Helpers
+
+Helpers are functions that perform operations on your data. Collate provides 22 custom helpers beyond standard Handlebars features.
+
+### Basic Helper Syntax
+
+Call helpers by name with arguments in parentheses:
+
+```handlebars
+{{formatDate entity.updatedAt}}
+{{camelCaseToTitle event.entityType}}
+{{math (length failedTests) '+' 5}}
+```
+
+### Helpers with Parameters
+
+Some helpers take parameters:
+
+```handlebars
+{{split entity.fullyQualifiedName '.'}}
+{{limit failedTests 5}}
+{{filter testResults status="Failed"}}
+```
+
+### Nesting Helpers
+
+Helpers can be nested:
+
+```handlebars
+{{limit (filter testResults status="Failed") 5}}
+```
+
+This filters tests to show only failed ones, then limits the display to 5 items.
+
+<Tip>
+Use `with` to assign helper results to a variable for cleaner code:
+```handlebars
+{{#with (filter testResults status="Failed") as |failedTests|}}
+  Failed test count: {{length failedTests}}
+{{/with}}
+```
+</Tip>
+
+## Context Objects
+
+Templates have access to special objects containing event and entity data:
+
+- `event` - The change event that triggered the notification
+- `entity` - The entity being notified about
+- `subscription` - Information about the event subscription
+- `baseUrl` - Base URL of your Collate instance
+
+For detailed information about available properties, see [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference).
+
+## Common Patterns
+
+### Accessing Nested Properties
+
+Use dot notation to access nested object properties:
+
+```handlebars
+{{entity.owner.displayName}}
+{{event.changeDescription.updates}}
+```
+
+### Default Values with If
+
+Show a default message when data is missing:
+
+```handlebars
+{{#if entity.description}}
+  <p>{{entity.description}}</p>
+{{else}}
+  <p>No description available</p>
+{{/if}}
+```
+
+### Formatting Output
+
+Use helpers to format data:
+
+```handlebars
+Updated: {{formatDate entity.updatedAt}}
+Type: {{camelCaseToTitle event.entityType}}
+```
+
+### Building Links
+
+Use the `buildEntityUrl` helper to create clickable links to entities:
+
+```handlebars
+<a href="{{buildEntityUrl event.entityType entity}}">
+  {{entity.fullyQualifiedName}}
+</a>
+```
+
+This creates a link that opens the entity in Collate UI.
+
+## Important Notes
+
+### Property Access
+
+Handlebars uses dot notation (`.`) to access properties:
+- `entity.name` - Access the name property
+- `entity.owner.id` - Access nested properties
+- `entity.tags.0.name` - Access array items by index
+
+### Empty String Rendering
+
+If a property doesn't exist or is empty, Handlebars renders an empty string:
+
+```handlebars
+<p>Owner: {{entity.owner}}</p>
+```
+
+If `entity.owner` is missing, renders as:
+```html
+<p>Owner: </p>
+```
+
+Use conditionals to prevent this:
+
+```handlebars
+{{#if entity.owner}}
+  <p>Owner: {{entity.owner}}</p>
+{{/if}}
+```
+
+### Spaces in Output
+
+Handlebars preserves whitespace and line breaks. Be careful with formatting:
+
+```handlebars
+{{entity.name}}
+```
+
+Renders on its own line. To control spacing, use:
+
+```handlebars
+Name: {{entity.name}},
+Type: {{event.entityType}}
+```
+
+## Next Steps
+
+- **Explore Collate's helpers** → [Custom Helpers Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference)
+- **Learn available data** → [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)

@@ -1,0 +1,100 @@
+---
+title: Run the Azure Data Factory Connector Externally
+description: Configure Azure Data Factory ingestion via YAML to extract ETL job metadata, lineage, and schedule logic.
+slug: /connectors/pipeline/datafactory/yaml
+sidebarTitle: Run Externally
+collate: true
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AzureConfigDef from '/snippets/connectors/yaml/common/azure-config-def.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import AzureConfig from '/snippets/connectors/yaml/common/azure-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/datafactory.png'
+name="Azure Data Factory"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the Azure Data Factory connector.
+Configure and schedule Azure Data Factory metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+    - [Data Factory Versions](#data-factory-versions)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Data Factory Versions
+The Ingestion framework uses [Azure Data Factory APIs](https://learn.microsoft.com/en-us/rest/api/datafactory/v2) to connect to the Data Factory and fetch metadata.
+You can find further information on the Azure Data Factory connector in the [docs](/connectors/pipeline/datafactory).
+## Permissions
+Ensure that the service principal or managed identity you’re using has the necessary permissions in the Data Factory resource (Reader, Contributor or Data Factory Contributor role at minimum).
+### Python Requirements
+<PythonRequirements />
+To run the Data Factory ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[datafactory]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/datafactoryConnection.json)
+you can find the structure to create a connection to Data Factory.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Data Factory:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="subscription_id" lines="8">
+#### Source Configuration - Service Connection
+<AzureConfigDef />
+**subscription_id**: Your Azure subscription's unique identifier. In the Azure portal, navigate to Subscriptions > Your Subscription > Overview. You'll see the subscription ID listed there.
+</ContentSection>
+<ContentSection id={2} title="resource_group_name" lines="9">
+**resource_group_name**: This is the name of the resource group that contains your Data Factory instance. In the Azure portal, navigate to Resource Groups. Find your resource group, and note the name.
+</ContentSection>
+<ContentSection id={3} title="factory_name" lines="10">
+**factory_name**: The name of your Data Factory instance. In the Azure portal, navigate to Data Factories and find your Data Factory. The Data Factory name will be listed there.
+</ContentSection>
+<ContentSection id={4} title="run_filter_days" lines="11">
+**run_filter_days**: The days range when filtering pipeline runs. It specifies how many days back from the current date to look for pipeline runs, and filter runs within the given period of days. Default is `7` days. `Optional`
+</ContentSection>
+<ContentSection id={3} title="SourceConfig" lines="17-36">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: datafactory
+  serviceName: datafactory_source
+  serviceConnection:
+    config:
+      type: DataFactory
+      configSource:
+        subscription_id: subscription_id
+        resource_group_name: resource_group_name
+        factory_name: factory_name
+        run_filter_days: 7
+```
+<AzureConfig />
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

@@ -1,0 +1,138 @@
+---
+title: Run the Snowplow Connector Externally
+Description: Run the Snowplow connector externally with YAML to ingest pipelines, schemas, and lineage across BDP or Community deployments.
+slug: /connectors/pipeline/snowplow/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/snowplow.png'
+name="Snowplow"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the Snowplow connector.
+Configure and schedule Snowplow metadata workflow from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Snowplow BDP (Business Data Platform)
+For Snowplow BDP deployments, you'll need:
+- **Console URL**: The URL of your Snowplow Console (e.g., `https://console.snowplowanalytics.com`)
+- **API Key**: An API key with read access to your Snowplow organization
+- **Organization ID**: Your Snowplow BDP organization identifier
+### Snowplow Community Edition
+For self-hosted Community Edition deployments, you'll need:
+- **Configuration Path**: The path to your Snowplow configuration files
+- **Iglu Server URL** (optional): If you're using an Iglu Server for schema management
+## Metadata Ingestion
+### 1. Define the YAML Config
+This is a sample config for Snowplow:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="type" lines="2">
+**type**: Must be `Snowplow`.
+</ContentSection>
+<ContentSection id={2} title="deployment" lines="7">
+**deployment**: Choose between `BDP` (managed) or `Community` (self-hosted).
+</ContentSection>
+<ContentSection id={3} title="consoleUrl" lines="9">
+**consoleUrl**: Required for BDP deployment. The URL of your Snowplow Console.
+</ContentSection>
+<ContentSection id={4} title="apiKey" lines="10">
+**apiKey**: Required for BDP deployment. Your Snowplow API key.
+</ContentSection>
+<ContentSection id={5} title="organizationId" lines="11">
+**organizationId**: Required for BDP deployment. Your organization ID.
+</ContentSection>
+<ContentSection id={6} title="configPath" lines="13">
+**configPath**: Required for Community deployment. Path to configuration files.
+</ContentSection>
+<ContentSection id={7} title="cloudProvider" lines="14">
+**cloudProvider**: The cloud provider where Snowplow is deployed (AWS, GCP, or Azure).
+</ContentSection>
+<ContentSection id={8} title="To send the metadata of" lines="17">
+To send the metadata of only selected pipelines, enter the regex pattern for pipeline names to include or exclude.
+</ContentSection>
+<ContentSection id={2} title="SourceConfig" lines="15-24">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: snowplow
+  serviceName: snowplow_pipeline
+  serviceConnection:
+    config:
+      type: Snowplow
+      deployment: BDP  # or Community
+      # For BDP deployment:
+      consoleUrl: https://console.snowplowanalytics.com
+      apiKey: your-api-key
+      organizationId: your-org-id
+      # For Community deployment:
+      # configPath: /path/to/snowplow/config
+      cloudProvider: AWS
+  sourceConfig:
+    config:
+      type: PipelineMetadata
+      # pipelineFilterPattern:
+      #   includes:
+      #     - pipeline1
+      #     - pipeline2
+      #   excludes:
+      #     - pipeline3
+      #     - pipeline4
+```
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+- You can learn more about how to configure and run the Ingestion Framework [here](/deployment/ingestion).
+### 2. Run the Command
+After saving the YAML config, run the following command:
+```bash
+metadata ingest -c <path-to-yaml>
+```
+## Data Model
+The Snowplow connector extracts the following metadata:
+- **Pipelines**: Each Snowplow pipeline is imported with its configuration
+- **Pipeline Components**: Collectors, enrichments, and loaders are imported as pipeline tasks
+- **Event Schemas**: Iglu schemas are imported as table entities showing the structure of events
+- **Lineage**: Data flow from pipelines to destination tables is captured
+### Supported Destinations
+The connector can track lineage to the following Snowplow loader destinations:
+- Amazon Redshift
+- Google BigQuery
+- Snowflake
+- Databricks
+- PostgreSQL
+- Amazon S3 (Data Lake)
+- Google Cloud Storage
+- Azure Data Lake Storage
+## Troubleshooting
+### Connection Errors
+If you encounter connection errors:
+1. **For BDP**: Verify your API key has the necessary permissions and the organization ID is correct
+2. **For Community**: Ensure the configuration path exists and is readable
+### Missing Schemas
+If Iglu schemas are not being imported:
+1. **For BDP**: Check that your API key has access to the Iglu repositories
+2. **For Community**: Verify the Iglu server URL is accessible or local schema files are present
+### Performance
+For large deployments with many schemas:
+- Use pipeline and schema filter patterns to limit the scope of ingestion
+- Consider running the ingestion during off-peak hours

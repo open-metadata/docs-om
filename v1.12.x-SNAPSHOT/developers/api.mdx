@@ -1,0 +1,187 @@
+---
+title: REST API
+description: 'Interact with Collate programmatically'
+---
+
+# REST API
+
+Collate provides comprehensive REST APIs for programmatic access to all metadata operations.
+
+## Authentication
+
+### API Keys
+
+Generate an API key from the Settings page:
+
+```bash
+# Using API key in header
+curl -H "Authorization: Bearer <api-key>" \
+     https://collate.company.com/api/v1/tables
+```
+
+### JWT Token
+
+```bash
+# Get JWT token
+curl -X POST https://collate.company.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@collate.org",
+    "password": "admin"
+  }'
+
+# Use token
+curl -H "Authorization: Bearer <jwt-token>" \
+     https://collate.company.com/api/v1/tables
+```
+
+## Core Endpoints
+
+### Tables API
+
+<CodeGroup>
+```bash Get All Tables
+curl https://collate.company.com/api/v1/tables \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash Get Table by ID
+curl https://collate.company.com/api/v1/tables/{id} \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash Create Table
+curl -X POST https://collate.company.com/api/v1/tables \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "users",
+    "databaseSchema": "public",
+    "columns": [
+      {
+        "name": "id",
+        "dataType": "BIGINT",
+        "dataTypeDisplay": "bigint"
+      },
+      {
+        "name": "email",
+        "dataType": "VARCHAR",
+        "dataLength": 255
+      }
+    ]
+  }'
+```
+</CodeGroup>
+
+### Search API
+
+```bash
+# Search across all assets
+curl "https://collate.company.com/api/v1/search/query?q=users&index=table_search_index" \
+  -H "Authorization: Bearer <token>"
+
+# Advanced search with filters
+curl -X POST https://collate.company.com/api/v1/search/query \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "users",
+    "filters": {
+      "database": ["mysql_prod"],
+      "schema": ["public"]
+    }
+  }'
+```
+
+### Lineage API
+
+```bash
+# Get table lineage
+curl https://collate.company.com/api/v1/lineage/table/{table-id}?upstreamDepth=3&downstreamDepth=3 \
+  -H "Authorization: Bearer <token>"
+
+# Add lineage edge
+curl -X PUT https://collate.company.com/api/v1/lineage \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edge": {
+      "fromEntity": {
+        "id": "source-table-id",
+        "type": "table"
+      },
+      "toEntity": {
+        "id": "target-table-id",
+        "type": "table"
+      }
+    }
+  }'
+```
+
+## SDKs
+
+### Python SDK
+
+```python
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    CollateConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    CollateJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import Collate
+
+# Initialize client
+server_config = CollateConnection(
+    hostPort="http://localhost:8585/api",
+    authProvider="collate",
+    securityConfig=CollateJWTClientConfig(
+        jwtToken="your-jwt-token"
+    ),
+)
+
+metadata = Collate(server_config)
+
+# Get all tables
+tables = metadata.list_all_entities(entity=Table)
+
+# Create a table
+table_entity = CreateTableRequest(
+    name="my_table",
+    databaseSchema="my_schema",
+    columns=[
+        Column(name="id", dataType=DataType.BIGINT),
+        Column(name="name", dataType=DataType.VARCHAR, dataLength=255),
+    ],
+)
+
+created_table = metadata.create_or_update(table_entity)
+```
+
+## Rate Limiting
+
+API requests are rate-limited:
+- **Standard Users**: 100 requests/minute
+- **Service Accounts**: 1000 requests/minute
+- **Admin Users**: 5000 requests/minute
+
+## Error Handling
+
+```json
+{
+  "timestamp": "2023-10-01T10:00:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Invalid table name format",
+  "path": "/api/v1/tables"
+}
+```
+
+Common HTTP status codes:
+- `200`: Success
+- `400`: Bad Request
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Not Found
+- `429`: Rate Limited
+- `500`: Internal Server Error

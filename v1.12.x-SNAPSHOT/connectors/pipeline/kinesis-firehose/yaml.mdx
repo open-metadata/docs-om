@@ -1,0 +1,171 @@
+---
+title: Run the AWS Kinesis Firehose Connector Externally
+description: Set up AWS Kinesis Firehose ingestion using YAML to automate metadata syncing from delivery streams to your central catalog.
+slug: /connectors/pipeline/kinesis-firehose/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/kinesis-firehose.webp'
+name="KinesisFirehose"
+stage="PROD"
+availableFeatures={["Pipelines", "Lineage"]}
+unavailableFeatures={["Owners", "Tags", "Pipeline Status"]}
+/>
+
+In this section, we provide guides and references to use the AWS Kinesis Firehose connector.
+
+Configure and schedule AWS Kinesis Firehose metadata and profiler workflows from the OpenMetadata UI:
+
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+
+## Requirements
+
+To extract metadata from AWS Kinesis Firehose, you need to configure AWS credentials with appropriate permissions:
+- **AWS Credentials**: Valid AWS credentials (Access Key ID and Secret Access Key) or IAM role with permissions to access Kinesis Firehose
+- **Permissions Required**:
+  - `firehose:DescribeDeliveryStream` - To describe delivery stream details
+  - `firehose:ListDeliveryStreams` - To list all delivery streams
+
+
+### Python Requirements
+
+<PythonRequirements />
+
+To run the AWS Kinesis Firehose ingestion, you will need to install:
+
+```bash
+pip3 install "openmetadata-ingestion[kinesis-firehose]"
+```
+
+## Metadata Ingestion
+
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/kinesisFirehoseConnection.json)
+you can find the structure to create a connection to AWS Kinesis Firehose.
+
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+
+### 1. Define the YAML Config
+
+This is a sample config for AWS Kinesis Firehose:
+
+<CodePreview>
+<ContentPanel>
+
+#### Source Configuration - Service Connection
+
+<ContentSection id={1} title="awsAccessKeyId" lines="7">
+**awsAccessKeyId**: AWS Access Key ID is a unique identifier for your AWS account. It is used in combination with the Secret Access Key to authenticate API requests to AWS services. This is an optional field if you are using IAM roles or AWS profiles for authentication.
+</ContentSection>
+<ContentSection id={2} title="awsSecretAccessKey" lines="8">
+**awsSecretAccessKey**: AWS Secret Access Key is a secret key that is used in combination with the Access Key ID to cryptographically sign API requests to AWS services. Keep this value secure and never share it. This is an optional field if you are using IAM roles or AWS profiles for authentication.
+</ContentSection>
+<ContentSection id={3} title="awsRegion" lines="9">
+**awsRegion**: AWS Region where your Kinesis Firehose delivery streams are deployed. This is a required field.
+</ContentSection>
+<ContentSection id={4} title="awsSessionToken" lines="10">
+**awsSessionToken**: AWS Session Token is a temporary credential that is required when using temporary security credentials. This field is optional.
+</ContentSection>
+<ContentSection id={4} title="endPointURL" lines="11">
+**endPointURL**: Custom endpoint URL for AWS services. Leave this field empty to use the default AWS endpoints.
+</ContentSection>
+<ContentSection id={5} title="profileName" lines="12">
+**profileName**: The name of an AWS profile configured in your AWS credentials file.
+</ContentSection>
+<ContentSection id={6} title="assumeRoleArn" lines="13">
+**assumeRoleArn**: The ARN of an IAM role to assume for accessing Kinesis Firehose resources.
+</ContentSection>
+<ContentSection id={7} title="assumeRoleSessionName" lines="14">
+**assumeRoleSessionName**: A unique identifier for the assumed role session. Default value: `OpenMetadataSession`
+</ContentSection>
+<ContentSection id={8} title="assumeRoleSourceIdentity" lines="15">
+**assumeRoleSourceIdentity**: The source identity to associate with the assumed role session.
+</ContentSection>
+<ContentSection id={9} title="messagingServiceName" lines="16">
+**messagingServiceName**: The Name of the ingested Kafka Messaging Service associated with this Firehose Pipeline Service upstream source.
+</ContentSection>
+<ContentSection id={10} title="pipelineFilterPattern" lines="17">
+**pipelineFilterPattern**: A regular expression pattern to filter which Kinesis Firehose delivery streams to include or exclude during metadata extraction.
+</ContentSection>
+<ContentSection id={10} title="SourceConfig" lines="22-41">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: kinesis-firehose
+  serviceName: kinesis_firehose_service
+  serviceConnection:
+    config:
+      type: KinesisFirehose
+```
+```yaml
+      awsAccessKeyId: "YOUR_AWS_ACCESS_KEY_ID"
+```
+```yaml
+      awsSecretAccessKey: "YOUR_AWS_SECRET_ACCESS_KEY"
+```
+```yaml
+      awsRegion: "us-east-1"
+```
+```yaml
+      # awsSessionToken: "YOUR_SESSION_TOKEN"  # Optional
+```
+```yaml
+      # endPointURL: "https://firehose.us-east-1.amazonaws.com"  # Optional
+```
+```yaml
+      # profileName: "default"  # Optional
+```
+```yaml
+      # assumeRoleArn: "arn:aws:iam::123456789012:role/KinesisFirehoseReadOnlyRole"  # Optional
+```
+```yaml
+      # assumeRoleSessionName: "OpenMetadataSession"  # Optional
+```
+```yaml
+      # assumeRoleSourceIdentity: "openmetadata-ingestion-service"  # Optional
+```
+```yaml
+      # messagingServiceName: "local_kafka"  # Optional
+```
+```yaml
+      pipelineFilterPattern:
+        includes:
+          - ".*prod.*"  # Include only production delivery streams
+        # excludes:
+        #   - ".*test.*"  # Exclude test delivery streams
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />

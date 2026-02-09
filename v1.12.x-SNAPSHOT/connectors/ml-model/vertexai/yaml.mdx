@@ -1,0 +1,93 @@
+---
+title: Run the VertexAI Connector Externally
+description: Use YAML to ingest VertexAI metadata including models, inputs, tags, and monitoring logs.
+slug: /connectors/ml-model/vertexai/yaml
+sidebarTitle: Run Externally
+collate: true
+mode: "wide"
+---
+import SourceConfigDef from '/snippets/connectors/yaml/ml-model/source-config-def.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import GcpConfig from '/snippets/connectors/yaml/common/gcp-config.mdx'
+import GcpConfigDef from '/snippets/connectors/yaml/common/gcp-config-def.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/vertexai.png'
+name="VertexAI"
+stage="BETA"
+availableFeatures={["ML Store", "ML Features", "Hyper parameters"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the VertexAI connector.
+Configure and schedule VertexAI metadata from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the VertexAI ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[vertexai]"
+```
+### GCP Permissions
+To execute metadata extraction workflow successfully the user or the service account should have enough access to fetch required data. Following table describes the minimum required permissions
+| #    | GCP Permission                | Required For            |
+| :--- | :---------------------------- | :---------------------- |
+| 1    | aiplatform.models.get         | Metadata Ingestion      |
+| 2    | aiplatform.models.list        | Metadata Ingestion      |
+## Metadata Ingestion
+### 1. Define the YAML Config
+This is a sample config for VertexAI:
+
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="credentials" lines="7-9">
+**credentials**:
+You can authenticate with your vertexai instance using either `GCP Credentials Path` where you can specify the file path of the service account key or you can pass the values directly by choosing the `GCP Credentials Values` from the service account key file.
+You can checkout [this](https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console) documentation on how to create the service account keys and download it.
+**gcpConfig:**
+**1.** Passing the raw credential values provided by VertexAI. This requires us to provide the following information, all provided by VertexAI:
+</ContentSection>
+<ContentSection id={2} title="location" lines="9">
+**2.**  Passing a local file path that contains the credentials:
+  - **gcpCredentialsPath**
+**Location**:
+Location refers to the geographical region where your resources, such as datasets, models, and endpoints, are physically hosted.(e.g. `us-central1`, `europe-west4`)
+</ContentSection>
+<ContentSection id={3} title="SourceConfig" lines="27-70">
+<SourceConfigDef />
+</ContentSection>
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: vertexai
+  serviceName: localvx
+  serviceConnection:
+    config:
+      type: VertexAI
+      credentials:
+        gcpConfig:
+      location: PROJECT LOCATION/REGION (us-central1)
+# connectionOptions:
+#   key: value
+# connectionArguments:
+#   key: value
+```
+
+<GcpConfig />
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

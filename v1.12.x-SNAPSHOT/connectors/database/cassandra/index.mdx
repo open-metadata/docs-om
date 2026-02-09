@@ -1,0 +1,74 @@
+---
+title: Cassandra Connector | Collate Database Integration
+description: Connect Cassandra to Collate with our database connector. Step-by-step setup guide, configuration options, and metadata extraction for your NoSQL database.
+slug: /connectors/database/cassandra
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import Related from '/snippets/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/cassandra.webp'
+name="Cassandra"
+stage="BETA"
+availableFeatures={["Metadata"]}
+unavailableFeatures={["Query Usage", "Data Quality", "dbt", "Owners", "Lineage", "Column-level Lineage", "Tags", "Stored Procedures", "Data Profiler", "Auto-Classification"]} />
+In this section, we provide guides and references to use the Cassandra connector.
+Configure and schedule Cassandra metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Enable Security](#securing-cassandra-connection-with-ssl-in-openmetadata)
+- [Troubleshooting](/connectors/database/cassandra/troubleshooting)
+## Requirements
+To extract metadata using the Cassandra connector, ensure the user in the connection has the following permissions:
+- Read Permissions: The ability to query tables and perform data extraction.
+- Schema Operations: Access to list and describe keyspaces and tables.
+## Metadata Ingestion
+<MetadataIngestionUi connector={"Cassandra"} selectServicePath={"/public/images/connectors/cassandra/select-service.png"} addNewServicePath={"/public/images/connectors/cassandra/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/cassandra/service-connection.png"} />
+# Connection Details
+<Steps>
+<Step title="Connection Details">
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+password: secret:/my/database/password
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+</Tip>
+- **Username**: Username to connect to Cassandra. This user must have the necessary permissions to perform metadata extraction and table queries.
+- **Host Port**: When using the `cassandra` connecion schema, the hostPort parameter specifies the host and port of the Cassandra. This should be specified as a string in the format `hostname:port`. E.g., `localhost:9042`.- **databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
+**Auth Type**: Following authentication types are supported:
+1. **Basic Authentication**:
+We'll use the user credentials to connect to Cassandra
+- **password**: Password of the user.
+2. **DataStax Astra DB Configuration**:
+Configuration for connecting to DataStax Astra DB in the cloud.
+  - **connectTimeout**: Timeout in seconds for establishing new connections to Cassandra.
+  - **requestTimeout**: Timeout in seconds for individual Cassandra requests.
+  - **token**: The Astra DB application token used for authentication.
+  - **secureConnectBundle**: File path to the Secure Connect Bundle (.zip) used for a secure connection to DataStax Astra DB.
+**SSL Modes**
+There are a couple of types of SSL modes that Cassandra supports which can be added to ConnectionArguments, they are as follows:
+- **disable**: SSL is disabled and the connection is not encrypted.
+- **allow**: SSL is used if the server requires it.
+- **prefer**: SSL is used if the server supports it.
+- **require**: SSL is required.
+- **verify-ca**: SSL must be used and the server certificate must be verified.
+- **verify-full**: SSL must be used. The server certificate must be verified, and the server hostname must match the hostname attribute on the certificate.
+**SSL Configuration**
+In order to integrate SSL in the Metadata Ingestion Config, the user will have to add the SSL config under sslConfig which is placed in the source.
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+## Securing Cassandra Connection with SSL in OpenMetadata
+To establish secure connections between OpenMetadata and a Cassandra database, you can use any SSL mode provided by Cassandra, except disable.
+Under `Advanced Config`, after selecting the SSL mode, provide the CA certificate, SSL certificate and SSL key.
+<img src="/public/images/connectors/ssl_connection.png" alt="SSL Configuration" height="450px" />
+<Related />

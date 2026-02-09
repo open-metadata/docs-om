@@ -1,0 +1,298 @@
+---
+title: Python SDK API Reference
+description: 'Complete API reference for the Collate Python SDK'
+---
+
+# Python SDK API Reference
+
+The Collate Python SDK provides a high-level interface for interacting with the Collate API. It is based on generated Pydantic models from JSON schemas and provides a typed approach to working with Collate entities.
+
+## Core Classes
+
+### Collate
+
+The main client class that provides a generic interface to the Collate API. It implements polymorphism across all different entities and includes specific functionalities inherited from mixins.
+
+```python
+from metadata.ingestion.ometa.ometa_api import Collate
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    CollateConnection,
+)
+
+# Initialize client
+metadata = Collate(config: CollateConnection, raw_data: bool = False)
+```
+
+#### Constructor
+
+- **`config`** (`CollateConnection`): Connection configuration
+- **`raw_data`** (`bool`, optional): Whether to return raw data. Defaults to `False`.
+
+#### Core Methods
+
+##### Entity Retrieval
+
+```python
+# Get entity by fully qualified name
+get_by_name(
+    entity: Type[T],
+    fqn: Union[str, FullyQualifiedEntityName],
+    fields: Optional[List[str]] = None,
+    nullable: bool = True
+) -> Optional[T]
+
+# Get entity by ID
+get_by_id(
+    entity: Type[T],
+    entity_id: Union[str, Uuid],
+    fields: Optional[List[str]] = None,
+    nullable: bool = True
+) -> Optional[T]
+```
+
+**Parameters:**
+- **`entity`**: Entity type class (e.g., `Table`, `Database`)
+- **`fqn`** / **`entity_id`**: Entity identifier
+- **`fields`**: Optional list of additional fields to include
+- **`nullable`**: Whether to return `None` if entity not found
+
+**Returns:** Entity instance or `None`
+
+##### Entity Creation and Updates
+
+```python
+# Create or update entity
+create_or_update(data: C) -> T
+```
+
+**Parameters:**
+- **`data`**: Create entity request object
+
+**Returns:** Created or updated entity
+
+##### Entity Listing
+
+```python
+# List entities with pagination
+list_entities(
+    entity: Type[T],
+    fields: Optional[List[str]] = None,
+    after: Optional[str] = None,
+    limit: int = 100,
+    params: Optional[Dict[str, str]] = None,
+    skip_on_failure: bool = False
+) -> EntityList[T]
+
+# List all entities (generator)
+list_all_entities(
+    entity: Type[T],
+    fields: Optional[List[str]] = None,
+    limit: int = 1000,
+    params: Optional[Dict[str, str]] = None,
+    skip_on_failure: bool = False
+) -> Iterable[T]
+```
+
+**Parameters:**
+- **`entity`**: Entity type to list
+- **`fields`**: Extra fields to return
+- **`after`**: Pagination cursor
+- **`limit`**: Number of entities per page/batch
+- **`params`**: Additional query parameters
+- **`skip_on_failure`**: Whether to continue on individual failures
+
+**Returns:** `EntityList` for `list_entities`, `Iterable` for `list_all_entities`
+
+##### Entity Deletion
+
+```python
+delete(
+    entity: Type[T],
+    entity_id: Union[str, Uuid],
+    recursive: bool = False,
+    hard_delete: bool = False
+) -> None
+```
+
+**Parameters:**
+- **`entity`**: Entity type
+- **`entity_id`**: Entity ID to delete
+- **`recursive`**: Whether to delete recursively
+- **`hard_delete`**: Whether to perform hard delete
+
+##### Utility Methods
+
+```python
+# Get entity reference
+get_entity_reference(entity: Type[T], fqn: str) -> Optional[EntityReference]
+
+# Health check
+health_check() -> bool
+
+# List entity versions
+list_versions(entity_id: Union[str, Uuid], entity: Type[T]) -> EntityVersionHistory
+
+# Compute usage percentile
+compute_percentile(entity: Union[Type[T], str], date: str) -> None
+
+# Close connection
+close() -> None
+```
+
+#### Type Helper Methods
+
+```python
+# Get create entity type from entity type
+get_create_entity_type(entity: Type[T]) -> Type[C]
+
+# Get entity type from create type
+get_entity_from_create(create: Type[C]) -> Type[T]
+
+# Get API endpoint suffix for entity
+get_suffix(entity: Type[T]) -> str
+
+# Get module path for entity
+get_module_path(entity: Type[T]) -> str
+```
+
+## Exception Classes
+
+### MissingEntityTypeException
+
+Raised when receiving an Entity Type not covered in the suffix generation list.
+
+```python
+from metadata.ingestion.ometa.ometa_api import MissingEntityTypeException
+```
+
+### InvalidEntityException
+
+Raised when receiving an entity not supported in an operation.
+
+```python
+from metadata.ingestion.ometa.ometa_api import InvalidEntityException
+```
+
+### EmptyPayloadException
+
+Raised when receiving no data, even if no exception during the API call is received.
+
+```python
+from metadata.ingestion.ometa.ometa_api import EmptyPayloadException
+```
+
+## Usage Examples
+
+### Basic Entity Operations
+
+```python
+from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.entity.services.databaseService import DatabaseService
+
+# List all database services
+services = metadata.list_all_entities(entity=DatabaseService)
+
+# Get specific table
+table = metadata.get_by_name(
+    entity=Table,
+    fqn="sample_data.ecommerce_db.shopify.dim_address"
+)
+
+# Get table by ID
+table = metadata.get_by_id(
+    entity=Table,
+    entity_id="uuid-string-here"
+)
+```
+
+### Working with Entity References
+
+```python
+# Get entity reference for creating relationships
+table_ref = metadata.get_entity_reference(
+    entity=Table,
+    fqn="sample_data.ecommerce_db.shopify.dim_address"
+)
+
+if table_ref:
+    print(f"Table ID: {table_ref.id}")
+    print(f"Table Type: {table_ref.type}")
+```
+
+### Pagination and Filtering
+
+```python
+# List tables with specific fields
+tables = metadata.list_entities(
+    entity=Table,
+    fields=["owner", "tags", "followers"],
+    limit=50,
+    params={"service": "my-database-service"}
+)
+
+# Process all entities using generator
+for table in metadata.list_all_entities(entity=Table, limit=100):
+    print(f"Processing: {table.fullyQualifiedName}")
+```
+
+### Error Handling
+
+```python
+try:
+    table = metadata.get_by_name(entity=Table, fqn="non.existent.table")
+except InvalidEntityException as e:
+    print(f"Invalid entity operation: {e}")
+except EmptyPayloadException as e:
+    print(f"No data returned: {e}")
+```
+
+### Connection Management
+
+```python
+# Always close connections when done
+try:
+    # Perform operations
+    tables = metadata.list_entities(entity=Table)
+finally:
+    metadata.close()
+
+# Or use context manager pattern
+class CollateContext:
+    def __init__(self, config):
+        self.metadata = Collate(config)
+
+    def __enter__(self):
+        return self.metadata
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.metadata.close()
+```
+
+## Global Variables
+
+### ROUTES
+
+The SDK maintains a routing table for mapping entity types to API endpoints:
+
+```python
+from metadata.ingestion.ometa.ometa_api import ROUTES
+```
+
+This dictionary maps entity classes to their corresponding API endpoint suffixes.
+
+## Best Practices
+
+1. **Reuse Client Instances**: Create one `Collate` client and reuse it
+2. **Handle Exceptions**: Always wrap API calls in try-catch blocks
+3. **Use Generators**: Use `list_all_entities()` for large datasets to avoid memory issues
+4. **Specify Fields**: Only request fields you need to improve performance
+5. **Close Connections**: Always call `close()` when finished
+6. **Type Safety**: Use type hints and let your IDE help with auto-completion
+
+## Performance Considerations
+
+- Use `list_all_entities()` instead of `list_entities()` with large limits
+- Specify only required fields in the `fields` parameter
+- Use appropriate `limit` values for pagination
+- Cache entity references when possible
+- Close connections to free resources
