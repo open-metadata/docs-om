@@ -1,0 +1,93 @@
+---
+title: Run the dbt Cloud Connector Externally
+description: Learn how to Configure Collate'sdbt Cloud connector using YAML. Step-by-step setup guide for seamless data pipeline integration and metadata extraction.
+slug: /connectors/pipeline/dbtcloud/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/dbtcloud.webp'
+name="dbt Cloud"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Tags", "Usage"]}
+unavailableFeatures={["Owners", "Lineage"]} />
+In this section, we provide guides and references to use the dbt Cloud connector.
+Configure and schedule dbt Cloud metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/dbtCloudConnection.json)
+you can find the structure to create a connection to dbt cloud.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for dbt Cloud:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="host" lines="7">
+**host**: dbt cloud Access URL eg.`https://abc12.us1.dbt.com`. Go to your dbt cloud account settings to know your Access URL.
+</ContentSection>
+<ContentSection id={2} title="discoveryAPI" lines="8">
+**discoveryAPI**: dbt cloud Access URL eg. `https://metadata.cloud.getdbt.com/graphql`. Go to your dbt cloud account settings to know your Discovery API url.
+</ContentSection>
+<ContentSection id={3} title="accountId" lines="9">
+**accountId**: The Account ID of your dbt cloud Project. Go to your dbt cloud account settings to know your Account Id. This will be a numeric value but in openmetadata we parse it as a string.
+</ContentSection>
+<ContentSection id={4} title="jobIds" lines="10">
+**jobIds**: Optional. Job IDs of your dbt cloud Jobs in your Project to fetch metadata for. Look for the segment after "jobs" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the job ID is `73659994`. This will be a numeric value but in openmetadata we parse it as a string. If not passed all Jobs under the Account id will be ingested.
+</ContentSection>
+<ContentSection id={5} title="projectIds" lines="10-11">
+**projectIds**: Optional.  Project IDs of your dbt cloud Account to fetch metadata for. Look for the segment after "projects" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the job ID is `87477`. This will be a numeric value but in openmetadata we parse it as a string. If not passed all Projects under the Account id will be ingested.
+Note that if both `Job Ids` and `Project Ids` are passed then it will filter out the jobs from the passed projects. any `Job Ids` not belonging to the `Project Ids` will also be filtered out.
+</ContentSection>
+<ContentSection id={6} title="token" lines="12">
+**token**: The Authentication Token of your dbt cloud API Account. To get your access token you can follow the docs [here](https://docs.getdbt.com/docs/dbt-cloud-apis/authentication).
+Make sure you have the necessary permissions on the token to run graphql queries and get job and run details.
+</ContentSection>
+<ContentSection id={3} title="SourceConfig" lines="13-32">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: dbtcloud
+  serviceName: dbtcloud_source
+  serviceConnection:
+    config:
+      type: DBTCloud
+      host: "https://account_prefix.account_region.dbt.com"
+      discoveryAPI: "https://metadata.cloud.getdbt.com/graphql"
+      accountId: "numeric_account_id"
+      # jobIds: ["job_id_1", "job_id_2", "job_id_3"]
+      # projectIds: ["project_id_1", "project_id_2", "project_id_3"]
+      token: auth_token
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

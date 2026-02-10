@@ -1,0 +1,100 @@
+---
+title: Unity Catalog Connector Troubleshooting
+description: Resolve Unity Catalog connector issues quickly with Collate'scomprehensive troubleshooting guide. Fix common errors, configuration problems, and c...
+slug: /connectors/database/unity-catalog/troubleshooting
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Unity Catalog connection details
+
+```
+source:
+  type: unitycatalog
+  serviceName: local_unity_catalog
+  serviceConnection:
+    config:
+      catalog: hive_metastore
+      databaseSchema: default
+      token: <databricks token>
+      hostPort: localhost:443
+      connectionArguments:
+        http_path: <http path of databricks cluster>
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: no-auth
+```
+
+Here are the steps to get `hostPort`, `token` and `http_path`.
+
+First login to Azure Databricks and from side bar select SQL Warehouse (In SQL section)
+
+
+<img src="/public/images/connectors/unitycatalog/select-sql-warehouse.png" alt="Select Sql Warehouse" />
+
+
+Now click on sql Warehouse from the SQL Warehouses list.
+
+
+<img src="/public/images/connectors/unitycatalog/Open-sql-warehouse.png" alt="Open Sql Warehouse" />
+
+
+Now inside that page go to Connection details section.
+In this page Server hostname and Port is your `hostPort`, HTTP path is your `http_path`.
+
+
+
+<img src="/public/images/connectors/unitycatalog/Connection-details.png" alt="Connection details" />
+
+
+In Connection details section page click on Create a personal access token.
+
+<img src="/public/images/connectors/unitycatalog/Open-create-token-page.png" alt="Open create token" />
+
+
+
+Now In this page you can create new `token`.
+
+
+<img src="/public/images/connectors/unitycatalog/Generate-token.png" alt="Generate token" />
+
+## Missing Tables or Lineage in Databricks (Unity Catalog) Ingestion
+
+### Symptoms
+
+-   Some schemas or tables that match the configured filter are not
+    visible after ingestion.
+-   Lineage is missing or incomplete for expected tables.
+-   Schemas are visible, but no tables appear under them.
+
+### Common Causes
+
+-   The Personal Access Token (PAT) used by the Metadata Agent lacks
+    required Unity Catalog permissions.
+-   The user can list catalogs or schemas but does not have SELECT
+    access on tables.
+-   Required access to `system.query.history` is missing, preventing
+    lineage generation.
+
+### What to Check
+
+-   Ensure the PAT user has:
+    -   Permission to use the target catalog.
+    -   Permission to use the target schemas.
+    -   SELECT permission on all tables that should be ingested.
+    -   Access to the `system.query` schema and `system.query.history`
+        for lineage.
+-   Confirm that metadata ingestion has completed successfully after
+    permission changes.
+-   Remember that lineage is generated only between ingested entities;
+    if a table is not ingested, its lineage connections will not appear.

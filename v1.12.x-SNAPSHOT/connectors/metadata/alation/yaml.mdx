@@ -1,0 +1,281 @@
+---
+title: Run the Alation Connector Externally
+description: Use YAML to configure Alation metadata integration and capture glossary terms, classifications, and asset links.
+slug: /connectors/metadata/alation/yaml
+sidebarTitle: Run Externally
+collate: true
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/alation.webp'
+name="Alation"
+stage="PROD"
+availableFeatures={["Metadata"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Alation connector.
+Configure and schedule Alation metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+Follow the official documentation to generate a API Access Token from [here](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-an-api-access-token)
+## Data Mapping and Assumptions
+Following entities are supported and will be mapped to the OpenMetadata entities as shown below.
+| Alation Entity               | OpenMetadata Entity          |
+| :----------------------------| :--------------------------- |
+| Data Source (OCF and Native) | Database Service             |
+| Data Source (OCF and Native) | Database                     |
+| Schema                       | Schema                       |
+| Table                        | Table                        |
+| Columns                      | Columns                      |
+| Custom Fields                | Custom Properties            |
+| Tags                         | Tags                         |
+| BI Servers                   | Dashboard Services           |
+| Dashboard DataSource         | Dashboard DataModel          |
+| Folder                       | Dashboard                    |
+| Report                       | Chart                        |
+| Users/Groups                 | Users/Teams                  |
+| Domains/Subdomains           | Domains/Subdomains           |
+| Knowledge Articles           | Knowledge Center Articles    |
+- Since Alation does not have a concept of Service entity, the Data Sources (OCF and Native) will be mapped to Database Service and Database in OpenMetadata. Hence for each Data Source in Alation there will one Database Service and Database present in OpenMetadata.
+- Custom fields will have a 1:1 mapping for all the entities except for Columns since OpenMetadata does not support custom properties for columns.
+- Alation has two fields for descriptions i.e. `descriptions` and `comments`. These fields will be combined under one field `description` in OpenMetadata for all the entities.
+### Python Requirements
+To run the Alation ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[alation]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/metadata/alationConnection.json)
+you can find the structure to create a connection to Alation.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name.
+
+</ContentSection>
+
+<ContentSection id={2} title="Host Port" lines="7">
+
+**hostPort**: Host and port of the Alation instance.
+
+</ContentSection>
+
+<ContentSection id={3} title="Authentication Type" lines="10">
+
+**authType**: Following authentication types are supported:
+1. Basic Authentication:
+We'll use the user credentials to generate the access token required to authenticate Alation APIs
+- username: Username of the user.
+- password: Password of the user.
+2. Access Token Authentication:
+The access token created using the steps mentioned [here](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-an-api-access-token) can directly be entered. We'll use that directly to authenticate the Alation APIs
+- accessToken: Generated access token
+
+</ContentSection>
+
+<ContentSection id={4} title="Alation Backend Database Connection" lines="11-12">
+
+#### For Alation backend database Connection:
+Alation APIs do not provide us with some of the metadata. This metadata we extract directly from the alation's backend database by query the tables directly.
+Note that this is a optional config and if it is not provided primary metadata will still be ingested.
+Below is the metadata fetched from alation database:
+`1. User and Group Relationships`
+Choose either postgres or mysql connection depending on the db:
+1. Postgres Connection
+- **username**: Specify the User to connect to Postgres. Make sure the user has select privileges on the tables of the alation schema.
+**password**: Password to connect to Postgres.
+**hostPort**: Enter the fully qualified hostname and port number for your Postgres deployment in the Host and Port field.
+- **database**: Initial Postgres database to connect to. Specify the name of database associated with Alation instance.
+1. MySQL Connection
+- **username**: Specify the User to connect to MySQL. Make sure the user has select privileges on the tables of the alation schema.
+**password**: Password to connect to MySQL.
+**hostPort**: Enter the fully qualified hostname and port number for your MySQL deployment in the Host and Port field.
+- **databaseSchema**: Initial MySQL database to connect to. Specify the name of database schema associated with Alation instance.
+
+</ContentSection>
+
+<ContentSection id={5} title="Project Name" lines="31">
+
+**projectName**: Project Name can be anything. e.g Prod or Demo. It will be used while creating the tokens.
+
+</ContentSection>
+
+<ContentSection id={6} title="Pagination Limit" lines="32">
+
+**paginationLimit**: Pagination limit used for Alation APIs pagination. By default is set to 10.
+
+</ContentSection>
+
+<ContentSection id={7} title="Include Undeployed Datasources" lines="33">
+
+**includeUndeployedDatasources**: Specifies if undeployed datasources should be included while ingesting. By default is set to `false`.
+
+</ContentSection>
+
+<ContentSection id={8} title="Include Hidden Datasources" lines="33-34">
+
+**includeHiddenDatasources**: Specifies if hidden datasources should be included while ingesting. By default is set to `false`.
+
+</ContentSection>
+
+<ContentSection id={9} title="Ingest Users and Groups" lines="35">
+
+**ingestUsersAndGroups**: Specifies if users and groups should be included while ingesting. By default is set to `true`.
+
+</ContentSection>
+
+<ContentSection id={10} title="Ingest Knowledge Articles" lines="36">
+
+**ingestKnowledgeArticles**: Specifies if knowledge articles should be included while ingesting. By default is set to `true`.
+
+</ContentSection>
+
+<ContentSection id={11} title="Ingest Datasources" lines="37">
+
+**ingestDatasources**: Specifies if databases, schemas and tables should be included while ingesting. By default is set to `true`.
+
+</ContentSection>
+
+<ContentSection id={12} title="Ingest Domains" lines="38">
+
+**ingestDomains**: Specifies if hidden domains and subdomains should be included while ingesting. By default is set to `true`.
+
+</ContentSection>
+
+<ContentSection id={13} title="Ingest Dashboards" lines="39">
+
+**ingestDashboards**: Specifies if hidden BI sources and dashboards should be included while ingesting. By default is set to `true`.
+
+</ContentSection>
+
+<ContentSection id={14} title="Alation Tag Classification Name" lines="40">
+
+**alationTagClassificationName**: Specify the classification name under which the tags from alation will be created in OpenMetadata. By default it is set to `alationTags`.
+
+</ContentSection>
+
+<ContentSection id={15} title="Connection Arguments" lines="41">
+
+**connectionArguments**: These are additional parameters for Alation. If not specified the ingestion will use the predefined pagination logic.
+The following arguments are intended to be used in conjunction and are specifically for Alation DataSource APIs:
+- skip: This parameter determines the count of records to bypass at the start of the dataset. When set to 0, as in this case, it means that no records will be bypassed. If set to 10, it will bypass the first 10 records.
+- limit: This argument specifies the maximum number of records to return. Here, it's set to 10, meaning only the first 10 records will be returned.
+To perform incremental ingestion, these arguments should be used together. For instance, if there are a total of 30 datasources in Alation, the ingestion can be configured to execute three times, with each execution ingesting 10 datasources.
+- 1st execution: `{"skip": 0, "limit": 10}`
+- 2nd execution: `{"skip": 10, "limit": 10}`
+- 3rd execution: `{"skip": 20, "limit": 10}`
+
+</ContentSection>
+
+<ContentSection id={16} title="Source Config" lines="45-68">
+
+Configure the metadata ingestion type and optional filter patterns.
+
+</ContentSection>
+
+<ContentSection id={17} title="Sink Configuration" lines="69-71">
+
+To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: Alation
+  serviceName: local_alation
+  serviceConnection:
+    config:
+      type: Alation
+hostPort: https://xxxx.alationcloud.com:443
+# Select one authentication type from below
+      # For Basic Authentication
+      authType:
+        username: username
+        password: password
+      # # For Access Token Authentication
+      # authType:
+      #   accessToken: api_access_token
+connection:
+        # For Postgres DB
+        type: Postgres
+        username: myuser
+        authType:
+          password: mypassword
+        hostPort: localhost:5432
+        database: postgres
+      #   # For MySQL DB
+      #   type: Mysql
+      #   username: openmetadata_user
+      #   authType:
+      #     password: openmetadata_password
+      #   hostPort: localhost:3306
+      #   databaseSchema: openmetadata_db
+projectName: Test
+paginationLimit: 10
+includeUndeployedDatasources: false # true or false
+includeHiddenDatasources: false # true or false
+ingestUsersAndGroups: true # true or false
+ingestKnowledgeArticles: false # true or false
+ingestDatasources: false # true or false
+ingestDomains: false # true or false
+ingestDashboards: false # true or false
+alationTagClassificationName: alationTags
+connectionArguments: {
+        "skip": 0,
+        "limit": 10,
+      }
+sourceConfig:
+    config:
+      type: DatabaseMetadata
+      # databaseFilterPattern:
+      #   includes:
+      #     - database_id_1
+      #     - database_id_2
+      #   excludes:
+      #     - database_id_3
+      #     - database_id_4
+      # schemaFilterPattern:
+      #   includes:
+      #     - schema_id_1
+      #     - schema_id_2
+      #   excludes:
+      #     - schema_id_3
+      #     - schema_id_4
+      # tableFilterPattern:
+      #   includes:
+      #     - table_id_1
+      #     - table_id_2
+      #   excludes:
+      #     - table_id_3
+      #     - table_id_4
+sink:
+  type: metadata-rest
+  config: {}
+```
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

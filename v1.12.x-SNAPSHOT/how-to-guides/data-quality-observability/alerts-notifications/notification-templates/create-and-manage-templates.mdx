@@ -1,0 +1,251 @@
+---
+title: Create and Manage Templates
+description: Step-by-step guide to creating, linking, and testing notification templates.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/create-and-manage-templates
+sidebarTitle: Create and Manage Templates
+---
+
+# Create and Manage Templates
+
+This guide walks you through the complete workflow of creating, configuring, and managing notification templates in Collate.
+
+
+## Creating a Custom Template
+
+Use the steps below to create a new notification template.
+
+1. Navigate to **Settings > Notifications > Notification Templates**
+2. Click **Create Template** button.
+3. A form will appear with fields for defining your template.
+
+### Alternative Path: Creating Templates While Creating a Notification
+
+Notification templates can also be created directly during the creation of a new notification subscription:
+
+1. Navigate to **Settings > Notifications > Alerts**.
+2. Click **Add Alert**.
+3. In the notification creation form, a **Create Template** option will be available.
+4. You may:
+    - Create a new custom template on the spot, or
+    - Select an existing template.
+5. If no template is created or selected, the system default template will be applied.
+6. Once the notification is saved, the created template is automatically linked and will be used for that notification.
+
+### Filling in Template Details
+
+##### Name (Required)
+A unique identifier for the template used internally.
+
+**Example:** `high-priority-alerts`, `test-failure-notification`, `schema-change-alerts`
+
+- Use lowercase with hyphens for clarity
+- Keep it concise and descriptive
+
+##### Description (Optional)
+Document when and why this template should be used.
+
+**Example:** `Send notifications when critical test cases fail. Used with real-time test subscriptions.`
+
+##### Subject (Required)
+The email subject line or notification title.
+
+**Constraints:** Maximum 256 characters
+
+**Example:**
+```
+[{{publisherName}}] - {{camelCaseToTitle event.entityType}} Updated: {{entity.fullyQualifiedName}}
+```
+
+This renders to: `[Data Alerts] - Table Updated: database.schema.customers`
+
+<Tip>
+Keep subjects concise (under 100 characters) as they appear in email clients where space is limited.
+</Tip>
+
+##### Body (Required)
+The main template content in HTML with Handlebars.
+
+**Constraints:** Maximum 10,240 characters
+
+**Example:**
+```html
+<strong>{{event.userName}}</strong> updated <strong>{{camelCaseToTitle event.entityType}}</strong>:
+<a href="{{buildEntityUrl event.entityType entity}}">{{entity.fullyQualifiedName}}</a>
+
+{{#if changes.updates}}
+<h3>Updated Fields:</h3>
+<ul>
+  {{#each (limit changes.updates 10)}}
+  <li>{{name}}</li>
+  {{/each}}
+</ul>
+{{/if}}
+```
+
+#### Save the Template
+
+1. Review all fields for accuracy
+2. Click **Save** button.
+3. The template is now available for use in event subscriptions
+
+## Modifying Templates
+
+### Editing User Templates
+
+User templates (those you created) can be fully edited:
+
+1. Navigate to **Settings > Notifications > Templates**
+2. Find the template in the list
+3. Click the **Edit** button
+4. Modify any fields (Name, Display Name, Description, Subject, Body)
+5. Click **Save**
+
+Changes take effect immediately for any subscriptions using the template.
+
+### Editing System Templates
+
+System templates (pre-built by Collate) can be partially edited:
+
+- You can modify: Subject and Body
+- You cannot modify: Name and Display Name
+- System templates track if you've customized them
+
+**Important:** If you don't customize a system template, it automatically updates when Collate releases improvements. Once you customize it, you're responsible for maintaining it.
+
+## Linking Templates to Event Subscriptions
+
+Templates become useful when connected to event subscriptions. Here's how to use them:
+
+### Step 1: Navigate to Subscriptions
+
+1. Go to **Settings > Notifications > Subscriptions**
+2. Create a new subscription or edit an existing one
+
+### Step 2: Select a Template
+
+1. In the subscription form, find the **Notification Template** dropdown
+2. Choose from:
+   - **System Templates** - Pre-built templates for common entity types
+   - **User Templates** - Custom templates you've created
+   - **(blank)** - Use default formatting per channel
+
+### Step 3: Configure Other Settings
+
+Complete the rest of the subscription setup:
+- **Event Type** - Which changes trigger the notification
+- **Destinations** - Where to send notifications (email, Slack, Teams, etc.)
+- **Filters** - Optional conditions for when to send
+
+### Step 4: Save the Subscription
+
+Your template is now active and will be used for all notifications from this subscription.
+
+
+## Template Preview and Testing
+
+### Previewing Templates
+
+Before deploying a template to production, use the Preview feature to see how it looks:
+
+1. In the template editor, click **Preview**
+2. The system renders the template with sample data
+3. Review the formatted output
+4. See how it appears across different channels
+5. Make adjustments if needed
+
+<Tip>
+Always preview before saving templates to catch formatting issues early.
+</Tip>
+
+### Sending Test Notifications
+
+Test your template with real data:
+
+1. In the template editor, click **Send Test**
+2. Select destinations where you want to send the test:
+   - Email addresses
+   - Slack channels
+   - Teams channels
+   - Google Chat spaces
+3. Click **Send**
+4. The system sends a real notification with mock event data
+5. Check your destinations to verify formatting and content
+
+Test notifications help you:
+- Verify links and dynamic content render correctly
+- Check channel-specific formatting
+- Test with your actual notification destinations
+
+## Modifying vs. Duplicating Templates
+
+### When to Modify
+
+Modify a template when you want to update all existing subscriptions using it:
+
+- Impact: All active subscriptions using this template immediately get new formatting
+- Use when: Improving a template everyone already uses
+
+### When to Duplicate
+
+Create a new template based on an existing one when:
+
+- You want a variation for a specific use case
+- You want to test changes before affecting production subscriptions
+- Different teams need different formatting
+
+**How to duplicate:**
+
+You can't automatically duplicate, but you can:
+1. Copy the template content
+2. Create a new template
+3. Paste the content as a starting point
+4. Modify as needed
+
+## Deleting Templates
+
+### Delete User Templates
+
+You can safely delete user templates you created:
+
+1. Go to **Settings > Notifications > Templates**
+2. Find your template
+3. Click the **Delete** button
+4. Confirm the deletion
+
+**Note:** If the template is actively used in subscriptions, consider what will happen to those subscriptions when you delete it.
+
+### System Templates
+
+System templates cannot be deleted (they're read-only by default).
+
+If you've customized a system template and want to revert to the original, click Restore. After restoring, the template will once again stay synchronized with the Collate-provided system default (unless you modify it manually).
+
+## Troubleshooting Template Issues
+
+### Template Won't Save
+
+**Common causes:**
+- Body exceeds 10,240 characters - simplify the content
+- Subject exceeds 256 characters - shorten the subject
+- Invalid Handlebars syntax - check brackets are balanced
+- Required fields are empty - fill in Name, Display Name, Subject, and Body
+
+### Notifications Not Using Template
+
+**Check:**
+1. Is the template selected in the subscription settings?
+2. Is the subscription active?
+3. For system templates, do the subscription's event type and entity type match your template name?
+
+### Template Shows Wrong Data
+
+**Check:**
+1. Are you using the correct property names? See [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)
+2. Is the data available for this entity type?
+3. Are you using conditionals for optional fields?
+
+## Next Steps
+
+- **Learn about available data** → [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)
+- **Master Handlebars** → [Handlebars Templating Guide](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/handlebars-templating-guide)
+- **Get help with issues** → [Troubleshooting Guide](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/troubleshooting)

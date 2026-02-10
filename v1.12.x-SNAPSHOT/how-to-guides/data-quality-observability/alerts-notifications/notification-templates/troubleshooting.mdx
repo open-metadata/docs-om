@@ -1,0 +1,418 @@
+---
+title: Troubleshooting
+description: Solutions for common notification template issues.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/troubleshooting
+sidebarTitle: Troubleshooting
+---
+
+# Troubleshooting
+
+This guide helps you resolve common issues with notification templates.
+
+## Template Validation Errors
+
+### Syntax Error: Invalid Handlebars Syntax
+
+**Error Message:** "Invalid Handlebars syntax" or "Unexpected token"
+
+**Common Causes:**
+
+1. **Unbalanced brackets**
+   - Every `{{#if}}` needs a closing `{{/if}}`
+   - Every `{{#each}}` needs a closing `{{/each}}`
+
+   ```handlebars
+   <!-- ❌ Missing closing /if -->
+   {{#if entity.owner}}
+     Owner: {{entity.owner}}
+
+   <!-- ✅ Correct -->
+   {{#if entity.owner}}
+     Owner: {{entity.owner}}
+   {{/if}}
+   ```
+
+2. **Incorrect helper syntax**
+   - Verify helper names are spelled correctly
+   - Check that parentheses are balanced
+
+   ```handlebars
+   <!-- ❌ Misspelled helper -->
+   {{formatDate entity.updatedAt}}
+
+   <!-- ✅ Correct -->
+   {{formatDate entity.updatedAt}}
+   ```
+
+3. **Missing quotes in string attributes**
+   - String values must be quoted
+
+   ```handlebars
+   <!-- ❌ Missing quotes -->
+   {{#if (eq status Failed)}}
+
+   <!-- ✅ Correct -->
+   {{#if (eq status "Failed")}}
+   ```
+
+**Solution:**
+- Use the **Validate** button in the template editor before saving
+- Check brackets are balanced: each opening has a closing pair
+- Verify helper names match exactly (case-sensitive)
+- Add quotes around string values in helper attributes
+
+<Warning>
+Double-quote all string values in Handlebars attributes: `status='Failed'` is incorrect, use `status="Failed"` instead.
+</Warning>
+
+### Max Length Error: Template Exceeds 10,240 Characters
+
+**Error Message:** "Template body exceeds maximum length"
+
+**Common Causes:**
+- Template is too comprehensive
+- Too many examples or detailed change descriptions
+- Large data structures being displayed without filtering
+
+**Solutions:**
+
+1. **Simplify the template**
+   - Remove unnecessary formatting
+   - Remove comments
+   - Use shorter variable names where possible
+
+2. **Use the `limit` helper**
+   ```handlebars
+   <!-- Show only first 10 changes instead of all -->
+   {{#each (limit (filter changes.updates) 10)}}
+     {{name}}
+   {{/each}}
+   ```
+
+3. **Show summaries instead of details**
+   ```handlebars
+   <!-- ❌ Shows all field details (verbose) -->
+   {{#each changes.updates}}
+     {{name}}: {{oldValue}} → {{newValue}}
+   {{/each}}
+
+   <!-- ✅ Shows only count and highlights (concise) -->
+   {{length changes.updates}} fields updated
+   {{#if entity.owner}}(Owner: {{entity.owner}}){{/if}}
+   ```
+
+4. **Remove conditional sections for optional data**
+   ```handlebars
+   <!-- Only show tags if they exist -->
+   {{#if (gt (length entity.tags) 0)}}
+     Tags: {{#each (limit entity.tags 5)}}{{tagFQN}}, {{/each}}
+   {{/if}}
+   ```
+
+5. **Split into multiple templates**
+   - Create separate templates for detailed vs. summary views
+   - Use different templates for different entity types
+
+### Field Name Not Recognized
+
+**Error Message:** Template doesn't render field, shows empty string
+
+**Common Causes:**
+- Incorrect property path
+- Property doesn't exist for this entity type
+- Typo in property name
+
+**Solution:**
+
+1. **Verify property names**
+   - Check [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)
+   - Use dot notation: `entity.owner`, not `entity.owner_name`
+
+2. **Use conditionals for optional fields**
+   ```handlebars
+   {{#if entity.owner}}
+     Owner: {{entity.owner}}
+   {{/if}}
+   ```
+
+3. **Check for property availability by entity type**
+   ```handlebars
+   {{#if (eq event.entityType "testCase")}}
+     Status: {{entity.testCaseStatus}}
+   {{/if}}
+
+   {{#if (eq event.entityType "table")}}
+     Columns: {{length entity.columns}}
+   {{/if}}
+   ```
+
+## Notifications Not Rendering Correctly
+
+### Notifications Look Garbled or Misformatted
+
+**Symptoms:**
+- Text appears without line breaks
+- HTML tags visible in notification
+- Formatting looks different on different channels
+
+**Common Causes:**
+- HTML is malformed
+- Characters aren't escaped properly
+- Channel-specific formatting issues
+
+**Solutions:**
+
+1. **Validate HTML**
+   - Ensure all HTML tags are properly closed
+   - Use standard HTML tags (not XHTML self-closing unless valid)
+
+   ```html
+   <!-- ❌ Unclosed tags -->
+   <p>This is a paragraph
+   <ul><li>Item 1</ul>
+
+   <!-- ✅ Properly closed -->
+   <p>This is a paragraph</p>
+   <ul><li>Item 1</li></ul>
+   ```
+
+2. **Use the Preview feature**
+   - Preview shows how template renders with sample data
+   - Check preview across different channel types
+
+3. **Send test notifications**
+   - Test to your actual Slack/email/Teams channels
+   - Verify formatting in each platform
+
+4. **Check special characters**
+   - Characters like `<`, `>`, `&` need escaping in HTML
+   - Use `&lt;`, `&gt;`, `&amp;` instead
+
+   ```html
+   <!-- ❌ This will break HTML -->
+   <p>{{entity.description}} contains < and > characters</p>
+
+   <!-- ✅ Use proper escaping -->
+   <p>{{{entity.description}}} (use triple braces for HTML content)</p>
+   ```
+
+### Template Selected But Not Showing
+
+**Symptoms:**
+- Notifications are sent but template isn't being used
+- Using default formatting instead of custom template
+
+**Causes:**
+- Template not selected in subscription
+- Subscription is inactive
+- Event type doesn't match what subscription is listening for
+
+**Solutions:**
+
+1. **Verify template is selected**
+   - Go to **Settings > Notifications > Subscriptions**
+   - Edit the subscription
+   - Confirm the **Notification Template** dropdown has your template selected
+   - Not just blank
+
+2. **Check subscription is active**
+   - Enable/activate the subscription
+   - Verify it's not disabled
+
+3. **Verify event types match**
+   - Subscription must be listening to entity updates that match your template
+   - Example: Template for tables won't be used for dashboard updates
+
+
+## Missing Data in Notifications
+
+### Template Shows Empty Values
+
+**Symptoms:**
+- `Owner:` appears with no value
+- Sections are blank even though field should exist
+- Links or data don't appear
+
+**Common Causes:**
+- Data doesn't exist for this entity instance
+- Property name is different than expected
+- Data is nested differently
+
+**Solutions:**
+
+1. **Use conditionals to handle missing data**
+   ```handlebars
+   {{#if entity.owner}}
+     <p>Owner: {{entity.owner}}</p>
+   {{else}}
+     <p><em>No owner assigned</em></p>
+   {{/if}}
+   ```
+
+2. **Check property availability**
+   ```handlebars
+   {{#if entity.description}}
+     {{entity.description}}
+   {{/if}}
+   ```
+
+3. **Verify nested properties exist**
+   ```handlebars
+   {{#if entity.testCaseResult}}
+     {{#if entity.testCaseResult.result}}
+       Result: {{entity.testCaseResult.result}}
+     {{/if}}
+   {{/if}}
+   ```
+
+<Note>
+If a field is missing, the template renders an empty string. Always use conditional logic to prevent empty sections.
+</Note>
+
+### Change Data Not Displaying Correctly
+
+**Symptoms:**
+- Updated fields showing as empty
+- Can't see what changed in the notification
+
+**Causes:**
+- Not using `groupEventChanges` helper
+- Trying to access raw change description
+
+**Solution:**
+
+Always use `groupEventChanges` to organize change data:
+
+```handlebars
+<!-- ❌ Don't access changeDescription directly -->
+{{event.changeDescription}}
+
+<!-- ✅ Use groupEventChanges helper -->
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if changes.updates}}
+    <h3>Updated:</h3>
+    {{#each changes.updates}}
+      {{name}}: {{oldValue}} → {{newValue}}
+    {{/each}}
+  {{/if}}
+{{/with}}
+```
+
+## Link and URL Issues
+
+### Links Don't Work or Point to Wrong Place
+
+**Symptoms:**
+- Clicking link in notification shows 404 error
+- Link goes to wrong entity
+
+**Causes:**
+- Incorrect entity type in URL
+- `baseUrl` is not configured
+- Entity IDs have changed
+
+**Solutions:**
+
+1. **Use `buildEntityUrl` helper**
+   ```handlebars
+   <!-- ✅ Best practice: Use helper -->
+   <a href="{{buildEntityUrl event.entityType entity}}">
+     View {{entity.displayName}}
+   </a>
+   ```
+
+2. **Verify `baseUrl` is set**
+   - The system should automatically set `baseUrl`
+   - Check if your Collate URL is configured correctly
+
+3. **Test links**
+   - Send test notifications
+   - Click links and verify they work
+
+## Helper Issues
+
+### Helper Not Found or Returns Wrong Result
+
+**Symptoms:**
+- "Helper not found" error
+- Helper name is red/underlined in editor
+- Results are unexpected
+
+**Common Issues:**
+
+1. **Misspelled helper name**
+   ```handlebars
+   <!-- ❌ Typo in helper name -->
+   {{len entity.tags}}
+
+   <!-- ✅ Correct -->
+   {{length entity.tags}}
+   ```
+
+2. **Wrong number of arguments**
+   ```handlebars
+   <!-- ❌ limit needs 2 arguments -->
+   {{limit entity.tags}}
+
+   <!-- ✅ Correct: array and max count -->
+   {{limit entity.tags 5}}
+   ```
+
+3. **Arguments in wrong order**
+   ```handlebars
+   <!-- ❌ Wrong order -->
+   {{split "." entity.fullyQualifiedName}}
+
+   <!-- ✅ Correct: string first, then delimiter -->
+   {{split entity.fullyQualifiedName "."}}
+   ```
+
+**Solution:**
+- Check [Custom Helpers Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference)
+- Verify exact helper name and argument order
+- Use Preview to test
+
+## Best Debugging Practices
+
+### 1. Use Preview Frequently
+
+In the template editor, click **Preview** to:
+- See how template renders with sample data
+- Catch formatting issues early
+- Test across different channels
+
+### 2. Send Test Notifications
+
+Click **Send Test** to:
+- Send to real email/Slack/Teams
+- Verify how it actually appears to users
+- Test with your actual notification setup
+
+### 3. Start Simple
+
+When building templates:
+- Start with basic template
+- Add features one at a time
+- Test each addition
+
+```handlebars
+<!-- Start here -->
+{{entity.displayName}} was updated
+
+<!-- Then add details -->
+{{entity.displayName}} was updated
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  Updated: {{#each changes.updates}}{{name}}{{/each}}
+{{/with}}
+
+<!-- Then add formatting and styling -->
+<!-- ... etc -->
+```
+
+### 4. Ask for Help
+
+Provide:
+- The template code
+- What error or unexpected behavior occurs
+- What data you expected to see
+- Screenshots of Preview/test results

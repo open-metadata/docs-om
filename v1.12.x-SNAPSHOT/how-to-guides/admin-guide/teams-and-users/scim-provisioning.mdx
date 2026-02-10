@@ -1,0 +1,239 @@
+---
+title: SCIM Provisioning Guide
+slug: /how-to-guides/admin-guide/teams-and-users/scim-provisioning-guide
+sidebarTitle: SCIM Provisioning Guide
+collate: true
+---
+
+# SCIM Provisioning Guide
+
+## Prerequisites
+
+For a user to log in using SSO, you must configure SSO from your identity provider to Collate.
+
+## Important Notes
+
+- **SCIM is Independent of Authentication**: SCIM provisioning works independently of your SSO authentication method (OIDC, SAML, etc.). SCIM uses OAuth bearer tokens for authentication, separate from your user login flow.
+- **Default Provisioning Schedule**:
+    - Azure provisioning happens once every 40 minutes by default
+    - Okta provisioning can be configured for real-time or scheduled intervals
+- **Group Provisioning Behavior in Collate**:
+    - **Group Adoption**: Collate searches for existing groups by name. If a group with the same name already exists in Collate (regardless of its location in the hierarchy), Collate will "adopt" that group and apply SCIM updates to it.
+    - **New Group**: If your identity provider sends a group that doesn't yet exist in Collate, we'll create it at the root (under the Organization) with team type as "group"
+    - **Existing Group**: If the group already exists—no matter where it sits in Collate's hierarchy—we'll simply add or remove the user in that group
+- **Critical Distinction - Push Groups vs. App Assignment** (Okta):
+    - **Push Groups**: Syncs the group structure itself (creates/updates the group entity in Collate)
+    - **App Assignment**: Authorizes user provisioning (users within a group will only be provisioned if the group is assigned to the SCIM app)
+    - **Both are required**: To provision users within a group, you must both push the group AND assign it to the SCIM app
+- **Requirement**: For provisioning to happen, you must assign users/groups to the SCIM App in your identity provider dashboard
+
+---
+
+## Step 1: Configure Collate
+
+> **Important - TLS Version Requirements**: 
+> - Ensure **TLSv1.2** is enabled on your server
+> - TLSv1.3 is not supported by Azure SCIM provisioning, and some Okta SCIM connectors also require TLSv1.2 specifically ([Azure reference](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works))
+> - Connection failures are often related to unsupported TLS versions
+> - The Collate team can help with TLS configuration if needed
+
+1. Navigate to **Settings** → **SSO** → **Enable SCIM**
+2. Copy the **SCIM Token** from the same page
+3. Keep this token secure - it will be used to authenticate SCIM requests from your identity provider
+
+---
+
+## Step 2A: Configure Microsoft Entra ID (Azure)
+
+### 2A.1 Create Enterprise Application
+
+1. In your Azure portal, go to **Microsoft Entra ID** → **Enterprise Applications**
+2. Click **+ New Application** above the application list
+3. Click on **Create your own Application**
+4. Enter a **Name** for the application and click **Create**
+
+### 2A.2 Configure Provisioning
+
+1. Under the **Manage** menu, click **Provisioning**
+2. Set **Provisioning Mode** to **Automatic**
+3. Set the **SCIM API endpoint URL** to `https://yourcompany.getcollate.io/api/v1/scim`
+4. Set **Secret Token** to the Collate SCIM token that you generated in Step 1
+5. Click **Test Connection** and wait for the confirmation message that the credentials are authorized to enable provisioning
+6. Click **Save**
+
+### 2A.3 Assign Users and Groups
+
+1. In the application page, click on **Users and Groups**
+2. Click **Add user/group**
+3. Select the desired **user/group**
+4. Click **Assign**
+5. Navigate to **Overview** → **Start Provisioning** to begin the provisioning process
+
+---
+
+## Step 2B: Configure Okta
+
+> **Important**: SCIM provisioning in Okta is **independent** of your SSO authentication method (OIDC/SAML). You will need to add a separate SCIM application from the Okta App Catalog.
+
+### Understanding Okta SCIM Setup
+
+Before you begin, understand that:
+- **SCIM is separate from SSO**: Your existing OIDC or SAML application handles user authentication. SCIM handles user/group provisioning and is configured separately.
+- **You need a dedicated SCIM app**: Use the "SCIM 2.0 Test Connector (OAuth Bearer Token)" from the Okta App Catalog
+- **Authentication method**: SCIM uses OAuth Bearer tokens (the SCIM token from Collate), not your SSO credentials
+
+### 2B.1 Add SCIM Application from Okta App Catalog
+
+1. In your Okta Admin Console, go to **Applications** → **Applications**
+2. Click **Browse App Catalog**
+3. Search for **"SCIM 2.0 Test Connector (OAuth Bearer Token)"**
+4. Click **Add Integration**
+5. Give the application a meaningful name (e.g., "Collate SCIM Provisioning")
+6. Click **Done**
+
+> **Note**: Do NOT try to enable SCIM on your existing OIDC or SAML application. OIDC applications typically don't expose SCIM settings. You need the dedicated SCIM 2.0 Test Connector.
+
+### 2B.2 Configure SCIM Connection
+
+1. In your SCIM 2.0 Test Connector application, go to the **Provisioning** tab
+2. Click **Configure API Integration**
+3. Check **Enable API integration**
+4. Set the **Base URL** to `https://yourcompany.getcollate.io/api/v1/scim`
+5. Set the **API Token** (OAuth Bearer Token) to the Collate SCIM token from Step 1
+6. Click **Test API Credentials** to verify the connection
+7. Click **Save**
+
+> **Troubleshooting Connection Failures**: If you encounter a connection error, verify:
+> - The SCIM token is correct
+> - Your Collate server has TLSv1.2 enabled (connection failures are often due to unsupported TLS versions)
+> - Your network allows outbound connections from Okta to your Collate instance
+> - The Base URL is correct and accessible
+
+### 2B.3 Configure Provisioning Settings
+
+1. Go to **Provisioning** → **To App**
+2. Click **Edit** and enable the following:
+    - **Create Users**: Enable to create users in Collate
+    - **Update User Attributes**: Enable to sync user attribute changes
+    - **Deactivate Users**: Enable to deactivate users when removed from Okta
+3. Configure attribute mappings:
+    - **userName** → **userName**
+    - **email** → **email**
+    - **firstName** → **firstName**
+    - **lastName** → **lastName**
+    - **displayName** → **displayName**
+4. Click **Save**
+
+### 2B.4 Assign Users and Groups (Critical Step)
+
+> **Critical**: This step is what actually provisions users into Collate. Push Groups (Step 2B.5) only creates the group structure; this step provisions the users themselves.
+
+1. Go to the **Assignments** tab
+2. Click **Assign** → **Assign to Groups**
+3. Select the groups containing users you want to provision to Collate
+4. Click **Assign** for each group, then **Done**
+
+**What this does**: Assigning a group to the SCIM app authorizes Okta to provision the users within that group to Collate. Without this assignment, users will NOT be provisioned, even if you push the group structure.
+
+> **Important**: You must assign groups/users to the SCIM app for them to be provisioned. This is separate from pushing the group structure.
+
+### 2B.5 Configure Group Provisioning (Push Groups)
+
+> **Understanding Push Groups vs. App Assignment**:
+> - **Push Groups**: Syncs the group entity/structure to Collate (creates/updates the group itself)
+> - **App Assignment** (Step 2B.4 above): Provisions the users within the group
+> - **You need BOTH**: To provision users within a group, you must both push the group (this step) AND assign it to the SCIM app (Step 2B.4 above)
+
+1. In the **Provisioning** tab, go to **To App**
+2. Scroll down to **Group Push** section
+3. Configure group provisioning options:
+    - **Push Groups**: Click **Push Groups** → **Find groups by name** or **Push groups by name/rule**
+    - Select the groups containing users you want to provision (these should be the same groups you assigned in Step 2B.4)
+    - **Create Groups**: Enable to automatically create groups in Collate
+    - **Update Group Attributes**: Enable to sync group changes
+4. For automatic provisioning, you can set up **Push groups by name/rule**:
+    - Define rules like groups starting with "OM_" or "Collate_"
+    - Groups matching these rules will be automatically provisioned
+5. Click **Save**
+
+> **Common Mistake**: Users often assume that pushing a group will also provision its members. This is incorrect. You must:
+> 1. **Push the group** (this step) - to create the group structure in Collate
+> 2. **Assign the group to the SCIM app** (Step 2B.4 above) - to provision the users within the group
+>
+> If you only push groups without assigning them to the app, the groups will be created but will have no members.
+
+> **Note**: Once configured, groups will be automatically provisioned when they match your rules or when manually pushed.
+
+### 2B.6 Start Provisioning
+
+1. Go to **Provisioning** → **To App**
+2. The provisioning will start automatically once users/groups are assigned
+3. You can monitor the status in the **Provisioning** dashboard
+
+---
+
+## Managing Provisioning
+
+### Microsoft Entra ID (Azure)
+- **Stop Provisioning**: Click on **"Pause Provisioning"**
+- **Test Provisioning**: Use **"Provision on demand"**
+- **View Logs**: Access provisioning logs from the provisioning section
+
+### Okta
+- **Stop Provisioning**: Disable API integration in the Provisioning tab
+- **Test Provisioning**: Use **"Test API Credentials"** or check individual user provisioning status
+- **View Logs**: Go to **Reports** → **System Log** and filter by the application name
+
+---
+
+## Troubleshooting
+
+### Common Issues for Both Providers
+
+1. **Connection Issues**:
+    - Verify the SCIM endpoint URL is correct
+    - Ensure the secret token is valid and properly configured
+    - Check network connectivity and firewall settings
+
+2. **User/Group Assignment Issues**:
+    - Confirm users/groups are properly assigned to the application
+    - Verify user attributes are mapped correctly
+    - Check for duplicate users or conflicting email addresses
+
+3. **Provisioning Failures**:
+    - Review provisioning logs for specific error messages
+    - Ensure required user attributes are populated
+    - Verify user permissions in Collate
+
+### Microsoft Entra ID Specific
+- Check the provisioning logs for error messages
+- Verify the application is properly configured in Enterprise Applications
+
+### Okta Specific
+
+1. **Connection Failures**:
+    - **TLS Version Issues**: Most connection failures are caused by unsupported TLS versions. Ensure TLSv1.2 is enabled on your Collate server
+    - Verify the SCIM token is correct and hasn't expired
+    - Check that your Collate instance URL is accessible from Okta's network
+    - Verify API integration is enabled and credentials are correct
+
+2. **Groups Created But No Users Provisioned**:
+    - **Root Cause**: This is the most common issue. You may have pushed groups but forgot to assign them to the SCIM app
+    - **Solution**: Go to the **Assignments** tab and assign the groups containing users to the SCIM application
+    - **Remember**: Push Groups creates the group structure, App Assignment provisions the users
+
+3. **Cannot Find SCIM Settings in OIDC App**:
+    - **Issue**: OIDC applications don't expose SCIM provisioning settings
+    - **Solution**: Add the "SCIM 2.0 Test Connector (OAuth Bearer Token)" as a separate application from the Okta App Catalog
+    - SCIM provisioning is independent of your SSO authentication method
+
+4. **Group Adoption Questions**:
+    - If you manually created a group in Collate and later provision it via SCIM, Collate will search for the group by name
+    - If a match is found, Collate "adopts" the existing group and subsequent SCIM updates (like adding members) apply to that group
+    - The group doesn't need to be in a specific location in the hierarchy
+
+5. **Other Common Issues**:
+    - Check the System Log for SCIM-related errors
+    - Ensure attribute mappings are configured properly
+    - Check if users are in the correct state (ACTIVE) in Okta
+    - Verify users have the required attributes (email, name, etc.)

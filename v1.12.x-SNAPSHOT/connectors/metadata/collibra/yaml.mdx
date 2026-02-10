@@ -1,0 +1,165 @@
+---
+title: Run the Collibra Connector Externally
+description: Use YAML to configure Collibra metadata integration and capture glossary terms, domains, and asset enrichment.
+slug: /connectors/metadata/collibra/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/collibra.webp'
+name="Collibra"
+stage="BETA"
+availableFeatures={["Metadata"]}
+unavailableFeatures={[]}
+/>
+
+In this section, we provide guides and references to use the Collibra connector.
+
+Configure and schedule Collibra metadata workflows from the OpenMetadata UI:
+
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+
+<ExternalIngestionDeployment />
+
+## Requirements
+
+To connect to Collibra, you will need:
+- **Username**: A user account with privileges to read all metadata in Collibra
+- **Password**: The password for the user account
+- **Host and Port**: The URL of your Collibra instance (e.g., https://your-instance.collibra.com)
+
+## Data Mapping and Assumptions
+
+Following entities are supported and will be mapped to the OpenMetadata entities as shown below.
+
+| Collibra Entity          | OpenMetadata Entity          |
+| :----------------------- | :--------------------------- |
+| Glossary                 | Glossary                     |
+| Glossary Terms           | Glossary Terms               |
+| Domains                  | Domains                      |
+| Communities              | Domains                      |
+
+- Collibra glossaries will be mapped to OpenMetadata glossaries with their terms and relationships preserved.
+- When **Enable Asset Enrichment** is enabled, the connector will match Collibra assets to existing OpenMetadata entities and enrich them with descriptions, tags, and ownership information from Collibra without creating new assets.
+
+
+### Python Requirements
+
+To run the Collibra ingestion, you will need to install:
+
+```bash
+pip3 install "openmetadata-ingestion[collibra]"
+```
+
+## Metadata Ingestion
+
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/metadata/collibraConnection.json)
+you can find the structure to create a connection to Collibra.
+
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+
+### 1. Define the YAML Config
+
+<CodePreview>
+<ContentPanel>
+
+<ContentSection id={10} title="SourceConfig" lines="5-25">
+
+#### Source Configuration - Service Connection
+
+**hostPort**: Host and port of the Collibra instance.
+
+**username**: Username to connect to Collibra. This user should have privileges to read all the metadata in Collibra.
+
+**password**: Password for the Collibra user account.
+
+**glossaryFilterPattern**: Regex pattern to include or exclude glossaries based on their names. Use this to control which glossaries are ingested.
+
+Examples:
+- Include specific glossaries: `^(BusinessGlossary|DataGlossary)$`
+- Exclude test glossaries: `^(?!.*test).*$`
+
+**domainFilterPattern**: Regex pattern to include or exclude domains and communities based on their names.
+
+Examples:
+- Include specific domains: `^(Finance|Sales)$`
+- Exclude archived domains: `^(?!.*archived).*$`
+
+**enableEnrichment**: When enabled, the connector will enrich existing OpenMetadata assets with metadata from Collibra (descriptions, tags, owners) by matching Collibra assets to OpenMetadata entities. This will not create new assets, only update existing ones.
+
+By default, this is set to `false`.
+</ContentSection>
+<ContentSection id={10} title="Sink Configuration" lines="26-28">
+#### Sink Configuration
+To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
+</ContentSection>
+<ContentSection id={10} title="Workflow Configuration" lines="29-45">
+<WorkflowConfigDef />
+</ContentSection>
+</ContentPanel>
+<CodePanel fileName="atlas_config.yaml">
+```yaml
+source:
+  type: Collibra
+  serviceName: local_collibra
+  serviceConnection:
+    config:
+      type: Collibra
+```
+```yaml
+      hostPort: https://your-instance.collibra.com
+```
+```yaml
+      username: your_username
+```
+```yaml
+      password: your_password
+```
+```yaml
+      glossaryFilterPattern:
+        includes:
+          - "^BusinessGlossary$"
+          - "^DataGlossary$"
+        # excludes:
+        #   - "^.*test.*$"
+```
+```yaml
+      domainFilterPattern:
+        includes:
+          - "^Finance$"
+          - "^Sales$"
+        # excludes:
+        #   - "^.*archived.*$"
+```
+```yaml
+      enableEnrichment: false # true or false
+```
+```yaml
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+```
+```yaml
+sink:
+  type: metadata-rest
+  config: {}
+```
+
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

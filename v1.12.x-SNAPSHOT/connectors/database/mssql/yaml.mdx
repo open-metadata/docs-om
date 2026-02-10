@@ -1,0 +1,199 @@
+---
+title: Run the MSSQL Connector Externally
+description: Configure MSSQL metadata ingestion using YAML for profiling, table structure extraction, and lineage syncing.
+slug: /connectors/database/mssql/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/mssql.webp'
+name="MSSQL"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Reverse Metadata (Collate Only)", "Auto-Classification"]}
+unavailableFeatures={["Owners", "Tags", "SSIS packages"]} />
+In this section, we provide guides and references to use the MSSQL connector.
+Configure and schedule MSSQL metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+- [Reverse Metadata](/applications/reverse-metadata)
+<ExternalIngestionDeployment />
+## Requirements
+MSSQL User must grant `SELECT` privilege to fetch the metadata of tables and views.
+```sql
+-- Create a new user
+-- More details https://learn.microsoft.com/en-us/sql/t-sql/statements/create-user-transact-sql?view=sql-server-ver16
+CREATE USER Mary WITH PASSWORD = '********';
+-- Grant SELECT on table
+GRANT SELECT TO Mary;
+```
+### Usage & Lineage consideration
+To perform the query analysis for Usage and Lineage computation, we fetch the query logs from `sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats` &  `sys.dm_exec_sql_text` system tables. To access these tables your user must have `VIEW SERVER STATE` privilege.
+```sql
+GRANT VIEW SERVER STATE TO YourUser;
+```
+### Python Requirements
+<PythonRequirements />
+To run the MSSQL ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[mssql]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/mssqlConnection.json)
+you can find the structure to create a connection to MSSQL.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+This is a sample config for MSSQL:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your MSSQL connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Scheme" lines="4-14">
+
+**scheme**: Defines how to connect to MSSQL. We support `mssql+pytds`, `mssql+pyodbc`, and `mssql+pymssql`.
+
+</ContentSection>
+
+<ContentSection id={3} title="Username" lines="7">
+
+**username**: Specify the User to connect to MSSQL. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={4} title="Password" lines="8">
+
+**password**: Password to connect to MSSQL.
+
+</ContentSection>
+
+<ContentSection id={5} title="Host Port" lines="9">
+
+**hostPort**: Enter the fully qualified hostname and port number for your MSSQL deployment in the Host and Port field.
+
+</ContentSection>
+
+<ContentSection id={6} title="Database" lines="10">
+
+**database**: The initial database to establish a connection to the data source.
+
+</ContentSection>
+
+<ContentSection id={7} title="Ingest All Databases" lines="15-58">
+
+**ingestAllDatabases**: If you need to ingest multiple databases - aside from the initial one above - you can enable this option.
+
+</ContentSection>
+
+<ContentSection id={8} title="URI String" lines="59-61">
+
+**uriString**: In case of a `pyodbc` connection.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Options" lines="62-77">
+
+#### Advanced Configuration
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={10} title="Connection Arguments" lines="78">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={11} title="Source Config" lines="15-58">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Sink Configuration" lines="59-61">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={13} title="Workflow Configuration" lines="62-78">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="mssql_config.yaml">
+
+```yaml
+source:
+  type: mssql
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: Mssql
+      username: <username>
+      password: <password>
+      hostPort: <hostPort>
+      database: <database>  # REQUIRED - database name
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<QueryUsage connector="mssql" />
+<Lineage connector="mssql" />
+<DataProfiler connector="mssql" />
+<AutoClassification connector="mssql" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

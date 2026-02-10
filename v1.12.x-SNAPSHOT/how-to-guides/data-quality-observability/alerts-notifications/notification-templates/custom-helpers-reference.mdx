@@ -1,0 +1,638 @@
+---
+title: Custom Helpers Reference
+description: Complete reference for all 22 Collate custom Handlebars helpers.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference
+sidebarTitle: Custom Helpers Reference
+---
+
+# Custom Helpers Reference
+
+Collate provides 22 custom helpers to format and manipulate event data. These are in addition to standard Handlebars features. Use these helpers to transform data in your notification templates.
+
+<Tip>
+Combine multiple helpers to create powerful template logic. For example, use `filter` to show only failed tests, then `limit` to display only the first 5 items.
+</Tip>
+
+## Data Extraction
+
+### `pluck` - Extract properties from objects
+
+Extracts a specific property from each object in an array.
+
+**Syntax:**
+```handlebars
+{{#each (pluck array 'propertyName')}}
+  {{this}}
+{{/each}}
+```
+
+**Example:**
+```handlebars
+{{#each (pluck entity.tags 'tagFQN')}}
+  <li>{{this}}</li>
+{{/each}}
+```
+
+Extracts the `tagFQN` property from each tag object, resulting in a simple list of tag names.
+
+
+
+### `filter` - Filter lists by property value
+
+Filters array items based on property values.
+
+**Syntax:**
+```handlebars
+{{#with (filter array propertyName="value") as |filtered|}}
+  {{#each filtered}}
+    {{this}}
+  {{/each}}
+{{/with}}
+```
+
+**Example:**
+```handlebars
+{{#with (filter entity.testCaseResultSummary status="Failed") as |failedTests|}}
+  <p>Failed tests: {{length failedTests}}</p>
+  <ul>
+    {{#each failedTests}}
+      <li>{{testCaseName}}</li>
+    {{/each}}
+  </ul>
+{{/with}}
+```
+
+Filters test results to show only failed items.
+
+
+
+### `split` - Split strings into arrays
+
+Splits a string by a delimiter into an array of parts.
+
+**Syntax:**
+```handlebars
+{{#each (split string "delimiter")}}
+  {{this}}
+{{/each}}
+```
+
+**Example:**
+```handlebars
+{{#each (split entity.fullyQualifiedName ".")}}
+  <span class="breadcrumb">{{this}}</span>
+{{/each}}
+```
+
+Splits a qualified name like `database.schema.table` into individual parts for display.
+
+**Advanced Example - Nested Field Parsing:**
+
+When parsing hierarchical field names like `columns.columnName.tags`, combine with `lookup`:
+
+```handlebars
+{{#with (split name '.') as |parts|}}
+  {{#if (endsWith name '.tags')}}
+    Tags for column {{lookup parts 1}}
+  {{else}}
+    Property {{lookup parts 2}} of column {{lookup parts 1}}
+  {{/if}}
+{{/with}}
+```
+
+
+
+### `limit` - Limit array items
+
+Limits the number of items displayed from an array.
+
+**Syntax:**
+```handlebars
+{{#each (limit array maxItems)}}
+  {{this}}
+{{/each}}
+```
+
+**Example:**
+```handlebars
+{{#each (limit failedTests 5)}}
+  <li>{{testCaseName}}</li>
+{{/each}}
+{{#if (gt (length failedTests) 5)}}
+  <li>... and {{math (length failedTests) '-' 5}} more</li>
+{{/if}}
+```
+
+Shows first 5 items and mentions count of remaining items.
+
+<Tip>
+Combine `limit` with other helpers to prevent large notifications:
+```handlebars
+{{#each (limit (filter testResults status="Failed") 10)}}
+  {{name}}
+{{/each}}
+```
+</Tip>
+
+
+
+### `lookup` - Access array element by index
+
+Accesses a specific element in an array by its index (0-based).
+
+**Syntax:**
+```handlebars
+{{lookup array index}}
+```
+
+**Example:**
+```handlebars
+{{#with (split entity.fullyQualifiedName ".") as |parts|}}
+  Database: {{lookup parts 0}}
+  Schema: {{lookup parts 1}}
+  Table: {{lookup parts 2}}
+{{/with}}
+```
+
+Useful for accessing specific parts after using `split` helper to parse hierarchical names.
+
+
+
+## String Operations
+
+### `camelCaseToTitle` - Convert camelCase to Title Case
+
+Converts camelCase strings to Title Case format.
+
+**Syntax:**
+```handlebars
+{{camelCaseToTitle string}}
+```
+
+**Example:**
+```handlebars
+Type: {{camelCaseToTitle event.entityType}}
+```
+
+Converts `testCase` to `Test Case`, `dataAsset` to `Data Asset`.
+
+
+
+### `startsWith` - Check string prefix
+
+Checks if a string starts with a specific prefix.
+
+**Syntax:**
+```handlebars
+{{#if (startsWith string "prefix")}}
+  Content shown if true
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (startsWith name "columns.")}}
+  <p>Column property changed</p>
+{{/if}}
+```
+
+Useful for identifying specific field types in change descriptions.
+
+
+
+### `endsWith` - Check string suffix
+
+Checks if a string ends with a specific suffix.
+
+**Syntax:**
+```handlebars
+{{#if (endsWith string "suffix")}}
+  Content shown if true
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (endsWith name ".tags")}}
+  <p>Tags were modified</p>
+{{/if}}
+```
+
+Useful for identifying specific field types in change descriptions.
+
+
+
+### `textDiff` - Show text differences
+
+Displays the difference between old and new text with strikethrough and highlighting.
+
+**Syntax:**
+```handlebars
+{{textDiff oldText newText}}
+```
+
+**Example:**
+```handlebars
+{{#each changes.updates}}
+  {{#if (eq name 'description')}}
+    Description change: {{textDiff oldValue newValue}}
+  {{/if}}
+{{/each}}
+```
+
+Renders old text with strikethrough and new text highlighted, making changes easy to spot.
+
+**Optional Parameters:**
+
+You can customize the HTML tags used for insertions and deletions:
+
+```handlebars
+{{textDiff oldValue newValue insTag="mark" delTag="del"}}
+```
+
+- `insTag`: HTML tag for inserted text (default: `"b"`)
+- `delTag`: HTML tag for deleted text (default: `"s"`)
+
+
+
+## Comparison & Logic
+
+### `eq` - Equality check
+
+Checks if two values are equal.
+
+**Syntax:**
+```handlebars
+{{#if (eq value1 value2)}}
+  Content shown if equal
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (eq event.entityType "testCase")}}
+  <p>This is a test case</p>
+{{/if}}
+```
+
+
+
+### `gt` - Greater than
+
+Checks if first value is greater than the second.
+
+**Syntax:**
+```handlebars
+{{#if (gt value1 value2)}}
+  Content shown if greater
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (gt (length failedTests) 0)}}
+  <p>Some tests failed</p>
+{{/if}}
+```
+
+
+
+### `and` - Logical AND
+
+Combines multiple conditions with logical AND.
+
+**Syntax:**
+```handlebars
+{{#if (and condition1 condition2)}}
+  Content shown if all conditions true
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (and (eq event.entityType "table") changes.updates)}}
+  <p>Table was updated</p>
+{{/if}}
+```
+
+Shows content only if both conditions are true.
+
+
+
+### `or` - Logical OR
+
+Combines multiple conditions with logical OR.
+
+**Syntax:**
+```handlebars
+{{#if (or condition1 condition2)}}
+  Content shown if any condition true
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (or (eq status "Failed") (eq status "Aborted"))}}
+  <p>Execution had issues</p>
+{{/if}}
+```
+
+Shows content if any condition is true.
+
+
+
+### `not` - Logical NOT
+
+Inverts a condition.
+
+**Syntax:**
+```handlebars
+{{#if (not condition)}}
+  Content shown if condition false
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#if (not entity.owner)}}
+  <p>This entity has no owner assigned</p>
+{{/if}}
+```
+
+
+
+## Collection Operations
+
+### `groupEventChanges` - Group changes into categories
+
+Organizes field changes into separate categories: updates, additions, and deletions.
+
+**Syntax:**
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#each changes.updates}}...{{/each}}
+  {{#each changes.adds}}...{{/each}}
+  {{#each changes.deletes}}...{{/each}}
+{{/with}}
+```
+
+**Example:**
+```handlebars
+  {{#with (groupEventChanges event.changeDescription) as |changes|}}
+    {{#if changes.updates}}
+      <h3>Updated Fields:</h3>
+      {{#each changes.updates}}
+        {{#if (eq name 'description')}}
+          <li><strong>Description:</strong> {{oldValue}} → {{newValue}}</li>
+        {{else if (eq name 'tags')}}
+          <li><strong>Tags:</strong> {{#each oldValue}}{{this}}{{#unless @last}}, {{/unless}}{{/each}} → {{#each newValue}}{{this}}{{#unless @last}},
+  {{/unless}}{{/each}}</li>
+        {{else if (eq name 'owner')}}
+          <li><strong>Owner:</strong> {{oldValue.displayName}} → {{newValue.displayName}}</li>
+        {{else if (eq name 'owners')}}
+          <li><strong>Owners:</strong> {{#each oldValue}}{{displayName}}{{#unless @last}}, {{/unless}}{{/each}} → {{#each newValue}}{{displayName}}{{#unless @last}},
+  {{/unless}}{{/each}}</li>
+        {{else if (startsWith name 'columns.')}}
+          {{#with (split name '.') as |parts|}}
+          <li><strong>Column {{lookup parts 1}}:</strong> Updated {{lookup parts 2}}</li>
+          {{/with}}
+        {{else if (startsWith name 'extension.')}}
+          {{#with (split name '.') as |parts|}}
+          <li><strong>Custom Property '{{lookup parts 1}}':</strong> {{oldValue}} → {{newValue}}</li>
+          {{/with}}
+        {{else}}
+          <li><strong>{{name}}:</strong> {{oldValue}} → {{newValue}}</li>
+        {{/if}}
+      {{/each}}
+    {{/if}}
+
+    {{#if changes.adds}}
+      <h3>Added Fields:</h3>
+      {{#each changes.adds}}
+        {{#if (eq name 'tags')}}
+          <li><strong>Tags:</strong> {{#each newValue}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</li>
+        {{else if (eq name 'owner')}}
+          <li><strong>Owner:</strong> {{newValue.displayName}}</li>
+        {{else if (eq name 'owners')}}
+          <li><strong>Owners:</strong> {{#each newValue}}{{displayName}}{{#unless @last}}, {{/unless}}{{/each}}</li>
+        {{else if (startsWith name 'extension.')}}
+          {{#with (split name '.') as |parts|}}
+          <li><strong>Custom Property '{{lookup parts 1}}':</strong> {{newValue}}</li>
+          {{/with}}
+        {{else}}
+          <li><strong>{{name}}:</strong> {{newValue}}</li>
+        {{/if}}
+      {{/each}}
+    {{/if}}
+
+    {{#if changes.deletes}}
+      <h3>Deleted Fields:</h3>
+      {{#each changes.deletes}}
+        {{#if (eq name 'tags')}}
+          <li><strong>Tags:</strong> <del>{{#each oldValue}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</del></li>
+        {{else if (eq name 'owner')}}
+          <li><strong>Owner:</strong> <del>{{oldValue.displayName}}</del></li>
+        {{else if (eq name 'owners')}}
+          <li><strong>Owners:</strong> <del>{{#each oldValue}}{{displayName}}{{#unless @last}}, {{/unless}}{{/each}}</del></li>
+        {{else if (startsWith name 'extension.')}}
+          {{#with (split name '.') as |parts|}}
+          <li><strong>Custom Property '{{lookup parts 1}}':</strong> <del>{{oldValue}}</del></li>
+          {{/with}}
+        {{else}}
+          <li><strong>{{name}}:</strong> <del>{{oldValue}}</del></li>
+        {{/if}}
+      {{/each}}
+    {{/if}}
+  {{/with}}
+```
+
+
+
+### `hasFieldInChanges` - Check if field was modified
+
+Checks if a specific field was modified in the change description.
+
+**Syntax:**
+```handlebars
+{{#if (hasFieldInChanges changes "fieldName")}}
+  Content shown if field changed
+{{/if}}
+```
+
+**Example:**
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (hasFieldInChanges changes "testCaseResult")}}
+    <p>Test results changed</p>
+  {{/if}}
+{{/with}}
+```
+<Note>
+Must be used with changes from `groupEventChanges`
+</Note>
+
+
+### `length` - Get array/string length
+
+Returns the number of items in an array or characters in a string.
+
+**Syntax:**
+```handlebars
+{{length array}}
+```
+
+**Example:**
+```handlebars
+{{#if (gt (length entity.tags) 0)}}
+  <p>Tags count: {{length entity.tags}}</p>
+{{/if}}
+```
+
+
+
+## Formatting
+
+### `formatDate` - Format timestamps
+
+Converts timestamps to human-readable date and time format.
+
+**Syntax:**
+```handlebars
+{{formatDate timestamp}}
+```
+
+**Example:**
+```handlebars
+<p>Test executed at {{formatDate entity.testCaseResult.timestamp}}</p>
+```
+
+Converts timestamps to format like: `2025-11-13 14:30:00`
+
+
+
+### `buildEntityUrl` - Generate UI links
+
+Creates a clickable URL that opens the entity in Collate UI.
+
+**Syntax:**
+```handlebars
+{{buildEntityUrl entityType entity}}
+```
+
+**Example:**
+```handlebars
+<a href="{{buildEntityUrl event.entityType entity}}">
+  {{entity.fullyQualifiedName}}
+</a>
+```
+
+Generates a link like: `https://your-Collate/entity/table/database.schema.table`
+
+
+
+### `parseEntityLink` - Extract entity from link strings
+
+Extracts entity information from entity link strings.
+
+**Syntax:**
+```handlebars
+{{#with (parseEntityLink linkString) as |entity|}}
+  {{entity.name}}
+{{/with}}
+```
+
+**Example:**
+```handlebars
+{{#with (parseEntityLink entity.relatedEntity) as |related|}}
+  Related to: {{related.name}}
+{{/with}}
+```
+
+
+
+### `processMentions` - Convert mentions to links
+
+Converts @mention syntax to clickable user profile links. Typically used with user-entered descriptions or comments that may contain @mentions to team members.
+
+**Syntax:**
+```handlebars
+{{{processMentions text}}}
+```
+
+**Example:**
+```handlebars
+<p>{{{processMentions entity.description}}}</p>
+```
+
+Converts `@john.doe` in text to a link to that user's profile.
+
+<Note>
+Use three curly braces `{{{` to render HTML output without escaping.
+</Note>
+
+
+
+### `resolveDomain` - Resolve domain references
+
+Displays domain names even when passed as object references.
+
+**Syntax:**
+```handlebars
+{{resolveDomain domainReference}}
+```
+
+**Example:**
+```handlebars
+{{#each entity.domains}}
+  <li>Domain: {{resolveDomain this}}</li>
+{{/each}}
+```
+<Note>
+This helper gracefully handles multiple input types:
+- Domain object references: `{{resolveDomain domain}}`
+- Already-resolved domain strings: `{{resolveDomain "domain-name"}}`
+- Null/undefined values: Returns empty string
+</Note>
+
+
+
+## Math Operations
+
+### `math` - Perform calculations
+
+Performs mathematical operations on numbers.
+
+**Syntax:**
+```handlebars
+{{math value1 "operator" value2 "round" decimalPlaces}}
+```
+
+**Supported Operators:**
+- `+` - Addition
+- `-` - Subtraction
+- `*` - Multiplication
+- `/` - Division
+- `round` - Round to decimal places
+
+**Example:**
+```handlebars
+Success rate: {{math (math passedTests "/" totalTests) "*" 100 "round" 2}}%
+```
+
+Calculates: (passedTests ÷ totalTests) × 100, rounded to 2 decimal places.
+
+**More Examples:**
+```handlebars
+{{math 10 '+' 5}}              <!-- 15 -->
+{{math 100 '-' 30}}            <!-- 70 -->
+{{math 5 '*' 3}}               <!-- 15 -->
+{{math 20 '/' 4}}              <!-- 5 -->
+{{math 3.14159 'round' 2}}     <!-- 3.14 -->
+```
+
+
+
+## Next Steps
+
+- **Learn Handlebars basics** → [Handlebars Templating Guide](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/handlebars-templating-guide)
+- **Understand available data** → [Template Context Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)

@@ -1,0 +1,109 @@
+---
+title: Concepts and Overview
+description: Understand how notification templates work, the different template types, and the basic structure.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/concepts-and-overview
+sidebarTitle: Concepts and Overview
+---
+
+# Concepts and Overview
+
+## How Notification Templates Work
+
+When an event occurs in Collate (e.g., a table is updated, a test case fails), the notification system follows this process:
+
+1. **Triggers** an event subscription configured with a notification template
+2. **Renders** the template with live data from the event using Handlebars syntax
+3. **Adapts** the rendered HTML for each channel (email as HTML, Slack as formatted blocks, Teams as adaptive cards, etc.)
+4. **Sends** the notification to configured destinations
+
+This approach lets you define once and deploy everywhere—a single template automatically formats correctly for email, Slack, Teams, Google Chat, and webhooks.
+
+## Two Template Types
+
+Collate provides two types of notification templates to meet different needs:
+
+### System Templates
+
+Pre-built templates provided by Collate for common notification scenarios.
+
+**Characteristics:**
+- Read-only by default (cannot be deleted)
+- Can be modified to customize appearance
+- Auto-update if you haven't customized them
+- Only users with "Edit All" permission can create system templates
+
+System templates are maintained by Collate and improve over time. If you haven't customized a system template, it will automatically update to newer versions when Collate releases improvements.
+
+### User Templates
+
+Custom templates you create for specific business needs:
+
+- Fully editable and deletable
+- Custom formatting for domain-specific events
+- Reusable across multiple event subscriptions
+- Require "Edit All" or "Edit User Notification Template" permission
+
+User templates are completely under your control and won't change unless you explicitly modify them.
+
+## Template Structure
+
+Each template contains two essential parts:
+
+### Template Subject (`templateSubject`)
+
+The email subject line or notification title that appears at the top of messages.
+
+**Constraints:**
+- Maximum 256 characters
+- Supports Handlebars templating for dynamic content
+
+**Example:**
+```
+[{{publisherName}}] - {{camelCaseToTitle event.entityType}} Updated: {{entity.fullyQualifiedName}}
+```
+
+This renders to something like: `[Data Alerts] - Table Updated: database.schema.customer_data`
+
+<Note>
+Keep the subject line concise (under 100 characters) as it appears in email clients and chat apps where space is limited.
+</Note>
+
+### Template Body (`templateBody`)
+
+HTML content with Handlebars placeholders that forms the main notification message.
+
+**Constraints:**
+- Maximum 10,240 characters
+- Supports HTML formatting and Handlebars templating
+- Automatically adapted by Collate for each channel
+
+**Example:**
+```html
+<strong>{{event.userName}}</strong> changed <strong>{{camelCaseToTitle event.entityType}}</strong>:
+<a href="{{buildEntityUrl event.entityType entity}}">{{entity.fullyQualifiedName}}</a>
+
+{{#if changes.updates}}
+<h3>Updated Fields:</h3>
+<ul>
+  {{#each changes.updates}}
+  <li><strong>{{name}}</strong>: {{oldValue}} → {{newValue}}</li>
+  {{/each}}
+</ul>
+{{/if}}
+```
+
+Collate intelligently transforms this HTML for each channel:
+- **Email**: Renders as formatted HTML with links
+- **Slack**: Converts to Slack block format with proper formatting
+- **Teams**: Converts to Adaptive Cards format
+- **Google Chat**: Converts to Google Chat message format
+- **Webhooks**: Sends the raw template data
+
+<Warning>
+Template bodies are limited to 10,240 characters. If your template exceeds this, consider splitting it into multiple templates for different use cases or simplifying the logic.
+</Warning>
+
+## Next Steps
+
+- **New to templates?** → Start with [Create and Manage Templates](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/create-and-manage-templates)
+- **Want to write templates?** → Learn [Handlebars Templating Guide](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/handlebars-templating-guide)
