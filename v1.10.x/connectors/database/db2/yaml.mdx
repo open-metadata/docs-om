@@ -1,0 +1,240 @@
+---
+title: Run the DB2 Connector Externally
+description: Configure DB2 connector with YAML to ingest structured metadata from enterprise databases into your catalog securely.
+slug: /connectors/database/db2/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/ibmdb2.webp'
+name="DB2"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "View Lineage", "View Column-level Lineage", "dbt", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the DB2 connector.
+Configure and schedule DB2 metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+To create a new Db2 user please follow the guidelines mentioned [here](https://www.ibm.com/docs/ko/samfess/8.2.0?topic=schema-creating-users-manually)
+
+The user must have the below permissions to ingest the metadata.
+
+### DB2 for LUW (Linux, UNIX, Windows)
+
+- `SELECT` privilege on `SYSCAT.SCHEMATA` to fetch the metadata of schemas.
+```sql
+-- Grant SELECT on tables for schema metadata
+GRANT SELECT ON SYSCAT.SCHEMATA TO USER_NAME;
+```
+
+### DB2 for z/OS
+
+DB2 for z/OS uses `SYSIBM.*` catalog tables instead of `SYSCAT.*`. The connector auto-detects the platform and uses the appropriate catalog tables. The following permissions are required:
+
+- `SELECT` privilege on `SYSIBM.SYSTABLES` to fetch schemas, table names, and table comments.
+```sql
+GRANT SELECT ON SYSIBM.SYSTABLES TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSCOLUMNS` to fetch column metadata for tables.
+```sql
+GRANT SELECT ON SYSIBM.SYSCOLUMNS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSVIEWS` to fetch view names and definitions.
+```sql
+GRANT SELECT ON SYSIBM.SYSVIEWS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSINDEXES` to fetch index and primary key information.
+```sql
+GRANT SELECT ON SYSIBM.SYSINDEXES TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSTABCONST` to fetch table constraints (primary keys, unique constraints).
+```sql
+GRANT SELECT ON SYSIBM.SYSTABCONST TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSKEYCOLUSE` to fetch key column usage for constraints.
+```sql
+GRANT SELECT ON SYSIBM.SYSKEYCOLUSE TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSFOREIGNKEYS` to fetch foreign key column details.
+```sql
+GRANT SELECT ON SYSIBM.SYSFOREIGNKEYS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSRELS` to fetch foreign key relationships between tables.
+```sql
+GRANT SELECT ON SYSIBM.SYSRELS TO USER_NAME;
+```
+
+- `SELECT` privilege on `SYSIBM.SYSSEQUENCES` to fetch sequence metadata.
+```sql
+GRANT SELECT ON SYSIBM.SYSSEQUENCES TO USER_NAME;
+```
+
+### Profiler & Data Quality
+Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/how-to-guides/data-quality-observability/quality).
+### Python Requirements
+<PythonRequirements />
+To run the DB2 ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[db2]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/db2Connection.json)
+you can find the structure to create a connection to DB2.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your DB2 connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Username" lines="7">
+
+**username**: Specify the User to connect to DB2. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={3} title="Password" lines="8">
+
+**password**: Password to connect to DB2.
+
+</ContentSection>
+
+<ContentSection id={4} title="Host Port" lines="9">
+
+**hostPort**: Enter the fully qualified hostname and port number for your DB2 deployment in the Host and Port field.
+
+</ContentSection>
+
+<ContentSection id={5} title="License" lines="10">
+
+**license**: Contents of your license file if applicable, make sure to replace new lines with `\n` before pasting it here.
+
+</ContentSection>
+
+<ContentSection id={6} title="License File Name" lines="11">
+
+**licenseFileName**: License file name in case the license is required for connection.
+
+</ContentSection>
+
+<ContentSection id={7} title="Database Schema" lines="12">
+
+**databaseSchema**: Database schema of the data source.
+
+</ContentSection>
+
+<ContentSection id={8} title="Connection Options" lines="13">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Arguments" lines="14">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={10} title="Source Config" lines="17-60">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={11} title="Sink Configuration" lines="61-63">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Workflow Configuration" lines="64-80">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="db2_config.yaml">
+
+```yaml
+source:
+  type: db2
+  serviceName: local_db2
+  serviceConnection:
+    config:
+      type: Db2
+      username: openmetadata_user  # REQUIRED
+      password: openmetadata_password  # REQUIRED
+      hostPort: localhost:5432  # REQUIRED - format: host:port
+      # license: content.....\n..of your....\n...license...\n..file...
+      # licenseFileName: your_license.llc
+      # databaseSchema: schema
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<Lineage connector="db2" />
+<DataProfiler connector="db2" />
+<AutoClassification connector="db2" />
+<DataQuality />
+## dbt Integration
+<Columns cols={2}>
+<Card title="dbt Integration" href="/v1.10.x/connectors/ingestion/workflows/dbt">
+  Learn more about how to ingest dbt models
+</Card>
+</Columns>

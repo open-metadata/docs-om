@@ -1,0 +1,164 @@
+---
+title: Run the S3 Datalake Connector Externally
+description: Use YAML to extract metadata from S3 Datalake for file-level lineage and governance.
+slug: /connectors/database/s3-datalake/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import AwsConfigDef from '/snippets/connectors/yaml/common/aws-config-def.mdx'
+import AwsConfig from '/snippets/connectors/yaml/common/aws-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/amazon-s3.webp'
+name="S3 Datalake"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "dbt", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the S3 Datalake connector.
+Configure and schedule S3 Datalake metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+**Note:** S3 Datalake connector supports extracting metadata from file types `JSON`, `CSV`, `TSV` & `Parquet`.
+### S3 Permissions
+To execute metadata extraction AWS account should have enough access to fetch required data. The <strong>Bucket Policy</strong> in AWS requires at least these permissions:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<my bucket>",
+                "arn:aws:s3:::<my bucket>/*"
+            ]
+        }
+    ]
+}
+```
+### Python Requirements
+<PythonRequirements />
+If running OpenMetadata version greater than 0.13, you will need to install the Datalake ingestion for S3:
+#### S3 installation
+```bash
+pip3 install "openmetadata-ingestion[datalake-s3]"
+```
+#### If version &lt;0.13
+You will be installing the requirements for S3
+```bash
+pip3 install "openmetadata-ingestion[datalake]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas. Here you can find the structure to create a connection to Datalake.
+In order to create and run a Metadata Ingestion workflow, we will follow the steps to create a YAML configuration able to connect to the source, process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following JSON Schema.
+## 1. Define the YAML Config
+
+#### Source Configuration - Source Config using AWS S3
+
+### This is a sample config for Datalake using AWS S3:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your S3 Datalake connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Security Config" lines="7-11">
+
+**configSource**: Configure the security settings for connecting to AWS S3.
+
+<AwsConfigDef />
+
+</ContentSection>
+
+<ContentSection id={3} title="Bucket Name" lines="10">
+
+**bucketName**: Name of the S3 bucket to connect to.
+
+</ContentSection>
+
+<ContentSection id={4} title="Prefix" lines="11">
+
+**prefix**: Prefix path within the S3 bucket.
+
+</ContentSection>
+
+<ContentSection id={5} title="Filter Patterns" lines="42">
+
+**schemaFilterPattern** and **tableFilterPattern**: Note that the `schemaFilterPattern` and `tableFilterPattern` both support regex as `include` or `exclude`. E.g.,
+
+</ContentSection>
+
+<ContentSection id={6} title="Source Config" lines="12-55">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Sink Configuration" lines="56-58">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Workflow Configuration" lines="59-75">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="s3_datalake_config.yaml">
+
+```yaml
+source:
+  type: datalake
+  serviceName: local_datalake
+  serviceConnection:
+    config:
+      type: Datalake
+      configSource:
+        securityConfig:
+          # AWS Security Config here
+        bucketName: bucket name
+        prefix: prefix
+```
+
+<AwsConfig />
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

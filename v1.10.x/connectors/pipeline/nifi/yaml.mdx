@@ -1,0 +1,96 @@
+---
+title: Run the Nifi Connector Externally | Official Documentation
+description: Configure NiFi ingestion using YAML to capture pipeline details, metadata flows, and event-based transformations.
+slug: /connectors/pipeline/nifi/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/apachenifi.webp'
+name="Nifi"
+stage="PROD"
+availableFeatures={["Pipelines", "Usage", "Lineage", "Pipeline Status"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the NiFi connector.
+Configure and schedule NiFi metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the NiFi ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[nifi]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/nifiConnection.json)
+you can find the structure to create a connection to NiFi.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for NiFi:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="hostPort" lines="7-11">
+**hostPort**: Pipeline Service Management UI URL
+**NiFiConfig**: one of
+  **1.** Using Basic authentication
+    - **username**: Username to connect to NiFi. This user should be able to send request to the NiFi API and access the `Resources` endpoint.
+    - **password**: Password to connect to NiFi.
+    - **verifySSL**: Whether SSL verification should be perform when authenticating.
+  **2.** Using client certificate authentication
+    - **certificateAuthorityPath**: Path to the certificate authority (CA) file. This is the certificate used to store and issue your digital certificate. This is an optional parameter. If omitted SSL verification will be skipped; this can present some sever security issue.
+    **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
+    - **clientCertificatePath**: Path to the certificate client file.
+    **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
+    - **clientkeyPath**: Path to the client key file.
+    **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
+</ContentSection>
+<ContentSection id={2} title="SourceConfig" lines="17-36">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: nifi
+  serviceName: nifi_source
+  serviceConnection:
+    config:
+      type: Nifi
+      hostPort: my_host:8433
+      nifiConfig:
+        username: my_username
+        password: my_password
+        verifySSL: <true or false>
+        ## client certificate authentication
+        # certificateAuthorityPath: path/to/CA
+        # clientCertificatePath: path/to/clientCertificate
+        # clientkeyPath: path/to/clientKey
+hostPort: http://localhost:8000
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

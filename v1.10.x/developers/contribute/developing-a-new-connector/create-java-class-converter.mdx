@@ -1,0 +1,95 @@
+---
+title: Create the Java ClassConverter
+slug: /developers/contribute/developing-a-new-connector/create-java-class-converter
+sidebarTitle: Create java class converter
+---
+
+# Create the Java ClassConverter
+
+**If and only if you had to use the `oneOf` property type on your connector's JSON Schema you also need to implement a Java ClassConverter to be able to instantiate the correct class from the configuration.**
+
+Without this, Java doesn't know the proper Class to instantiate and it wouldn't work as expected.
+
+<Tip>
+This is necessary even if you are indirectly using a `oneOf` property by referencing another JSON Schema that uses it.
+</Tip>
+
+
+## Implementing your ClassConverter
+
+In order to implement the `ClassConverter` you need to create a new file within
+
+[`openmetadata-service/src/main/java/org/openmetadata/service/secrets/converter`](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-service/src/main/java/org/openmetadata/service/secrets/converter)
+
+There you should create a new public class that extends `ClassConverter`. The easiest way to achieve this is to use another `ClassConverter` as a reference.
+
+### Example - MysqlConnectionClassConverter.java
+
+Here we will see how to create a ClassConverter for the MysqlConnection, where we define the `authType` using the `oneOf` attribute.
+
+<Tip>
+The file will be shortened and parts of it will be replaced with `...` for readability.
+</Tip>
+
+<Steps>
+<Step title="Before anything else you need">
+Before anything else you need to remember to import the needed classes.
+
+In this example we need to import the `MysqlConnection` itself and both the `IamAuthConfig` and `basicAuth`. It is important to remember that this classes are generated from the JSON Schema and can be found within `openmetadata-spec/target/classes/org/openmetadata/schema/services/connections`.
+
+If you remember from [Define the JSON Schema](/developers/contribute/developing-a-new-connector/define-json-schema), the MysqlConnection uses `oneOf` to define the `authType` property:
+
+```json
+    ...
+    "authType": {
+      "title": "Auth Configuration Type",
+      "description": "Choose Auth Config Type.",
+      "oneOf": [
+        {
+          "$ref": "./common/basicAuth.json"
+        },
+        {
+          "$ref": "./common/iamAuthConfig.json"
+        }
+      ]
+    },
+    ...
+```
+</Step>
+<Step title="With the needed imports in">
+With the needed imports in place, now it is time to extend the `ClassConverter` class to create the `MysqlConnectionClassConverter`.
+
+We are overriding the `convert` method and going the following:
+1. Creating a `MysqlConnection` instance from the json object received
+2. Getting the `AuthType` configuration and trying to use it to instantiate either a `basicAuth` or a `IamAuthConfig`. The first success will be returned.
+3. We set the `AuthType` to be this newly instantaited class
+4. We return the `MysqlConnection` instance.
+</Step>
+</Steps>
+
+## Making your ClassConverter visible
+
+Now that your ClassConverter is implemented you need to add it to the [`ClassconverterFactory.java`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-service/src/main/java/org/openmetadata/service/secrets/converter/ClassConverterFactory.java) file, located in the same path.
+
+### Example - MysqlConnectionClassconverter
+
+<Tip>
+The file will be shortened and parts of it will be replaced with `...` for readability.
+</Tip>
+
+<Steps>
+<Step title="Before anything else you need">
+Before anything else you need to remember to import your `ClassConverter`
+</Step>
+<Step title="Now you just need to">
+Now you just need to add a new `Map.entry` to the `converterMap`.
+</Step>
+</Steps>
+
+## Next Step
+
+Now that the code is ready, let's learn how to test it!
+
+<Card title="Test It" href="/developers/contribute/developing-a-new-connector/test-it" >
+    Learn how to test your new connector!
+  </Card>

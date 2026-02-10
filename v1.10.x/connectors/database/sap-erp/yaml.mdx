@@ -1,0 +1,194 @@
+---
+title: Run the SAP ERP Connector Externally
+description: Configure SAP ERP database connections in OpenMetadata with YAML. Complete setup guide, authentication options, and configuration examples for seamless ...
+slug: /connectors/database/sap-erp/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/sap-erp.png'
+name="SAP ERP"
+stage="PROD"
+availableFeatures={["Metadata"]}
+unavailableFeatures={["Query Usage", "Stored Procedures", "Owners", "Tags","Data Profiler", "Data Quality", "View Lineage", "View Column-level Lineage", "dbt", "Sample Data", "Auto-Classification"]} />
+In this section, we provide guides and references to use the SAP ERP connector.
+Configure and schedule SAP ERP metadata workflow externally:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+<Card title="OpenMetadata 1.1 or later" href="/deployment" >
+    To deploy OpenMetadata, check the Deployment guides.
+  </Card>
+To ingest the SAP ERP metadata, CDS Views and OData services need to be setup to efficiently expose SAP data. To achieve this, data must be exposed via RESTful interfaces.
+Follow the guide [here](/connectors/database/sap-erp/setup-sap-apis) to setup the APIs.
+### Python Requirements
+<PythonRequirements />
+To run the SAP ERP ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[sap-erp]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/sapErpConnection.json)
+you can find the structure to create a connection to SAP ERP.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+This is a sample config for SAP ERP:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your SAP ERP connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Host Port" lines="7">
+
+**hostPort**: Host and port of the SAP ERP service. This specifies the host and port of the SAP ERP instance. It should be specified as a string in the format `https://hostname.com`.
+
+</ContentSection>
+
+<ContentSection id={3} title="API Key" lines="8">
+
+**apiKey**: API Key to authenticate the SAP ERP APIs
+
+</ContentSection>
+
+<ContentSection id={4} title="Database Name" lines="9">
+
+**databaseName**: In OpenMetadata, the Database Service hierarchy works as follows:
+`Database Service > Database > Schema > Table`
+In the case of SAP ERP, we won't have a Database as such. If you'd like to see your data in a database named something other than `default`, you can specify the name in this field.
+
+</ContentSection>
+
+<ContentSection id={5} title="Database Schema" lines="10">
+
+**databaseSchema**: In OpenMetadata, the Database Service hierarchy works as follows:
+`Database Service > Database > Schema > Table`
+In the case of SAP ERP, we won't have a Database Schema as such. If you'd like to see your data in a database schema named something other than `default`, you can specify the name in this field.
+
+</ContentSection>
+
+<ContentSection id={6} title="Pagination Limit" lines="11">
+
+**paginationLimit**: Pagination limit used while querying the SAP ERP API for fetching the entities.
+
+</ContentSection>
+
+<ContentSection id={7} title="SSL Configuration" lines="13">
+
+#### Advanced Configuration
+
+The sslConfig and sslMode are used to configure the SSL (Secure Sockets Layer) connection between your application and the SAP ERP server.
+
+**caCertificate**: This is the path to the CA (Certificate Authority) certificate file. This file is used to verify the server's certificate.
+
+**sslMode**: This field controls whether a secure SSL/TLS connection will be negotiated with the server. Available modes: disable, allow, prefer, require, verify-ca, verify-full.
+
+</ContentSection>
+
+<ContentSection id={8} title="Connection Options" lines="14">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Arguments" lines="15">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={10} title="Source Config" lines="19-62">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={11} title="Sink Configuration" lines="63-65">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Workflow Configuration" lines="66-82">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="sap_erp_config.yaml">
+
+```yaml
+source:
+  type: SapErp
+  serviceName: local_sap_erp
+  serviceConnection:
+    config:
+      type: SapErp
+      hostPort: https://localhost.com
+      apiKey: api_key
+      databaseName: databaseName
+      databaseSchema: databaseSchema
+      paginationLimit: 100
+      # sslConfig:
+      #   caCertificate: "path/to/ca/certificate"
+      # sslMode: disable #allow prefer require verify-ca verify-full
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+## Securing SAP ERP Connection with SSL in OpenMetadata
+To configure SSL for secure connections between OpenMetadata and a Redshift database, Redshift offers various SSL modes, each providing different levels of connection security.
+When running the ingestion process externally, specify the SSL mode to be used for the Redshift connection, such as `prefer`, `verify-ca`, `allow`, and others. Once you've chosen the SSL mode, provide the CA certificate for SSL validation (`caCertificate`). Only the CA certificate is required for SSL validation in Redshift.
+```yaml
+      sslMode: disable #allow prefer require verify-ca verify-full
+      sslConfig:
+            caCertificate: "/path/to/ca/certificate"
+```
+## dbt Integration
+<Columns cols={2}>
+<Card title="dbt Integration" href="/v1.10.x/connectors/ingestion/workflows/dbt">
+  Learn more about how to ingest dbt models
+</Card>
+</Columns>

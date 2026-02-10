@@ -1,0 +1,792 @@
+---
+title: Template Context Reference
+description: Learn about available data objects and how to access event information in notification templates. Includes entity-specific property references.
+slug: /how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference
+sidebarTitle: Template Context Reference
+---
+
+# Template Context Reference
+
+When a notification template is rendered, it has access to event data through special objects. This reference guide documents all available objects and their properties.
+
+## Event Object
+
+The complete change event that triggered the notification.
+
+**Available Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `event.entityType` | string | Type of entity that changed (e.g., `table`, `dashboard`, `testCase`, `dataAsset`) |
+| `event.eventType` | string | Type of change (CREATE, UPDATE, DELETE) |
+| `event.userName` | string | Username of the user who triggered the change |
+| `event.entityId` | UUID | Unique identifier of the entity that changed |
+| `event.entityFullyQualifiedName` | string | Fully qualified name of the entity that was modified |
+| `event.timestamp` | number | Unix timestamp (milliseconds) of when the change occurred |
+| `event.previousVersion` | number | Metadata version before the change |
+| `event.currentVersion` | number | Metadata version after the change |
+| `event.changeDescription` | object | Details of what changed (see Accessing Change Details below) |
+| `event.domains` | array | List of domain IDs the entity belongs to |
+| `event.impersonatedBy` | string | Bot/service user performing the action on behalf of the actual user |
+
+**Example Usage:**
+
+```handlebars
+<p><strong>{{event.userName}}</strong> performed a <strong>{{event.eventType}}</strong> on {{event.entityType}}</p>
+<p>Entity: {{event.entityFullyQualifiedName}}</p>
+<p>Time: {{formatDate event.timestamp}}</p>
+```
+
+## Entity Object
+
+The entity being notified about (automatically deserialized from the event data).
+
+### Common Properties (Available for All Entity Types)
+
+These properties exist on all entities that implement EntityInterface:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `entity.id` | UUID | Unique identifier for the entity |
+| `entity.name` | string | Simple name of the entity |
+| `entity.displayName` | string | Human-friendly display name (defaults to `name` if not set) |
+| `entity.fullyQualifiedName` | string | Full path of the entity (e.g., `database.schema.table`) |
+| `entity.href` | string | Reference URL to access the entity |
+| `entity.description` | string | Entity description or documentation |
+| `entity.version` | number | Entity version number |
+| `entity.deleted` | boolean | Whether the entity is marked as deleted |
+| `entity.owners` | array | List of owner objects with `id`, `name`, `displayName` |
+| `entity.service` | object | Parent service reference (for data assets) |
+| `entity.domains` | array | List of domain references |
+| `entity.tags` | array | Tags associated with the entity (each has `tagFQN`, `tagLabel`, etc.) |
+| `entity.followers` | array | Users following this entity |
+| `entity.reviewers` | array | Designated reviewers for the entity |
+| `entity.experts` | array | Subject matter experts for the entity |
+| `entity.usageSummary` | object | Usage statistics for the entity |
+| `entity.entityStatus` | string | Approval/status state of the entity |
+| `entity.votes` | object | Community voting information |
+| `entity.style` | object | Visual styling properties |
+| `entity.lifeCycle` | object | Lifecycle stage information |
+| `entity.certification` | object | Certification and approval status |
+| `entity.extension` | object | Custom extensions for the entity |
+| `entity.changeDescription` | object | Tracks all changes made to the entity |
+| `entity.updatedAt` | number | Timestamp of last update (milliseconds) |
+| `entity.updatedBy` | string | Username of user who last updated the entity |
+
+### Entity-Specific Properties
+
+Additional properties available based on entity type:
+
+#### **Announcement** (Thread entity)
+
+**Schema**: [`entity/feed/thread.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/feed/thread.json) (AnnouncementDetails definition)
+
+**Description**: Announcements are system-wide or entity-specific messages that inform users about important updates, maintenance, or other information. These are embedded within the Thread entity with a specific `threadType` of `"Announcement"`.
+
+**Announcement-Specific Fields** (Thread entity with `type` = "Announcement"):
+- `entity.announcement.description` (string) - The announcement content (in Markdown format)
+- `entity.announcement.startTime` (number) - When the announcement becomes active (Unix timestamp in milliseconds)
+- `entity.announcement.endTime` (number) - When the announcement expires (Unix timestamp in milliseconds)
+- `entity.type` (enum: string) - Thread type - must be "Announcement" for announcement threads
+- `entity.message` (string) - The main message of the thread in Markdown format
+
+**Note**: Announcements are Thread entities with `type` set to "Announcement". Access announcement-specific details via the `announcement` property which contains `description`, `startTime`, and `endTime`.
+
+#### **Chart**
+
+**Schema**: [`entity/data/chart.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/chart.json)
+
+**Description**: A Chart presents data visually. Charts can be part of Dashboards and help users gain insights from data.
+
+**Chart-Specific Fields**:
+- `entity.chartType` (enum: string) - Type of chart visualization (Line, Table, Bar, Area, Pie, Histogram, Scatter, Text, BoxPlot, SanKey, Gauge, Map, Graph, Heatmap, Timeline, Other)
+- `entity.sourceUrl` (string) - Chart URL suffix from its service
+- `entity.dashboards` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - All dashboards containing this chart
+- `entity.serviceType` (enum: string) - Service type where this chart is hosted
+
+#### **Container**
+
+**Schema**: [`entity/data/container.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/container.json)
+
+**Description**: A Container is a collection of data files or objects in a storage system. Containers organize and provide access to structured and unstructured data.
+
+**Container-Specific Fields**:
+- `entity.parent` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Link to the parent container under which this entity sits, if not top level
+- `entity.children` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - References to child containers residing under this entity
+- `entity.dataModel` ([`ContainerDataModel`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/container.json#L13)) - References to the container's data model, if data is structured, or null otherwise
+- `entity.prefix` (string) - Optional prefix path defined for this container
+- `entity.numberOfObjects` (number) - The number of objects/files this container has
+- `entity.size` (number) - The total size in KB this container has
+- `entity.fileFormats` (Array of [`FileFormat`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/container.json#L36)) - File & data formats identified for the container
+- `entity.sourceUrl` (string) - Source URL of container
+- `entity.fullPath` (string) - Full path of the container/file
+- `entity.retentionPeriod` (string) - Retention period of the data in the Container (ISO 8601 duration format, e.g., P23DT23H)
+
+#### **Conversation** (Thread entity)
+
+**Schema**: [`entity/feed/thread.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/feed/thread.json)
+
+**Description**: Conversations are threaded discussions where users can exchange messages and collaborate on any topic or entity.
+
+**Conversation-Specific Fields**:
+- `entity.threadTs` (number) - Thread timestamp
+- `entity.message` (string) - Initial message content
+- `entity.threadType` (string) - "Conversation", "Task", "Announcement", or "Chatbot"
+- `entity.createdBy` (string) - Username of user who created the thread
+- `entity.reactions` (Array of [`Reaction`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/reaction.json)) - User reactions to messages
+- `entity.about` (string) - Data asset about which this thread is created for with format `<#E::{entities}::{entityName}::{field}::{fieldValue}>`
+- `entity.addressedTo` (string) - Entity link string the thread is addressed to (format: `<#E::{entities}::{entityName}::{field}::{fieldValue}>`)
+
+#### **Dashboard**
+
+**Schema**: [`entity/data/dashboard.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/dashboard.json)
+
+**Description**: A Dashboard is a collection of Charts that presents the same data or related data to allow viewers to gain insights.
+
+**Dashboard-Specific Fields**:
+- `entity.project` (string) - Name of the project / workspace / collection in which the dashboard is contained
+- `entity.dashboardType` (enum: string) - Type of dashboard (Dashboard, Report)
+- `entity.sourceUrl` (string) - Dashboard URL suffix from its service
+- `entity.charts` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - All the charts included in this Dashboard
+- `entity.dataModels` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - List of data models used by this dashboard or the charts contained on it
+- `entity.serviceType` (enum: string) - Service type where this dashboard is hosted
+
+#### **DashboardDataModel**
+
+**Schema**: [`entity/data/dashboardDataModel.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/dashboardDataModel.json)
+
+**Description**: A Dashboard Data Model represents the data structure and relationships used by a Dashboard. It defines how data is organized for visualization.
+
+**DashboardDataModel-Specific Fields**:
+- `entity.serviceType` (enum: string) - Service type where this data model is hosted
+- `entity.dataModelType` (enum: string) - Type of data model (TableauDataModel, TableauPublishedDatasource, TableauEmbeddedDatasource, SupersetDataModel, MetabaseDataModel, LookMlView, LookMlExplore, PowerBIDataModel, QlikDataModel, QuickSightDataModel, SigmaDataModel, PowerBIDataFlow, MicroStrategyDataset, ThoughtSpotDataModel)
+- `entity.sql` (string) - SQL query if the Data Model is based on SQL
+- `entity.columns` (Array of [`Column`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/table.json#L292)) - Columns from the data model
+- `entity.project` (string) - Name of the project / workspace / collection in which the dataModel is contained
+- `entity.sourceUrl` (string) - Dashboard Data Model URL suffix from its service
+
+#### **DashboardService**
+
+**Schema**: [`entity/services/dashboardService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/dashboardService.json)
+
+**Description**: A Dashboard Service represents a service that hosts dashboards (e.g., Tableau, Looker, PowerBI, Metabase).
+
+**DashboardService-Specific Fields**:
+- `entity.serviceType` (string) - Type of dashboard service (Tableau, Looker, PowerBI, Metabase, Superset, Redash, Mode, Qlik)
+- `entity.connection` ([`DashboardConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/dashboardService.json#L98)) - Connection configuration object
+
+#### **Database**
+
+**Schema**: [`entity/data/database.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/database.json)
+
+**Description**: A Database is a collection of tables, views, and other data objects. It is created and hosted in a Database Service.
+
+**Database-Specific Fields**:
+- `entity.serviceType` (enum: string) - Service type where this database is hosted
+- `entity.location` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to the Location that contains this database
+- `entity.databaseSchemas` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - References to schemas in the database
+- `entity.default` (boolean) - For databases that don't support a database/catalog in the hierarchy and use default database (e.g., MySql)
+- `entity.retentionPeriod` (string) - Retention period of the data in the database (ISO 8601 duration format, e.g., P23DT23H)
+- `entity.sourceUrl` (string) - Source URL of database
+- `entity.databaseProfilerConfig` ([`DatabaseProfilerConfig`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/database.json#L145)) - Database profiler configuration
+
+#### **DatabaseSchema**
+
+**Schema**: [`entity/data/databaseSchema.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/databaseSchema.json)
+
+**Description**: A Database Schema groups tables and views within a Database. Tables are organized under schemas.
+
+**DatabaseSchema-Specific Fields**:
+- `entity.serviceType` (enum: string) - Service type where this schema is hosted
+- `entity.database` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to Database that contains this schema
+- `entity.tables` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - References to tables in the schema
+- `entity.retentionPeriod` (string) - Retention period of the data in the database schema (ISO 8601 duration format, e.g., P23DT23H)
+- `entity.sourceUrl` (string) - Source URL of database schema
+- `entity.databaseSchemaProfilerConfig` ([`DatabaseSchemaProfilerConfig`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/databaseSchema.json#L141)) - Schema profiler configuration
+
+#### **DatabaseService**
+
+**Schema**: [`entity/services/databaseService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/databaseService.json)
+
+**Description**: A Database Service represents a database management system that hosts databases (e.g., Postgres, MySQL, Snowflake, BigQuery).
+
+**DatabaseService-Specific Fields**:
+- `entity.serviceType` (string) - Type of database service (Postgres, MySQL, Oracle, MSSQL, Snowflake, BigQuery, Redshift, Athena, Trino, Hive, MariaDB, Presto, Impala, and 50+ other connectors)
+- `entity.connection` ([`DatabaseConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/databaseService.json#L222)) - Connection configuration object
+
+#### **DataContract**
+
+**Schema**: [`entity/data/dataContract.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/dataContract.json)
+
+**Description**: A Data Contract defines expectations for data quality, schema, and SLAs. It ensures that data meets specified requirements for consumers.
+
+**DataContract-Specific Fields**:
+- `entity.entity` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Entity the contract applies to
+- `entity.testSuite` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to test suite
+- `entity.schema` (Array of [`Column`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/table.json#L292)) - Schema definition
+- `entity.semantics` (array) - Semantic validation rules
+- `entity.termsOfUse` (string) - Terms of use
+- `entity.security` (object) - Security and access policy expectations (defined inline)
+- `entity.sla` (object) - Service Level Agreement expectations (defined inline)
+- `entity.qualityExpectations` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Quality expectations
+- `entity.contractUpdates` (Array of [`ContractUpdate`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/dataContract.json#L28)) - History of contract updates
+- `entity.effectiveFrom` (string) - Date from which contract is effective
+- `entity.effectiveUntil` (string) - Date until which contract is effective
+- `entity.sourceUrl` (string) - Source URL
+- `entity.latestResult` ([`TestCaseResult`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/tests/basic.json#L109)) - Latest validation result
+
+#### **Glossary**
+
+**Schema**: [`entity/data/glossary.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/glossary.json)
+
+**Description**: A Glossary is a collection of terms with definitions. It provides a controlled vocabulary for the organization.
+
+**Glossary-Specific Fields**:
+- `entity.usageCount` (integer) - Count of how many times terms from this glossary are used
+- `entity.termCount` (integer) - Total number of terms in glossary
+- `entity.provider` (string) - Provider type
+- `entity.disabled` (boolean) - System glossary flag
+- `entity.mutuallyExclusive` (boolean) - Terms are mutually exclusive
+- `entity.dataProducts` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Data products this glossary is part of
+
+#### **GlossaryTerm**
+
+**Schema**: [`entity/data/glossaryTerm.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/glossaryTerm.json)
+
+**Description**: A Glossary Term defines a specific concept, business term, or technical term with detailed information and relationships.
+
+**GlossaryTerm-Specific Fields**:
+- `entity.glossary` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Glossary that term belongs to
+- `entity.parent` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Parent glossary term
+- `entity.children` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Child glossary terms
+- `entity.relatedTerms` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Related terms
+- `entity.synonyms` (array) - Synonyms list
+- `entity.references` (Array of [`TermReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/glossaryTerm.json#L11)) - External references
+- `entity.usageCount` (integer) - Count of usage
+- `entity.provider` (string) - Provider type
+- `entity.disabled` (boolean) - System term flag
+- `entity.mutuallyExclusive` (boolean) - Children are mutually exclusive
+- `entity.childrenCount` (integer) - Count of immediate children
+
+#### **IngestionPipeline**
+
+**Schema**: [`entity/services/ingestionPipelines/ingestionPipeline.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/ingestionPipelines/ingestionPipeline.json)
+
+**Description**: An Ingestion Pipeline represents an automated workflow for ingesting metadata from external sources into OpenMetadata.
+
+**IngestionPipeline-Specific Fields**:
+- `entity.pipelineType` (enum: string) - Type of ingestion pipeline (metadata, usage, lineage, profiler, autoClassification, TestSuite, dataInsight, elasticSearchReindex, dbt, application)
+- `entity.sourceConfig` ([`SourceConfig`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json#L10)) - Configuration for data source
+- `entity.openMetadataServerConnection` ([`OpenMetadataConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/metadata/openMetadataConnection.json#L7)) - Connection to OpenMetadata
+- `entity.airflowConfig` ([`AirflowConfig`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/ingestionPipelines/ingestionPipeline.json#L58)) - Airflow-specific configuration
+- `entity.service` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Link to the service for which this pipeline ingests metadata
+- `entity.pipelineStatuses` ([`PipelineStatus`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/ingestionPipelines/ingestionPipeline.json#L16)) - Last execution and status for the pipeline
+- `entity.loggerLevel` (enum: string) - Logging level for the workflow
+- `entity.raiseOnError` (boolean) - Flag workflow as failed if errors are encountered (default: true)
+- `entity.deployed` (boolean) - Indicates if workflow has been successfully deployed to Airflow
+- `entity.enabled` (boolean) - Whether pipeline is active and ready to run (default: true)
+- `entity.enableStreamableLogs` (boolean) - Enable real-time log streaming to OpenMetadata server
+- `entity.applicationType` (string) - Type of application when pipelineType is 'application'
+- `entity.ingestionRunner` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - The ingestion agent responsible for executing the pipeline
+- `entity.processingEngine` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - The processing engine responsible for executing the pipeline logic
+
+#### **MessagingService**
+
+**Schema**: [`entity/services/messagingService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/messagingService.json)
+
+**Description**: A Messaging Service represents a message broker or event streaming platform (e.g., Kafka, RabbitMQ, AWS SQS).
+
+**MessagingService-Specific Fields**:
+- `entity.serviceType` (string) - Type of messaging service (Kafka, RabbitMQ, Kinesis, SQS, ActiveMQ, Nats, Pulsar, and other platforms)
+- `entity.connection` ([`MessagingConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/messagingService.json#L41)) - Connection configuration object
+
+#### **MetadataService**
+
+**Schema**: [`entity/services/metadataService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/metadataService.json)
+
+**Description**: A Metadata Service represents a system that manages and stores metadata (e.g., Apache Atlas, Hive Metastore).
+
+**MetadataService-Specific Fields**:
+- `entity.serviceType` (string) - Type of metadata service (Amundsen, Atlas, IMS, OpenMetadata, and other platforms)
+- `entity.connection` ([`MetadataConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/metadataService.json#L42)) - Connection configuration object
+
+#### **MLModel**
+
+**Schema**: [`entity/data/mlmodel.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json)
+
+**Description**: An MLModel entity represents a machine learning model with its metadata, versions, and associations.
+
+**MLModel-Specific Fields**:
+- `entity.algorithm` (string) - Algorithm used
+- `entity.mlFeatures` (Array of [`MLFeature`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json#L106)) - Features used in the model
+- `entity.mlHyperParameters` (Array of [`MLHyperParameter`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json#L119)) - Hyperparameters of the model
+- `entity.target` (string) - Target value for supervised models
+- `entity.dashboard` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Performance dashboard reference
+- `entity.mlStore` ([`MLStore`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json#L136)) - Storage location for the model
+- `entity.server` (string) - Endpoint URL for the model
+- `entity.serviceType` (enum: string) - Service type where model is hosted
+- `entity.sourceUrl` (string) - Source URL of model
+- `entity.sourceHash` (string) - Source hash
+
+#### **MLModelService**
+
+**Schema**: [`entity/services/mlmodelService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/mlmodelService.json)
+
+**Description**: An ML Model Service represents a platform or service that hosts and manages machine learning models (e.g., MLflow, Seldon).
+
+**MLModelService-Specific Fields**:
+- `entity.serviceType` (string) - Type of ML model service (MLflow, Seldon, AWS SageMaker, Google Vertex AI, and other platforms)
+- `entity.connection` ([`MLModelConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/mlmodelService.json#L36)) - Connection configuration object
+
+#### **Pipeline**
+
+**Schema**: [`entity/data/pipeline.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/pipeline.json)
+
+**Description**: A Pipeline represents a workflow or DAG that processes and transforms data from source to destination.
+
+**Pipeline-Specific Fields**:
+- `entity.sourceUrl` (string) - URL to the pipeline definition
+- `entity.tasks` (Array of [`Task`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/task.json)) - Tasks/steps in the pipeline
+- `entity.serviceType` (enum: string) - Service type where pipeline is hosted
+- `entity.pipelineStatus` ([`PipelineStatus`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/pipeline.json#L13)) (defined inline) - Latest pipeline status
+- `entity.state` (enum: string) - Pipeline state (Active, Inactive)
+- `entity.concurrency` (integer) - Concurrency level
+- `entity.pipelineLocation` (string) - Pipeline code location
+- `entity.startDate` (string) - Pipeline start date
+- `entity.scheduleInterval` (string) - Cron format schedule
+- `entity.dataProducts` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Data products
+- `entity.sourceHash` (string) - Source hash
+
+#### **PipelineService**
+
+**Schema**: [`entity/services/pipelineService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/pipelineService.json)
+
+**Description**: A Pipeline Service represents a workflow orchestration platform (e.g., Airflow, Dagster, Prefect).
+
+**PipelineService-Specific Fields**:
+- `entity.serviceType` (string) - Type of pipeline service (Airflow, Dagster, Prefect, Fivetran, Glue, NiFi, and other platforms)
+- `entity.connection` ([`PipelineConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/pipelineService.json#L112)) - Connection configuration object
+
+#### **SearchService**
+
+**Schema**: [`entity/services/searchService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/searchService.json)
+
+**Description**: A Search Service represents a search engine that indexes and enables searching metadata and data (e.g., Elasticsearch, OpenSearch).
+
+**SearchService-Specific Fields**:
+- `entity.serviceType` (string) - Type of search service (Elasticsearch, OpenSearch)
+- `entity.connection` ([`SearchConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/searchService.json#L36))
+
+#### **StorageService**
+
+**Schema**: [`entity/services/storageService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/storageService.json)
+
+**Description**: A Storage Service represents cloud or on-premise storage systems that host data containers and files (e.g., S3, GCS, ADLS).
+
+**StorageService-Specific Fields**:
+- `entity.serviceType` (string) - Type of storage service (S3, GCS, ADLS, Azure Blob Storage, MinIO, HDFS, and other platforms)
+- `entity.connection` ([`StorageConnection`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/storageService.json#L40))
+
+#### **Table**
+
+**Schema**: [`entity/data/table.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/table.json)
+
+**Description**: A Table entity organizes data in rows and columns and is defined in a Database Schema.
+
+**Table-Specific Fields**:
+- `entity.tableType` (string) - Type of table (Regular, External, Dynamic, View, SecureView, MaterializedView, Iceberg, Local, Partitioned, Foreign, Transient, Stream)
+- `entity.columns` (Array of [`Column`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/table.json#L292)) - List of column definitions for the table
+- `entity.databaseSchema` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to parent schema
+- `entity.database` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to parent database
+- `entity.profile` (object) - Data profiling information object
+- `entity.customMetrics` (array) - List of custom metrics
+- `entity.location` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Location reference for the table
+- `entity.sourceUrl` (string) - Source URL of the table
+- `entity.joins` (array) - Join information with other tables
+- `entity.sampleData` (object) - Sample data from the table
+
+#### **Tag**
+
+**Schema**: [`entity/classification/tag.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/classification/tag.json)
+
+**Description**: A Tag is a label assigned to entities for classification and organization purposes.
+
+**Tag-Specific Fields**:
+- `entity.classification` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to parent classification (tag category)
+- `entity.deprecated` (boolean) - Whether tag is deprecated
+- `entity.parent` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Parent tag
+- `entity.children` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Child tags
+- `entity.usageCount` (integer) - Usage count
+- `entity.provider` (string) - Provider type for the tag
+- `entity.dataProducts` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Data products
+- `entity.recognizers` (Array of [`recognizer`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/recognizer.json)) - Recognizers for auto-detection
+- `entity.autoClassificationEnabled` (boolean) - Auto-classification flag
+- `entity.autoClassificationPriority` (integer) - Priority for conflict resolution
+- `entity.mutuallyExclusive` (boolean) - Mutual exclusivity flag
+- `entity.disabled` (boolean) - System tag flag
+
+#### **TagCategory**
+
+**Schema**: [`entity/classification/classification.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/classification/classification.json)
+
+**Description**: A Tag Category is a group of related tags that provides organization and structure for classifications.
+
+**TagCategory-Specific Fields**:
+- `entity.termCount` (integer) - Total number of children tags
+- `entity.usageCount` (integer) - Count of usage
+- `entity.mutuallyExclusive` (boolean) - Tags are mutually exclusive
+- `entity.disabled` (boolean) - System classification flag
+- `entity.provider` (string) - Provider type
+- `entity.autoClassificationConfig` (object) - Auto-classification configuration
+
+#### **Task** (Thread entity)
+
+**Schema**: [`entity/feed/thread.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/feed/thread.json)
+
+**Description**: Tasks are actionable items that can be assigned to users for completion. These are embedded within the Thread entity with a specific `threadType` of `"Task"`.
+
+**Task-Specific Fields**:
+- `entity.assignees` (array) - List of users assigned to the task
+- `entity.status` (string) - Task status (Open, In Progress, Closed, etc.)
+- `entity.priority` (string) - Task priority level
+- `entity.dueDate` (string) - When the task is due
+- `entity.resolution` (string) - How the task was resolved
+
+#### **TestCase**
+
+**Schema**: [`tests/testCase.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/tests/testCase.json)
+
+**Description**: A Test Case is a test definition to capture data quality tests against tables, columns, and other data assets.
+
+**TestCase-Specific Fields**:
+- `entity.testDefinition` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to test definition
+- `entity.entityLink` (string) - Reference to the entity being tested (as entity link string)
+- `entity.entityFQN` (string) - Fully qualified name of tested entity
+- `entity.testSuite` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Test suite reference
+- `entity.testSuites` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Multiple test suites
+- `entity.parameterValues` (array) - Parameters for the test
+- `entity.testCaseResult` (object) - Results from latest test run
+- `entity.testCaseStatus` (enum: string) - Current test status (Success, Failed, Aborted, Queued)
+- `entity.createdBy` (string) - Creator username
+- `entity.computePassedFailedRowCount` (boolean) - Compute row counts flag
+- `entity.incidentId` (UUID) - Incident ID
+- `entity.failedRowsSample` (object) - Sample failed rows
+- `entity.inspectionQuery` (string) - Query to retrieve failed rows
+- `entity.useDynamicAssertion` (boolean) - Dynamic assertion flag
+- `entity.dimensionColumns` (array) - Columns to group results by
+
+#### **TestSuite**
+
+**Schema**: [`tests/testSuite.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/tests/testSuite.json)
+
+**Description**: A Test Suite is a collection of Test Cases that can be executed together as part of a data quality testing workflow.
+
+**TestSuite-Specific Fields**:
+- `entity.basic` (boolean) - Whether suite is basic/executable (preferred over deprecated `executable`)
+- `entity.basicEntityReference` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to entity the suite tests (preferred over deprecated `executableEntityReference`)
+- `entity.tests` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Test case references
+- `entity.testCaseResultSummary` (array) - Test case result summary
+- `entity.summary` (object) - Test execution summary with counts
+- `entity.dataContract` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Associated data contract
+- `entity.inherited` (boolean) - Whether inherited
+- `entity.ingestionRunner` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Ingestion runner
+
+#### **Topic**
+
+**Schema**: [`entity/data/topic.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/topic.json)
+
+**Description**: A Topic represents a message queue or topic in a messaging system where events are published and consumed.
+
+**Topic-Specific Fields**:
+- `entity.messageSchema` (object) - Schema of messages in the topic
+- `entity.serviceType` (enum: string) - Service type where topic is hosted
+- `entity.partitions` (integer) - Number of partitions
+- `entity.cleanupPolicies` (array) - Cleanup policies
+- `entity.retentionTime` (number) - Retention time in milliseconds
+- `entity.replicationFactor` (integer) - Replication factor
+- `entity.maximumMessageSize` (integer) - Maximum message size in bytes
+- `entity.minimumInSyncReplicas` (integer) - Minimum in-sync replicas
+- `entity.retentionSize` (number) - Maximum partition size
+- `entity.topicConfig` (object) - Topic configuration key/value pairs
+- `entity.sampleData` (object) - Sample data
+
+#### **User**
+
+**Schema**: [`entity/teams/user.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/teams/user.json)
+
+**Description**: A User represents a person who can access and interact with the OpenMetadata platform.
+
+**User-Specific Fields**:
+- `entity.email` (string) - User email address
+- `entity.isAdmin` (boolean) - Whether user is administrator
+- `entity.isBot` (boolean) - Whether user is a bot user
+- `entity.allowImpersonation` (boolean) - Whether user can be impersonated
+- `entity.authenticationMechanism` (object) - Authentication configuration
+- `entity.profile` (object) - User profile information
+- `entity.teams` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Teams the user belongs to
+- `entity.roles` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Roles assigned to user
+- `entity.defaultPersona` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Default persona
+- `entity.personas` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Personas for user
+- `entity.owns` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Entities owned by user
+- `entity.follows` (Array of [`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Entities followed by user
+- `entity.timezone` (string) - User timezone
+- `entity.externalId` (string) - External identifier
+- `entity.scimUserName` (string) - SCIM username
+- `entity.displayName` (string) - Display name
+- `entity.description` (string) - User biography
+
+#### **ApiService**
+
+**Schema**: [`entity/services/apiService.json`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/apiService.json)
+
+**Description**: An API Service represents a service that exposes APIs and endpoints (e.g., REST APIs, GraphQL services).
+
+**ApiService-Specific Fields**:
+- `entity.serviceType` (string) - Type of API service (REST, GRAPHQL)
+- `entity.connection` (object) - Connection configuration object
+
+<Note>
+The available properties vary by entity type. Use conditionals to handle missing properties gracefully (see examples below).
+</Note>
+
+**Example Usage:**
+
+```handlebars
+<h2>{{entity.displayName}}</h2>
+<p><strong>Type:</strong> {{camelCaseToTitle event.entityType}}</p>
+<p><strong>Owner:</strong> {{entity.owner}}</p>
+
+{{#if entity.description}}
+  <p><strong>Description:</strong> {{entity.description}}</p>
+{{/if}}
+
+{{#if (gt (length entity.tags) 0)}}
+  <p><strong>Tags:</strong>
+    {{#each entity.tags}}
+      {{tagFQN}}{{#unless @last}}, {{/unless}}
+    {{/each}}
+  </p>
+{{/if}}
+
+{{#if (eq event.entityType 'table')}}
+  <p><strong>Database Schema:</strong> {{entity.databaseSchema.fullyQualifiedName}}</p>
+  <p><strong>Columns:</strong> {{length entity.columns}}</p>
+{{/if}}
+
+{{#if (eq event.entityType 'testCase')}}
+  <p><strong>Test Status:</strong> {{entity.testCaseStatus}}</p>
+  <p><strong>Related Entity:</strong> {{entity.entityLink.fullyQualifiedName}}</p>
+{{/if}}
+```
+
+## System/Configuration Properties
+
+Properties injected into the context for system and notification configuration. These are extracted from the EventSubscription and system settings:
+
+**Available Properties:**
+
+| Property | Type | Source | Description |
+|----------|------|--------|-------------|
+| `baseUrl` | string | EmailUtil.getOMBaseURL() | Base URL of your OpenMetadata instance |
+| `publisherName` | string | EventSubscription displayName or FQN | Display name of the event subscription that triggered this notification (or its FQN if no display name is set) |
+| `emailingEntity` | string | SMTP settings | Email address or entity configured in SMTP settings (used in email headers) |
+
+**Example Usage:**
+
+```handlebars
+<p><em>This notification was sent by: {{publisherName}}</em></p>
+
+<a href="{{baseUrl}}/entity/{{event.entityType}}/{{entity.id}}">
+  View in OpenMetadata
+</a>
+```
+
+Alternatively, use the `buildEntityUrl` helper which does this automatically:
+
+```handlebars
+<a href="{{buildEntityUrl event.entityType entity}}">
+  View in OpenMetadata
+</a>
+```
+
+## Accessing Change Details
+
+When an entity is updated, the `event.changeDescription` object contains information about what changed. Use the `groupEventChanges` helper to organize this data:
+
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if changes.updates}}
+    <h3>Updated Fields:</h3>
+    <ul>
+      {{#each changes.updates}}
+      <li>
+        <strong>{{name}}</strong>:
+        <code>{{oldValue}}</code> → <code>{{newValue}}</code>
+      </li>
+      {{/each}}
+    </ul>
+  {{/if}}
+
+  {{#if changes.adds}}
+    <h3>Added Fields:</h3>
+    <ul>
+      {{#each changes.adds}}
+      <li>
+        <strong>{{name}}</strong>: <code>{{newValue}}</code>
+      </li>
+      {{/each}}
+    </ul>
+  {{/if}}
+
+  {{#if changes.deletes}}
+    <h3>Deleted Fields:</h3>
+    <ul>
+      {{#each changes.deletes}}
+      <li><strong>{{name}}</strong></li>
+      {{/each}}
+    </ul>
+  {{/if}}
+{{/with}}
+```
+
+### Change Object Properties
+
+Each change object in `updates`, `adds`, or `deletes` arrays contains:
+
+| Property | Type | When Present | Description |
+|----------|------|--------------|-------------|
+| `name` | string | Always | Name of the field that changed |
+| `oldValue` | string | Updates, Deletes | Previous value (before the change) |
+| `newValue` | string | Updates, Adds | New value (after the change) |
+
+## Complete Example
+
+Here's a comprehensive example using multiple objects and entity-specific properties:
+
+```handlebars
+<h2>{{camelCaseToTitle event.entityType}} Updated</h2>
+
+<p>
+  <strong>{{entity.displayName}}</strong> was updated by
+  <strong>{{event.userName}}</strong> on {{formatDate event.timestamp}}
+</p>
+
+{{#if entity.owner}}
+  <p><strong>Owner:</strong> {{entity.owner}}</p>
+{{/if}}
+
+<p><a href="{{buildEntityUrl event.entityType entity}}">
+  View {{entity.fullyQualifiedName}}
+</a></p>
+
+{{#if (eq event.entityType 'table')}}
+  <p><strong>Schema:</strong> {{entity.databaseSchema.fullyQualifiedName}}</p>
+  <p><strong>Total Columns:</strong> {{length entity.columns}}</p>
+{{/if}}
+
+{{#if (eq event.entityType 'testCase')}}
+  <div style="padding: 10px; background-color: #f0f0f0; border-radius: 4px;">
+    <p><strong>Test Status:</strong>
+      {{#if (eq entity.testCaseStatus 'Success')}}✅ Passed{{/if}}
+      {{#if (eq entity.testCaseStatus 'Failed')}}❌ Failed{{/if}}
+      {{#if (eq entity.testCaseStatus 'Queued')}}⏳ Queued{{/if}}
+    </p>
+    <p><strong>Test Definition:</strong> {{entity.testDefinition.name}}</p>
+    <p><strong>Testing Entity:</strong> {{entity.entityLink.fullyQualifiedName}}</p>
+  </div>
+{{/if}}
+
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if changes.updates}}
+    <h3>Changes:</h3>
+    <ul>
+      {{#each (limit changes.updates 10)}}
+      <li>{{name}}: {{oldValue}} → {{newValue}}</li>
+      {{/each}}
+    </ul>
+  {{/if}}
+{{/with}}
+
+<footer>
+  <small>
+    Sent by {{publisherName}} |
+    <a href="{{baseUrl}}">OpenMetadata</a>
+  </small>
+</footer>
+```
+
+## Handling Missing Data
+
+Not all properties exist for all entity types. Always use conditionals to prevent empty sections:
+
+### Check Before Use
+
+```handlebars
+{{#if entity.owner}}
+  <p>Owner: {{entity.owner}}</p>
+{{else}}
+  <p>No owner assigned</p>
+{{/if}}
+```
+
+### Hide Entire Section if Empty
+
+```handlebars
+{{#if entity.description}}
+  <section>
+    <h3>Description</h3>
+    <p>{{entity.description}}</p>
+  </section>
+{{/if}}
+```
+
+### Show Default Value
+
+```handlebars
+<p>Status: {{entity.status}} or {{if entity.status "Unknown"}}</p>
+```
+
+### Entity Type Specific Logic
+
+```handlebars
+{{#if (eq event.entityType 'table')}}
+  <!-- Table-specific template -->
+  <p>Database Schema: {{entity.databaseSchema.fullyQualifiedName}}</p>
+  <p>Columns: {{length entity.columns}}</p>
+{{else if (eq event.entityType 'testCase')}}
+  <!-- TestCase-specific template -->
+  <p>Test Status: {{entity.testCaseStatus}}</p>
+{{else}}
+  <!-- Generic template for other entity types -->
+  <p>Entity Type: {{event.entityType}}</p>
+{{/if}}
+```
+
+## Performance Considerations
+
+When accessing data in templates:
+
+1. **Avoid deep nesting** - Access nested properties directly rather than looping
+2. **Use helpers efficiently** - Combine helpers rather than nesting loops
+3. **Limit output** - Use the `limit` helper for large arrays
+4. **Check array existence** - Use `gt (length array) 0` before iterating
+
+**Less efficient:**
+```handlebars
+{{#each entity.tags}}
+  {{#if (eq status "active")}}
+    {{name}}
+  {{/if}}
+{{/each}}
+```
+
+**More efficient:**
+```handlebars
+{{#each (filter entity.tags status="active")}}
+  {{name}}
+{{/each}}
+```
+
+## Next Steps
+- **Learn helpers** → [Custom Helpers Reference](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference)
+- **Create templates** → [Create and Manage Templates](/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/create-and-manage-templates)

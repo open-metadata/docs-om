@@ -1,0 +1,152 @@
+---
+title: Run the OpenSearch Connector Externally
+description: Use YAML to configure OpenSearch ingestion and enable search index metadata extraction and lineage tracking.
+slug: /connectors/search/opensearch/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/search/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/search/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/opensearch.webp'
+name="OpenSearch"
+stage="PROD"
+availableFeatures={["Search Indexes", "Sample Data"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the OpenSearch connector.
+Configure and schedule OpenSearch metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+We extract OpenSearch's metadata by using its [API](https://opensearch.org/docs/latest/api-reference/). To run this ingestion, you just need a user with permissions to the OpenSearch instance.
+### Python Requirements
+<PythonRequirements />
+To run the OpenSearch ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[opensearch]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/search/openSearchConnection.json)
+you can find the structure to create a connection to OpenSearch.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for OpenSearch:
+<CodePreview>
+  <ContentPanel>
+    <ContentSection id={1} title="hostPort" lines="7">
+      <strong>hostPort</strong>: This parameter specifies the host and port of the OpenSearch instance. This should be specified as a URI string in the format <code>http://&lt;hostname&gt;:&lt;port&gt;</code> or <code>https://&lt;hostname&gt;:&lt;port&gt;</code>. For example, you might set it to <code>https://localhost:9200</code>.
+    </ContentSection>
+
+    <ContentSection id={2} title="Basic Authentication" lines="9-10">
+      <strong>Basic Authentication</strong><br />
+      <strong>username</strong>: Username to connect to OpenSearch. Required when Basic Authentication is enabled.<br />
+      <strong>password</strong>: Password of the user account used for authentication.
+    </ContentSection>
+
+    <ContentSection id={3} title="IAM BASED Auth" lines="11-15">
+      <strong>IAM BASED Auth</strong><br />
+      <strong>awsAccessKeyId</strong> & <strong>awsSecretAccessKey</strong>: AWS security credentials used to authenticate and authorize requests. Refer to the <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html" target="_blank">AWS IAM documentation</a>.<br />
+      <strong>awsSessionToken</strong>: Required when using temporary AWS credentials.<br />
+      <strong>awsRegion</strong>: AWS region where the OpenSearch service is deployed. See <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html" target="_blank">AWS Regions</a>.<br />
+      <strong>endPointURL</strong>: Custom AWS service endpoint URL. Learn more <a href="https://docs.aws.amazon.com/general/latest/gr/rande.html" target="_blank">here</a>.<br />
+      <strong>profileName</strong>: Named AWS CLI profile to use instead of <code>default</code>. More info <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html" target="_blank">here</a>.<br />
+      <strong>assumeRoleArn</strong>: ARN of the role to assume for cross-account access. See <a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html" target="_blank">AssumeRole docs</a>.<br />
+      <strong>assumeRoleSessionName</strong>: Identifier for the assumed role session. Defaults to <code>OpenMetadataSession</code>.<br />
+      <strong>assumeRoleSourceIdentity</strong>: Source identity used for CloudTrail tracking. Learn more <a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=SourceIdentity" target="_blank">here</a>.
+    </ContentSection>
+
+    <ContentSection id={4} title="verifySSL" lines="16">
+      <strong>verifySSL</strong>: Indicates whether SSL certificate verification should be performed during authentication.
+    </ContentSection>
+
+    <ContentSection id={5} title="sslConfig" lines="17-26">
+      <strong>sslConfig</strong>:<br />
+      <em>1. SSL Certificates By Path</em><br />
+      - <strong>caCertPath</strong>: Path to the CA certificate.<br />
+      - <strong>clientCertPath</strong>: Path to the client certificate.<br />
+      - <strong>privateKeyPath</strong>: Path to the private key.<br /><br />
+
+      <em>2. SSL Certificates By Value</em><br />
+      - <strong>caCertValue</strong>: CA certificate value.<br />
+      - <strong>clientCertValue</strong>: Client certificate value.<br />
+      - <strong>privateKeyValue</strong>: Private key value.<br />
+      - <strong>stagingDir</strong>: Temporary directory used to stage certificates during ingestion.<br /><br />
+
+      <strong>Note</strong>: When using value-based certificates, replace line breaks with <code>\n</code>. Example:<br />
+      <code>
+        -----BEGIN CERTIFICATE-----<br />
+        MII..<br />
+        MBQ...<br />
+        CgU..<br />
+        8Lt..<br />
+        ...<br />
+        h+4=<br />
+        -----END CERTIFICATE-----
+      </code><br />
+      should be converted to:<br />
+      <code>
+        -----BEGIN CERTIFICATE-----\nMII..\nMBQ...\nCgU..\n8Lt..\n...\nh+4=\n-----END CERTIFICATE-----\n
+      </code>
+    </ContentSection>
+
+    <ContentSection id={6} title="connectionTimeoutSecs" lines="26">
+      <strong>connectionTimeoutSecs</strong>: Connection timeout duration (in seconds) for communicating with OpenSearch APIs.
+    </ContentSection>
+    <ContentSection id={7} title="Source Config" lines="27-41">
+    <SourceConfigDef />
+    </ContentSection>
+    <IngestionSinkDef />
+    <WorkflowConfigDef />
+  </ContentPanel>
+
+  <CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: opensearch
+  serviceName: opensearch_source
+  serviceConnection:
+    config:
+      type: OpenSearch
+      hostPort: http://localhost:9200
+      authType:
+        username: open
+        password: my_own_password
+      # awsConfig:
+      #   awsAccessKeyId: <access key id>
+      #   awsSecretAccessKey: <secret access key>
+      #   awsRegion: <aws region>
+      #   awsSessionToken: <session token>
+      verifySSL: no-ssl
+      sslConfig:
+        certificates:
+          caCertPath: /path/to/http_ca.crt
+          clientCertPath: /path/to/http_ca.crt
+          privateKeyPath: /path/to/http_ca.crt
+          # caCertValue: -----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n
+          # clientCertValue: -----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n
+          # privateKeyValue: -----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n
+          # stagingDir: /tmp/stage
+      connectionTimeoutSecs: 30
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

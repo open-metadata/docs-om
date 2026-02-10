@@ -1,0 +1,86 @@
+---
+title: Run the Databricks Pipeline Connector Externally
+description: Configure Databricks pipeline ingestion using YAML to automate metadata extraction, data profiling, and lineage tracking across workflows.
+slug: /connectors/pipeline/databricks-pipeline/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/databrick.webp'
+name="Databricks"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Usage"]}
+unavailableFeatures={["Owners", "Tags", "Lineage"]} />
+In this section, we provide guides and references to use the Databricks Pipeline connector.
+Configure and schedule Databricks Pipeline metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Databricks Pipeline ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[databricks]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/databricksPipelineConnection.json)
+you can find the structure to create a connection to Databricks Pipeline.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Databricks Pipeline:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="Host and Port" lines="1">
+**Host and Port**: Enter the fully qualified hostname and port number for your Databricks Pipeline deployment in the Host and Port field.
+</ContentSection>
+<ContentSection id={2} title="Token" lines="8">
+**Token**: Generated Token to connect to Databricks Pipeline.
+</ContentSection>
+<ContentSection id={3} title="Connection Arguments (Optional)" lines="9-10">
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to Databricks during the connection. These details must be added as Key-Value pairs.
+  - In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+**HTTP Path**: Databricks Pipeline compute resources URL.
+</ContentSection>
+<ContentSection id={3} title="SourceConfig" lines="11-30">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: databrickspipeline
+  serviceName: local_databricks_pipeline
+  serviceConnection:
+    config:
+      type: DatabricksPipeline
+      hostPort: localhost:443
+      token: <databricks token>
+      connectionArguments:
+        http_path: <http path of databricks cluster>
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

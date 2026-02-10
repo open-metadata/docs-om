@@ -1,0 +1,157 @@
+---
+title: Run the Kafka Connector Externally
+description: Use YAML to configure Kafka ingestion and capture topic metadata, message structure, and event lineage.
+slug: /connectors/messaging/kafka/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/messaging/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/messaging/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/kafka.webp'
+name="Kafka"
+stage="PROD"
+availableFeatures={["Topics", "Sample Data"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Kafka connector.
+Configure and schedule Kafka metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Enable Security](#securing-kafka-connection-with-ssl-in-openmetadata)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Kafka ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[kafka]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/messaging/kafkaConnection.json)
+you can find the structure to create a connection to Kafka.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Kafka:
+<CodePreview>
+<ContentPanel>
+<SourceConfigDef />
+<IngestionSinkDef />
+<WorkflowConfigDef />
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+Configure the source type and service name.
+</ContentSection>
+<ContentSection id={2} title="bootstrapServers" lines="7">
+**bootstrapServers**: List of brokers as comma separated values of broker `host` or `host:port`.
+Example: `host1:7-807-82,host2:7-807-82`
+</ContentSection>
+<ContentSection id={3} title="schemaRegistryURL" lines="8">
+**schemaRegistryURL**: URL of the Schema Registry used to ingest the schemas of the topics.
+If you encounter issues connecting to the Schema Registry, ensure that the protocol is explicitly specified in the Schema Registry URL. For example:
+- Use `http://localhost:8081` instead of `localhost:8081`.
+The Schema Registry requires a properly formatted URL, including the protocol (`http://` or `https://`). While this differentiation is expected in the Schema Registry configuration, it may not be immediately apparent.
+**NOTE**: For now, the schema will be the last version found for the schema name `{topic-name}-value`. An [issue](https://github.com/open-metadata/OpenMetadata/issues/8399) to improve how it currently works has been opened.
+</ContentSection>
+<ContentSection id={4} title="saslUsername" lines="9">
+**saslUsername**: SASL username for use with the PLAIN and SASL-SCRAM mechanisms.
+</ContentSection>
+<ContentSection id={5} title="saslPassword" lines="10">
+**saslPassword**: SASL password for use with the PLAIN and SASL-SCRAM mechanisms.
+</ContentSection>
+<ContentSection id={6} title="saslMechanism" lines="11">
+**saslMechanism**: SASL mechanism to use for authentication.
+Supported: _GSSAPI, PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, OAUTHBEARER_.
+**NOTE**: Despite the name only one mechanism must be configured.
+</ContentSection>
+<ContentSection id={7} title="basicAuthUserInfo" lines="12">
+**basicAuthUserInfo**: Schema Registry Client HTTP credentials in the form of `username:password`.
+By default, user info is extracted from the URL if present.
+</ContentSection>
+<ContentSection id={8} title="consumerConfig" lines="13">
+**consumerConfig**: The accepted additional values for the consumer configuration can be found in the following
+[link](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.mdx).
+</ContentSection>
+<ContentSection id={9} title="schemaRegistryConfig" lines="18">
+**schemaRegistryConfig**: The accepted additional values for the Schema Registry configuration can be found in the
+following [link](https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html#schemaregistryclient).
+**Note:** To ingest the topic schema, `schemaRegistryURL` must be passed.
+</ContentSection>
+<ContentSection id={10} title="securityProtocol" lines="21-22">
+**securityProtocol**: security.protocol consumer config property. It accepts `PLAINTEXT`,`SASL_PLAINTEXT`, `SASL_SSL`, `SSL`.
+</ContentSection>
+<ContentSection id={11} title="schemaRegistryTopicSuffixName" lines="23">
+**schemaRegistryTopicSuffixName**: Schema Registry Topic Suffix Name. The suffix to be appended to the topic name to get topic schema from registry.
+</ContentSection>
+<ContentSection id={12} title="schemaRegistrySSL" lines="21">
+**schemaRegistrySSL**: Schema Registry SSL Config. Configuration for enabling SSL for the Schema Registry connection.
+</ContentSection>
+<ContentSection id={13} title="supportsMetadataExtraction" lines="34">
+**supportsMetadataExtraction**: Supports Metadata Extraction. `supportsMetadataExtraction` supports boolean value either true or false.
+</ContentSection>
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: kafka
+  serviceName: local_kafka
+  serviceConnection:
+    config:
+      type: Kafka
+bootstrapServers: localhost:9092  # REQUIRED - Kafka broker addresses
+schemaRegistryURL: http://localhost:8081  # Schema Registry URL
+saslUsername: username  # SASL authentication username
+saslPassword: password  # SASL authentication password
+saslMechanism: PLAIN  # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER
+basicAuthUserInfo: username:password  # Schema Registry basic auth
+consumerConfig:
+        # Example consumer configurations:
+        # auto.offset.reset: "earliest"
+        # max.poll.records: 500
+        # session.timeout.ms: 30000
+schemaRegistryConfig:
+        # Example schema registry configurations:
+        # schema.registry.basic.auth.credentials.source: "USER_INFO"
+        # schema.registry.ssl.truststore.location: "/path/to/truststore.jks"
+securityProtocol: PLAINTEXT  # Security protocol: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+# schemaRegistryTopicSuffixName: -value
+# SSL Configuration for Consumer connections (when securityProtocol is SSL or SASL_SSL)
+      # consumerConfigSSL:
+      #   caCertificate: "/path/to/ca-cert.pem"
+      #   sslCertificate: "/path/to/client-cert.pem"
+      #   sslKey: "/path/to/client-key.pem"
+# SSL Configuration for Schema Registry connections
+      # schemaRegistrySSL:
+      #   caCertificate: "/path/to/schema-registry-ca.pem"
+      #   sslCertificate: "/path/to/schema-registry-cert.pem"
+      #   sslKey: "/path/to/schema-registry-key.pem"
+# supportsMetadataExtraction: true
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+## Securing Kafka Connection with SSL in OpenMetadata
+To establish secure connections between OpenMetadata and Kafka, in the `YAML` you can provide the CA certificate used for SSL validation by specifying the `caCertificate`. Alternatively, if both client and server require mutual authentication, you'll need to use all three parameters: `ssl key`, `ssl cert`, and `caCertificate`. In this case, `ssl_cert` is used for the client’s SSL certificate, `ssl_key` for the private key associated with the SSL certificate, and `caCertificate` for the CA certificate to validate the server’s certificate.
+```yaml
+      sslConfig:
+            caCertificate: "/path/to/ca_certificate"
+            sslCertificate: "/path/to/your/ssl_cert"
+            sslKey: "/path/to/your/ssl_key"
+```
+<IngestionCli />

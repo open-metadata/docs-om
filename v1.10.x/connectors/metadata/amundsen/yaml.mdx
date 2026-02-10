@@ -1,0 +1,125 @@
+---
+title: Run the Amundsen Connector Externally | Official Documentation
+description: Configure Amundsen metadata ingestion with YAML to import glossary terms, assets, and user-generated metadata.
+slug: /connectors/metadata/amundsen/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/amundsen.webp'
+name="Amundsen"
+stage="PROD"
+availableFeatures={["Metadata"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Amundsen connector.
+Configure and schedule Amundsen metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+Before this, you must create the service you want to get metadata for.
+You can learn how to do it by following the initial part of the Connector documentation for the service.
+You can find the connectors list [here](/connectors).
+### Python Requirements
+<PythonRequirements />
+To run the Amundsen ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[amundsen]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/metadata/amundsenConnection.json)
+you can find the structure to create a connection to Amundsen.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name.
+
+</ContentSection>
+
+<ContentSection id={2} title="Host Port" lines="7">
+
+**hostPort**: Host and port of the Amundsen Neo4j Connection. This expect a URI format like: bolt://localhost:7787.
+
+</ContentSection>
+
+<ContentSection id={3} title="Username" lines="8">
+
+**username**: Username to connect to the Amundsen. This user should have privileges to read all the metadata in Amundsen.
+
+</ContentSection>
+
+<ContentSection id={4} title="Password" lines="9">
+
+**password**: Password to connect to the Amundsen.
+
+</ContentSection>
+
+<ContentSection id={5} title="Max Connection Life Time" lines="10">
+
+**maxConnectionLifeTime**: Maximum connection lifetime for the Amundsen Neo4j Connection.
+
+</ContentSection>
+
+<ContentSection id={6} title="Validate SSL" lines="11">
+
+**validateSSL**: Enable SSL validation for the Amundsen Neo4j Connection.
+
+</ContentSection>
+
+<ContentSection id={7} title="Encrypted" lines="12">
+
+**encrypted**: Enable encryption for the Amundsen Neo4j Connection.
+
+</ContentSection>
+
+<ContentSection id={8} title="Sink Configuration" lines="13-15">
+
+To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: Amundsen
+  serviceName: local_amundsen
+  serviceConnection:
+    config:
+      type: Amundsen
+hostPort: http://localhost:10000
+username: username
+password: password
+maxConnectionLifeTime: 50
+validateSSL: false
+encrypted: false
+sink:
+  type: metadata-rest
+  config: {}
+```
+
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

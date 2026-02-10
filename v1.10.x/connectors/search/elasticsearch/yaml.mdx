@@ -1,0 +1,142 @@
+---
+title: Run the Elasticsearch Connector Externally
+description: Use YAML to configure Elasticsearch metadata ingestion and track index schemas, mappings, and lineage paths.
+slug: /connectors/search/elasticsearch/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/search/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/search/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/elasticsearch.webp'
+name="Elasticsearch"
+stage="PROD"
+availableFeatures={["Search Indexes", "Sample Data"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Elasticsearch connector.
+Configure and schedule Elasticsearch metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+We support Elasticsearch 7.0 and above.
+We extract Elasticsearch's metadata by using its [API](https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html). To run this ingestion, you just need a user with permissions to the ElasticSearch instance.
+### Python Requirements
+<PythonRequirements />
+To run the Elasticsearch ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[elasticsearch]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/search/elasticSearchConnection.json)
+you can find the structure to create a connection to ElasticSearch.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Elasticsearch:
+<CodePreview>
+<ContentPanel>
+  <ContentSection id={1} title="hostPort" lines="7">
+    <strong>hostPort</strong>: This parameter specifies the host and port of the Elasticsearch instance. This should be specified as a URI string in the format <code>http://&lt;hostname&gt;:&lt;port&gt;</code> or <code>https://&lt;hostname&gt;:&lt;port&gt;</code>. For example, you might set it to <code>https://localhost:9200</code>.
+  </ContentSection>
+
+  <ContentSection id={2} title="Basic Authentication" lines="9-10">
+    <strong>Basic Authentication</strong><br />
+    <strong>username</strong>: Username to connect to Elasticsearch. Required when Basic Authentication is enabled.<br />
+    <strong>password</strong>: Password of the user account to connect with Elasticsearch.
+  </ContentSection>
+
+  <ContentSection id={3} title="API Key Authentication" lines="11">
+    <strong>API Key Authentication</strong><br />
+    <strong>apiKey</strong>: API Key to connect to Elasticsearch. Required when API Key Authentication is enabled.<br />
+    <strong>apiKeyId</strong>: Optional field. Enter API Key ID if there is any associated with the API Key. Can be skipped if not applicable.
+  </ContentSection>
+
+  <ContentSection id={4} title="sslConfig" lines="13-22">
+    <strong>sslConfig</strong>:<br />
+    <em>1. SSL Certificates By Path</em><br />
+    - <strong>caCertPath</strong>: Path to the CA certificate.<br />
+    - <strong>clientCertPath</strong>: Path to the client certificate.<br />
+    - <strong>privateKeyPath</strong>: Path to the private key.<br /><br />
+
+    <em>2. SSL Certificates By Value</em><br />
+    - <strong>caCertValue</strong>: Value of the CA certificate.<br />
+    - <strong>clientCertValue</strong>: Value of the client certificate.<br />
+    - <strong>privateKeyValue</strong>: Value of the private key.<br />
+    - <strong>stagingDir</strong>: Temporary directory for storing certificate values during ingestion.<br /><br />
+
+    <strong>Note</strong>: When using value-based certificates, make sure to replace new lines with <code>\n</code>. Example:<br />
+    <code>
+    -----BEGIN CERTIFICATE-----<br />
+    MII..<br />
+    MBQ...<br />
+    CgU..<br />
+    8Lt..<br />
+    ...<br />
+    h+4=<br />
+    -----END CERTIFICATE-----
+    </code><br />
+    should be converted to:<br />
+    <code>
+    -----BEGIN CERTIFICATE-----\nMII..\nMBQ...\nCgU..\n8Lt..\n...\nh+4=\n-----END CERTIFICATE-----\n
+    </code>
+  </ContentSection>
+
+  <ContentSection id={5} title="connectionTimeoutSecs" lines="23">
+    <strong>connectionTimeoutSecs</strong>: Connection timeout duration (in seconds) for connecting to Elasticsearch APIs.
+  </ContentSection>
+<ContentSection id={5} title="SourceConfig" lines="24-38">
+  <SourceConfigDef />
+  </ContentSection>
+  <IngestionSinkDef />
+  <WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: elasticsearch
+  serviceName: elasticsearch_source
+  serviceConnection:
+    config:
+      type: ElasticSearch
+hostPort: http://localhost:9200  # REQUIRED - Elasticsearch cluster URL
+authType:
+        username: elastic  # Basic auth username
+        password: my_own_password  # Basic auth password
+# apiKeyId: <api key id>
+        # apiKey: <api key>
+sslConfig:
+        certificates:
+          caCertPath: /path/to/http_ca.crt
+          clientCertPath: /path/to/http_ca.crt
+          privateKeyPath: /path/to/http_ca.crt
+          # pass certificate values
+          # caCertValue: -----BEGIN CERTIFICATE-----\n....\n.....\n-----END CERTIFICATE-----\n
+          # clientCertValue: -----BEGIN CERTIFICATE-----\n....\n...-----END CERTIFICATE-----\n
+          # privateKeyValue: -----BEGIN RSA PRIVATE KEY-----\n....\n....\n-----END RSA PRIVATE KEY-----\n
+          # stagingDir: /tmp/stage
+```
+```yaml
+      connectionTimeoutSecs: 30
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

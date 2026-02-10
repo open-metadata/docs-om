@@ -9,7 +9,7 @@ collate: true
 
 ## Prerequisites
 
-For a user to log in using SSO, you must configure SSO from your identity provider to Collate.
+For a user to log in using SSO, you must configure SSO from your identity provider to OpenMetadata.
 
 ## Important Notes
 
@@ -17,25 +17,25 @@ For a user to log in using SSO, you must configure SSO from your identity provid
 - **Default Provisioning Schedule**:
     - Azure provisioning happens once every 40 minutes by default
     - Okta provisioning can be configured for real-time or scheduled intervals
-- **Group Provisioning Behavior in Collate**:
-    - **Group Adoption**: Collate searches for existing groups by name. If a group with the same name already exists in Collate (regardless of its location in the hierarchy), Collate will "adopt" that group and apply SCIM updates to it.
-    - **New Group**: If your identity provider sends a group that doesn't yet exist in Collate, we'll create it at the root (under the Organization) with team type as "group"
-    - **Existing Group**: If the group already exists—no matter where it sits in Collate's hierarchy—we'll simply add or remove the user in that group
+- **Group Provisioning Behavior in OpenMetadata**:
+    - **Group Adoption**: OpenMetadata searches for existing groups by name. If a group with the same name already exists in OpenMetadata (regardless of its location in the hierarchy), OpenMetadata will "adopt" that group and apply SCIM updates to it.
+    - **New Group**: If your identity provider sends a group that doesn't yet exist in OpenMetadata, we'll create it at the root (under the Organization) with team type as "group"
+    - **Existing Group**: If the group already exists—no matter where it sits in OpenMetadata's hierarchy—we'll simply add or remove the user in that group
 - **Critical Distinction - Push Groups vs. App Assignment** (Okta):
-    - **Push Groups**: Syncs the group structure itself (creates/updates the group entity in Collate)
+    - **Push Groups**: Syncs the group structure itself (creates/updates the group entity in OpenMetadata)
     - **App Assignment**: Authorizes user provisioning (users within a group will only be provisioned if the group is assigned to the SCIM app)
     - **Both are required**: To provision users within a group, you must both push the group AND assign it to the SCIM app
 - **Requirement**: For provisioning to happen, you must assign users/groups to the SCIM App in your identity provider dashboard
 
 ---
 
-## Step 1: Configure Collate
+## Step 1: Configure OpenMetadata
 
 > **Important - TLS Version Requirements**: 
 > - Ensure **TLSv1.2** is enabled on your server
 > - TLSv1.3 is not supported by Azure SCIM provisioning, and some Okta SCIM connectors also require TLSv1.2 specifically ([Azure reference](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works))
 > - Connection failures are often related to unsupported TLS versions
-> - The Collate team can help with TLS configuration if needed
+> - The OpenMetadata team can help with TLS configuration if needed
 
 1. Navigate to **Settings** → **SSO** → **Enable SCIM**
 2. Copy the **SCIM Token** from the same page
@@ -57,7 +57,7 @@ For a user to log in using SSO, you must configure SSO from your identity provid
 1. Under the **Manage** menu, click **Provisioning**
 2. Set **Provisioning Mode** to **Automatic**
 3. Set the **SCIM API endpoint URL** to `https://yourcompany.getcollate.io/api/v1/scim`
-4. Set **Secret Token** to the Collate SCIM token that you generated in Step 1
+4. Set **Secret Token** to the OpenMetadata SCIM token that you generated in Step 1
 5. Click **Test Connection** and wait for the confirmation message that the credentials are authorized to enable provisioning
 6. Click **Save**
 
@@ -80,7 +80,7 @@ For a user to log in using SSO, you must configure SSO from your identity provid
 Before you begin, understand that:
 - **SCIM is separate from SSO**: Your existing OIDC or SAML application handles user authentication. SCIM handles user/group provisioning and is configured separately.
 - **You need a dedicated SCIM app**: Use the "SCIM 2.0 Test Connector (OAuth Bearer Token)" from the Okta App Catalog
-- **Authentication method**: SCIM uses OAuth Bearer tokens (the SCIM token from Collate), not your SSO credentials
+- **Authentication method**: SCIM uses OAuth Bearer tokens (the SCIM token from OpenMetadata), not your SSO credentials
 
 ### 2B.1 Add SCIM Application from Okta App Catalog
 
@@ -88,7 +88,7 @@ Before you begin, understand that:
 2. Click **Browse App Catalog**
 3. Search for **"SCIM 2.0 Test Connector (OAuth Bearer Token)"**
 4. Click **Add Integration**
-5. Give the application a meaningful name (e.g., "Collate SCIM Provisioning")
+5. Give the application a meaningful name (e.g., "OpenMetadata SCIM Provisioning")
 6. Click **Done**
 
 > **Note**: Do NOT try to enable SCIM on your existing OIDC or SAML application. OIDC applications typically don't expose SCIM settings. You need the dedicated SCIM 2.0 Test Connector.
@@ -99,21 +99,21 @@ Before you begin, understand that:
 2. Click **Configure API Integration**
 3. Check **Enable API integration**
 4. Set the **Base URL** to `https://yourcompany.getcollate.io/api/v1/scim`
-5. Set the **API Token** (OAuth Bearer Token) to the Collate SCIM token from Step 1
+5. Set the **API Token** (OAuth Bearer Token) to the OpenMetadata SCIM token from Step 1
 6. Click **Test API Credentials** to verify the connection
 7. Click **Save**
 
 > **Troubleshooting Connection Failures**: If you encounter a connection error, verify:
 > - The SCIM token is correct
-> - Your Collate server has TLSv1.2 enabled (connection failures are often due to unsupported TLS versions)
-> - Your network allows outbound connections from Okta to your Collate instance
+> - Your OpenMetadata server has TLSv1.2 enabled (connection failures are often due to unsupported TLS versions)
+> - Your network allows outbound connections from Okta to your OpenMetadata instance
 > - The Base URL is correct and accessible
 
 ### 2B.3 Configure Provisioning Settings
 
 1. Go to **Provisioning** → **To App**
 2. Click **Edit** and enable the following:
-    - **Create Users**: Enable to create users in Collate
+    - **Create Users**: Enable to create users in OpenMetadata
     - **Update User Attributes**: Enable to sync user attribute changes
     - **Deactivate Users**: Enable to deactivate users when removed from Okta
 3. Configure attribute mappings:
@@ -126,21 +126,21 @@ Before you begin, understand that:
 
 ### 2B.4 Assign Users and Groups (Critical Step)
 
-> **Critical**: This step is what actually provisions users into Collate. Push Groups (Step 2B.5) only creates the group structure; this step provisions the users themselves.
+> **Critical**: This step is what actually provisions users into OpenMetadata. Push Groups (Step 2B.5) only creates the group structure; this step provisions the users themselves.
 
 1. Go to the **Assignments** tab
 2. Click **Assign** → **Assign to Groups**
-3. Select the groups containing users you want to provision to Collate
+3. Select the groups containing users you want to provision to OpenMetadata
 4. Click **Assign** for each group, then **Done**
 
-**What this does**: Assigning a group to the SCIM app authorizes Okta to provision the users within that group to Collate. Without this assignment, users will NOT be provisioned, even if you push the group structure.
+**What this does**: Assigning a group to the SCIM app authorizes Okta to provision the users within that group to OpenMetadata. Without this assignment, users will NOT be provisioned, even if you push the group structure.
 
 > **Important**: You must assign groups/users to the SCIM app for them to be provisioned. This is separate from pushing the group structure.
 
 ### 2B.5 Configure Group Provisioning (Push Groups)
 
 > **Understanding Push Groups vs. App Assignment**:
-> - **Push Groups**: Syncs the group entity/structure to Collate (creates/updates the group itself)
+> - **Push Groups**: Syncs the group entity/structure to OpenMetadata (creates/updates the group itself)
 > - **App Assignment** (Step 2B.4 above): Provisions the users within the group
 > - **You need BOTH**: To provision users within a group, you must both push the group (this step) AND assign it to the SCIM app (Step 2B.4 above)
 
@@ -149,15 +149,15 @@ Before you begin, understand that:
 3. Configure group provisioning options:
     - **Push Groups**: Click **Push Groups** → **Find groups by name** or **Push groups by name/rule**
     - Select the groups containing users you want to provision (these should be the same groups you assigned in Step 2B.4)
-    - **Create Groups**: Enable to automatically create groups in Collate
+    - **Create Groups**: Enable to automatically create groups in OpenMetadata
     - **Update Group Attributes**: Enable to sync group changes
 4. For automatic provisioning, you can set up **Push groups by name/rule**:
-    - Define rules like groups starting with "OM_" or "Collate_"
+    - Define rules like groups starting with "OM_" or "OpenMetadata_"
     - Groups matching these rules will be automatically provisioned
 5. Click **Save**
 
 > **Common Mistake**: Users often assume that pushing a group will also provision its members. This is incorrect. You must:
-> 1. **Push the group** (this step) - to create the group structure in Collate
+> 1. **Push the group** (this step) - to create the group structure in OpenMetadata
 > 2. **Assign the group to the SCIM app** (Step 2B.4 above) - to provision the users within the group
 >
 > If you only push groups without assigning them to the app, the groups will be created but will have no members.
@@ -203,7 +203,7 @@ Before you begin, understand that:
 3. **Provisioning Failures**:
     - Review provisioning logs for specific error messages
     - Ensure required user attributes are populated
-    - Verify user permissions in Collate
+    - Verify user permissions in OpenMetadata
 
 ### Microsoft Entra ID Specific
 - Check the provisioning logs for error messages
@@ -212,9 +212,9 @@ Before you begin, understand that:
 ### Okta Specific
 
 1. **Connection Failures**:
-    - **TLS Version Issues**: Most connection failures are caused by unsupported TLS versions. Ensure TLSv1.2 is enabled on your Collate server
+    - **TLS Version Issues**: Most connection failures are caused by unsupported TLS versions. Ensure TLSv1.2 is enabled on your OpenMetadata server
     - Verify the SCIM token is correct and hasn't expired
-    - Check that your Collate instance URL is accessible from Okta's network
+    - Check that your OpenMetadata instance URL is accessible from Okta's network
     - Verify API integration is enabled and credentials are correct
 
 2. **Groups Created But No Users Provisioned**:
@@ -228,8 +228,8 @@ Before you begin, understand that:
     - SCIM provisioning is independent of your SSO authentication method
 
 4. **Group Adoption Questions**:
-    - If you manually created a group in Collate and later provision it via SCIM, Collate will search for the group by name
-    - If a match is found, Collate "adopts" the existing group and subsequent SCIM updates (like adding members) apply to that group
+    - If you manually created a group in OpenMetadata and later provision it via SCIM, OpenMetadata will search for the group by name
+    - If a match is found, OpenMetadata "adopts" the existing group and subsequent SCIM updates (like adding members) apply to that group
     - The group doesn't need to be in a specific location in the hierarchy
 
 5. **Other Common Issues**:
