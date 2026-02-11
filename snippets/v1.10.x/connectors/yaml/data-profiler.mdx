@@ -1,0 +1,174 @@
+## Data Profiler
+
+The Data Profiler workflow will be using the `orm-profiler` processor.
+
+After running a Metadata Ingestion workflow, we can run the Data Profiler workflow.
+While the `serviceName` will be the same to that was used in Metadata Ingestion, so the ingestion bot can get the `serviceConnection` details from the server.
+
+### 1. Define the YAML Config
+
+This is a sample config for the profiler:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your profiler workflow.
+
+</ContentSection>
+
+<ContentSection id={2} title="Profiler Config Type" lines="4-6">
+
+**type**: Set to `Profiler` for data profiling ingestion.
+
+</ContentSection>
+
+<ContentSection id={3} title="Profile Sample" lines="7">
+
+**profileSample**: Percentage of data or no. of rows we want to execute the profiler and tests on.
+
+</ContentSection>
+
+<ContentSection id={4} title="Thread Count" lines="8">
+
+**threadCount**: Number of threads to use during metric computations.
+
+</ContentSection>
+
+<ContentSection id={5} title="Timeout Seconds" lines="9">
+
+**timeoutSeconds**: Profiler Timeout in Seconds.
+
+</ContentSection>
+
+<ContentSection id={6} title="Database Filter Pattern" lines="10-15">
+
+**databaseFilterPattern**: Regex to only fetch databases that matches the pattern.
+
+</ContentSection>
+
+<ContentSection id={7} title="Schema Filter Pattern" lines="16-21">
+
+**schemaFilterPattern**: Regex to only fetch tables or databases that matches the pattern.
+
+</ContentSection>
+
+<ContentSection id={8} title="Table Filter Pattern" lines="22-27">
+
+**tableFilterPattern**: Regex to only fetch tables or databases that matches the pattern.
+
+</ContentSection>
+
+<ContentSection id={9} title="Processor Configuration" lines="28-58">
+
+Choose the `orm-profiler`. Its config can also be updated to define tests from the YAML itself instead of the UI.
+
+**tableConfig**: `tableConfig` allows you to set up some configuration at the table level including:
+- Profile sample settings per table
+- Custom profile queries
+- Column-level configuration (include/exclude columns, specific metrics)
+- Partition configuration for large tables
+
+</ContentSection>
+
+<ContentSection id={10} title="Sink Configuration" lines="59-61">
+
+To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="{connector}_profiler.yaml">
+
+```yaml
+source:
+  type: {connector}
+  serviceName: {connector}
+  sourceConfig:
+    config:
+      type: Profiler
+      # profileSample: 85
+      # threadCount: 5
+      # timeoutSeconds: 43200
+      # databaseFilterPattern:
+      #   includes:
+      #     - database1
+      #     - database2
+      #   excludes:
+      #     - database3
+      # schemaFilterPattern:
+      #   includes:
+      #     - schema1
+      #     - schema2
+      #   excludes:
+      #     - schema3
+      # tableFilterPattern:
+      #   includes:
+      #     - table1
+      #     - table2
+      #   excludes:
+      #     - table3
+processor:
+  type: orm-profiler
+  config: {}  # Remove braces if adding properties
+    # tableConfig:
+    #   - fullyQualifiedName: <table fqn>
+    #     profileSample: <number between 0 and 99> # default will be 100 if omitted
+    #     profileQuery: <query to use for sampling data for the profiler>
+    #     columnConfig:
+    #       excludeColumns:
+    #         - <column name>
+    #       includeColumns:
+    #         - columnName: <column name>
+    #         - metrics:
+    #           - MEAN
+    #           - MEDIAN
+    #           - ...
+    #     partitionConfig:
+    #       enablePartitioning: <set to true to use partitioning>
+    #       partitionColumnName: <partition column name>
+    #       partitionIntervalType: <TIME-UNIT, INTEGER-RANGE, INGESTION-TIME, COLUMN-VALUE>
+    #       Pick one of the variation shown below
+    #       ----'TIME-UNIT' or 'INGESTION-TIME'-------
+    #       partitionInterval: <partition interval>
+    #       partitionIntervalUnit: <YEAR, MONTH, DAY, HOUR>
+    #       ------------'INTEGER-RANGE'---------------
+    #       partitionIntegerRangeStart: <integer>
+    #       partitionIntegerRangeEnd: <integer>
+    #       -----------'COLUMN-VALUE'----------------
+    #       partitionValues:
+    #         - <value>
+    #         - <value>
+sink:
+  type: metadata-rest
+  config: {}
+```
+
+</CodePanel>
+
+</CodePreview>
+
+- You can learn more about how to configure and run the Profiler Workflow to extract Profiler data and execute the Data Quality from [here](/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+
+### 2. Run with the CLI
+
+After saving the YAML config, we will run the command the same way we did for the metadata ingestion:
+
+```bash
+metadata profile -c <path-to-yaml>
+```
+
+Note now instead of running `ingest`, we are using the `profile` command to select the Profiler workflow.
+
+<Columns cols={2}>
+
+<Card
+  title="Data Profiler"
+  href="/v1.10.x/how-to-guides/data-quality-observability/profiler/profiler-workflow">
+  Find more information about the Data Profiler here
+</Card>
+
+</Columns>
