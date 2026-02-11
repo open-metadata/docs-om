@@ -1,0 +1,82 @@
+---
+title: Run the Spline Connector Externally | Official Documentation
+description: Configure Spline ingestion with YAML to capture Spark lineage metadata and visualize transformation flows.
+slug: /connectors/pipeline/spline/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/spline.webp'
+name="Spline"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Usage"]}
+unavailableFeatures={["Owners", "Tags", "Lineage"]} />
+In this section, we provide guides and references to use the Spline connector.
+Configure and schedule Spline metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+The Spline connector supports lineage of data source of type `jdbc` or `dbfs` i.e. The Spline connector would be able to extract lineage if the data source is either a jdbc connection or the data source is a Databricks instance.
+<Tip>
+Currently we do not support data source of type AWS S3 or any other cloud storage, which also means that the lineage for external tables from Databricks will not be extracted.
+</Tip>
+You can refer [this](https://github.com/AbsaOSS/spline-getting-started/tree/main/spline-on-databricks) documentation on how to configure Databricks with Spline.
+### Python Requirements
+<PythonRequirements />
+To run the Spline ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/splineConnection.json)
+you can find the structure to create a connection to Spline.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Spline:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="hostPort" lines="7-8">
+**hostPort**: Spline REST Server API Host & Port, OpenMetadata uses Spline REST Server APIs to extract the execution details from spline to generate lineage. This should be specified as a URI string in the format `scheme://hostname:port`. E.g., `http://localhost:8080`, `http://host.docker.internal:8080`.
+**uiHostPort**: Spline UI Host & Port is an optional field which is used for generating redirection URL from OpenMetadata to Spline Portal. This should be specified as a URI string in the format `scheme://hostname:port`. E.g., `http://localhost:9090`, `http://host.docker.internal:9090`.
+</ContentSection>
+<ContentSection id={2} title="SourceConfig" lines="9-28">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: spline
+  serviceName: spline_source
+  serviceConnection:
+    config:
+      type: Spline
+hostPort: http://localhost:8080
+      uiHostPort: http://localhost:9090
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

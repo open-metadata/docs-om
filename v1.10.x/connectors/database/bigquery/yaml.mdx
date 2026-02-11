@@ -1,0 +1,267 @@
+---
+title: Run the BigQuery Connector Externally
+description: Configure BigQuery database connections in OpenMetadata using YAML. Complete setup guide with authentication, SSL, and connection parameters.
+slug: /connectors/database/bigquery/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import PartitionedTables from '/snippets/connectors/database/partitioned-tables.mdx'
+import GcpConfigDef from '/snippets/connectors/yaml/common/gcp-config-def.mdx'
+import GcpConfig from '/snippets/connectors/yaml/common/gcp-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/bigquery.webp'
+name="BigQuery"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Tags", "Stored Procedures", "Sample Data", "Reverse Metadata (OpenMetadata Only)", "Auto-Classification"]}
+unavailableFeatures={["Owners"]} />
+In this section, we provide guides and references to use the BigQuery connector.
+Configure and schedule BigQuery metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+    - [Incremental Extraction](/connectors/ingestion/workflows/metadata/incremental-extraction/bigquery)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+- [Reverse Metadata](/applications/reverse-metadata)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the BigQuery ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[bigquery]"
+```
+### GCP Permissions
+To execute metadata extraction and usage workflow successfully the user or the service account should have enough access to fetch required data. Following table describes the minimum required permissions
+| #    | GCP Permission                | Required For            |
+| :--- | :---------------------------- | :---------------------- |
+| 1    | bigquery.datasets.get         | Metadata Ingestion      |
+| 2    | bigquery.tables.get           | Metadata Ingestion      |
+| 3    | bigquery.tables.getData       | Metadata Ingestion      |
+| 4    | bigquery.tables.list          | Metadata Ingestion      |
+| 5    | resourcemanager.projects.get  | Metadata Ingestion      |
+| 6    | bigquery.jobs.create          | Metadata Ingestion      |
+| 7    | bigquery.jobs.listAll         | Metadata Ingestion      |
+| 8    | bigquery.routines.get         | Stored Procedure        |
+| 9    | bigquery.routines.list        | Stored Procedure        |
+| 10   | datacatalog.taxonomies.get    | Fetch Policy Tags       |
+| 11   | datacatalog.taxonomies.list   | Fetch Policy Tags       |
+| 12   | bigquery.readsessions.create  | Bigquery Usage & Lineage Workflow |
+| 13   | bigquery.readsessions.getData | Bigquery Usage & Lineage Workflow |
+<Tip>
+If the user has `External Tables`, please attach relevant permissions needed for external tables, alongwith the above list of permissions.
+</Tip>
+<Columns cols={2}>
+<Card title="Create Custom GCP Role" href="/v1.10.x/connectors/database/bigquery/create-credentials">
+  Checkout this documentation on how to create a custom role and assign it to the service account.
+</Card>
+</Columns>
+<PartitionedTables />
+## Metadata Ingestion
+### 1. Define the YAML Config
+
+This is a sample config for BigQuery:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your BigQuery connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Connection Type" lines="2">
+
+**type**: Set to `BigQuery` for BigQuery connections.
+
+</ContentSection>
+
+<ContentSection id={3} title="Credentials" lines="7-8">
+
+**credentials**: You can authenticate with your BigQuery instance using either `GCP Credentials Path` where you can specify the file path of the service account key or you can pass the values directly by choosing the `GCP Credentials Values` from the service account key file.
+
+You can checkout [this](https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console) documentation on how to create the service account keys and download it.
+
+</ContentSection>
+
+<ContentSection id={4} title="GCP Configuration" lines="8">
+
+<div>
+
+**gcpConfig:** You can authenticate using:
+
+**1.** Passing the raw credential values provided by BigQuery:
+
+<GcpConfigDef />
+
+</div>
+
+<div>
+
+**2.** Passing a local file path that contains the credentials:
+- **gcpCredentialsPath**: Path to the service account key file
+
+If you prefer to pass the credentials file, you can do so as follows:
+```yaml
+credentials:
+  gcpConfig:
+    path: <path to file>
+```
+
+</div>
+
+<div>
+
+**3.** Using [ADC authentication](https://cloud.google.com/docs/authentication#adc):
+
+You can use ADC authentication by leaving the GCP credentials empty:
+
+```yaml
+# ADC authentication with optional billing project
+credentials:
+  gcpConfig:
+    type: gcp_adc
+    projectId: ["your-data-project-id"]  # Optional
+```
+
+</div>
+
+</ContentSection>
+
+<ContentSection id={5} title="Taxonomy Configuration" lines="9">
+
+<div>
+
+**Taxonomy Project ID (Optional)**: BigQuery uses taxonomies to create hierarchical groups of policy tags. To apply access controls to BigQuery columns, tag the columns with policy tags. Learn more about how to create policy tags and set up column-level access control [here](https://cloud.google.com/bigquery/docs/column-level-security)
+
+If you have attached policy tags to the columns of table available in BigQuery, then OpenMetadata will fetch those tags and attach it to the respective columns. In this field you need to specify the id of project in which the taxonomy was created.
+
+</div>
+
+<div>
+
+**Taxonomy Location (Optional)**: In this field you need to specify the location/region in which the taxonomy was created.
+
+</div>
+
+</ContentSection>
+
+<ContentSection id={6} title="Usage Location" lines="10">
+
+**Usage Location (Optional)**: Location used to query `INFORMATION_SCHEMA.JOBS_BY_PROJECT` to fetch usage data. You can pass multi-regions, such as `us` or `eu`, or your specific region such as `us-east1`. Australia and Asia multi-regions are not yet supported.
+
+</ContentSection>
+
+<ContentSection id={7} title="Cost Per TiB" lines="11">
+
+**Cost Per TiB (Optional)**: The cost (in USD) per tebibyte (TiB) of data processed during BigQuery usage analysis. This value is used to estimate query costs when analyzing usage metrics from `INFORMATION_SCHEMA.JOBS_BY_PROJECT`.
+
+This setting does **not** affect actual billing—it is only used for internal reporting and visualization of estimated costs. The default value, if not set, may assume the standard on-demand BigQuery pricing (e.g., $5.00 per TiB), but you should adjust it according to your organization's negotiated rates or flat-rate pricing model.
+
+</ContentSection>
+
+<ContentSection id={8} title="Billing Project ID" lines="12">
+
+**Billing Project ID (Optional)**: A billing project ID is a unique string used to identify and authorize your project for billing in Google Cloud.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Options" lines="13">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={10} title="Connection Arguments" lines="14">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={11} title="Source Config" lines="18-61">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Sink Configuration" lines="62-64">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={13} title="Workflow Configuration" lines="65-81">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="bigquery_config.yaml">
+
+```yaml
+source:
+  type: bigquery
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: BigQuery
+      credentials:
+        gcpConfig:
+```
+
+<GcpConfig />
+
+```yaml
+      # taxonomyLocation: us
+      # taxonomyProjectID: ["project-id-1", "project-id-2"]
+      # usageLocation: us
+      # costPerTiB: 5.00
+      # billingProjectId: project-id-1
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+<IngestionCli />
+<QueryUsage connector="bigquery" />
+<Lineage connector="bigquery" />
+<DataProfiler connector="bigquery" />
+<AutoClassification connector="bigquery" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/connectors/ingestion/workflows/dbt).

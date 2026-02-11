@@ -1,0 +1,148 @@
+---
+title: TimescaleDB Connector | OpenMetadata Database Integration
+description: Connect TimescaleDB to OpenMetadata with our comprehensive database connector guide. Step-by-step setup, configuration examples, and metadata extraction tips.
+slug: /connectors/database/timescale
+sidebarTitle: Overview
+collate: true
+---
+import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
+import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import Related from '/snippets/connectors/database/related.mdx'
+import ReverseMetadata from '/snippets/connectors/database/timescale/reverse-metadata.mdx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/timescale.webp'
+name="TimescaleDB"
+stage="BETA"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Stored Procedures Lineage"]}
+/>
+
+In this section, we provide guides and references to use the TimescaleDB connector.
+Configure and schedule TimescaleDB metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+    - [Usage and Lineage considerations](#usage-and-lineage-considerations)
+    - [IAM Authentication](#iam-authentication)
+- [Metadata Ingestion](#metadata-ingestion)
+    - [Connection Details](#connection-details)
+- [Securing TimescaleDB Connection with SSL in OpenMetadata](#securing-timescaledb-connection-with-ssl-in-openmetadata)
+- [Troubleshooting](/connectors/database/timescale/troubleshooting)
+- [Reverse Metadata](#reverse-metadata)
+
+## Requirements
+
+<Tip>
+Starting from OpenMetadata **version 1.6.5**, support for **Stored Procedures Lineage** has been introduced. This feature enables tracking the relationships and dependencies between stored procedures and other database objects, enhancing lineage visibility and data traceability.
+</Tip>
+
+<Tip>
+TimescaleDB is built on PostgreSQL. Note that we only support officially supported PostgreSQL versions. You can check the version list [here](https://www.postgresql.org/support/versioning/).
+</Tip>
+
+### Usage and Lineage considerations
+
+When extracting lineage and usage information from TimescaleDB we base our finding on the `pg_stat_statements` table.
+You can find more information about it on the official [docs](https://www.postgresql.org/docs/current/pgstatstatements.html#id-1.11.7.39.6).
+
+Another interesting consideration here is explained in the following SO [question](https://stackoverflow.com/questions/50803147/what-is-the-timeframe-for-pg-stat-statements).
+As a summary:
+- The `pg_stat_statements` has no time data embedded in it.
+- It will show all queries from the last reset (one can call `pg_stat_statements_reset()`).
+
+Then, when extracting usage and lineage data, the query log duration will have no impact, only the query limit.
+
+**Note:** For usage and lineage grant your user `pg_read_all_stats` permission.
+
+```sql
+GRANT pg_read_all_stats TO your_user;
+```
+
+### IAM Authentication
+
+In order to be able to connect via IAM, you need to have the following:
+
+1. Database is configured to use IAM authentication
+Ensure that the RDS has IAM DB authentication enabled. Otherwise, you can click on Modify to enable it.
+
+2. The user has the necessary IAM permissions
+Even if you use IAM to connect to TimescaleDB, you need to specify a user to prepare the connection. You need to create a user as follows:
+
+```sql
+CREATE USER iam_user WITH LOGIN;
+GRANT rds_iam TO iam_user;
+```
+
+3. The AWS Role has the necessary permissions
+The role that is going to be used to perform the ingestion, needs to have the following permissions:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds-db:connect"
+            ],
+            "Resource": [
+                "arn:aws:rds-db:eu-west-1:<aws_account_number>:dbuser:<rds_db_resource_id>/<timescale_user>"
+            ]
+        }
+    ]
+}
+```
+Otherwise, you might be finding issues such as
+
+PAM authentication failed for user "user"
+
+## Metadata Ingestion
+
+<MetadataIngestionUi connector={"TimescaleDB"} selectServicePath={"/public/images/connectors/timescale/select-service.png"} addNewServicePath={"/public/images/connectors/timescale/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/timescale/service-connection.png"} />
+## Connection Details
+<Steps>
+<Step title="Connection Details">
+- **Username**: Specify the user to connect to TimescaleDB. It should have enough privileges to read all the metadata.
+- **Auth Type**: Basic Auth or IAM based auth to connect to instances / cloud RDS.
+  - **Basic Auth**: Provide the password to connect to TimescaleDB.
+  - **IAM Based Auth**:
+    - **AWS Access Key ID** & **AWS Secret Access Key**: Required when interacting with AWS programmatically ([docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html)).
+    - **AWS Region**: Required to resolve service endpoints ([docs](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html)).
+    - **AWS Session Token (optional)**: Needed when using temporary credentials ([docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html)).
+    - **Endpoint URL (optional)**: Override the default AWS endpoint if needed ([docs](https://docs.aws.amazon.com/general/latest/gr/rande.html)).
+    - **Profile Name**: Use a named profile other than `default` if desired ([docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html)).
+    - **Assume Role Arn**: ARN of the role to assume for cross-account access ([docs](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)).
+    - **Assume Role Session Name**: Identifier for the assumed role session ([docs](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=Role%20Session%20Name)).
+    - **Assume Role Source Identity**: Source identity for CloudTrail attribution ([docs](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=SourceIdentity)).
+    <Tip>
+    When using Assume Role authentication, provide the AWS Region and the Assume Role ARN used for ingestion.
+    </Tip>
+- **Host and Port**: Enter the fully qualified hostname and port number for your TimescaleDB deployment.
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+
+## Securing TimescaleDB Connection with SSL in OpenMetadata
+
+To establish secure connections between OpenMetadata and a TimescaleDB database, you can configure SSL using different SSL modes provided by PostgreSQL, each offering varying levels of security.
+
+Under `Advanced Config`, specify the SSL mode appropriate for your connection, such as `prefer`, `verify-ca`, `allow`, and others. After selecting the SSL mode, provide the CA certificate used for SSL validation (`caCertificate`). Note that TimescaleDB (PostgreSQL) requires only the CA certificate for SSL validation.
+
+<Tip>
+For IAM authentication, it is recommended to choose the `allow` mode or another SSL mode that fits your specific requirements.
+</Tip>
+
+<Steps>
+
+<AdvancedConfiguration />
+
+<ReverseMetadata />
+
+</Steps>
+
+<Related />

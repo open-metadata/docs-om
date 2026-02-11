@@ -1,0 +1,103 @@
+---
+title: Run the Sagemaker Connector Externally
+description: Configure SageMaker ingestion with YAML to extract model metadata, metrics, and lineage from ML pipelines.
+slug: /connectors/ml-model/sagemaker/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import SourceConfigDef from '/snippets/connectors/yaml/ml-model/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/ml-model/source-config.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import AwsConfigDef from '/snippets/connectors/yaml/common/aws-config-def.mdx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AwsConfig from '/snippets/connectors/yaml/common/aws-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/sagemaker.webp'
+name="Sagemaker"
+stage="PROD"
+availableFeatures={["ML Store"]}
+unavailableFeatures={["ML Features", "Hyperparameters"]} />
+In this section, we provide guides and references to use the Sagemaker connector.
+Configure and schedule Sagemaker metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+OpenMetadata retrieves information about models and tags associated with the models in the AWS account.
+The user must have the following policy set to ingest the metadata from Sagemaker.
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "SageMakerPolicy",
+            "Effect": "Allow",
+            "Action": [
+                "sagemaker:ListModels",
+                "sagemaker:DescribeModel",
+                "sagemaker:ListTags"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+For more information on Sagemaker permissions visit the [AWS Sagemaker official documentation](https://docs.aws.amazon.com/sagemaker/latest/dg/api-permissions-reference.html).
+### Python Requirements
+<PythonRequirements />
+To run the Sagemaker ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[sagemaker]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/mlmodel/sageMakerConnection.json )
+you can find the structure to create a connection to Sagemaker.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/mlmodelServiceMetadataPipeline.json)
+### 1. Define the YAML Config
+This is a sample config for Sagemaker:
+
+<CodePreview>
+<ContentPanel>
+#### Source Configuration - Service Connection
+<ContentSection id={3} title="AWSConfig" lines="7-16">
+<AwsConfigDef />
+</ContentSection>
+<ContentSection id={4} title="SourceConfig" lines="17-22">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+
+<CodePanel fileName="connector_config.yaml">
+
+```yaml
+source:
+  type: sagemaker
+  serviceName: local_sagemaker
+  serviceConnection:
+    config:
+      type: SageMaker
+      awsConfig:
+```
+
+<AwsConfig />
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

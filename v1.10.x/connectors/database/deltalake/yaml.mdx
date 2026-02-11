@@ -1,0 +1,249 @@
+---
+title: Run the Delta Lake Connector Externally
+description: Configure Delta Lake ingestion using YAML to extract structured metadata, table properties, and data lineage.
+slug: /connectors/database/deltalake/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/delta-lake.webp'
+name="Delta Lake"
+stage="PROD"
+availableFeatures={["Metadata", "dbt"]}
+unavailableFeatures={["Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures", "Sample Data", "Auto-Classification"]} />
+In this section, we provide guides and references to use the Delta Lake connector.
+Configure and schedule Delta Lake metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+Delta Lake requires to run with Python 3.9 or 3.10. We do not yet support the Delta connector
+for Python 3.11
+### Python Requirements
+<PythonRequirements />
+To run the Delta Lake ingestion, you will need to install:
+- If extracting from a metastore
+```bash
+pip3 install "openmetadata-ingestion[deltalake-spark]"
+```
+- If extracting directly from the storage
+```bash
+pip3 install "openmetadata-ingestion[deltalake-storage]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/deltaLakeConnection.json)
+you can find the structure to create a connection to Delta Lake.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+#### Source Configuration - From Metastore
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Delta Lake connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Metastore Configuration" lines="11">
+
+**Metastore Host Port**: Enter the Host & Port of Hive Metastore Service to configure the Spark Session. Either of `metastoreHostPort`, `metastoreDb` or `metastoreFilePath` is required.
+
+**Metastore File Path**: Enter the file path to local Metastore in case Spark cluster is running locally. Either of `metastoreHostPort`, `metastoreDb` or `metastoreFilePath` is required.
+
+**Metastore DB**: The JDBC connection to the underlying Hive metastore DB. Either of `metastoreHostPort`, `metastoreDb` or `metastoreFilePath` is required.
+
+When connecting to an External Metastore passing the parameter `Metastore Host Port`, we will be preparing a Spark Session with the configuration `.config("hive.metastore.uris", "thrift://{connection.metastoreHostPort}")`.
+
+For local file path metastore, we will set `.config("spark.driver.extraJavaOptions", "-Dderby.system.home={connection.metastoreFilePath}")`.
+
+You can also connect to the metastore by directly pointing to the Hive Metastore db, e.g., `jdbc:mysql://localhost:3306/demo_hive`. Here, we will need to inform all the common database settings (url, username, password), and the driver class name for JDBC metastore.
+
+</ContentSection>
+
+<ContentSection id={3} title="App Name" lines="12">
+
+**appName (Optional)**: Enter the app name of spark session.
+
+</ContentSection>
+
+<ContentSection id={4} title="Connection Options" lines="13">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={5} title="Connection Arguments" lines="14">
+
+**Connection Arguments (Optional)**: Key-Value pairs that will be used to pass extra `config` elements to the Spark Session builder.
+
+We are internally running with `pyspark` 3.X and `delta-lake` 2.0.0. This means that we need to consider Spark configuration options for 3.X.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={6} title="Source Config" lines="25-68">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Sink Configuration" lines="69-71">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Workflow Configuration" lines="72-88">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="deltalake_metastore_config.yaml">
+
+```yaml
+source:
+  type: deltalake
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: DeltaLake
+      configSource:
+        connection:
+          # Pick only one of these
+          ## 1. Hive Service Thrift Connection
+          metastoreHostPort: "<metastore host port>"
+          ## 2. Hive Metastore db connection
+          # metastoreDb: jdbc:mysql://localhost:3306/demo_hive
+          # username: username
+          # password: password
+          # driverName: org.mariadb.jdbc.Driver
+          # jdbcDriverClassPath: /some/path/
+          ## 3. Local file for Testing
+          # metastoreFilePath: "<path_to_metastore>/metastore_db"
+          appName: MyApp
+          # connectionOptions:
+          #   key: value
+          # connectionArguments:
+          #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+#### Source Configuration - From Storage - S3
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Delta Lake connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="AWS Configuration" lines="9-12">
+
+**awsAccessKeyId**: Enter your secure access key ID for your DynamoDB connection. The specified key ID should be authorized to read all databases you want to include in the metadata ingestion workflow.
+
+**awsSecretAccessKey**: Enter the Secret Access Key (the passcode key pair to the key ID from above).
+
+**awsRegion**: Specify the region in which your DynamoDB is located. This setting is required even if you have configured a local AWS profile.
+
+</ContentSection>
+
+<ContentSection id={3} title="Bucket Configuration" lines="13-14">
+
+**bucketName**: The S3 bucket name where your Delta Lake tables are stored.
+
+**prefix**: Optional prefix path within the bucket.
+
+</ContentSection>
+
+<ContentSection id={4} title="Source Config" lines="15-58">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={5} title="Sink Configuration" lines="59-61">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={6} title="Workflow Configuration" lines="62-78">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="deltalake_s3_config.yaml">
+
+```yaml
+source:
+  type: deltalake
+  serviceName: <service_name>
+  serviceConnection:
+    config:
+      type: DeltaLake
+      configSource:
+        connection:
+          securityConfig:
+            awsAccessKeyId: aws access key id  # REQUIRED
+            awsSecretAccessKey: aws secret access key  # REQUIRED
+            awsRegion: aws region  # REQUIRED
+        bucketName: bucket name  # REQUIRED
+        prefix: prefix
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+## dbt Integration
+<Columns cols={2}>
+<Card title="dbt Integration" href="/v1.10.x/connectors/ingestion/workflows/dbt">
+  Learn more about how to ingest dbt models
+</Card>
+</Columns>
