@@ -1,222 +1,42 @@
 ---
-title: Kubernetes Deployment
-description: 'Deploy Collate on Kubernetes'
+title: Kubernetes Deployment | Official Documentation
+description: Deploy the Collate on Kubernetes using Helm, custom values, and supported cloud configurations for scalable containerized environments.
+sidebarTitle: Overview
+collate: false
 ---
 
 # Kubernetes Deployment
 
-Deploy Collate on Kubernetes for production-grade scalability and reliability.
+OpenMetadata supports the Installation and Running of Application on kubernetes through Helm Charts.
 
-## Prerequisites
+## Kubernetes Deployment Architecture
 
-- Kubernetes cluster (1.19+)
-- kubectl configured
-- Helm 3.x installed
-- Minimum 8 CPU cores and 16GB RAM
+Below is the expected Kubernetes Deployment Architecture for OpenMetadata Application in **Production**.
 
-## Quick Installation
+<img src="/public/images/deployment/kubernetes/kubernetes-architecture-prod.png" alt="Kubernetes Deployment Architecture" />
 
-### Add Helm Repository
+In the above architecture diagram, OpenMetadata Application is deployed using Helm Charts. The various kubernetes manifests that supports the installation. With the above architecture, OpenMetadata Application Connects with external dependencies which is Database, ElasticSearch and Orchestration tools like airflow.
 
-```bash
-helm repo add open-metadata https://helm.open-metadata.org/
-helm repo update
-```
+The OpenMetadata Helm Charts Exposes the Application from Kubernetes Service at Port `8585` and `8586`. The Health Checks and Metrics endpoints are available on port `8586`.
 
-### Install with Default Values
+Network Policies and Ingresses are optional manifests and disabled by default. These can be installed / enabled using the [Helm Values](/deployment/kubernetes/on-prem).
 
-```bash
-helm install collate open-metadata/collate
-```
+## Links
 
-### Install with Custom Values
-
-```bash
-# Download values file
-curl -sL https://raw.githubusercontent.com/open-metadata/collate-helm-charts/main/charts/collate/values.yaml > values.yaml
-
-# Edit values.yaml as needed
-vim values.yaml
-
-# Install
-helm install collate open-metadata/collate -f values.yaml
-```
-
-## Configuration
-
-### Basic Configuration
-
-```yaml
-# values.yaml
-collate:
-  config:
-    database:
-      host: mysql.default.svc.cluster.local
-      port: 3306
-      databaseName: collate_db
-      username: collate_user
-      password: secure_password
-
-    elasticsearch:
-      host: elasticsearch.default.svc.cluster.local
-      port: 9200
-
-    airflow:
-      host: http://airflow.default.svc.cluster.local:8080
-      username: admin
-      password: admin
-```
-
-### High Availability Setup
-
-```yaml
-# High availability configuration
-replicaCount: 3
-
-resources:
-  requests:
-    memory: "4Gi"
-    cpu: "2"
-  limits:
-    memory: "8Gi"
-    cpu: "4"
-
-# Database HA
-postgresql:
-  enabled: true
-  auth:
-    database: collate_db
-    username: collate_user
-    password: secure_password
-  primary:
-    persistence:
-      size: 100Gi
-  readReplicas:
-    replicaCount: 2
-
-# Elasticsearch HA
-elasticsearch:
-  enabled: true
-  replicas: 3
-  minimumMasterNodes: 2
-  resources:
-    requests:
-      memory: "2Gi"
-      cpu: "1"
-    limits:
-      memory: "4Gi"
-      cpu: "2"
-```
-
-## Storage Configuration
-
-### Persistent Volumes
-
-```yaml
-# Storage configuration
-persistence:
-  enabled: true
-  storageClass: "fast-ssd"
-  size: 20Gi
-
-# Database persistence
-postgresql:
-  primary:
-    persistence:
-      enabled: true
-      storageClass: "fast-ssd"
-      size: 100Gi
-
-# Elasticsearch persistence
-elasticsearch:
-  persistence:
-    enabled: true
-    storageClass: "fast-ssd"
-    size: 50Gi
-```
-
-## Ingress Configuration
-
-```yaml
-# Ingress for external access
-ingress:
-  enabled: true
-  className: "nginx"
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  hosts:
-    - host: collate.company.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: collate-tls
-      hosts:
-        - collate.company.com
-```
-
-## Monitoring and Observability
-
-### Prometheus Integration
-
-```yaml
-# Enable Prometheus metrics
-metrics:
-  enabled: true
-  port: 9464
-  path: /metrics
-
-serviceMonitor:
-  enabled: true
-  labels:
-    prometheus: kube-prometheus
-```
-
-### Health Checks
-
-```yaml
-# Health check configuration
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8585
-  initialDelaySeconds: 60
-  periodSeconds: 30
-
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 8585
-  initialDelaySeconds: 60
-  periodSeconds: 30
-```
-
-## Troubleshooting
-
-<Accordion title="Pod fails to start">
-Check pod logs:
-
-```bash
-kubectl logs -f deployment/collate
-kubectl describe pod <pod-name>
-```
-</Accordion>
-
-<Accordion title="Database connection issues">
-Verify database connectivity:
-
-```bash
-kubectl exec -it deployment/collate -- nc -zv mysql.default.svc.cluster.local 3306
-```
-</Accordion>
-
-<Accordion title="Ingress not working">
-Check ingress status:
-
-```bash
-kubectl get ingress
-kubectl describe ingress collate
-```
-</Accordion>
+<CardGroup cols={2}>
+<Card title="Helm Values" href="/v1.12.x-SNAPSHOT/deployment/kubernetes/values" >
+    For customizing OpenMetadata Helm Deployments
+  </Card>
+  <Card title="Deploy in AWS EKS" href="/v1.12.x-SNAPSHOT/deployment/kubernetes/eks" >
+    Deploy OpenMetadata in AWS Kubernetes
+  </Card>
+  <Card title="Deploy in GCP GKE" href="/v1.12.x-SNAPSHOT/deployment/kubernetes/gke" >
+    Deploy OpenMetadata in GCP Kubernetes
+  </Card>
+  <Card title="Deploy in Azure AKS" href="/v1.12.x-SNAPSHOT/deployment/kubernetes/aks" >
+    Deploy OpenMetadata in Azure Kubernetes
+  </Card>
+  <Card title="Deploy in OnPremises Kubernetes" href="/v1.12.x-SNAPSHOT/deployment/kubernetes/on-prem" >
+    Deploy OpenMetadata in On Premises Kubernetes
+  </Card>
+</CardGroup>
