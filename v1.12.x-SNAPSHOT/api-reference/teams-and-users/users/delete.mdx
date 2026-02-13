@@ -1,0 +1,172 @@
+---
+title: Delete a User
+description: Delete a user by ID or name, with soft/hard delete options
+sidebarTitle: Delete a User
+api: DELETE /v1/users/{id}
+---
+
+# Delete a User
+
+Delete a user by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the user to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the user. If `false`, the user is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/users/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the user (e.g., `aaron_johnson0`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the user.
+</ParamField>
+
+## Restore a Soft-Deleted User
+
+Use `PUT /v1/users/restore` to restore a soft-deleted user.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted user to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/users/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Users
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Users.delete("77655e6e-ad33-49da-bbca-db4ba4d4e2cd")
+
+# Hard delete
+Users.delete(
+    "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+    hard_delete=True
+)
+
+# Delete by name
+Users.delete_by_name("aaron_johnson0")
+
+# Delete by name with options
+Users.delete_by_name(
+    "aaron_johnson0",
+    hard_delete=True
+)
+
+# Restore a soft-deleted user
+Users.restore("77655e6e-ad33-49da-bbca-db4ba4d4e2cd")
+```
+
+```java DELETE /v1/users/{id}
+import static org.openmetadata.sdk.fluent.Users.*;
+
+// Soft delete
+Users.delete("77655e6e-ad33-49da-bbca-db4ba4d4e2cd").execute();
+
+// Hard delete
+Users.delete("77655e6e-ad33-49da-bbca-db4ba4d4e2cd")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Users.deleteByName("aaron_johnson0")
+    .execute();
+
+// Restore
+Users.restore("77655e6e-ad33-49da-bbca-db4ba4d4e2cd");
+```
+
+```bash DELETE /v1/users/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/users/name/aaron_johnson0" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted user
+curl -X PUT "{base_url}/api/v1/users/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "77655e6e-ad33-49da-bbca-db4ba4d4e2cd"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+  "name": "aaron_johnson0",
+  "fullyQualifiedName": "aaron_johnson0",
+  "displayName": "Aaron Johnson",
+  "version": 0.2,
+  "updatedAt": 1769982624214,
+  "updatedBy": "admin",
+  "email": "aaron_johnson0@gmail.com",
+  "isBot": false,
+  "isAdmin": false,
+  "allowImpersonation": false,
+  "teams": [
+    {
+      "id": "7a2b921b-f623-4eb5-9736-649788ad842c",
+      "type": "team",
+      "name": "Sales",
+      "fullyQualifiedName": "Sales"
+    }
+  ],
+  "deleted": true,
+  "roles": [
+    {
+      "id": "761c2bb2-0b77-4bc5-9af9-cf89536d6a12",
+      "type": "role",
+      "name": "DataSteward",
+      "fullyQualifiedName": "DataSteward"
+    }
+  ],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the user object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored user object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this user |
+| `404` | `NOT_FOUND` | User with given ID or FQN does not exist |

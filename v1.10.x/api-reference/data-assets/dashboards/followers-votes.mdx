@@ -1,0 +1,164 @@
+---
+title: Followers & Votes
+description: Manage followers and votes for dashboards
+sidebarTitle: Followers & Votes
+api: PUT /v1/dashboards/{id}/followers
+---
+
+# Followers & Votes
+
+Manage followers and votes for dashboard entities.
+
+## Followers
+
+### Add Follower
+
+`PUT /v1/dashboards/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/dashboards/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/dashboards/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/dashboards/{id}/followers
+from metadata.sdk import configure
+from metadata.sdk.entities import Dashboards
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+dashboard_id = "03fb5cc3-de48-423f-9926-8e192e5de59d"
+user_id = "user-uuid-here"
+
+# Add a follower
+dashboard = Dashboards.add_followers(dashboard_id, [user_id])
+print(f"Followers: {len(dashboard.followers)}")
+
+# Remove a follower
+dashboard = Dashboards.remove_followers(dashboard_id, [user_id])
+
+# Add a vote
+dashboard = Dashboards.add_vote(dashboard_id, vote_type="votedUp")
+
+# Remove a vote
+dashboard = Dashboards.remove_vote(dashboard_id)
+```
+
+```java PUT /v1/dashboards/{id}/followers
+import static org.openmetadata.sdk.fluent.Dashboards.*;
+
+String dashboardId = "03fb5cc3-de48-423f-9926-8e192e5de59d";
+
+// Add a follower
+Dashboards.addFollower(dashboardId, "user-uuid-here");
+
+// Remove a follower
+Dashboards.removeFollower(dashboardId, "user-uuid-here");
+
+// Add a vote
+Dashboards.vote(dashboardId, "votedUp");
+
+// Remove a vote
+Dashboards.vote(dashboardId, "unVoted");
+```
+
+```bash PUT /v1/dashboards/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "03fb5cc3-de48-423f-9926-8e192e5de59d",
+  "name": "10",
+  "displayName": "deck.gl Demo",
+  "fullyQualifiedName": "sample_superset.10",
+  "description": "",
+  "version": 0.1,
+  "updatedAt": 1769982666437,
+  "updatedBy": "admin",
+  "sourceUrl": "http://localhost:808/superset/dashboard/10/",
+  "service": {
+    "id": "b1e6a71d-7f47-4e5f-8ce0-e6e8a88ec97a",
+    "type": "dashboardService",
+    "name": "sample_superset",
+    "fullyQualifiedName": "sample_superset"
+  },
+  "serviceType": "Superset",
+  "deleted": false,
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ],
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Dashboard or user does not exist |

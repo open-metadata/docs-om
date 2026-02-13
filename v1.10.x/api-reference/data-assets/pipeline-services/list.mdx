@@ -1,0 +1,197 @@
+---
+title: List Pipeline Services
+description: List all pipeline services with optional filtering and pagination
+sidebarTitle: List Pipeline Services
+api: GET /v1/services/pipelineServices
+---
+
+# List Pipeline Services
+
+List all pipeline services with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `domains`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/pipelineServices
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# List all
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices?limit=50",
+    headers=headers
+)
+services = response.json()
+for svc in services["data"]:
+    print(f"{svc['fullyQualifiedName']} ({svc['serviceType']})")
+
+# With fields
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices?fields=owners,tags,domains&limit=50",
+    headers=headers
+)
+```
+
+```java GET /v1/services/pipelineServices
+import static org.openmetadata.sdk.fluent.PipelineServices.*;
+
+// List first page
+var result = PipelineServices.list()
+    .limit(50)
+    .execute();
+
+for (var svc : result.getData()) {
+    System.out.println(svc.getFullyQualifiedName());
+}
+
+// With fields
+var result = PipelineServices.list()
+    .fields("owners", "tags", "domains")
+    .limit(50)
+    .execute();
+```
+
+```bash GET /v1/services/pipelineServices
+# List all
+curl "{base_url}/api/v1/services/pipelineServices?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/services/pipelineServices?fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "daa58a49-df05-48a3-a417-45dfd12eacf5",
+      "name": "sample_airflow",
+      "fullyQualifiedName": "sample_airflow",
+      "serviceType": "Airflow",
+      "version": 0.1,
+      "updatedAt": 1769982621418,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5",
+      "deleted": false,
+      "owners": [],
+      "tags": [],
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 3
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of pipeline service objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of pipeline service objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the pipeline service (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Pipeline service name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the service.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of pipeline service (e.g., Airflow, Dagster, Fivetran).
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments. Only included when `fields` contains `domains`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of pipeline services matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `domains` | Domain assignments for governance |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list pipeline services |

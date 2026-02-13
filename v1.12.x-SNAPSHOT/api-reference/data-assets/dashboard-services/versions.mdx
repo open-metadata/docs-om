@@ -1,0 +1,112 @@
+---
+title: Dashboard Service Versions
+description: List and retrieve historical versions of a dashboard service
+sidebarTitle: Dashboard Service Versions
+api: GET /v1/services/dashboardServices/{id}/versions
+---
+
+# Dashboard Service Versions
+
+Every change to a dashboard service entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard service.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/services/dashboardServices/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard service.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/dashboardServices/{id}/versions
+from metadata.sdk import configure
+import requests
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+response = requests.get(
+    "https://your-company.getcollate.io/api/v1/services/dashboardServices/2c0c7c05-d820-4bea-a471-047deb7f92fd/versions",
+    headers={"Authorization": "Bearer your-jwt-token"}
+)
+versions = response.json()
+for v in versions["versions"]:
+    print(v)
+
+# Get a specific version
+response = requests.get(
+    "https://your-company.getcollate.io/api/v1/services/dashboardServices/2c0c7c05-d820-4bea-a471-047deb7f92fd/versions/0.1",
+    headers={"Authorization": "Bearer your-jwt-token"}
+)
+```
+
+```java GET /v1/services/dashboardServices/{id}/versions
+import static org.openmetadata.sdk.fluent.DashboardServices.*;
+
+// List all versions
+var history = DashboardServices.getVersions("2c0c7c05-d820-4bea-a471-047deb7f92fd");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = DashboardServices.getSpecificVersion(
+    "2c0c7c05-d820-4bea-a471-047deb7f92fd",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/services/dashboardServices/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/services/dashboardServices/2c0c7c05-d820-4bea-a471-047deb7f92fd/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/services/dashboardServices/2c0c7c05-d820-4bea-a471-047deb7f92fd/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "dashboardService",
+  "versions": [
+    "{\"id\":\"2c0c7c05-d820-4bea-a471-047deb7f92fd\",\"name\":\"sample_looker\",\"fullyQualifiedName\":\"sample_looker\",\"version\":0.2,\"description\":\"Updated Looker production instance\",\"serviceType\":\"Looker\"}",
+    "{\"id\":\"2c0c7c05-d820-4bea-a471-047deb7f92fd\",\"name\":\"sample_looker\",\"fullyQualifiedName\":\"sample_looker\",\"version\":0.1,\"serviceType\":\"Looker\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full dashboard service object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Dashboard service or version does not exist |

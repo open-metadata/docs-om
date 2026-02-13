@@ -1,0 +1,109 @@
+---
+title: Tag Versions
+description: List and retrieve historical versions of a tag
+sidebarTitle: Tag Versions
+api: GET /v1/tags/{id}/versions
+---
+
+# Tag Versions
+
+Every change to a tag entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the tag.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/tags/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the tag.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tags/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Tags
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Tags.get_versions("68ec158c-5f5e-4277-8a19-5e9e0cd5294f")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+tag_v1 = Tags.get_specific_version(
+    "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+    "0.1"
+)
+print(f"Original description: {tag_v1.description}")
+```
+
+```java GET /v1/tags/{id}/versions
+import static org.openmetadata.sdk.fluent.Tags.*;
+
+// List all versions
+var history = Tags.getVersions("68ec158c-5f5e-4277-8a19-5e9e0cd5294f");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = Tags.getSpecificVersion(
+    "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/tags/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/tags/68ec158c-5f5e-4277-8a19-5e9e0cd5294f/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/tags/68ec158c-5f5e-4277-8a19-5e9e0cd5294f/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "tag",
+  "versions": [
+    "{\"id\":\"68ec158c-5f5e-4277-8a19-5e9e0cd5294f\",\"name\":\"Bronze\",\"fullyQualifiedName\":\"Certification.Bronze\",\"version\":0.2,\"description\":\"Updated description\",\"style\":{\"color\":\"#D4A017\"}}",
+    "{\"id\":\"68ec158c-5f5e-4277-8a19-5e9e0cd5294f\",\"name\":\"Bronze\",\"fullyQualifiedName\":\"Certification.Bronze\",\"version\":0.1,\"description\":\"Bronze certified Data Asset.\",\"style\":{\"color\":\"#C08320\"}}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full tag object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Tag or version does not exist |

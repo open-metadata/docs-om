@@ -1,0 +1,163 @@
+---
+title: Delete a Chart
+description: Delete a chart by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Chart
+api: DELETE /v1/charts/{id}
+---
+
+# Delete a Chart
+
+Delete a chart by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the chart to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the chart. If `false`, the chart is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/charts/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the chart (e.g., `sample_superset.114`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the chart.
+</ParamField>
+
+## Restore a Soft-Deleted Chart
+
+Use `PUT /v1/charts/restore` to restore a soft-deleted chart.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted chart to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/charts/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Charts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Charts.delete("2dde4b53-a577-424b-bbaa-18ac32eca8a9")
+
+# Hard delete
+Charts.delete(
+    "2dde4b53-a577-424b-bbaa-18ac32eca8a9",
+    hard_delete=True
+)
+
+# Delete by name
+Charts.delete_by_name("sample_superset.114")
+
+# Delete by name with options
+Charts.delete_by_name(
+    "sample_superset.114",
+    hard_delete=True
+)
+
+# Restore a soft-deleted chart
+Charts.restore("2dde4b53-a577-424b-bbaa-18ac32eca8a9")
+```
+
+```java DELETE /v1/charts/{id}
+import static org.openmetadata.sdk.fluent.Charts.*;
+
+// Soft delete
+Charts.delete("2dde4b53-a577-424b-bbaa-18ac32eca8a9").execute();
+
+// Hard delete
+Charts.delete("2dde4b53-a577-424b-bbaa-18ac32eca8a9")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Charts.deleteByName("sample_superset.114")
+    .execute();
+
+// Restore
+Charts.restore("2dde4b53-a577-424b-bbaa-18ac32eca8a9");
+```
+
+```bash DELETE /v1/charts/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/charts/2dde4b53-a577-424b-bbaa-18ac32eca8a9" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/charts/2dde4b53-a577-424b-bbaa-18ac32eca8a9?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/charts/name/sample_superset.114" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted chart
+curl -X PUT "{base_url}/api/v1/charts/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "2dde4b53-a577-424b-bbaa-18ac32eca8a9"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "2dde4b53-a577-424b-bbaa-18ac32eca8a9",
+  "name": "114",
+  "displayName": "# of Games That Hit 100k in Sales By Release Year",
+  "fullyQualifiedName": "sample_superset.114",
+  "chartType": "Other",
+  "version": 0.2,
+  "updatedAt": 1769982666218,
+  "updatedBy": "admin",
+  "sourceUrl": "http://localhost:808/explore/?slice_id=114",
+  "service": {
+    "id": "b1e6a71d-7f47-4e5f-8ce0-e6e8a88ec97a",
+    "type": "dashboardService",
+    "name": "sample_superset",
+    "fullyQualifiedName": "sample_superset"
+  },
+  "serviceType": "Superset",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the chart object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored chart object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this chart |
+| `404` | `NOT_FOUND` | Chart with given ID or FQN does not exist |

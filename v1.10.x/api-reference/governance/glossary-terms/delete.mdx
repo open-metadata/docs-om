@@ -1,0 +1,154 @@
+---
+title: Delete a Glossary Term
+description: Delete a glossary term by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Glossary Term
+api: DELETE /v1/glossaryTerms/{id}
+---
+
+# Delete a Glossary Term
+
+Delete a glossary term by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the glossary term to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child glossary terms.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the glossary term. If `false`, the glossary term is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/glossaryTerms/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the glossary term (e.g., `BusinessGlossary.Revenue`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child glossary terms.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the glossary term.
+</ParamField>
+
+## Restore a Soft-Deleted Glossary Term
+
+Use `PUT /v1/glossaryTerms/restore` to restore a soft-deleted glossary term.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted glossary term to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/glossaryTerms/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import GlossaryTerms
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+GlossaryTerms.delete("d3a50b09-g258-7h57-defg-42g1d5517ed4")
+
+# Hard delete
+GlossaryTerms.delete(
+    "d3a50b09-g258-7h57-defg-42g1d5517ed4",
+    hard_delete=True
+)
+
+# Delete by name
+GlossaryTerms.delete_by_name("BusinessGlossary.Revenue")
+
+# Restore a soft-deleted glossary term
+GlossaryTerms.restore("d3a50b09-g258-7h57-defg-42g1d5517ed4")
+```
+
+```java DELETE /v1/glossaryTerms/{id}
+import static org.openmetadata.sdk.fluent.GlossaryTerms.*;
+
+// Soft delete
+GlossaryTerms.delete("d3a50b09-g258-7h57-defg-42g1d5517ed4").execute();
+
+// Hard delete
+GlossaryTerms.delete("d3a50b09-g258-7h57-defg-42g1d5517ed4")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+GlossaryTerms.deleteByName("BusinessGlossary.Revenue").execute();
+
+// Restore
+GlossaryTerms.restore("d3a50b09-g258-7h57-defg-42g1d5517ed4");
+```
+
+```bash DELETE /v1/glossaryTerms/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/glossaryTerms/d3a50b09-g258-7h57-defg-42g1d5517ed4" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/glossaryTerms/d3a50b09-g258-7h57-defg-42g1d5517ed4?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/glossaryTerms/name/BusinessGlossary.Revenue" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted glossary term
+curl -X PUT "{base_url}/api/v1/glossaryTerms/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "d3a50b09-g258-7h57-defg-42g1d5517ed4"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "d3a50b09-g258-7h57-defg-42g1d5517ed4",
+  "name": "Revenue",
+  "fullyQualifiedName": "BusinessGlossary.Revenue",
+  "description": "Total income generated from business operations",
+  "synonyms": ["Income", "Earnings", "Sales"],
+  "glossary": {
+    "id": "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+    "type": "glossary",
+    "name": "BusinessGlossary",
+    "fullyQualifiedName": "BusinessGlossary"
+  },
+  "version": 0.2,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "children": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the glossary term object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored glossary term object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this glossary term |
+| `404` | `NOT_FOUND` | Glossary term with given ID or FQN does not exist |

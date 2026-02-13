@@ -1,0 +1,165 @@
+---
+title: Delete a Stored Procedure
+description: Delete a stored procedure by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Stored Procedure
+api: DELETE /v1/storedProcedures/{id}
+---
+
+# Delete a Stored Procedure
+
+Delete a stored procedure by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the stored procedure to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the stored procedure. If `false`, the stored procedure is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/storedProcedures/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the stored procedure (e.g., `snowflake_prod.analytics.public.usp_refresh_analytics`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the stored procedure.
+</ParamField>
+
+## Restore a Soft-Deleted Stored Procedure
+
+Use `PUT /v1/storedProcedures/restore` to restore a soft-deleted stored procedure.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted stored procedure to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/storedProcedures/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import StoredProcedures
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+StoredProcedures.delete("770e8400-e29b-41d4-a716-446655440000")
+
+# Hard delete
+StoredProcedures.delete(
+    "770e8400-e29b-41d4-a716-446655440000",
+    hard_delete=True
+)
+
+# Delete by name
+StoredProcedures.delete_by_name("snowflake_prod.analytics.public.usp_refresh_analytics")
+
+# Delete by name with options
+StoredProcedures.delete_by_name(
+    "snowflake_prod.analytics.public.usp_refresh_analytics",
+    hard_delete=True
+)
+
+# Restore a soft-deleted stored procedure
+StoredProcedures.restore("770e8400-e29b-41d4-a716-446655440000")
+```
+
+```java DELETE /v1/storedProcedures/{id}
+import static org.openmetadata.sdk.fluent.StoredProcedures.*;
+
+// Soft delete
+StoredProcedures.delete("770e8400-e29b-41d4-a716-446655440000").execute();
+
+// Hard delete
+StoredProcedures.delete("770e8400-e29b-41d4-a716-446655440000")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+StoredProcedures.deleteByName("snowflake_prod.analytics.public.usp_refresh_analytics")
+    .execute();
+
+// Restore
+StoredProcedures.restore("770e8400-e29b-41d4-a716-446655440000");
+```
+
+```bash DELETE /v1/storedProcedures/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/storedProcedures/name/sample_data.ecommerce_db.shopify.calculate_average" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted stored procedure
+curl -X PUT "{base_url}/api/v1/storedProcedures/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "d02b24fa-a246-4563-adf1-9ad21f251c0e"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "d02b24fa-a246-4563-adf1-9ad21f251c0e",
+  "name": "calculate_average",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.calculate_average",
+  "description": "Procedure to calculate average",
+  "storedProcedureCode": {
+    "code": "CREATE OR REPLACE PROCEDURE calculate_average(numbers INT ARRAY) RETURNS FLOAT NOT NULL LANGUAGE SQL AS $$DECLARE sum_val INT = 0;count_val INT = 0;average_val FLOAT;BEGIN\n  FOR num IN ARRAY numbers DO sum_val := sum_val + num;\n  count_val := count_val + 1;\nEND FOR;\nIF count_val = 0 THEN\n  average_val := 0.0;\nELSE\n  average_val := sum_val / count_val;\nEND IF;\nRETURN average_val;\nEND;$$;"
+  },
+  "version": 0.2,
+  "updatedAt": 1769982660822,
+  "updatedBy": "admin",
+  "storedProcedureType": "StoredProcedure",
+  "databaseSchema": {
+    "id": "4dd30184-009c-4792-b296-9562eaed651f",
+    "type": "databaseSchema",
+    "name": "shopify",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify"
+  },
+  "serviceType": "BigQuery",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the stored procedure object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored stored procedure object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this stored procedure |
+| `404` | `NOT_FOUND` | Stored procedure with given ID or FQN does not exist |

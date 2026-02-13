@@ -1,0 +1,276 @@
+---
+title: List Stored Procedures
+description: List all stored procedures with optional filtering and pagination
+sidebarTitle: List Stored Procedures
+api: GET /v1/storedProcedures
+---
+
+# List Stored Procedures
+
+List all stored procedures with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="databaseSchema" type="string">
+  Filter by database schema fully qualified name.
+</ParamField>
+
+<ParamField query="database" type="string">
+  Filter by database fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/storedProcedures
+from metadata.sdk import configure
+from metadata.sdk.entities import StoredProcedures
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+procedures = StoredProcedures.list(limit=50)
+for sp in procedures.data:
+    print(f"{sp.fullyQualifiedName}")
+
+# List all with auto-pagination
+for sp in StoredProcedures.list_all():
+    print(f"{sp.fullyQualifiedName}")
+
+# Filter by database schema
+procedures = StoredProcedures.list(
+    databaseSchema="snowflake_prod.analytics.public",
+    fields=["owners", "tags", "domain"],
+    limit=50
+)
+
+for sp in procedures.data:
+    print(f"{sp.fullyQualifiedName}")
+    if sp.owners:
+        print(f"  Owners: {[o.name for o in sp.owners]}")
+    if sp.tags:
+        print(f"  Tags: {[t.tagFQN for t in sp.tags]}")
+```
+
+```java GET /v1/storedProcedures
+import static org.openmetadata.sdk.fluent.StoredProcedures.*;
+
+// List first page
+var result = StoredProcedures.list()
+    .limit(50)
+    .execute();
+
+for (var sp : result.getData()) {
+    System.out.println(sp.getFullyQualifiedName());
+}
+
+// Filter by database schema with fields
+var result = StoredProcedures.list()
+    .databaseSchema("snowflake_prod.analytics.public")
+    .fields("owners", "tags", "domain")
+    .limit(50)
+    .execute();
+
+for (var sp : result.getData()) {
+    System.out.println(sp.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/storedProcedures
+# List all
+curl "{base_url}/api/v1/storedProcedures?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by database schema
+curl "{base_url}/api/v1/storedProcedures?databaseSchema=sample_data.ecommerce_db.shopify&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/storedProcedures?databaseSchema=sample_data.ecommerce_db.shopify&fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "d02b24fa-a246-4563-adf1-9ad21f251c0e",
+      "name": "calculate_average",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.calculate_average",
+      "description": "Procedure to calculate average",
+      "storedProcedureCode": {
+        "code": "CREATE OR REPLACE PROCEDURE calculate_average(numbers INT ARRAY) RETURNS FLOAT NOT NULL LANGUAGE SQL AS $$DECLARE sum_val INT = 0;count_val INT = 0;average_val FLOAT;BEGIN\n  FOR num IN ARRAY numbers DO sum_val := sum_val + num;\n  count_val := count_val + 1;\nEND FOR;\nIF count_val = 0 THEN\n  average_val := 0.0;\nELSE\n  average_val := sum_val / count_val;\nEND IF;\nRETURN average_val;\nEND;$$;"
+      },
+      "version": 0.1,
+      "updatedAt": 1769982660822,
+      "updatedBy": "admin",
+      "storedProcedureType": "StoredProcedure",
+      "href": "http://localhost:8585/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e",
+      "databaseSchema": {
+        "id": "4dd30184-009c-4792-b296-9562eaed651f",
+        "type": "databaseSchema",
+        "name": "shopify",
+        "fullyQualifiedName": "sample_data.ecommerce_db.shopify",
+        "description": "This **mock** database contains schema related to shopify sales and orders with related dimension tables.",
+        "displayName": "shopify",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/databaseSchemas/4dd30184-009c-4792-b296-9562eaed651f"
+      },
+      "database": {
+        "id": "0be090de-0941-48c4-af49-a6157c91cda0",
+        "type": "database",
+        "name": "ecommerce_db",
+        "fullyQualifiedName": "sample_data.ecommerce_db",
+        "description": "This **mock** database contains schemas related to shopify sales and orders with related dimension tables.",
+        "displayName": "ecommerce_db",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/databases/0be090de-0941-48c4-af49-a6157c91cda0"
+      },
+      "serviceType": "BigQuery",
+      "deleted": false,
+      "owners": [],
+      "tags": [],
+      "domains": [],
+      "processedLineage": false,
+      "entityStatus": "Unprocessed"
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 12
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of stored procedure objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of stored procedure objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the stored procedure (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Stored procedure name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.database.schema.storedProcedure`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="databaseSchema" type="object">
+      Reference to the parent database schema.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+    </ResponseField>
+
+    <ResponseField name="storedProcedureCode" type="object">
+      Source code of the stored procedure.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners assigned to the stored procedure. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="followers" type="array" optional>
+      Users following this stored procedure. Only included when `fields` contains `followers`.
+    </ResponseField>
+
+    <ResponseField name="votes" type="object" optional>
+      User votes and ratings. Only included when `fields` contains `votes`.
+    </ResponseField>
+
+    <ResponseField name="extension" type="object" optional>
+      Custom properties. Only included when `fields` contains `extension`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of stored procedures matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `followers` | Users following the stored procedure |
+| `votes` | User votes and ratings |
+| `extension` | Custom property values |
+| `domains` | Domain assignments for governance |
+| `sourceHash` | Hash for change detection |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list stored procedures |

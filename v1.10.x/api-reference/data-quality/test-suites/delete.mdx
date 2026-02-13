@@ -1,0 +1,143 @@
+---
+title: Delete a Test Suite
+description: Delete a test suite by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Test Suite
+api: DELETE /v1/dataQuality/testSuites/{id}
+---
+
+# Delete a Test Suite
+
+Delete a test suite by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the test suite to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (test cases within the suite).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the test suite. If `false`, the test suite is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/dataQuality/testSuites/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the test suite.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the test suite.
+</ParamField>
+
+## Restore a Soft-Deleted Test Suite
+
+Use `PUT /v1/dataQuality/testSuites/restore` to restore a soft-deleted test suite.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted test suite to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/dataQuality/testSuites/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import TestSuites
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+TestSuites.delete("e86a9a11-852f-4bac-b5a7-993b2bbbb572")
+
+# Hard delete
+TestSuites.delete(
+    "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+    hard_delete=True
+)
+
+# Delete by name
+TestSuites.delete_by_name("b5fcae09-02c2-4c0b-8c4a-5b52d650e592")
+
+# Restore a soft-deleted test suite
+TestSuites.restore("e86a9a11-852f-4bac-b5a7-993b2bbbb572")
+```
+
+```java DELETE /v1/dataQuality/testSuites/{id}
+import static org.openmetadata.sdk.fluent.TestSuites.*;
+
+// Soft delete
+TestSuites.delete("e86a9a11-852f-4bac-b5a7-993b2bbbb572").execute();
+
+// Hard delete
+TestSuites.delete("e86a9a11-852f-4bac-b5a7-993b2bbbb572")
+    .hardDelete()
+    .execute();
+
+// Restore
+TestSuites.restore("e86a9a11-852f-4bac-b5a7-993b2bbbb572");
+```
+
+```bash DELETE /v1/dataQuality/testSuites/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/dataQuality/testSuites/e86a9a11-852f-4bac-b5a7-993b2bbbb572" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/dataQuality/testSuites/e86a9a11-852f-4bac-b5a7-993b2bbbb572?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/dataQuality/testSuites/name/b5fcae09-02c2-4c0b-8c4a-5b52d650e592" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted test suite
+curl -X PUT "{base_url}/api/v1/dataQuality/testSuites/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "e86a9a11-852f-4bac-b5a7-993b2bbbb572"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+  "name": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+  "displayName": "Data Contract - dim_address_comprehensive_contract",
+  "fullyQualifiedName": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+  "version": 0.2,
+  "updatedAt": 1769982800000,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "executable": true
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the test suite object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored test suite object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this test suite |
+| `404` | `NOT_FOUND` | Test suite with given ID or FQN does not exist |

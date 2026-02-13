@@ -1,0 +1,109 @@
+---
+title: Search Index Versions
+description: List and retrieve historical versions of a search index
+sidebarTitle: Search Index Versions
+api: GET /v1/searchIndexes/{id}/versions
+---
+
+# Search Index Versions
+
+Every change to a search index entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the search index.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/searchIndexes/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the search index.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/searchIndexes/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import SearchIndexes
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = SearchIndexes.get_versions("f5b0fa81-f241-4508-9219-dae31dcced18")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+si_v1 = SearchIndexes.get_specific_version(
+    "f5b0fa81-f241-4508-9219-dae31dcced18",
+    "0.1"
+)
+print(f"Original description: {si_v1.description}")
+```
+
+```java GET /v1/searchIndexes/{id}/versions
+import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+
+// List all versions
+var history = SearchIndexes.getVersions("f5b0fa81-f241-4508-9219-dae31dcced18");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = SearchIndexes.getSpecificVersion(
+    "f5b0fa81-f241-4508-9219-dae31dcced18",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/searchIndexes/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "searchIndex",
+  "versions": [
+    "{\"id\":\"f5b0fa81-f241-4508-9219-dae31dcced18\",\"name\":\"table_search_index\",\"fullyQualifiedName\":\"elasticsearch_sample.table_search_index\",\"version\":0.2,\"description\":\"Updated search index for table entities\",\"serviceType\":\"ElasticSearch\"}",
+    "{\"id\":\"f5b0fa81-f241-4508-9219-dae31dcced18\",\"name\":\"table_search_index\",\"fullyQualifiedName\":\"elasticsearch_sample.table_search_index\",\"version\":0.1,\"description\":\"Search index for table entities\",\"serviceType\":\"ElasticSearch\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full search index object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Search index or version does not exist |

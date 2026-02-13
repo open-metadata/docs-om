@@ -1,0 +1,251 @@
+---
+title: List Tables
+description: List all tables with optional filtering and pagination
+sidebarTitle: List Tables
+api: GET /v1/tables
+---
+
+# List Tables
+
+List all tables with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="database" type="string">
+  Filter by database fully qualified name.
+</ParamField>
+
+<ParamField query="databaseSchema" type="string">
+  Filter by database schema fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include. Valid fields: `tableConstraints`, `tablePartition`, `usageSummary`, `owners`, `customMetrics`, `columns`, `sampleData`, `tags`, `followers`, `joins`, `schemaDefinition`, `dataModel`, `extension`, `testSuite`, `domains`, `dataProducts`, `lifeCycle`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<ParamField query="includeEmptyTestSuite" type="boolean" default="true">
+  Whether to include tables with empty test suites.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tables
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List with pagination
+page = Tables.list(limit=50, fields=["columns", "owners", "tags"])
+for t in page.entities:
+    print(f"{t.fullyQualifiedName} ({len(t.columns or [])} columns)")
+
+# List all with auto-pagination
+all_tables = Tables.list_all(batch_size=100)
+for table in all_tables:
+    print(f"{table.fullyQualifiedName}")
+```
+
+```java GET /v1/tables
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+// Retrieve by ID
+Table table = Tables.retrieve(tableId);
+
+// List tables
+var result = Tables.list()
+    .fields("columns", "owners", "tags")
+    .limit(50)
+    .execute();
+
+for (Table t : result.getData()) {
+    System.out.println(t.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/tables
+# List all
+curl "{base_url}/api/v1/tables?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by schema
+curl "{base_url}/api/v1/tables?databaseSchema=sample_data.ecommerce_db.shopify&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/tables?databaseSchema=sample_data.ecommerce_db.shopify&fields=columns,owners,tags&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+      "name": "agent_performance_summary",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary",
+      "description": "Summary of agent performance metrics derived from multiple tables including ssot_utilization_detail for comprehensive reporting.",
+      "version": 0.1,
+      "updatedAt": 1769982651320,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3",
+      "tableType": "Regular",
+      "columns": [
+        {
+          "name": "agent_id",
+          "dataType": "VARCHAR",
+          "dataLength": 100,
+          "dataTypeDisplay": "varchar",
+          "description": "Agent identifier",
+          "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary.agent_id",
+          "tags": [],
+          "ordinalPosition": 1
+        },
+        {
+          "name": "performance_score",
+          "dataType": "DECIMAL",
+          "dataTypeDisplay": "decimal",
+          "description": "Overall performance score",
+          "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary.performance_score",
+          "tags": [],
+          "ordinalPosition": 2
+        }
+      ],
+      "owners": [],
+      "databaseSchema": {
+        "id": "4dd30184-009c-4792-b296-9562eaed651f",
+        "type": "databaseSchema",
+        "name": "shopify",
+        "fullyQualifiedName": "sample_data.ecommerce_db.shopify",
+        "description": "This **mock** database contains schema related to shopify sales and orders with related dimension tables.",
+        "displayName": "shopify",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/databaseSchemas/4dd30184-009c-4792-b296-9562eaed651f"
+      },
+      "database": {
+        "id": "0be090de-0941-48c4-af49-a6157c91cda0",
+        "type": "database",
+        "name": "ecommerce_db",
+        "fullyQualifiedName": "sample_data.ecommerce_db",
+        "description": "This **mock** database contains schemas related to shopify sales and orders with related dimension tables.",
+        "displayName": "ecommerce_db",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/databases/0be090de-0941-48c4-af49-a6157c91cda0"
+      },
+      "service": {
+        "id": "fd2193af-fe09-4366-92b7-1e0d01cd8c09",
+        "type": "databaseService",
+        "name": "sample_data",
+        "fullyQualifiedName": "sample_data",
+        "displayName": "sample_data",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09"
+      },
+      "serviceType": "BigQuery",
+      "tags": [],
+      "deleted": false
+    }
+  ],
+  "paging": {
+    "after": "eyJsYXN0SWQiOiI0NTVlM2Q5ZC1kYmJmLTQ1NWUtYjNiZS03MTkxZGFhODI1ZjMifQ==",
+    "total": 299
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of table objects. By default, only basic fields are included. Use the `fields` parameter to request additional data such as columns, tags, and owners.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of table objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the table (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Table name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.database.schema.table`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="tableType" type="string">
+      Type of table (e.g., `Regular`, `View`, `MaterializedView`).
+    </ResponseField>
+
+    <ResponseField name="databaseSchema" type="object">
+      Reference to the parent database schema.
+    </ResponseField>
+
+    <ResponseField name="service" type="object">
+      Reference to the parent database service.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of database service.
+    </ResponseField>
+
+    <ResponseField name="columns" type="array" optional>
+      Column definitions. Only included when `fields` contains `columns`.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags. Only included when `fields` contains `tags`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of tables matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

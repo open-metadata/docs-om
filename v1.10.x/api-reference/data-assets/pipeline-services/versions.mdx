@@ -1,0 +1,109 @@
+---
+title: Pipeline Service Versions
+description: List and retrieve historical versions of a pipeline service
+sidebarTitle: Pipeline Service Versions
+api: GET /v1/services/pipelineServices/{id}/versions
+---
+
+# Pipeline Service Versions
+
+Every change to a pipeline service entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline service.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/services/pipelineServices/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline service.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/pipelineServices/{id}/versions
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# List all versions
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5/versions",
+    headers=headers
+)
+versions = response.json()
+for v in versions["versions"]:
+    print(v)
+
+# Get a specific version
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5/versions/0.1",
+    headers=headers
+)
+```
+
+```java GET /v1/services/pipelineServices/{id}/versions
+import static org.openmetadata.sdk.fluent.PipelineServices.*;
+
+// List all versions
+var history = PipelineServices.getVersions("daa58a49-df05-48a3-a417-45dfd12eacf5");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = PipelineServices.getSpecificVersion(
+    "daa58a49-df05-48a3-a417-45dfd12eacf5",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/services/pipelineServices/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "pipelineService",
+  "versions": [
+    "{\"id\":\"daa58a49-df05-48a3-a417-45dfd12eacf5\",\"name\":\"sample_airflow\",\"fullyQualifiedName\":\"sample_airflow\",\"version\":0.2,\"description\":\"Updated Airflow production service\",\"serviceType\":\"Airflow\"}",
+    "{\"id\":\"daa58a49-df05-48a3-a417-45dfd12eacf5\",\"name\":\"sample_airflow\",\"fullyQualifiedName\":\"sample_airflow\",\"version\":0.1,\"serviceType\":\"Airflow\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full pipeline service object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Pipeline service or version does not exist |

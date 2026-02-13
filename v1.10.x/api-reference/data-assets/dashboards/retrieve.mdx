@@ -1,0 +1,241 @@
+---
+title: Retrieve a Dashboard
+description: Get a dashboard by ID or fully qualified name
+sidebarTitle: Retrieve a Dashboard
+api: GET /v1/dashboards/{id}
+---
+
+# Retrieve a Dashboard
+
+Get a single dashboard by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the dashboard to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,charts,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/dashboards/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the dashboard (e.g., `sample_superset.10`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `charts`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dashboards/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Dashboards
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+dashboard = Dashboards.retrieve("03fb5cc3-de48-423f-9926-8e192e5de59d")
+print(f"{dashboard.fullyQualifiedName}: {dashboard.displayName}")
+
+# Get by ID with fields
+dashboard = Dashboards.retrieve(
+    "03fb5cc3-de48-423f-9926-8e192e5de59d",
+    fields=["owners", "tags", "charts"]
+)
+
+# Get by fully qualified name
+dashboard = Dashboards.retrieve_by_name("sample_superset.10")
+
+# Get by name with fields
+dashboard = Dashboards.retrieve_by_name(
+    "sample_superset.10",
+    fields=["owners", "tags", "charts", "domains"]
+)
+```
+
+```java GET /v1/dashboards/{id}
+import static org.openmetadata.sdk.fluent.Dashboards.*;
+
+// Get by ID
+var dashboard = Dashboards.retrieve("03fb5cc3-de48-423f-9926-8e192e5de59d");
+
+// Get by ID with fields
+var dashboard = Dashboards.retrieve(
+    "03fb5cc3-de48-423f-9926-8e192e5de59d",
+    "owners,tags,charts"
+);
+
+// Get by fully qualified name
+var dashboard = Dashboards.retrieveByName("sample_superset.10");
+
+// Get by name with fields
+var dashboard = Dashboards.retrieveByName(
+    "sample_superset.10",
+    "owners,tags,charts,domains"
+);
+```
+
+```bash GET /v1/dashboards/{id}
+# Get by ID
+curl "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d?fields=owners,tags,charts,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/dashboards/name/sample_superset.10" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/dashboards/name/sample_superset.10?fields=owners,tags,charts,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "03fb5cc3-de48-423f-9926-8e192e5de59d",
+  "name": "10",
+  "displayName": "deck.gl Demo",
+  "fullyQualifiedName": "sample_superset.10",
+  "description": "",
+  "version": 0.1,
+  "updatedAt": 1769982666437,
+  "updatedBy": "admin",
+  "sourceUrl": "http://localhost:808/superset/dashboard/10/",
+  "service": {
+    "id": "b1e6a71d-7f47-4e5f-8ce0-e6e8a88ec97a",
+    "type": "dashboardService",
+    "name": "sample_superset",
+    "fullyQualifiedName": "sample_superset",
+    "deleted": false
+  },
+  "serviceType": "Superset",
+  "href": "http://localhost:8585/api/v1/dashboards/03fb5cc3-de48-423f-9926-8e192e5de59d",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0
+  },
+  "domains": [],
+  "charts": [
+    {
+      "id": "chart-id",
+      "type": "chart",
+      "name": "114",
+      "displayName": "# of Games"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a dashboard object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the dashboard (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Dashboard name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.dashboardName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the dashboard in Markdown format.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent dashboard service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the dashboard service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `dashboardService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the dashboard service.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the dashboard service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="sourceUrl" type="string">
+  URL of the dashboard in the source system.
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of dashboard service (e.g., Superset, Looker, Tableau).
+</ResponseField>
+
+<ResponseField name="charts" type="array" optional>
+  Charts associated with the dashboard. Only included when `fields` contains `charts`.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this dashboard |
+| `404` | `NOT_FOUND` | Dashboard with given ID or FQN does not exist |

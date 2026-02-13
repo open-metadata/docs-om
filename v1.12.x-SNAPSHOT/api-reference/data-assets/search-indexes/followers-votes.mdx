@@ -1,0 +1,162 @@
+---
+title: Followers & Votes
+description: Manage followers and votes for search indexes
+sidebarTitle: Followers & Votes
+api: PUT /v1/searchIndexes/{id}/followers
+---
+
+# Followers & Votes
+
+Manage followers and votes for search index entities.
+
+## Followers
+
+### Add Follower
+
+`PUT /v1/searchIndexes/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the search index.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/searchIndexes/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the search index.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/searchIndexes/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the search index.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/searchIndexes/{id}/followers
+from metadata.sdk import configure
+from metadata.sdk.entities import SearchIndexes
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+si_id = "f5b0fa81-f241-4508-9219-dae31dcced18"
+user_id = "user-uuid-here"
+
+# Add a follower
+si = SearchIndexes.add_followers(si_id, [user_id])
+print(f"Followers: {len(si.followers)}")
+
+# Remove a follower
+si = SearchIndexes.remove_followers(si_id, [user_id])
+
+# Add a vote
+si = SearchIndexes.add_vote(si_id, vote_type="votedUp")
+
+# Remove a vote
+si = SearchIndexes.remove_vote(si_id)
+```
+
+```java PUT /v1/searchIndexes/{id}/followers
+import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+
+String siId = "f5b0fa81-f241-4508-9219-dae31dcced18";
+
+// Add a follower
+SearchIndexes.addFollower(siId, "user-uuid-here");
+
+// Remove a follower
+SearchIndexes.removeFollower(siId, "user-uuid-here");
+
+// Add a vote
+SearchIndexes.vote(siId, "votedUp");
+
+// Remove a vote
+SearchIndexes.vote(siId, "unVoted");
+```
+
+```bash PUT /v1/searchIndexes/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "f5b0fa81-f241-4508-9219-dae31dcced18",
+  "name": "table_search_index",
+  "fullyQualifiedName": "elasticsearch_sample.table_search_index",
+  "displayName": "TableSearchIndex",
+  "version": 0.1,
+  "updatedAt": 1769982670810,
+  "updatedBy": "admin",
+  "service": {
+    "id": "search-service-id",
+    "type": "searchService",
+    "name": "elasticsearch_sample",
+    "fullyQualifiedName": "elasticsearch_sample"
+  },
+  "serviceType": "ElasticSearch",
+  "deleted": false,
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ],
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Search index or user does not exist |

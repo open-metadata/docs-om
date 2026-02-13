@@ -1,0 +1,252 @@
+---
+title: Test Case Results
+description: Get and add test case execution results
+sidebarTitle: Test Case Results
+api: GET /v1/dataQuality/testCases/{id}/testCaseResult
+---
+
+# Test Case Results
+
+Retrieve test case execution results or add new results programmatically. Each result includes a status, timestamp, and detailed result values.
+
+## Get Test Case Results
+
+<ParamField path="id" type="string" required>
+  UUID of the test case.
+</ParamField>
+
+<ParamField query="startTs" type="integer">
+  Start timestamp (epoch milliseconds) to filter results.
+</ParamField>
+
+<ParamField query="endTs" type="integer">
+  End timestamp (epoch milliseconds) to filter results.
+</ParamField>
+
+## Add a Test Case Result
+
+Use `PUT /v1/dataQuality/testCases/{id}/testCaseResult` to add a new test result.
+
+<ParamField path="id" type="string" required>
+  UUID of the test case.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="timestamp" type="integer" required>
+  Epoch timestamp (milliseconds) of the test execution.
+</ParamField>
+
+<ParamField body="testCaseStatus" type="string" required>
+  Status of the test execution: `Success`, `Failed`, or `Aborted`.
+</ParamField>
+
+<ParamField body="result" type="string">
+  Human-readable summary of the test result.
+</ParamField>
+
+<ParamField body="testResultValue" type="array">
+  Array of detailed result values produced by the test.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the result metric.
+    </ParamField>
+
+    <ParamField body="value" type="string" required>
+      Value of the result metric.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataQuality/testCases/{id}/testCaseResult
+from metadata.sdk import configure
+from metadata.sdk.entities import TestCases
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get test case results
+results = TestCases.get_test_case_results("c1bce355-fa2f-48c6-ab4d-fad722a56ed7")
+for r in results.data:
+    print(f"{r.timestamp}: {r.testCaseStatus} - {r.result}")
+
+# Get results within a time range
+results = TestCases.get_test_case_results(
+    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+    start_ts=1769900000000,
+    end_ts=1769990000000
+)
+
+# Add a test result
+TestCases.add_test_case_result(
+    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+    timestamp=1769982800000,
+    testCaseStatus="Success",
+    result="Max value 42 is between 1 and 100",
+    testResultValue=[
+        {"name": "maxValue", "value": "42"}
+    ]
+)
+```
+
+```java GET /v1/dataQuality/testCases/{id}/testCaseResult
+import static org.openmetadata.sdk.fluent.TestCases.*;
+
+// Get test case results
+var results = TestCases.getTestCaseResults("c1bce355-fa2f-48c6-ab4d-fad722a56ed7");
+
+for (var r : results.getData()) {
+    System.out.println(r.getTimestamp() + ": " + r.getTestCaseStatus());
+}
+
+// Add a test result
+TestCases.addTestCaseResult(
+    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+    new TestCaseResult()
+        .timestamp(1769982800000L)
+        .testCaseStatus("Success")
+        .result("Max value 42 is between 1 and 100")
+);
+```
+
+```bash GET /v1/dataQuality/testCases/{id}/testCaseResult
+# Get test results
+curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get results with time range
+curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult?startTs=1769900000000&endTs=1769990000000" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a test result
+curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": 1769982800000,
+    "testCaseStatus": "Success",
+    "result": "Max value 42 is between 1 and 100",
+    "testResultValue": [
+      {"name": "maxValue", "value": "42"}
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Get Results)
+{
+  "data": [
+    {
+      "timestamp": 1769982800000,
+      "testCaseStatus": "Success",
+      "result": "Max value 42 is between 1 and 100",
+      "testResultValue": [
+        {
+          "name": "maxValue",
+          "value": "42"
+        }
+      ]
+    },
+    {
+      "timestamp": 1769896400000,
+      "testCaseStatus": "Failed",
+      "result": "Max value 150 is not between 1 and 100",
+      "testResultValue": [
+        {
+          "name": "maxValue",
+          "value": "150"
+        }
+      ]
+    }
+  ],
+  "paging": {
+    "total": 2
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Get results** returns a paginated list of test case result objects, ordered by timestamp (newest first).
+
+**Add result** returns the test case result object that was created.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of test case result objects.
+
+  <Expandable title="properties">
+    <ResponseField name="timestamp" type="integer">
+      Epoch timestamp (milliseconds) of the test execution.
+    </ResponseField>
+
+    <ResponseField name="testCaseStatus" type="string">
+      Status of the test: `Success`, `Failed`, or `Aborted`.
+    </ResponseField>
+
+    <ResponseField name="result" type="string">
+      Human-readable summary of the test result.
+    </ResponseField>
+
+    <ResponseField name="testResultValue" type="array">
+      Detailed result values.
+
+      <Expandable title="properties">
+        <ResponseField name="name" type="string">
+          Name of the result metric.
+        </ResponseField>
+
+        <ResponseField name="value" type="string">
+          Value of the result metric.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of results.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Test Case Status Values
+
+| Status | Description |
+|--------|-------------|
+| `Success` | The test passed -- all assertions were met |
+| `Failed` | The test failed -- one or more assertions were not met |
+| `Aborted` | The test was aborted due to an error or timeout |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view or add test results |
+| `404` | `NOT_FOUND` | Test case with given ID does not exist |

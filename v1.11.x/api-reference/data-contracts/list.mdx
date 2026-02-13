@@ -1,0 +1,147 @@
+---
+title: List Data Contracts
+description: List and filter data contracts
+sidebarTitle: List Data Contracts
+api: GET /v1/dataContracts
+---
+
+# List Data Contracts
+
+Retrieve a paginated list of data contracts, optionally filtered by status or entity.
+
+## Query Parameters
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include. Options: `owners`, `reviewers`, `extension`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of contracts to return (0–1,000,000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination. Returns contracts before this cursor.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination. Returns contracts after this cursor.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Filter by deletion status: `all`, `deleted`, or `non-deleted`.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by contract status: `Draft`, `Active`, or `Deprecated`.
+</ParamField>
+
+<ParamField query="entity" type="string">
+  Filter by entity UUID. Returns only contracts attached to the specified entity.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataContracts
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all active contracts
+contracts = DataContracts.list(params={"status": "Active"})
+for c in contracts.data:
+    print(f"{c.fullyQualifiedName} ({c.entityStatus})")
+
+# List contracts for a specific entity
+contracts = DataContracts.list(params={
+    "entity": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+})
+```
+
+```java GET /v1/dataContracts
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// List contracts with fluent API
+list().limit(20).fetch().forEach(contract -> {
+    System.out.println(contract.getFqn() + " (" + contract.get().getEntityStatus() + ")");
+});
+```
+
+```bash GET /v1/dataContracts
+# List all contracts
+curl "{base_url}/api/v1/dataContracts?limit=10" \
+  -H "Authorization: Bearer {access_token}"
+
+# List active contracts
+curl "{base_url}/api/v1/dataContracts?status=Active&fields=owners" \
+  -H "Authorization: Bearer {access_token}"
+
+# List contracts for a specific entity
+curl "{base_url}/api/v1/dataContracts?entity=a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "f7a1b2c3-d4e5-6789-0abc-def123456789",
+      "name": "sales-orders-contract",
+      "fullyQualifiedName": "sales-orders-contract",
+      "entityStatus": "Active",
+      "entity": {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "type": "table",
+        "name": "sales_orders",
+        "fullyQualifiedName": "sample_data.ecommerce_db.shopify.sales_orders"
+      },
+      "version": 0.1,
+      "updatedAt": 1769982800000,
+      "updatedBy": "admin"
+    }
+  ],
+  "paging": {
+    "total": 1
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of data contract objects.
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total number of matching contracts.
+    </ResponseField>
+
+    <ResponseField name="after" type="string">
+      Cursor for the next page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string">
+      Cursor for the previous page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list data contracts |

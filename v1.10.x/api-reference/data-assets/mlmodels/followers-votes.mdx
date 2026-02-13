@@ -1,0 +1,163 @@
+---
+title: Followers & Votes
+description: Manage followers and votes for ML models
+sidebarTitle: Followers & Votes
+api: PUT /v1/mlmodels/{id}/followers
+---
+
+# Followers & Votes
+
+Manage followers and votes for ML model entities.
+
+## Followers
+
+### Add Follower
+
+`PUT /v1/mlmodels/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/mlmodels/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/mlmodels/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/mlmodels/{id}/followers
+from metadata.sdk import configure
+from metadata.sdk.entities import MLModels
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+model_id = "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2"
+user_id = "user-uuid-here"
+
+# Add a follower
+model = MLModels.add_followers(model_id, [user_id])
+print(f"Followers: {len(model.followers)}")
+
+# Remove a follower
+model = MLModels.remove_followers(model_id, [user_id])
+
+# Add a vote
+model = MLModels.add_vote(model_id, vote_type="votedUp")
+
+# Remove a vote
+model = MLModels.remove_vote(model_id)
+```
+
+```java PUT /v1/mlmodels/{id}/followers
+import static org.openmetadata.sdk.fluent.MlModels.*;
+
+String modelId = "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2";
+
+// Add a follower
+MlModels.addFollower(modelId, "user-uuid-here");
+
+// Remove a follower
+MlModels.removeFollower(modelId, "user-uuid-here");
+
+// Add a vote
+MlModels.vote(modelId, "votedUp");
+
+// Remove a vote
+MlModels.vote(modelId, "unVoted");
+```
+
+```bash PUT /v1/mlmodels/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+  "name": "customer_segmentation",
+  "fullyQualifiedName": "mlflow_svc.customer_segmentation",
+  "displayName": "Customer Segmentation Model",
+  "algorithm": "KMeans",
+  "version": 0.1,
+  "updatedAt": 1769982669247,
+  "updatedBy": "admin",
+  "service": {
+    "id": "ca22d46e-81b9-4e48-85b5-0adc44980da9",
+    "type": "mlmodelService",
+    "name": "mlflow_svc",
+    "fullyQualifiedName": "mlflow_svc"
+  },
+  "serviceType": "Mlflow",
+  "deleted": false,
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ],
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | ML model or user does not exist |

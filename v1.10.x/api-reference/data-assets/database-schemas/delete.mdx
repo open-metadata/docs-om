@@ -1,0 +1,144 @@
+---
+title: Delete a Database Schema
+description: Delete a database schema by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Database Schema
+api: DELETE /v1/databaseSchemas/{id}
+---
+
+# Delete a Database Schema
+
+Delete a database schema by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the database schema to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the schema. If `false`, the schema is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/databaseSchemas/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the schema (e.g., `snowflake_prod.analytics.public`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the schema.
+</ParamField>
+
+## Restore a Soft-Deleted Schema
+
+Use `PUT /v1/databaseSchemas/restore` to restore a soft-deleted schema.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted schema to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/databaseSchemas/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseSchemas
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+DatabaseSchemas.delete("770e8400-e29b-41d4-a716-446655440000")
+
+# Hard delete with recursive
+DatabaseSchemas.delete(
+    "770e8400-e29b-41d4-a716-446655440000",
+    recursive=True,
+    hard_delete=True
+)
+
+# Delete by name
+DatabaseSchemas.delete_by_name("snowflake_prod.analytics.public")
+
+# Delete by name with options
+DatabaseSchemas.delete_by_name(
+    "snowflake_prod.analytics.public",
+    recursive=True,
+    hard_delete=True
+)
+
+# Restore a soft-deleted schema
+DatabaseSchemas.restore("770e8400-e29b-41d4-a716-446655440000")
+```
+
+```java DELETE /v1/databaseSchemas/{id}
+import static org.openmetadata.sdk.fluent.DatabaseSchemas.*;
+
+// Soft delete
+DatabaseSchemas.delete("770e8400-e29b-41d4-a716-446655440000").execute();
+
+// Hard delete with recursive
+DatabaseSchemas.delete("770e8400-e29b-41d4-a716-446655440000")
+    .recursive()
+    .hardDelete()
+    .execute();
+```
+
+```bash DELETE /v1/databaseSchemas/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323?recursive=true&hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema?recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted schema
+curl -X PUT "{base_url}/api/v1/databaseSchemas/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "f681432b-e66c-4096-a1cd-7771358c5323"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "f681432b-e66c-4096-a1cd-7771358c5323",
+  "name": "information_schema",
+  "fullyQualifiedName": "Glue.default.information_schema",
+  "deleted": true,
+  "version": 0.2
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the schema object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored schema object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this schema |
+| `404` | `NOT_FOUND` | Schema with given ID or FQN does not exist |

@@ -1,0 +1,192 @@
+---
+title: Update a Pipeline Service
+description: Update pipeline service properties using JSON Patch
+sidebarTitle: Update a Pipeline Service
+api: PATCH /v1/services/pipelineServices/{id}
+---
+
+# Update a Pipeline Service
+
+Update a pipeline service's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline service to update.
+</ParamField>
+
+## Update by Name
+
+Use `PATCH /v1/services/pipelineServices/name/{fqn}` to update by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline service (e.g., `sample_airflow`).
+</ParamField>
+
+## Body Parameters
+
+Send a JSON object with the fields to update. Only provided fields are changed.
+
+<ParamField body="description" type="string">
+  Updated description in Markdown format.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Updated display name.
+</ParamField>
+
+<ParamField body="connection" type="object">
+  Updated connection configuration.
+
+  <Expandable title="properties">
+    <ParamField body="config" type="object">
+      Service-specific connection configuration.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Updated list of owner references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Updated classification tags.
+
+  <Expandable title="properties">
+    <ParamField body="tagFQN" type="string" required>
+      Fully qualified name of the tag.
+    </ParamField>
+
+    <ParamField body="labelType" type="string">
+      Type of label (e.g., `Manual`, `Derived`, `Propagated`).
+    </ParamField>
+
+    <ParamField body="state" type="string">
+      State of the tag (e.g., `Suggested`, `Confirmed`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Updated domain FQN.
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/services/pipelineServices/{id}
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {
+    "Authorization": "Bearer your-jwt-token",
+    "Content-Type": "application/json-patch+json"
+}
+
+# Update by ID
+response = requests.patch(
+    f"{base_url}/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5",
+    json=[
+        {"op": "replace", "path": "/description", "value": "Updated Airflow production service"}
+    ],
+    headers=headers
+)
+updated = response.json()
+print(f"Updated to version {updated['version']}")
+```
+
+```java PATCH /v1/services/pipelineServices/{id}
+import static org.openmetadata.sdk.fluent.PipelineServices.*;
+
+// Retrieve, modify, and update
+var svc = PipelineServices.retrieve("daa58a49-df05-48a3-a417-45dfd12eacf5");
+svc.setDescription("Updated Airflow production service");
+var updated = PipelineServices.update(svc);
+```
+
+```bash PATCH /v1/services/pipelineServices/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated Airflow production service"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/services/pipelineServices/name/sample_airflow" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated Airflow production service"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "daa58a49-df05-48a3-a417-45dfd12eacf5",
+  "name": "sample_airflow",
+  "fullyQualifiedName": "sample_airflow",
+  "serviceType": "Airflow",
+  "description": "Updated Airflow production service",
+  "version": 0.2,
+  "updatedAt": 1769982621418,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated pipeline service object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the pipeline service (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Pipeline service name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the service.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this pipeline service |
+| `404` | `NOT_FOUND` | Pipeline service with given ID or FQN does not exist |
+| `409` | `CONFLICT` | Concurrent modification detected |

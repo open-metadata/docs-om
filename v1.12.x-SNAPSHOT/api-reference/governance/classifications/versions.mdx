@@ -1,0 +1,109 @@
+---
+title: Classification Versions
+description: List and retrieve historical versions of a classification
+sidebarTitle: Classification Versions
+api: GET /v1/classifications/{id}/versions
+---
+
+# Classification Versions
+
+Every change to a classification entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the classification.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/classifications/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the classification.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/classifications/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Classifications
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Classifications.get_versions("06d90883-6be9-4f7e-9475-753f10a95e94")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+classification_v1 = Classifications.get_specific_version(
+    "06d90883-6be9-4f7e-9475-753f10a95e94",
+    "0.1"
+)
+print(f"Original description: {classification_v1.description}")
+```
+
+```java GET /v1/classifications/{id}/versions
+import static org.openmetadata.sdk.fluent.Classifications.*;
+
+// List all versions
+var history = Classifications.getVersions("06d90883-6be9-4f7e-9475-753f10a95e94");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = Classifications.getSpecificVersion(
+    "06d90883-6be9-4f7e-9475-753f10a95e94",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/classifications/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/classifications/06d90883-6be9-4f7e-9475-753f10a95e94/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/classifications/06d90883-6be9-4f7e-9475-753f10a95e94/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "classification",
+  "versions": [
+    "{\"id\":\"06d90883-6be9-4f7e-9475-753f10a95e94\",\"name\":\"Certification\",\"fullyQualifiedName\":\"Certification\",\"version\":0.2,\"description\":\"Updated description\",\"mutuallyExclusive\":true}",
+    "{\"id\":\"06d90883-6be9-4f7e-9475-753f10a95e94\",\"name\":\"Certification\",\"fullyQualifiedName\":\"Certification\",\"version\":0.1,\"description\":\"Certifying Data Asset will provide the users with a clear idea of...\",\"mutuallyExclusive\":true}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full classification object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Classification or version does not exist |

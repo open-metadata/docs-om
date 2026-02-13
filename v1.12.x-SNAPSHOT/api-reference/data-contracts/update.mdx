@@ -1,0 +1,119 @@
+---
+title: Update a Data Contract
+description: Update a data contract using JSON Patch
+sidebarTitle: Update a Data Contract
+api: PATCH /v1/dataContracts/{id}
+---
+
+# Update a Data Contract
+
+Update an existing data contract using a JSON Merge Patch request.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract to update.
+</ParamField>
+
+## Body
+
+The request body should be a JSON array of patch operations following [RFC 6902](https://tools.ietf.org/html/rfc6902).
+
+<RequestExample dropdown>
+```python PATCH /v1/dataContracts/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Update contract description and status
+contract = DataContracts.update(
+    "f7a1b2c3-d4e5-6789-0abc-def123456789",
+    description="Updated contract for sales orders table",
+    entityStatus="Active"
+)
+```
+
+```java PATCH /v1/dataContracts/{id}
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Update using fluent API
+FluentDataContract contract = find(contractId).fetch();
+contract.withDescription("Updated contract for sales orders table")
+    .withStatus(EntityStatus.ACTIVE)
+    .save();
+```
+
+```bash PATCH /v1/dataContracts/{id}
+# Update description
+curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated contract for sales orders table"},
+    {"op": "replace", "path": "/entityStatus", "value": "Active"}
+  ]'
+
+# Add a semantic rule
+curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "add", "path": "/semantics/-", "value": {"name": "hasDomain"}}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "f7a1b2c3-d4e5-6789-0abc-def123456789",
+  "name": "sales-orders-contract",
+  "fullyQualifiedName": "sales-orders-contract",
+  "description": "Updated contract for sales orders table",
+  "entityStatus": "Active",
+  "entity": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "type": "table",
+    "name": "sales_orders",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify.sales_orders"
+  },
+  "version": 0.2,
+  "updatedAt": 1769986400000,
+  "updatedBy": "admin",
+  "changeDescription": {
+    "fieldsUpdated": [
+      {"name": "description", "oldValue": "Data contract for the sales orders table", "newValue": "Updated contract for sales orders table"},
+      {"name": "entityStatus", "oldValue": "Draft", "newValue": "Active"}
+    ]
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Common Patch Operations
+
+| Operation | Path | Description |
+|-----------|------|-------------|
+| `replace` | `/description` | Update description |
+| `replace` | `/entityStatus` | Change status (`Draft`, `Active`, `Deprecated`) |
+| `add` | `/semantics/-` | Add a semantic rule |
+| `remove` | `/semantics/0` | Remove a semantic rule by index |
+| `replace` | `/sla` | Update SLA section |
+| `add` | `/schema/-` | Add a schema column |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid patch operations |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update data contracts |
+| `404` | `NOT_FOUND` | Data contract not found |

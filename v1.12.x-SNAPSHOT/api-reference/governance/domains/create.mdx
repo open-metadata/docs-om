@@ -1,0 +1,221 @@
+---
+title: Create a Domain
+description: Create a new domain for organizing data assets by business area
+sidebarTitle: Create a Domain
+api: POST /v1/domains
+---
+
+# Create a Domain
+
+Create a new domain for organizing data assets by business area.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the domain. Must be unique at the same level (top-level or within a parent domain).
+</ParamField>
+
+<ParamField body="domainType" type="string" required>
+  Type of domain. One of: `Source-aligned`, `Consumer-aligned`, `Aggregate`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the domain.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the domain in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent domain for creating nested domains (e.g., `Engineering`).
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the domain.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="experts" type="array">
+  Array of user references who are subject matter experts for this domain.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the user.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `user`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the user.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/domains
+from metadata.sdk import configure
+from metadata.sdk.entities import Domains
+from metadata.generated.schema.api.domains.createDomain import CreateDomainRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateDomainRequest(
+    name="TestDomain",
+    displayName="Test Domain",
+    domainType="Aggregate",
+    description="Lorem ipsum..."
+)
+
+domain = Domains.create(request)
+print(f"Created: {domain.fullyQualifiedName}")
+```
+
+```java POST /v1/domains
+import static org.openmetadata.sdk.fluent.Domains.*;
+
+// Create using builder pattern
+var domain = Domains.builder()
+    .name("TestDomain")
+    .displayName("Test Domain")
+    .domainType("Aggregate")
+    .description("Lorem ipsum...")
+    .create();
+```
+
+```bash POST /v1/domains
+curl -X POST "{base_url}/api/v1/domains" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "TestDomain",
+    "domainType": "Aggregate",
+    "description": "Lorem ipsum...",
+    "owners": [],
+    "experts": []
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+  "domainType": "Aggregate",
+  "name": "TestDomain",
+  "fullyQualifiedName": "TestDomain",
+  "description": "Lorem ipsum...",
+  "version": 0.1,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1",
+  "deleted": false,
+  "owners": [],
+  "children": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created domain object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the domain (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Domain name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (e.g., `TestDomain` or `parent.child`).
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the domain in Markdown format.
+</ResponseField>
+
+<ResponseField name="domainType" type="string">
+  Type of domain: `Source-aligned`, `Consumer-aligned`, or `Aggregate`.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the domain.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the owner entity.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the owner entity.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="children" type="array" optional>
+  List of child domain references.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/domains` instead of `POST` to perform an upsert. If a domain with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new domain is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/domains" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create domains |
+| `409` | `ENTITY_ALREADY_EXISTS` | Domain with same name already exists (POST only) |

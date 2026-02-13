@@ -1,0 +1,247 @@
+---
+title: Table Relationships
+description: Manage joins, data models, columns, and entity relationships for tables
+sidebarTitle: Table Relationships
+api: PUT /v1/tables/{id}/joins
+---
+
+# Table Relationships
+
+Manage join information, data models, column listings, and entity relationships for tables.
+
+## Add Joins
+
+`PUT /v1/tables/{id}/joins`
+
+Record join information between this table and other tables.
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="startDate" type="string" required>
+  Start date for the join period (ISO 8601 format).
+</ParamField>
+
+<ParamField body="dayCount" type="integer">
+  Number of days the join data covers.
+</ParamField>
+
+<ParamField body="columnJoins" type="array" required>
+  Array of column join records.
+
+  <Expandable title="properties">
+    <ParamField body="columnName" type="string" required>
+      Name of the column in this table.
+    </ParamField>
+
+    <ParamField body="joinedWith" type="array" required>
+      Array of joined column references.
+
+      <Expandable title="properties">
+        <ParamField body="fullyQualifiedName" type="string" required>
+          FQN of the joined column (e.g., `snowflake_prod.analytics.public.orders.customer_id`).
+        </ParamField>
+
+        <ParamField body="joinCount" type="integer" required>
+          Number of times this join was observed.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Set Data Model
+
+`PUT /v1/tables/{id}/dataModel`
+
+Set the data model (dbt or similar) associated with this table.
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="modelType" type="string" required>
+  Type of data model: `DBT`, `LookML`.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description from the data model.
+</ParamField>
+
+<ParamField body="sql" type="string">
+  SQL query or transformation logic from the model.
+</ParamField>
+
+<ParamField body="columns" type="array">
+  Column descriptions and metadata from the data model.
+</ParamField>
+
+## Get Columns
+
+`GET /v1/tables/{id}/columns`
+
+Retrieve column information with optional pagination.
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of columns to return.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Offset for pagination.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/tables/{id}/joins
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+# Add join information
+Tables.add_joins(table_id, {
+    "startDate": "2024-01-01",
+    "dayCount": 30,
+    "columnJoins": [
+        {
+            "columnName": "id",
+            "joinedWith": [
+                {
+                    "fullyQualifiedName": "snowflake_prod.analytics.public.orders.customer_id",
+                    "joinCount": 1542
+                }
+            ]
+        }
+    ]
+})
+
+# Set data model
+Tables.set_data_model(table_id, {
+    "modelType": "DBT",
+    "description": "Customer dimension table built from raw events",
+    "sql": "SELECT id, name, email, created_at FROM raw.customers WHERE active = true",
+    "columns": [
+        {"name": "id", "description": "Primary key from source"},
+        {"name": "name", "description": "Customer full name"},
+        {"name": "email", "description": "Verified email address"},
+        {"name": "created_at", "description": "First seen timestamp"}
+    ]
+})
+```
+
+```java PUT /v1/tables/{id}/joins
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// Add join information
+Tables.addJoins(tableId, Map.of(
+    "startDate", "2024-01-01",
+    "dayCount", 30,
+    "columnJoins", List.of(
+        Map.of(
+            "columnName", "id",
+            "joinedWith", List.of(
+                Map.of(
+                    "fullyQualifiedName", "snowflake_prod.analytics.public.orders.customer_id",
+                    "joinCount", 1542
+                )
+            )
+        )
+    )
+));
+
+// Set data model
+Tables.setDataModel(tableId, Map.of(
+    "modelType", "DBT",
+    "description", "Customer dimension table built from raw events",
+    "sql", "SELECT id, name, email, created_at FROM raw.customers WHERE active = true"
+));
+```
+
+```bash PUT /v1/tables/{id}/joins
+# Add join information
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/joins" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "startDate": "2024-01-01",
+    "dayCount": 30,
+    "columnJoins": [
+      {
+        "columnName": "agent_id",
+        "joinedWith": [
+          {
+            "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_agent.agent_id",
+            "joinCount": 1542
+          }
+        ]
+      }
+    ]
+  }'
+
+# Set data model
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/dataModel" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelType": "DBT",
+    "description": "Agent performance summary built from utilization detail tables",
+    "sql": "SELECT agent_id, AVG(score) as performance_score FROM raw.agent_scores GROUP BY agent_id"
+  }'
+
+# Get columns with pagination
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/columns?limit=10&offset=0" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Joins)
+{
+  "startDate": "2024-01-01",
+  "dayCount": 30,
+  "columnJoins": [
+    {
+      "columnName": "agent_id",
+      "joinedWith": [
+        {
+          "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_agent.agent_id",
+          "joinCount": 1542
+        }
+      ]
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Add joins** returns the join data associated with the table.
+
+**Set data model** returns the updated table with data model attached.
+
+**Get columns** returns a paginated list of column definitions.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Table does not exist |
+| `400` | `BAD_REQUEST` | Invalid join data or data model format |

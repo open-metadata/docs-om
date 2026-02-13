@@ -1,0 +1,286 @@
+---
+title: Pagination
+description: Navigate through large result sets using cursor-based pagination
+sidebarTitle: Pagination
+mode: "wide"
+---
+
+import { CodeLayout } from '/snippets/components/CodeLayout/CodeLayout.jsx'
+
+# Pagination
+
+The OpenMetadata API uses cursor-based pagination for list endpoints. This ensures consistent results even when data changes between requests.
+
+<CodeLayout
+title="How It Works"
+description={
+  <>
+    When you request a list of resources, the response includes:
+    <ul>
+      <li>A <code>data</code> array containing resources (up to the <code>limit</code>)</li>
+      <li>A <code>paging</code> object with cursors for navigation</li>
+      <li>A <code>total</code> count of matching resources</li>
+      <li>Optional <code>before</code> and <code>after</code> cursors for pagination</li>
+    </ul>
+  </>
+}
+>
+<CodeGroup>
+```json Pagination Example
+{
+  "data": [
+    { "id": "...", "name": "table1", ... },
+    { "id": "...", "name": "table2", ... }
+  ],
+  "paging": {
+    "total": 150,
+    "after": "eyJsYXN0SWQiOiIxMjM0NTY3ODkwIn0="
+  }
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+## Pagination Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 10 | Number of results per page (max 1000) |
+| `before` | string | - | Cursor for previous page |
+| `after` | string | - | Cursor for next page |
+
+## Response Fields
+
+The `paging` object contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total` | integer | Total count of matching resources |
+| `before` | string | Cursor for the previous page (if available) |
+| `after` | string | Cursor for the next page (if available) |
+
+## Examples
+
+### Basic Pagination
+
+<CodeGroup dropdown>
+```python Basic Pagination
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.table import Table
+
+metadata = OpenMetadata(config)
+
+# Get first page
+first_page = metadata.list_entities(
+    entity=Table,
+    limit=20
+)
+
+print(f"Total tables: {first_page.paging.total}")
+for table in first_page.entities:
+    print(table.fullyQualifiedName)
+
+# Get next page using after cursor
+if first_page.paging.after:
+    next_page = metadata.list_entities(
+        entity=Table,
+        limit=20,
+        after=first_page.paging.after
+    )
+    for table in next_page.entities:
+        print(table.fullyQualifiedName)
+```
+
+```java Basic Pagination
+import org.openmetadata.client.api.TablesApi;
+import org.openmetadata.client.model.TableList;
+
+TablesApi tablesApi = client.buildClient(TablesApi.class);
+
+// Get first page
+TableList firstPage = tablesApi.listTables(null, 20, null, null, null);
+
+System.out.println("Total tables: " + firstPage.getPaging().getTotal());
+for (Table table : firstPage.getData()) {
+    System.out.println(table.getFullyQualifiedName());
+}
+
+// Get next page
+if (firstPage.getPaging().getAfter() != null) {
+    TableList nextPage = tablesApi.listTables(
+        null, 20, null, firstPage.getPaging().getAfter(), null
+    );
+    for (Table table : nextPage.getData()) {
+        System.out.println(table.getFullyQualifiedName());
+    }
+}
+```
+
+```bash Basic Pagination
+# Get first page
+curl -X GET "https://your-company.getcollate.io/api/v1/tables?limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Response includes paging.after cursor
+# {
+#   "data": [...],
+#   "paging": {
+#     "total": 150,
+#     "after": "eyJsYXN0SWQiOiIxMjM0NTY3ODkwIn0="
+#   }
+# }
+
+# Get next page using after cursor
+curl -X GET "https://your-company.getcollate.io/api/v1/tables?limit=20&after=eyJsYXN0SWQiOiIxMjM0NTY3ODkwIn0=" \
+  -H "Authorization: Bearer $TOKEN"
+```
+</CodeGroup>
+
+### Iterating Through All Results
+
+<CodeGroup dropdown>
+```python Iterating Results
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.table import Table
+
+metadata = OpenMetadata(config)
+
+# Iterate through all tables
+for table in metadata.list_all_entities(entity=Table, limit=100):
+    print(table.fullyQualifiedName)
+    # Process each table...
+```
+
+```java Iterating Results
+import org.openmetadata.client.api.TablesApi;
+
+TablesApi tablesApi = client.buildClient(TablesApi.class);
+String afterCursor = null;
+
+do {
+    TableList page = tablesApi.listTables(null, 100, null, afterCursor, null);
+
+    for (Table table : page.getData()) {
+        System.out.println(table.getFullyQualifiedName());
+        // Process each table...
+    }
+
+    afterCursor = page.getPaging().getAfter();
+} while (afterCursor != null);
+```
+
+```bash Iterating Results
+#!/bin/bash
+
+after_cursor=""
+
+while true; do
+  # Build URL with optional cursor
+  url="https://your-company.getcollate.io/api/v1/tables?limit=100"
+  if [ -n "$after_cursor" ]; then
+    url="${url}&after=${after_cursor}"
+  fi
+
+  # Fetch page
+  response=$(curl -s -X GET "$url" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json")
+
+  # Process results
+  echo "$response" | jq -r '.data[].fullyQualifiedName'
+
+  # Get next cursor
+  after_cursor=$(echo "$response" | jq -r '.paging.after // empty')
+
+  # Exit if no more pages
+  if [ -z "$after_cursor" ]; then
+    break
+  fi
+done
+```
+</CodeGroup>
+
+## Filtering with Pagination
+
+Combine pagination with filters for efficient data retrieval:
+
+<CodeGroup dropdown>
+```python Filtering
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.table import Table
+
+metadata = OpenMetadata(config)
+
+# List tables from a specific database
+tables = metadata.list_entities(
+    entity=Table,
+    params={"database": "prod.analytics"},
+    limit=50
+)
+
+for table in tables.entities:
+    print(table.fullyQualifiedName)
+```
+
+```bash Filtering
+# Filter tables by database
+curl -X GET "https://your-company.getcollate.io/api/v1/tables?database=prod.analytics&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
+```
+</CodeGroup>
+
+## Include Fields
+
+Control which fields are returned in the response using the `fields` parameter:
+
+<CodeGroup>
+```bash Include Fields
+# Request specific fields
+curl -X GET "https://your-company.getcollate.io/api/v1/tables?fields=owner,tags,columns&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+</CodeGroup>
+
+Common field options for tables:
+- `owner` - Include owner information
+- `tags` - Include tags and classifications
+- `columns` - Include column definitions
+- `followers` - Include followers
+- `tableConstraints` - Include constraints
+- `usageSummary` - Include usage statistics
+
+## Best Practices
+
+<Steps>
+  <Step title="Use reasonable page sizes">
+    Start with `limit=50-100`. Larger pages reduce API calls but increase memory usage.
+  </Step>
+  <Step title="Don't skip pages">
+    Always use cursors sequentially. Don't try to construct cursor values manually.
+  </Step>
+  <Step title="Handle empty results">
+    Check if `data` array is empty or `after` cursor is null to detect end of results.
+  </Step>
+  <Step title="Request only needed fields">
+    Use the `fields` parameter to reduce response size and improve performance.
+  </Step>
+  <Step title="Implement retry logic">
+    Handle transient errors gracefully when paginating through large datasets.
+  </Step>
+</Steps>
+
+## Pagination vs Search
+
+For finding specific resources, consider using the Search API instead of paginating through all results:
+
+<CodeGroup>
+```bash Pagination vs Search
+# Search is faster for finding specific resources
+curl -X GET "https://your-company.getcollate.io/api/v1/search/query?q=customers&index=table_search_index" \
+  -H "Authorization: Bearer $TOKEN"
+```
+</CodeGroup>
+
+<Card title="Search API" icon="magnifying-glass" href="/api-reference/search">
+  Learn about searching and filtering metadata
+</Card>

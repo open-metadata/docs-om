@@ -1,0 +1,147 @@
+---
+title: Delete a Classification
+description: Delete a classification by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Classification
+api: DELETE /v1/classifications/{id}
+---
+
+# Delete a Classification
+
+Delete a classification by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the classification to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all tags within this classification.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the classification. If `false`, the classification is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/classifications/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the classification (e.g., `Certification`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all tags.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the classification.
+</ParamField>
+
+## Restore a Soft-Deleted Classification
+
+Use `PUT /v1/classifications/restore` to restore a soft-deleted classification.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted classification to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/classifications/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Classifications
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Classifications.delete("06d90883-6be9-4f7e-9475-753f10a95e94")
+
+# Hard delete
+Classifications.delete(
+    "06d90883-6be9-4f7e-9475-753f10a95e94",
+    hard_delete=True
+)
+
+# Delete by name
+Classifications.delete_by_name("Certification")
+
+# Restore a soft-deleted classification
+Classifications.restore("06d90883-6be9-4f7e-9475-753f10a95e94")
+```
+
+```java DELETE /v1/classifications/{id}
+import static org.openmetadata.sdk.fluent.Classifications.*;
+
+// Soft delete
+Classifications.delete("06d90883-6be9-4f7e-9475-753f10a95e94").execute();
+
+// Hard delete
+Classifications.delete("06d90883-6be9-4f7e-9475-753f10a95e94")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Classifications.deleteByName("Certification").execute();
+
+// Restore
+Classifications.restore("06d90883-6be9-4f7e-9475-753f10a95e94");
+```
+
+```bash DELETE /v1/classifications/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/classifications/06d90883-6be9-4f7e-9475-753f10a95e94" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/classifications/06d90883-6be9-4f7e-9475-753f10a95e94?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/classifications/name/Certification" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted classification
+curl -X PUT "{base_url}/api/v1/classifications/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "06d90883-6be9-4f7e-9475-753f10a95e94"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+  "name": "Certification",
+  "fullyQualifiedName": "Certification",
+  "description": "Certifying Data Asset will provide the users with a clear idea of...",
+  "version": 0.2,
+  "updatedAt": 1769982619610,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": true
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the classification object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored classification object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this classification |
+| `404` | `NOT_FOUND` | Classification with given ID or FQN does not exist |

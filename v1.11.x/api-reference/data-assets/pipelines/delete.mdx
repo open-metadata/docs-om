@@ -1,0 +1,166 @@
+---
+title: Delete a Pipeline
+description: Delete a pipeline by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Pipeline
+api: DELETE /v1/pipelines/{id}
+---
+
+# Delete a Pipeline
+
+Delete a pipeline by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the pipeline. If `false`, the pipeline is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/pipelines/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline (e.g., `sample_airflow.dbt_analytics_customers`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the pipeline.
+</ParamField>
+
+## Restore a Soft-Deleted Pipeline
+
+Use `PUT /v1/pipelines/restore` to restore a soft-deleted pipeline.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted pipeline to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/pipelines/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Pipelines
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Pipelines.delete("538faa63-d204-46ff-aead-d158d0401cac")
+
+# Hard delete
+Pipelines.delete(
+    "538faa63-d204-46ff-aead-d158d0401cac",
+    hard_delete=True
+)
+
+# Delete by name
+Pipelines.delete_by_name("sample_airflow.dbt_analytics_customers")
+
+# Delete by name with options
+Pipelines.delete_by_name(
+    "sample_airflow.dbt_analytics_customers",
+    hard_delete=True
+)
+
+# Restore a soft-deleted pipeline
+Pipelines.restore("538faa63-d204-46ff-aead-d158d0401cac")
+```
+
+```java DELETE /v1/pipelines/{id}
+import static org.openmetadata.sdk.fluent.Pipelines.*;
+
+// Soft delete
+Pipelines.delete("538faa63-d204-46ff-aead-d158d0401cac").execute();
+
+// Hard delete
+Pipelines.delete("538faa63-d204-46ff-aead-d158d0401cac")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Pipelines.deleteByName("sample_airflow.dbt_analytics_customers")
+    .execute();
+
+// Restore
+Pipelines.restore("538faa63-d204-46ff-aead-d158d0401cac");
+```
+
+```bash DELETE /v1/pipelines/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/pipelines/538faa63-d204-46ff-aead-d158d0401cac" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/pipelines/538faa63-d204-46ff-aead-d158d0401cac?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/pipelines/name/sample_airflow.dbt_analytics_customers" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted pipeline
+curl -X PUT "{base_url}/api/v1/pipelines/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "538faa63-d204-46ff-aead-d158d0401cac"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "538faa63-d204-46ff-aead-d158d0401cac",
+  "name": "dbt_analytics_customers",
+  "displayName": "DBT Customer Analytics",
+  "fullyQualifiedName": "sample_airflow.dbt_analytics_customers",
+  "version": 0.2,
+  "updatedAt": 1769982668397,
+  "updatedBy": "admin",
+  "service": {
+    "id": "daa58a49-df05-48a3-a417-45dfd12eacf5",
+    "type": "pipelineService",
+    "name": "sample_airflow",
+    "fullyQualifiedName": "sample_airflow"
+  },
+  "serviceType": "DBTCloud",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0
+  },
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the pipeline object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored pipeline object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this pipeline |
+| `404` | `NOT_FOUND` | Pipeline with given ID or FQN does not exist |

@@ -1,0 +1,355 @@
+---
+title: Create a Table
+description: Create a new table within a database schema
+sidebarTitle: Create a Table
+api: POST /v1/tables
+---
+
+# Create a Table
+
+Create a new table within a database schema.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the table. Must be unique within the parent schema.
+</ParamField>
+
+<ParamField body="databaseSchema" type="string" required>
+  Fully qualified name of the parent DatabaseSchema (e.g., `snowflake_prod.analytics.public`).
+</ParamField>
+
+<ParamField body="columns" type="array" required>
+  Array of column definitions for the table.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the column.
+    </ParamField>
+
+    <ParamField body="dataType" type="string" required>
+      Data type of the column (e.g., `INT`, `VARCHAR`, `TIMESTAMP`, `BOOLEAN`, `ARRAY`, `MAP`).
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the column in Markdown format.
+    </ParamField>
+
+    <ParamField body="dataLength" type="integer">
+      Length of the data type (e.g., `256` for `VARCHAR(256)`).
+    </ParamField>
+
+    <ParamField body="constraint" type="string">
+      Column constraint: `PRIMARY_KEY`, `UNIQUE`, `NOT_NULL`, `NULL`.
+    </ParamField>
+
+    <ParamField body="tags" type="array">
+      Classification tags to apply to this column.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the table.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the table in Markdown format.
+</ParamField>
+
+<ParamField body="tableType" type="string">
+  Type of table: `Regular`, `External`, `View`, `MaterializedView`, `SecureView`, `Iceberg`, `Local`, `Partitioned`, `Foreign`, `Transient`.
+</ParamField>
+
+<ParamField body="retentionPeriod" type="string">
+  Data retention period in ISO 8601 duration format (e.g., `P365D`).
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the table.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Fully qualified name of the domain to assign for governance purposes.
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Array of classification tags to apply to the table.
+
+  <Expandable title="properties">
+    <ParamField body="tagFQN" type="string" required>
+      Fully qualified name of the tag.
+    </ParamField>
+
+    <ParamField body="labelType" type="string">
+      Type of label (e.g., `Manual`, `Derived`, `Propagated`).
+    </ParamField>
+
+    <ParamField body="state" type="string">
+      State of the tag (e.g., `Suggested`, `Confirmed`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/tables
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+from metadata.generated.schema.api.data.createTable import CreateTableRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateTableRequest(
+    name="customers",
+    displayName="Customers",
+    databaseSchema="snowflake_prod.analytics.public",
+    description="Customer master data table",
+    tableType="Regular",
+    columns=[
+        {"name": "id", "dataType": "INT", "constraint": "PRIMARY_KEY", "description": "Unique customer identifier"},
+        {"name": "name", "dataType": "VARCHAR", "dataLength": 256, "description": "Full name of the customer"},
+        {"name": "email", "dataType": "VARCHAR", "dataLength": 256, "description": "Customer email address"},
+        {"name": "created_at", "dataType": "TIMESTAMP", "description": "Account creation timestamp"}
+    ]
+)
+
+table = Tables.create(request)
+print(f"Created: {table.fullyQualifiedName}")
+```
+
+```java POST /v1/tables
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+Table table = Tables.builder()
+    .name("customers")
+    .databaseSchema("snowflake_prod.analytics.public")
+    .columns(List.of(
+        column("id", "INT").constraint("PRIMARY_KEY"),
+        column("name", "VARCHAR").dataLength(256),
+        column("email", "VARCHAR").dataLength(256),
+        column("created_at", "TIMESTAMP")
+    ))
+    .create();
+```
+
+```bash POST /v1/tables
+curl -X POST "{base_url}/api/v1/tables" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "agent_performance_summary",
+    "databaseSchema": "sample_data.ecommerce_db.shopify",
+    "description": "Summary of agent performance metrics derived from multiple tables including ssot_utilization_detail for comprehensive reporting.",
+    "tableType": "Regular",
+    "columns": [
+      {"name": "agent_id", "dataType": "VARCHAR", "dataLength": 100, "description": "Agent identifier"},
+      {"name": "performance_score", "dataType": "DECIMAL", "description": "Overall performance score"}
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+  "name": "agent_performance_summary",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary",
+  "description": "Summary of agent performance metrics derived from multiple tables including ssot_utilization_detail for comprehensive reporting.",
+  "version": 0.1,
+  "updatedAt": 1769982651320,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3",
+  "tableType": "Regular",
+  "columns": [
+    {
+      "name": "agent_id",
+      "dataType": "VARCHAR",
+      "dataLength": 100,
+      "dataTypeDisplay": "varchar",
+      "description": "Agent identifier",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary.agent_id",
+      "tags": [],
+      "ordinalPosition": 1
+    },
+    {
+      "name": "performance_score",
+      "dataType": "DECIMAL",
+      "dataTypeDisplay": "decimal",
+      "description": "Overall performance score",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary.performance_score",
+      "tags": [],
+      "ordinalPosition": 2
+    }
+  ],
+  "owners": [],
+  "databaseSchema": {
+    "id": "4dd30184-009c-4792-b296-9562eaed651f",
+    "type": "databaseSchema",
+    "name": "shopify",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify",
+    "description": "This **mock** database contains schema related to shopify sales and orders with related dimension tables.",
+    "displayName": "shopify",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/databaseSchemas/4dd30184-009c-4792-b296-9562eaed651f"
+  },
+  "database": {
+    "id": "0be090de-0941-48c4-af49-a6157c91cda0",
+    "type": "database",
+    "name": "ecommerce_db",
+    "fullyQualifiedName": "sample_data.ecommerce_db",
+    "description": "This **mock** database contains schemas related to shopify sales and orders with related dimension tables.",
+    "displayName": "ecommerce_db",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/databases/0be090de-0941-48c4-af49-a6157c91cda0"
+  },
+  "service": {
+    "id": "fd2193af-fe09-4366-92b7-1e0d01cd8c09",
+    "type": "databaseService",
+    "name": "sample_data",
+    "fullyQualifiedName": "sample_data",
+    "displayName": "sample_data",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09"
+  },
+  "serviceType": "BigQuery",
+  "tags": [],
+  "deleted": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created table object with all specified properties, system-generated fields, and fully qualified names for each column.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the table (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Table name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.database.schema.table`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the table in Markdown format.
+</ResponseField>
+
+<ResponseField name="tableType" type="string">
+  Type of table (e.g., `Regular`, `View`, `MaterializedView`).
+</ResponseField>
+
+<ResponseField name="columns" type="array">
+  Array of column definitions.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Column name.
+    </ResponseField>
+
+    <ResponseField name="dataType" type="string">
+      Data type of the column.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the column.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Column description.
+    </ResponseField>
+
+    <ResponseField name="constraint" type="string">
+      Column constraint if set.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="databaseSchema" type="object">
+  Reference to the parent database schema.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent database service.
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/tables` instead of `POST` to perform an upsert. If a table with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new table is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/tables" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Bulk Create or Update (PUT)
+
+Use `PUT /v1/tables/bulk` to create or update multiple tables in a single request. The request body is an array of create request objects.
+
+```bash
+curl -X PUT "{base_url}/api/v1/tables/bulk" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "name": "table_one", "databaseSchema": "service.db.schema", "columns": [{"name": "id", "dataType": "INT"}] },
+    { "name": "table_two", "databaseSchema": "service.db.schema", "columns": [{"name": "id", "dataType": "INT"}] }
+  ]'
+```
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body, missing required fields, or invalid column definitions |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create tables |
+| `409` | `ENTITY_ALREADY_EXISTS` | Table with same name already exists in schema (POST only) |

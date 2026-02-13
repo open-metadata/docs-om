@@ -1,0 +1,167 @@
+---
+title: Delete a Storage Service
+description: Delete a storage service by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Storage Service
+api: DELETE /v1/services/storageServices/{id}
+---
+
+# Delete a Storage Service
+
+Delete a storage service by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the storage service to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (containers).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the storage service. If `false`, the storage service is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/services/storageServices/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the storage service (e.g., `s3_datalake`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (containers).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the storage service.
+</ParamField>
+
+## Restore a Soft-Deleted Storage Service
+
+Use `PUT /v1/services/storageServices/restore` to restore a soft-deleted storage service.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted storage service to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/services/storageServices/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import StorageServices
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+StorageServices.delete("d1589e1d-2ab0-431c-a383-15e4be20a106")
+
+# Hard delete
+StorageServices.delete(
+    "d1589e1d-2ab0-431c-a383-15e4be20a106",
+    hard_delete=True
+)
+
+# Delete by name
+StorageServices.delete_by_name("s3_datalake")
+
+# Delete by name with options
+StorageServices.delete_by_name(
+    "s3_datalake",
+    hard_delete=True,
+    recursive=True
+)
+
+# Restore a soft-deleted storage service
+StorageServices.restore("d1589e1d-2ab0-431c-a383-15e4be20a106")
+```
+
+```java DELETE /v1/services/storageServices/{id}
+import static org.openmetadata.sdk.fluent.StorageServices.*;
+
+// Soft delete
+StorageServices.delete("d1589e1d-2ab0-431c-a383-15e4be20a106").execute();
+
+// Hard delete
+StorageServices.delete("d1589e1d-2ab0-431c-a383-15e4be20a106")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+StorageServices.deleteByName("s3_datalake").execute();
+
+// Restore
+StorageServices.restore("d1589e1d-2ab0-431c-a383-15e4be20a106");
+```
+
+```bash DELETE /v1/services/storageServices/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/services/storageServices/d1589e1d-2ab0-431c-a383-15e4be20a106" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/services/storageServices/d1589e1d-2ab0-431c-a383-15e4be20a106?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/services/storageServices/name/s3_datalake" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted storage service
+curl -X PUT "{base_url}/api/v1/services/storageServices/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "d1589e1d-2ab0-431c-a383-15e4be20a106"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "d1589e1d-2ab0-431c-a383-15e4be20a106",
+  "name": "s3_datalake",
+  "fullyQualifiedName": "s3_datalake",
+  "serviceType": "S3",
+  "description": "Production S3 data lake for analytics",
+  "connection": {
+    "config": {
+      "type": "S3",
+      "awsConfig": {
+        "enabled": false,
+        "awsAccessKeyId": "AKIA...",
+        "awsSecretAccessKey": "*********",
+        "awsRegion": "us-east-1",
+        "endPointURL": "https://s3.amazonaws.com/"
+      }
+    }
+  },
+  "version": 0.2,
+  "updatedAt": 1769982621820,
+  "updatedBy": "admin",
+  "owners": [],
+  "tags": [],
+  "deleted": true,
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the storage service object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored storage service object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this storage service |
+| `404` | `NOT_FOUND` | Storage service with given ID or FQN does not exist |

@@ -1,0 +1,162 @@
+---
+title: Delete a Database
+description: Delete a database by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Database
+api: DELETE /v1/databases/{id}
+---
+
+# Delete a Database
+
+Delete a database by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the database to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child schemas and tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the database. If `false`, the database is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/databases/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the database (e.g., `snowflake_prod.analytics`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child schemas and tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the database.
+</ParamField>
+
+## Restore a Soft-Deleted Database
+
+Use `PUT /v1/databases/restore` to restore a soft-deleted database.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted database to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/databases/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Databases
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Databases.delete("550e8400-e29b-41d4-a716-446655440000")
+
+# Hard delete with recursive
+Databases.delete(
+    "550e8400-e29b-41d4-a716-446655440000",
+    recursive=True,
+    hard_delete=True
+)
+
+# Delete by name
+Databases.delete_by_name("snowflake_prod.analytics")
+
+# Delete by name with options
+Databases.delete_by_name(
+    "snowflake_prod.analytics",
+    recursive=True,
+    hard_delete=True
+)
+
+# Restore a soft-deleted database
+Databases.restore("550e8400-e29b-41d4-a716-446655440000")
+```
+
+```java DELETE /v1/databases/{id}
+import static org.openmetadata.sdk.fluent.Databases.*;
+
+// Soft delete
+Databases.delete("550e8400-e29b-41d4-a716-446655440000").execute();
+
+// Hard delete with recursive
+Databases.delete("550e8400-e29b-41d4-a716-446655440000")
+    .recursive()
+    .hardDelete()
+    .execute();
+```
+
+```bash DELETE /v1/databases/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive
+curl -X DELETE "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721?recursive=true&hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/databases/name/mysql_sample.default?recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted database
+curl -X PUT "{base_url}/api/v1/databases/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "1d08c2c6-cea7-4adf-9043-0f6a6aaf9721"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "1d08c2c6-cea7-4adf-9043-0f6a6aaf9721",
+  "name": "default",
+  "fullyQualifiedName": "mysql_sample.default",
+  "tags": [],
+  "version": 0.2,
+  "updatedAt": 1769982750000,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721",
+  "owners": [],
+  "service": {
+    "id": "4724c3cb-d4b8-4ac0-aa55-e8bb66f01ac3",
+    "type": "databaseService",
+    "name": "mysql_sample",
+    "fullyQualifiedName": "mysql_sample",
+    "displayName": "mysql_sample",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/services/databaseServices/4724c3cb-d4b8-4ac0-aa55-e8bb66f01ac3"
+  },
+  "serviceType": "Mysql",
+  "default": false,
+  "deleted": true,
+  "domains": [],
+  "entityStatus": "Unprocessed"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the database object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored database object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this database |
+| `404` | `NOT_FOUND` | Database with given ID or FQN does not exist |

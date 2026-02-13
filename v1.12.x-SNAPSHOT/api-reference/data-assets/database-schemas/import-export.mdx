@@ -1,0 +1,172 @@
+---
+title: Import & Export Database Schemas
+description: Import and export database schema metadata as CSV
+sidebarTitle: Import & Export Database Schemas
+api: GET /v1/databaseSchemas/name/{fqn}/export
+---
+
+# Import & Export
+
+Export database schema metadata (tables, owners, tags) to CSV and import changes back. Supports both synchronous and asynchronous operations.
+
+## Export to CSV
+
+`GET /v1/databaseSchemas/name/{fqn}/export`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the schema (e.g., `snowflake_prod.analytics.public`).
+</ParamField>
+
+## Export Async
+
+`GET /v1/databaseSchemas/name/{fqn}/exportAsync`
+
+Returns a job ID for large exports that can be polled for completion.
+
+## Import from CSV
+
+`PUT /v1/databaseSchemas/name/{fqn}/import`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the schema.
+</ParamField>
+
+<ParamField query="dryRun" type="boolean" default="true">
+  If `true`, validates the CSV without applying changes. Set to `false` to apply.
+</ParamField>
+
+## Import Async
+
+`PUT /v1/databaseSchemas/name/{fqn}/importAsync`
+
+For large imports, use the async variant which returns a job ID.
+
+<RequestExample dropdown>
+```python GET /v1/databaseSchemas/name/{fqn}/export
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseSchemas
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Synchronous export
+csv_data = DatabaseSchemas.export_csv("snowflake_prod.analytics.public").execute()
+print(csv_data)
+
+# Async export
+job = DatabaseSchemas.export_csv("snowflake_prod.analytics.public").execute_async()
+print(f"Export job: {job}")
+
+# Synchronous import (dry run first)
+result = (
+    DatabaseSchemas.import_csv("snowflake_prod.analytics.public")
+    .with_data(csv_data)
+    .set_dry_run(True)
+    .execute()
+)
+print(f"Dry run result: {result}")
+
+# Apply the import
+result = (
+    DatabaseSchemas.import_csv("snowflake_prod.analytics.public")
+    .with_data(csv_data)
+    .set_dry_run(False)
+    .execute()
+)
+
+# Async import
+result = (
+    DatabaseSchemas.import_csv("snowflake_prod.analytics.public")
+    .with_data(csv_data)
+    .set_dry_run(False)
+    .execute_async()
+)
+```
+
+```java GET /v1/databaseSchemas/name/{fqn}/export
+import org.openmetadata.sdk.fluent.DatabaseSchemas;
+
+// Synchronous export
+String csvData = DatabaseSchemas.exportCsv("snowflake_prod.analytics.public")
+    .execute();
+
+// Async export
+String jobId = DatabaseSchemas.exportCsv("snowflake_prod.analytics.public")
+    .async()
+    .execute();
+
+// Synchronous import (dry run)
+String result = DatabaseSchemas.importCsv("snowflake_prod.analytics.public")
+    .withData(csvData)
+    .dryRun(true)
+    .execute();
+
+// Apply import
+String result = DatabaseSchemas.importCsv("snowflake_prod.analytics.public")
+    .withData(csvData)
+    .dryRun(false)
+    .execute();
+
+// Async import
+String jobId = DatabaseSchemas.importCsv("snowflake_prod.analytics.public")
+    .withData(csvData)
+    .dryRun(false)
+    .async()
+    .execute();
+```
+
+```bash GET /v1/databaseSchemas/name/{fqn}/export
+# Export to CSV
+curl "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema/export" \
+  -H "Authorization: Bearer {access_token}"
+
+# Async export
+curl "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema/exportAsync" \
+  -H "Authorization: Bearer {access_token}"
+
+# Import CSV (dry run)
+curl -X PUT "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema/import?dryRun=true" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @schema_export.csv
+
+# Import CSV (apply)
+curl -X PUT "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema/import?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @schema_export.csv
+
+# Async import
+curl -X PUT "{base_url}/api/v1/databaseSchemas/name/Glue.default.information_schema/importAsync?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @schema_export.csv
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Export)
+"name,displayName,description,owner,tags,retentionPeriod,sourceUrl,domain\nusers,Users Table,User account data,team:data-engineering,Tier.Tier1,,,"
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Export** returns CSV text with headers and rows for each child entity.
+
+**Import** returns a summary of changes applied (or validation results for dry run).
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission for import/export |
+| `404` | `NOT_FOUND` | Schema with given FQN does not exist |
+| `400` | `BAD_REQUEST` | Invalid CSV format or content |

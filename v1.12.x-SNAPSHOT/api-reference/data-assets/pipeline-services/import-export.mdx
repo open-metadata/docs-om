@@ -1,0 +1,166 @@
+---
+title: Import & Export Pipeline Services
+description: Import and export pipeline service metadata as CSV
+sidebarTitle: Import & Export Pipeline Services
+api: GET /v1/services/pipelineServices/name/{fqn}/export
+---
+
+# Import & Export
+
+Export pipeline service metadata (pipelines, owners, tags) to CSV and import changes back. Supports both synchronous and asynchronous operations.
+
+## Export to CSV
+
+`GET /v1/services/pipelineServices/name/{fqn}/export`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline service (e.g., `sample_airflow`).
+</ParamField>
+
+## Export Async
+
+`GET /v1/services/pipelineServices/name/{fqn}/exportAsync`
+
+Returns a job ID for large exports that can be polled for completion.
+
+## Import from CSV
+
+`PUT /v1/services/pipelineServices/name/{fqn}/import`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline service.
+</ParamField>
+
+<ParamField query="dryRun" type="boolean" default="true">
+  If `true`, validates the CSV without applying changes. Set to `false` to apply.
+</ParamField>
+
+## Import Async
+
+`PUT /v1/services/pipelineServices/name/{fqn}/importAsync`
+
+For large imports, use the async variant which returns a job ID.
+
+<RequestExample dropdown>
+```python GET /v1/services/pipelineServices/name/{fqn}/export
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# Synchronous export
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices/name/sample_airflow/export",
+    headers=headers
+)
+csv_data = response.text
+print(csv_data)
+
+# Async export
+response = requests.get(
+    f"{base_url}/v1/services/pipelineServices/name/sample_airflow/exportAsync",
+    headers=headers
+)
+print(f"Export job: {response.json()}")
+
+# Synchronous import (dry run)
+response = requests.put(
+    f"{base_url}/v1/services/pipelineServices/name/sample_airflow/import?dryRun=true",
+    headers={**headers, "Content-Type": "text/plain"},
+    data=csv_data
+)
+print(f"Dry run result: {response.json()}")
+
+# Apply the import
+response = requests.put(
+    f"{base_url}/v1/services/pipelineServices/name/sample_airflow/import?dryRun=false",
+    headers={**headers, "Content-Type": "text/plain"},
+    data=csv_data
+)
+```
+
+```java GET /v1/services/pipelineServices/name/{fqn}/export
+import org.openmetadata.sdk.fluent.PipelineServices;
+
+// Synchronous export
+String csvData = PipelineServices.exportCsv("sample_airflow")
+    .execute();
+
+// Async export
+String jobId = PipelineServices.exportCsv("sample_airflow")
+    .async()
+    .execute();
+
+// Synchronous import (dry run)
+String result = PipelineServices.importCsv("sample_airflow")
+    .withData(csvData)
+    .dryRun(true)
+    .execute();
+
+// Apply import
+String result = PipelineServices.importCsv("sample_airflow")
+    .withData(csvData)
+    .dryRun(false)
+    .execute();
+
+// Async import
+String jobId = PipelineServices.importCsv("sample_airflow")
+    .withData(csvData)
+    .dryRun(false)
+    .async()
+    .execute();
+```
+
+```bash GET /v1/services/pipelineServices/name/{fqn}/export
+# Export to CSV
+curl "{base_url}/api/v1/services/pipelineServices/name/sample_airflow/export" \
+  -H "Authorization: Bearer {access_token}"
+
+# Async export
+curl "{base_url}/api/v1/services/pipelineServices/name/sample_airflow/exportAsync" \
+  -H "Authorization: Bearer {access_token}"
+
+# Import CSV (dry run)
+curl -X PUT "{base_url}/api/v1/services/pipelineServices/name/sample_airflow/import?dryRun=true" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @service_export.csv
+
+# Import CSV (apply)
+curl -X PUT "{base_url}/api/v1/services/pipelineServices/name/sample_airflow/import?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @service_export.csv
+
+# Async import
+curl -X PUT "{base_url}/api/v1/services/pipelineServices/name/sample_airflow/importAsync?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @service_export.csv
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Export)
+"name,displayName,description,owner,tags,domain\ndbt_analytics_customers,DBT Customer Analytics,Analytics pipeline for customer data,team:data-engineering,Tier.Tier1,,"
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Export** returns CSV text with headers and rows for each child entity.
+
+**Import** returns a summary of changes applied (or validation results for dry run).
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission for import/export |
+| `404` | `NOT_FOUND` | Pipeline service with given FQN does not exist |
+| `400` | `BAD_REQUEST` | Invalid CSV format or content |

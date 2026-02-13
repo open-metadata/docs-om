@@ -1,0 +1,109 @@
+---
+title: Glossary Term Versions
+description: List and retrieve historical versions of a glossary term
+sidebarTitle: Glossary Term Versions
+api: GET /v1/glossaryTerms/{id}/versions
+---
+
+# Glossary Term Versions
+
+Every change to a glossary term entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the glossary term.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/glossaryTerms/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the glossary term.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/glossaryTerms/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import GlossaryTerms
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = GlossaryTerms.get_versions("d3a50b09-g258-7h57-defg-42g1d5517ed4")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+term_v1 = GlossaryTerms.get_specific_version(
+    "d3a50b09-g258-7h57-defg-42g1d5517ed4",
+    "0.1"
+)
+print(f"Original description: {term_v1.description}")
+```
+
+```java GET /v1/glossaryTerms/{id}/versions
+import static org.openmetadata.sdk.fluent.GlossaryTerms.*;
+
+// List all versions
+var history = GlossaryTerms.getVersions("d3a50b09-g258-7h57-defg-42g1d5517ed4");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = GlossaryTerms.getSpecificVersion(
+    "d3a50b09-g258-7h57-defg-42g1d5517ed4",
+    0.1
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/glossaryTerms/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/glossaryTerms/d3a50b09-g258-7h57-defg-42g1d5517ed4/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/glossaryTerms/d3a50b09-g258-7h57-defg-42g1d5517ed4/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "glossaryTerm",
+  "versions": [
+    "{\"id\":\"d3a50b09-g258-7h57-defg-42g1d5517ed4\",\"name\":\"Revenue\",\"fullyQualifiedName\":\"BusinessGlossary.Revenue\",\"version\":0.2,\"description\":\"Updated description\",\"synonyms\":[\"Income\",\"Earnings\",\"Sales\",\"Turnover\"]}",
+    "{\"id\":\"d3a50b09-g258-7h57-defg-42g1d5517ed4\",\"name\":\"Revenue\",\"fullyQualifiedName\":\"BusinessGlossary.Revenue\",\"version\":0.1,\"description\":\"Total income generated from business operations\",\"synonyms\":[\"Income\",\"Earnings\",\"Sales\"]}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full glossary term object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Glossary term or version does not exist |

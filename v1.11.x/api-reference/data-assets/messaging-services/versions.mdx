@@ -1,0 +1,107 @@
+---
+title: Messaging Service Versions
+description: List and retrieve historical versions of a messaging service
+sidebarTitle: Messaging Service Versions
+api: GET /v1/services/messagingServices/{id}/versions
+---
+
+# Messaging Service Versions
+
+Every change to a messaging service entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the messaging service.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/services/messagingServices/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the messaging service.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/messagingServices/{id}/versions
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# List all versions
+response = requests.get(
+    f"{base_url}/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30/versions",
+    headers=headers
+)
+versions = response.json()
+for v in versions["versions"]:
+    print(v)
+
+# Get a specific version
+response = requests.get(
+    f"{base_url}/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30/versions/0.1",
+    headers=headers
+)
+service_v1 = response.json()
+print(f"Original description: {service_v1.get('description')}")
+```
+
+```java GET /v1/services/messagingServices/{id}/versions
+import static org.openmetadata.sdk.fluent.MessagingServices.*;
+
+// List all versions
+var versions = MessagingServices.getVersions("469ef25e-9bdf-4d5f-8553-eb0ce8581f30");
+
+// Get a specific version
+MessagingService v1 = MessagingServices.getSpecificVersion(
+    "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    "0.1"
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/services/messagingServices/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "messagingService",
+  "versions": [
+    "{\"id\":\"469ef25e-9bdf-4d5f-8553-eb0ce8581f30\",\"name\":\"sample_kafka\",\"fullyQualifiedName\":\"sample_kafka\",\"serviceType\":\"Kafka\",\"description\":\"Updated Kafka messaging service\",\"version\":0.2,\"updatedAt\":1769982700000,\"updatedBy\":\"admin\",\"deleted\":false}",
+    "{\"id\":\"469ef25e-9bdf-4d5f-8553-eb0ce8581f30\",\"name\":\"sample_kafka\",\"fullyQualifiedName\":\"sample_kafka\",\"serviceType\":\"Kafka\",\"version\":0.1,\"updatedAt\":1769982621031,\"updatedBy\":\"admin\",\"deleted\":false}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full messaging service object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Messaging service or version does not exist |

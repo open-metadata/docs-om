@@ -1,0 +1,260 @@
+---
+title: Retrieve an API Endpoint
+description: Get an API endpoint by ID or fully qualified name
+sidebarTitle: Retrieve an API Endpoint
+api: GET /v1/apiEndpoints/{id}
+---
+
+# Retrieve an API Endpoint
+
+Get a single API endpoint by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the API endpoint to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,extension,domains,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/apiEndpoints/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the API endpoint (e.g., `sample_api_service.pet.addPet`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `extension`, `domains`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/apiEndpoints/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import APIEndpoints
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+ep = APIEndpoints.retrieve("1f61427a-4a64-4070-9ac8-1d29302dac7c")
+print(f"{ep.fullyQualifiedName}: {ep.description}")
+
+# Get by ID with fields
+ep = APIEndpoints.retrieve(
+    "1f61427a-4a64-4070-9ac8-1d29302dac7c",
+    fields=["owners", "tags"]
+)
+
+# Get by fully qualified name
+ep = APIEndpoints.retrieve_by_name("sample_api_service.pet.addPet")
+
+# Get by name with fields
+ep = APIEndpoints.retrieve_by_name(
+    "sample_api_service.pet.addPet",
+    fields=["owners", "tags", "domain"]
+)
+```
+
+```java GET /v1/apiEndpoints/{id}
+import static org.openmetadata.sdk.fluent.APIEndpoints.*;
+
+// Get by ID
+var ep = APIEndpoints.retrieve("1f61427a-4a64-4070-9ac8-1d29302dac7c");
+
+// Get by ID with fields
+var ep = APIEndpoints.retrieve(
+    "1f61427a-4a64-4070-9ac8-1d29302dac7c",
+    "owners,tags"
+);
+
+// Get by fully qualified name
+var ep = APIEndpoints.retrieveByName(
+    "sample_api_service.pet.addPet"
+);
+
+// Get by name with fields
+var ep = APIEndpoints.retrieveByName(
+    "sample_api_service.pet.addPet",
+    "owners,tags,domain"
+);
+```
+
+```bash GET /v1/apiEndpoints/{id}
+# Get by ID
+curl "{base_url}/api/v1/apiEndpoints/1f61427a-4a64-4070-9ac8-1d29302dac7c" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/apiEndpoints/1f61427a-4a64-4070-9ac8-1d29302dac7c?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/apiEndpoints/name/sample_api_service.pet.addPet" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/apiEndpoints/name/sample_api_service.pet.addPet?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "1f61427a-4a64-4070-9ac8-1d29302dac7c",
+  "name": "addPet",
+  "displayName": "Add Pet",
+  "fullyQualifiedName": "sample_api_service.pet.addPet",
+  "description": "add a new pet",
+  "version": 0.1,
+  "updatedAt": 1769982733987,
+  "updatedBy": "admin",
+  "endpointURL": "https://petstore3.swagger.io/#/pet/addPet",
+  "requestMethod": "POST",
+  "requestSchema": {
+    "schemaType": "JSON",
+    "schemaFields": [
+      {"name": "id", "dataType": "INT", "description": "ID of pet"}
+    ]
+  },
+  "href": "http://localhost:8585/api/v1/apiEndpoints/1f61427a-4a64-4070-9ac8-1d29302dac7c",
+  "owners": [],
+  "tags": [],
+  "service": {
+    "id": "58d413a8-abc3-4a6d-bd8a-13a0234b1ff8",
+    "type": "apiService",
+    "name": "sample_api_service",
+    "deleted": false
+  },
+  "serviceType": "Rest",
+  "deleted": false,
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns an API endpoint object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the API endpoint (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  API endpoint name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.collection.endpointName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the API endpoint in Markdown format.
+</ResponseField>
+
+<ResponseField name="endpointURL" type="string">
+  URL for the API endpoint.
+</ResponseField>
+
+<ResponseField name="requestMethod" type="string">
+  HTTP request method (GET, POST, PUT, PATCH, DELETE).
+</ResponseField>
+
+<ResponseField name="requestSchema" type="object">
+  Schema describing the request body.
+
+  <Expandable title="properties">
+    <ResponseField name="schemaType" type="string">
+      Type of schema (e.g., JSON).
+    </ResponseField>
+
+    <ResponseField name="schemaFields" type="array">
+      Array of field definitions.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="responseSchema" type="object">
+  Schema describing the response body.
+
+  <Expandable title="properties">
+    <ResponseField name="schemaType" type="string">
+      Type of schema (e.g., JSON).
+    </ResponseField>
+
+    <ResponseField name="schemaFields" type="array">
+      Array of field definitions.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent API service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the API service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `apiService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the API service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of API service (e.g., Rest).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this API endpoint |
+| `404` | `NOT_FOUND` | API endpoint with given ID or FQN does not exist |

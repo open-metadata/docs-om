@@ -1,0 +1,263 @@
+---
+title: Retrieve a Topic
+description: Get a topic by ID or fully qualified name
+sidebarTitle: Retrieve a Topic
+api: GET /v1/topics/{id}
+---
+
+# Retrieve a Topic
+
+Get a single topic by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the topic to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/topics/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the topic (e.g., `sample_kafka.address_book`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/topics/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Topics
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016")
+print(f"{topic.fullyQualifiedName}: {topic.description}")
+
+# Get by ID with fields
+topic = Topics.retrieve(
+    "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+    fields=["owners", "tags", "messageSchema"]
+)
+
+# Get by fully qualified name
+topic = Topics.retrieve_by_name("sample_kafka.address_book")
+
+# Get by name with fields
+topic = Topics.retrieve_by_name(
+    "sample_kafka.address_book",
+    fields=["owners", "tags", "domain"]
+)
+```
+
+```java GET /v1/topics/{id}
+import static org.openmetadata.sdk.fluent.Topics.*;
+
+// Get by ID
+var topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016");
+
+// Get by ID with fields
+var topic = Topics.retrieve(
+    "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+    "owners,tags,messageSchema"
+);
+
+// Get by fully qualified name
+var topic = Topics.retrieveByName(
+    "sample_kafka.address_book"
+);
+
+// Get by name with fields
+var topic = Topics.retrieveByName(
+    "sample_kafka.address_book",
+    "owners,tags,domain"
+);
+```
+
+```bash GET /v1/topics/{id}
+# Get by ID
+curl "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/topics/name/sample_kafka.address_book" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/topics/name/sample_kafka.address_book?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "name": "address_book",
+  "fullyQualifiedName": "sample_kafka.address_book",
+  "description": "All Protobuf record related events gets captured in this topic",
+  "version": 0.1,
+  "updatedAt": 1769982663546,
+  "updatedBy": "admin",
+  "service": {
+    "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    "type": "messagingService",
+    "name": "sample_kafka",
+    "fullyQualifiedName": "sample_kafka",
+    "displayName": "sample_kafka",
+    "deleted": false
+  },
+  "serviceType": "Kafka",
+  "messageSchema": {
+    "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+    "schemaType": "Protobuf",
+    "schemaFields": [
+      {
+        "name": "AddressBook",
+        "dataType": "RECORD",
+        "fullyQualifiedName": "sample_kafka.address_book.AddressBook",
+        "children": []
+      }
+    ]
+  },
+  "partitions": 1,
+  "cleanupPolicies": ["delete"],
+  "replicationFactor": 1,
+  "maximumMessageSize": 1,
+  "retentionSize": -1,
+  "href": "http://localhost:8585/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0,
+    "upVoters": [],
+    "downVoters": []
+  },
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a topic object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the topic (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Topic name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.topicName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the topic in Markdown format.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent messaging service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the messaging service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `messagingService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the messaging service.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the messaging service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="messageSchema" type="object" optional>
+  Schema definition for messages. Only included when `fields` contains `messageSchema`.
+
+  <Expandable title="properties">
+    <ResponseField name="schemaType" type="string">
+      Type of schema (e.g., `Avro`, `Protobuf`, `JSON`).
+    </ResponseField>
+
+    <ResponseField name="schemaText" type="string">
+      The schema definition text.
+    </ResponseField>
+
+    <ResponseField name="schemaFields" type="array">
+      Parsed schema fields.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of messaging service (e.g., Kafka, Redpanda, Kinesis).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this topic |
+| `404` | `NOT_FOUND` | Topic with given ID or FQN does not exist |

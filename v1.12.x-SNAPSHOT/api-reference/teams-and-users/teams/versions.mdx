@@ -1,0 +1,109 @@
+---
+title: Team Versions
+description: List and retrieve historical versions of a team
+sidebarTitle: Team Versions
+api: GET /v1/teams/{id}/versions
+---
+
+# Team Versions
+
+Every change to a team entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the team.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/teams/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the team.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/teams/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Teams
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Teams.get_versions("449b5f25-4cbb-42db-8f71-3be2c5cd888a")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+team_v1 = Teams.get_specific_version(
+    "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+    "0.1"
+)
+print(f"Original name: {team_v1.name}")
+```
+
+```java GET /v1/teams/{id}/versions
+import static org.openmetadata.sdk.fluent.Teams.*;
+
+// List all versions
+var history = Teams.getVersions("449b5f25-4cbb-42db-8f71-3be2c5cd888a");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = Teams.getSpecificVersion(
+    "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+    0.1
+);
+System.out.println("Name: " + v1.getName());
+```
+
+```bash GET /v1/teams/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "team",
+  "versions": [
+    "{\"id\":\"449b5f25-4cbb-42db-8f71-3be2c5cd888a\",\"name\":\"Accounting\",\"fullyQualifiedName\":\"Accounting\",\"teamType\":\"Group\",\"version\":0.2,\"description\":\"Updated: Accounting team handling all financial reporting\"}",
+    "{\"id\":\"449b5f25-4cbb-42db-8f71-3be2c5cd888a\",\"name\":\"Accounting\",\"fullyQualifiedName\":\"Accounting\",\"teamType\":\"Group\",\"version\":0.1}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full team object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Team or version does not exist |

@@ -1,0 +1,108 @@
+---
+title: Test Case Versions
+description: List and retrieve historical versions of a test case
+sidebarTitle: Test Case Versions
+api: GET /v1/dataQuality/testCases/{id}/versions
+---
+
+# Test Case Versions
+
+Every change to a test case entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the test case.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/dataQuality/testCases/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the test case.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataQuality/testCases/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import TestCases
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = TestCases.get_versions("c1bce355-fa2f-48c6-ab4d-fad722a56ed7")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+tc_v1 = TestCases.get_specific_version(
+    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+    "0.1"
+)
+print(f"Original params: {tc_v1.parameterValues}")
+```
+
+```java GET /v1/dataQuality/testCases/{id}/versions
+import static org.openmetadata.sdk.fluent.TestCases.*;
+
+// List all versions
+var history = TestCases.getVersions("c1bce355-fa2f-48c6-ab4d-fad722a56ed7");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = TestCases.getSpecificVersion(
+    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+    0.1
+);
+```
+
+```bash GET /v1/dataQuality/testCases/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "testCase",
+  "versions": [
+    "{\"id\":\"c1bce355-fa2f-48c6-ab4d-fad722a56ed7\",\"name\":\"column_value_max_to_be_between\",\"fullyQualifiedName\":\"sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between\",\"version\":0.2,\"description\":\"Updated description\",\"parameterValues\":[{\"name\":\"minValueForMaxInCol\",\"value\":\"1\"},{\"name\":\"maxValueForMaxInCol\",\"value\":\"200\"}]}",
+    "{\"id\":\"c1bce355-fa2f-48c6-ab4d-fad722a56ed7\",\"name\":\"column_value_max_to_be_between\",\"fullyQualifiedName\":\"sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between\",\"version\":0.1,\"parameterValues\":[{\"name\":\"minValueForMaxInCol\",\"value\":\"1\"},{\"name\":\"maxValueForMaxInCol\",\"value\":\"100\"}]}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full test case object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Test case or version does not exist |

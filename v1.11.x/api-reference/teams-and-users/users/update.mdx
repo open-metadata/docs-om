@@ -1,0 +1,211 @@
+---
+title: Update a User
+description: Update user properties using JSON Patch
+sidebarTitle: Update a User
+api: PATCH /v1/users/{id}
+---
+
+# Update a User
+
+Update a user's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the user to update.
+</ParamField>
+
+## Update by Name
+
+Use `PATCH /v1/users/name/{fqn}` to update by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the user (e.g., `aaron_johnson0`).
+</ParamField>
+
+## Body Parameters
+
+Send a JSON object with the fields to update. Only provided fields are changed.
+
+<ParamField body="displayName" type="string">
+  Updated display name.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated description in Markdown format.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Updated email address.
+</ParamField>
+
+<ParamField body="isAdmin" type="boolean">
+  Updated admin status.
+</ParamField>
+
+<ParamField body="teams" type="array">
+  Updated list of team references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the team.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="roles" type="array">
+  Updated list of role references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the role.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `role`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Updated domain FQN.
+</ParamField>
+
+<ParamField body="profile" type="object">
+  Updated profile information.
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/users/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Users
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+user = Users.retrieve("77655e6e-ad33-49da-bbca-db4ba4d4e2cd")
+user.description = "Senior data analyst in the Sales team"
+user.displayName = "Aaron M. Johnson"
+updated = Users.update(user)
+
+print(f"Updated to version {updated.version}")
+```
+
+```java PATCH /v1/users/{id}
+import static org.openmetadata.sdk.fluent.Users.*;
+
+// Retrieve, modify, and update
+var user = Users.retrieve("77655e6e-ad33-49da-bbca-db4ba4d4e2cd");
+user.setDescription("Senior data analyst in the Sales team");
+var updated = Users.update(user);
+```
+
+```bash PATCH /v1/users/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Senior data analyst in the Sales team"},
+    {"op": "replace", "path": "/displayName", "value": "Aaron M. Johnson"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/users/name/aaron_johnson0" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Senior data analyst in the Sales team"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+  "name": "aaron_johnson0",
+  "fullyQualifiedName": "aaron_johnson0",
+  "displayName": "Aaron M. Johnson",
+  "description": "Senior data analyst in the Sales team",
+  "version": 0.2,
+  "updatedAt": 1769982624214,
+  "updatedBy": "admin",
+  "email": "aaron_johnson0@gmail.com",
+  "href": "http://localhost:8585/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+  "isBot": false,
+  "isAdmin": false,
+  "allowImpersonation": false,
+  "teams": [
+    {
+      "id": "7a2b921b-f623-4eb5-9736-649788ad842c",
+      "type": "team",
+      "name": "Sales",
+      "fullyQualifiedName": "Sales",
+      "displayName": "Sales",
+      "deleted": false
+    }
+  ],
+  "personas": [],
+  "deleted": false,
+  "roles": [
+    {
+      "id": "761c2bb2-0b77-4bc5-9af9-cf89536d6a12",
+      "type": "role",
+      "name": "DataSteward",
+      "fullyQualifiedName": "DataSteward",
+      "displayName": "Data Steward",
+      "deleted": false
+    }
+  ],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated user object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the user (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Username.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (same as `name` for users).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this user |
+| `404` | `NOT_FOUND` | User with given ID or FQN does not exist |
+| `409` | `CONFLICT` | Concurrent modification detected |

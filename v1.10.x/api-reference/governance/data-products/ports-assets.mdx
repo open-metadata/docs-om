@@ -1,0 +1,183 @@
+---
+title: Ports & Assets
+description: Manage input ports, output ports, and assets for a data product
+sidebarTitle: Ports & Assets
+api: PUT /v1/dataProducts/{id}/assets/add
+---
+
+# Ports & Assets
+
+Manage the input ports, output ports, and associated assets of a data product. These endpoints allow you to add or remove data assets from a data product without replacing the entire entity.
+
+## Add Assets
+
+Use `PUT /v1/dataProducts/{id}/assets/add` to add assets to a data product.
+
+<ParamField path="id" type="string" required>
+  UUID of the data product.
+</ParamField>
+
+<ParamField body="assets" type="array" required>
+  Array of entity references to add as assets.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the asset entity.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Type of asset entity (e.g., `table`, `topic`, `dashboard`, `pipeline`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Remove Assets
+
+Use `PUT /v1/dataProducts/{id}/assets/remove` to remove assets from a data product.
+
+<ParamField path="id" type="string" required>
+  UUID of the data product.
+</ParamField>
+
+<ParamField body="assets" type="array" required>
+  Array of entity references to remove.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the asset entity.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Type of asset entity (e.g., `table`, `topic`, `dashboard`, `pipeline`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/dataProducts/{id}/assets/add
+from metadata.sdk import configure
+from metadata.sdk.entities import DataProducts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Add input ports
+DataProducts.add_input_ports(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "table-uuid-1", "type": "table"}]
+)
+
+# Remove input ports
+DataProducts.remove_input_ports(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "table-uuid-1", "type": "table"}]
+)
+
+# Add output ports
+DataProducts.add_output_ports(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "dashboard-uuid-1", "type": "dashboard"}]
+)
+
+# Remove output ports
+DataProducts.remove_output_ports(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "dashboard-uuid-1", "type": "dashboard"}]
+)
+
+# Add assets
+DataProducts.add_assets(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "table-uuid-2", "type": "table"}]
+)
+
+# Remove assets
+DataProducts.remove_assets(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    [{"id": "table-uuid-2", "type": "table"}]
+)
+```
+
+```java PUT /v1/dataProducts/{id}/assets/add
+import static org.openmetadata.sdk.fluent.DataProducts.*;
+
+// Add assets
+DataProducts.addAssets(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    List.of(new EntityReference("table-uuid-1", "table"))
+);
+
+// Remove assets
+DataProducts.removeAssets(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    List.of(new EntityReference("table-uuid-1", "table"))
+);
+```
+
+```bash PUT /v1/dataProducts/{id}/assets/add
+# Add assets
+curl -X PUT "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2/assets/add" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assets": [
+      {"id": "table-uuid-1", "type": "table"},
+      {"id": "topic-uuid-1", "type": "topic"}
+    ]
+  }'
+
+# Remove assets
+curl -X PUT "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2/assets/remove" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assets": [
+      {"id": "table-uuid-1", "type": "table"}
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+  "name": "CustomerInsights",
+  "fullyQualifiedName": "Marketing.CustomerInsights",
+  "description": "Curated customer analytics data product",
+  "version": 0.3,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
+  "domain": {
+    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+    "type": "domain",
+    "name": "Marketing",
+    "fullyQualifiedName": "Marketing",
+    "deleted": false
+  },
+  "deleted": false,
+  "owners": [],
+  "experts": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated data product object with the new version number reflecting the asset changes.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or asset references |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to modify this data product |
+| `404` | `NOT_FOUND` | Data product or referenced asset does not exist |

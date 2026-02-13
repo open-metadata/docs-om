@@ -1,0 +1,222 @@
+---
+title: Field Query
+description: Search for entities by specific field values
+sidebarTitle: Field Query
+api: GET /v1/search/fieldQuery
+---
+
+# Field Query
+
+Search for entities by matching a specific field to a given value. This is useful for finding entities that have a particular column name, tag, owner, or other field-level attribute.
+
+## Query Parameters
+
+<ParamField query="fieldName" type="string" required>
+  Field path to search. Common values: `columns.name`, `tags.tagFQN`, `owners.name`, `service.name`, `database.name`, `databaseSchema.name`.
+</ParamField>
+
+<ParamField query="fieldValue" type="string" required>
+  Value to match against the specified field.
+</ParamField>
+
+<ParamField query="index" type="string" required>
+  Search index to query. Options: `table_search_index`, `topic_search_index`, `dashboard_search_index`, `pipeline_search_index`, `mlmodel_search_index`, `container_search_index`, `search_entity_search_index`, `glossary_term_search_index`, `tag_search_index`, `user_search_index`, `team_search_index`, `domain_search_index`, `data_product_search_index`.
+</ParamField>
+
+<ParamField query="from" type="integer" default="0">
+  Starting offset for pagination.
+</ParamField>
+
+<ParamField query="size" type="integer" default="10">
+  Number of results to return.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/search/fieldQuery
+from metadata.sdk import configure, get_client
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+client = get_client()
+
+# Find tables with a specific column name
+response = client.get("/search/fieldQuery", params={
+    "fieldName": "columns.name",
+    "fieldValue": "shop_id",
+    "index": "table_search_index"
+})
+
+for hit in response["hits"]["hits"]:
+    entity = hit["_source"]
+    print(f"{entity['fullyQualifiedName']} (score: {hit['_score']})")
+
+# Find entities with a specific tag
+response = client.get("/search/fieldQuery", params={
+    "fieldName": "tags.tagFQN",
+    "fieldValue": "PII.Sensitive",
+    "index": "table_search_index"
+})
+
+for hit in response["hits"]["hits"]:
+    entity = hit["_source"]
+    print(f"{entity['fullyQualifiedName']}")
+```
+
+```java GET /v1/search/fieldQuery
+// Find tables with a specific column name
+var response = client.searchApi().fieldQuery(
+    "columns.name",        // fieldName
+    "shop_id",             // fieldValue
+    "table_search_index",  // index
+    0,                     // from
+    10                     // size
+);
+
+for (var hit : response.getHits().getHits()) {
+    var source = hit.getSource();
+    System.out.println(source.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/search/fieldQuery
+# Find tables with a specific column name
+curl "{base_url}/api/v1/search/fieldQuery?fieldName=columns.name&fieldValue=shop_id&index=table_search_index" \
+  -H "Authorization: Bearer {access_token}"
+
+# Find entities with a specific tag
+curl "{base_url}/api/v1/search/fieldQuery?fieldName=tags.tagFQN&fieldValue=PII.Sensitive&index=table_search_index" \
+  -H "Authorization: Bearer {access_token}"
+
+# Find entities owned by a specific user
+curl "{base_url}/api/v1/search/fieldQuery?fieldName=owners.name&fieldValue=admin&index=table_search_index&size=20" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": {
+    "total": {
+      "value": 12,
+      "relation": "eq"
+    },
+    "hits": [
+      {
+        "_index": "table_search_index",
+        "_id": "7c2191b6-81da-4c97-83c4-1a537e54a3b0",
+        "_score": 1.8,
+        "_source": {
+          "id": "7c2191b6-81da-4c97-83c4-1a537e54a3b0",
+          "name": "dim_customer",
+          "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_customer",
+          "entityType": "table",
+          "serviceType": "BigQuery",
+          "description": "Customer dimension table with shop_id reference",
+          "owners": [],
+          "tags": [],
+          "columns": [
+            {
+              "name": "shop_id",
+              "dataType": "NUMERIC",
+              "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_customer.shop_id"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns an Elasticsearch-style response containing entities where the specified field matches the given value.
+
+## Response
+
+<ResponseField name="took" type="integer">
+  Time in milliseconds the search took to execute.
+</ResponseField>
+
+<ResponseField name="timed_out" type="boolean">
+  Whether the search timed out.
+</ResponseField>
+
+<ResponseField name="hits" type="object">
+  Search results container.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="object">
+      Total hit count information.
+
+      <Expandable title="properties">
+        <ResponseField name="value" type="integer">
+          Total number of matching entities.
+        </ResponseField>
+
+        <ResponseField name="relation" type="string">
+          Relation to the actual count. `eq` means exact, `gte` means the count is a lower bound.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="hits" type="array">
+      Array of matching entity results.
+
+      <Expandable title="properties">
+        <ResponseField name="_index" type="string">
+          Search index the result was found in.
+        </ResponseField>
+
+        <ResponseField name="_id" type="string">
+          Unique identifier of the entity (UUID format).
+        </ResponseField>
+
+        <ResponseField name="_score" type="number">
+          Relevance score for the match.
+        </ResponseField>
+
+        <ResponseField name="_source" type="object">
+          The full entity object. Contents vary by entity type but always include `id`, `name`, `fullyQualifiedName`, and `entityType`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Common Field Paths
+
+| Field Path | Description | Applicable Indexes |
+|------------|-------------|-------------------|
+| `columns.name` | Column name within a table | `table_search_index` |
+| `tags.tagFQN` | Fully qualified tag name (e.g., `PII.Sensitive`) | All indexes |
+| `owners.name` | Owner username | All indexes |
+| `service.name` | Service name | All entity indexes |
+| `database.name` | Database name | `table_search_index` |
+| `databaseSchema.name` | Schema name | `table_search_index` |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Missing required parameters or invalid field path |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to search entities |

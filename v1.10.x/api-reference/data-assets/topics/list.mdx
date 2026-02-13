@@ -1,0 +1,282 @@
+---
+title: List Topics
+description: List all topics with optional filtering and pagination
+sidebarTitle: List Topics
+api: GET /v1/topics
+---
+
+# List Topics
+
+List all topics with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="service" type="string">
+  Filter by messaging service fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/topics
+from metadata.sdk import configure
+from metadata.sdk.entities import Topics
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+topics = Topics.list(limit=50)
+for t in topics.data:
+    print(f"{t.fullyQualifiedName}")
+
+# List all with auto-pagination
+for t in Topics.list_all():
+    print(f"{t.fullyQualifiedName}")
+
+# Filter by service
+topics = Topics.list(
+    service="sample_kafka",
+    fields=["owners", "tags", "domain"],
+    limit=50
+)
+
+for t in topics.data:
+    print(f"{t.fullyQualifiedName}")
+    if t.owners:
+        print(f"  Owners: {[o.name for o in t.owners]}")
+    if t.tags:
+        print(f"  Tags: {[t.tagFQN for t in t.tags]}")
+```
+
+```java GET /v1/topics
+import static org.openmetadata.sdk.fluent.Topics.*;
+
+// List first page
+var result = Topics.list()
+    .limit(50)
+    .execute();
+
+for (var t : result.getData()) {
+    System.out.println(t.getFullyQualifiedName());
+}
+
+// Filter by service with fields
+var result = Topics.list()
+    .service("sample_kafka")
+    .fields("owners", "tags", "domain")
+    .limit(50)
+    .execute();
+
+for (var t : result.getData()) {
+    System.out.println(t.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/topics
+# List all
+curl "{base_url}/api/v1/topics?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by service
+curl "{base_url}/api/v1/topics?service=sample_kafka&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/topics?service=sample_kafka&fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+      "name": "address_book",
+      "fullyQualifiedName": "sample_kafka.address_book",
+      "description": "All Protobuf record related events gets captured in this topic",
+      "version": 0.1,
+      "updatedAt": 1769982663546,
+      "updatedBy": "admin",
+      "service": {
+        "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+        "type": "messagingService",
+        "name": "sample_kafka",
+        "fullyQualifiedName": "sample_kafka",
+        "displayName": "sample_kafka",
+        "deleted": false
+      },
+      "serviceType": "Kafka",
+      "messageSchema": {
+        "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+        "schemaType": "Protobuf",
+        "schemaFields": [
+          {
+            "name": "AddressBook",
+            "dataType": "RECORD",
+            "fullyQualifiedName": "sample_kafka.address_book.AddressBook",
+            "children": []
+          }
+        ]
+      },
+      "partitions": 1,
+      "cleanupPolicies": ["delete"],
+      "replicationFactor": 1,
+      "maximumMessageSize": 1,
+      "retentionSize": -1,
+      "deleted": false,
+      "owners": [],
+      "tags": [],
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 12
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of topic objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of topic objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the topic (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Topic name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.topicName`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="service" type="object">
+      Reference to the parent messaging service.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of messaging service (e.g., Kafka, Redpanda, Kinesis).
+    </ResponseField>
+
+    <ResponseField name="messageSchema" type="object">
+      Schema definition for messages in the topic.
+    </ResponseField>
+
+    <ResponseField name="partitions" type="integer">
+      Number of partitions.
+    </ResponseField>
+
+    <ResponseField name="cleanupPolicies" type="array">
+      Cleanup policies for the topic.
+    </ResponseField>
+
+    <ResponseField name="replicationFactor" type="integer">
+      Replication factor.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners assigned to the topic. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="followers" type="array" optional>
+      Users following this topic. Only included when `fields` contains `followers`.
+    </ResponseField>
+
+    <ResponseField name="votes" type="object" optional>
+      User votes and ratings. Only included when `fields` contains `votes`.
+    </ResponseField>
+
+    <ResponseField name="extension" type="object" optional>
+      Custom properties. Only included when `fields` contains `extension`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of topics matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `followers` | Users following the topic |
+| `votes` | User votes and ratings |
+| `extension` | Custom property values |
+| `domains` | Domain assignments for governance |
+| `sourceHash` | Hash for change detection |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list topics |

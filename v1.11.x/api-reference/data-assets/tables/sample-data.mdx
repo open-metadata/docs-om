@@ -1,0 +1,198 @@
+---
+title: Table Sample Data
+description: Get, add, and delete sample data for a table
+sidebarTitle: Table Sample Data
+api: GET /v1/tables/{id}/sampleData
+---
+
+# Table Sample Data
+
+Manage sample data rows for a table. Sample data provides a preview of the table's contents and is useful for data discovery and documentation.
+
+## Get Sample Data
+
+`GET /v1/tables/{id}/sampleData`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Add Sample Data
+
+`PUT /v1/tables/{id}/sampleData`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="columns" type="array" required>
+  Array of column references describing the sample data columns.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the column.
+    </ParamField>
+
+    <ParamField body="dataType" type="string" required>
+      Data type of the column.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="rows" type="array" required>
+  Array of row arrays. Each row is an array of values matching the column order.
+</ParamField>
+
+## Delete Sample Data
+
+`DELETE /v1/tables/{id}/sampleData`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tables/{id}/sampleData
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+# Get sample data
+sample = Tables.get_sample_data(table_id)
+for row in sample.get("rows", []):
+    print(row)
+
+# Add sample data
+Tables.add_sample_data(table_id, {
+    "columns": [
+        {"name": "id", "dataType": "INT"},
+        {"name": "name", "dataType": "VARCHAR"},
+        {"name": "email", "dataType": "VARCHAR"},
+        {"name": "created_at", "dataType": "TIMESTAMP"}
+    ],
+    "rows": [
+        [1, "Alice Johnson", "alice@example.com", "2024-01-15T10:30:00Z"],
+        [2, "Bob Smith", "bob@example.com", "2024-02-20T14:15:00Z"],
+        [3, "Carol Williams", "carol@example.com", "2024-03-10T09:45:00Z"]
+    ]
+})
+
+# Delete sample data
+Tables.delete_sample_data(table_id)
+```
+
+```java GET /v1/tables/{id}/sampleData
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// Get sample data
+var sample = Tables.getSampleData(tableId);
+
+// Add sample data
+Tables.addSampleData(tableId, Map.of(
+    "columns", List.of(
+        Map.of("name", "id", "dataType", "INT"),
+        Map.of("name", "name", "dataType", "VARCHAR"),
+        Map.of("name", "email", "dataType", "VARCHAR"),
+        Map.of("name", "created_at", "dataType", "TIMESTAMP")
+    ),
+    "rows", List.of(
+        List.of(1, "Alice Johnson", "alice@example.com", "2024-01-15T10:30:00Z"),
+        List.of(2, "Bob Smith", "bob@example.com", "2024-02-20T14:15:00Z"),
+        List.of(3, "Carol Williams", "carol@example.com", "2024-03-10T09:45:00Z")
+    )
+));
+
+// Delete sample data
+Tables.deleteSampleData(tableId);
+```
+
+```bash GET /v1/tables/{id}/sampleData
+# Get sample data
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/sampleData" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add sample data
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/sampleData" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "columns": [
+      {"name": "agent_id", "dataType": "VARCHAR"},
+      {"name": "performance_score", "dataType": "DECIMAL"}
+    ],
+    "rows": [
+      ["AGT-001", 92.5],
+      ["AGT-002", 87.3],
+      ["AGT-003", 95.1]
+    ]
+  }'
+
+# Delete sample data
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/sampleData" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Get Sample Data)
+{
+  "columns": [
+    {"name": "agent_id", "dataType": "VARCHAR"},
+    {"name": "performance_score", "dataType": "DECIMAL"}
+  ],
+  "rows": [
+    ["AGT-001", 92.5],
+    ["AGT-002", 87.3],
+    ["AGT-003", 95.1]
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Get** returns the sample data object with columns and rows arrays.
+
+**Add** returns the updated sample data object.
+
+**Delete** returns no content (204).
+
+## Response
+
+<ResponseField name="columns" type="array">
+  Array of column definitions for the sample data.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Column name.
+    </ResponseField>
+
+    <ResponseField name="dataType" type="string">
+      Data type of the column.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="rows" type="array">
+  Array of row arrays. Each row contains values in the same order as the columns.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Table does not exist or has no sample data |

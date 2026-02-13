@@ -1,0 +1,243 @@
+---
+title: List API Collections
+description: List all API collections with optional filtering and pagination
+sidebarTitle: List API Collections
+api: GET /v1/apiCollections
+---
+
+# List API Collections
+
+List all API collections with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="service" type="string">
+  Filter by API service fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `extension`, `domains`, `sourceHash`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/apiCollections
+from metadata.sdk import configure
+from metadata.sdk.entities import APICollections
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+collections = APICollections.list(limit=50)
+for ac in collections.data:
+    print(f"{ac.fullyQualifiedName}")
+
+# List all with auto-pagination
+for ac in APICollections.list_all():
+    print(f"{ac.fullyQualifiedName}")
+
+# Filter by service
+collections = APICollections.list(
+    service="sample_api_service",
+    fields=["owners", "tags", "domain"],
+    limit=50
+)
+
+for ac in collections.data:
+    print(f"{ac.fullyQualifiedName}")
+    if ac.owners:
+        print(f"  Owners: {[o.name for o in ac.owners]}")
+    if ac.tags:
+        print(f"  Tags: {[t.tagFQN for t in ac.tags]}")
+```
+
+```java GET /v1/apiCollections
+import static org.openmetadata.sdk.fluent.APICollections.*;
+
+// List first page
+var result = APICollections.list()
+    .limit(50)
+    .execute();
+
+for (var ac : result.getData()) {
+    System.out.println(ac.getFullyQualifiedName());
+}
+
+// Filter by service with fields
+var result = APICollections.list()
+    .service("sample_api_service")
+    .fields("owners", "tags", "domain")
+    .limit(50)
+    .execute();
+
+for (var ac : result.getData()) {
+    System.out.println(ac.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/apiCollections
+# List all
+curl "{base_url}/api/v1/apiCollections?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by service
+curl "{base_url}/api/v1/apiCollections?service=sample_api_service&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/apiCollections?service=sample_api_service&fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "0f7ee81c-8163-4097-8adb-45c3d6c7b14b",
+      "name": "pet",
+      "fullyQualifiedName": "sample_api_service.pet",
+      "version": 0.1,
+      "updatedAt": 1769982733673,
+      "updatedBy": "admin",
+      "endpointURL": "https://petstore3.swagger.io/#/pet",
+      "href": "http://localhost:8585/api/v1/apiCollections/0f7ee81c-8163-4097-8adb-45c3d6c7b14b",
+      "owners": [],
+      "tags": [],
+      "service": {
+        "id": "58d413a8-abc3-4a6d-bd8a-13a0234b1ff8",
+        "type": "apiService",
+        "name": "sample_api_service",
+        "fullyQualifiedName": "sample_api_service",
+        "deleted": false
+      },
+      "serviceType": "Rest",
+      "deleted": false,
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 3
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of API collection objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of API collection objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the API collection (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      API collection name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.collectionName`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="endpointURL" type="string">
+      Base URL for the API collection.
+    </ResponseField>
+
+    <ResponseField name="service" type="object">
+      Reference to the parent API service.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of API service (e.g., Rest).
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners assigned to the API collection. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="extension" type="object" optional>
+      Custom properties. Only included when `fields` contains `extension`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of API collections matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `extension` | Custom property values |
+| `domains` | Domain assignments for governance |
+| `sourceHash` | Hash for change detection |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list API collections |

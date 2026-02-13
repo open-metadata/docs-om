@@ -1,0 +1,108 @@
+---
+title: Test Suite Versions
+description: List and retrieve historical versions of a test suite
+sidebarTitle: Test Suite Versions
+api: GET /v1/dataQuality/testSuites/{id}/versions
+---
+
+# Test Suite Versions
+
+Every change to a test suite entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the test suite.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/dataQuality/testSuites/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the test suite.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataQuality/testSuites/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import TestSuites
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = TestSuites.get_versions("e86a9a11-852f-4bac-b5a7-993b2bbbb572")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+ts_v1 = TestSuites.get_specific_version(
+    "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+    "0.1"
+)
+print(f"Original description: {ts_v1.description}")
+```
+
+```java GET /v1/dataQuality/testSuites/{id}/versions
+import static org.openmetadata.sdk.fluent.TestSuites.*;
+
+// List all versions
+var history = TestSuites.getVersions("e86a9a11-852f-4bac-b5a7-993b2bbbb572");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = TestSuites.getSpecificVersion(
+    "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+    0.1
+);
+```
+
+```bash GET /v1/dataQuality/testSuites/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/dataQuality/testSuites/e86a9a11-852f-4bac-b5a7-993b2bbbb572/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/dataQuality/testSuites/e86a9a11-852f-4bac-b5a7-993b2bbbb572/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "testSuite",
+  "versions": [
+    "{\"id\":\"e86a9a11-852f-4bac-b5a7-993b2bbbb572\",\"name\":\"b5fcae09-02c2-4c0b-8c4a-5b52d650e592\",\"version\":0.2,\"displayName\":\"Data Contract - dim_address_comprehensive_contract\",\"description\":\"Updated description\",\"executable\":true}",
+    "{\"id\":\"e86a9a11-852f-4bac-b5a7-993b2bbbb572\",\"name\":\"b5fcae09-02c2-4c0b-8c4a-5b52d650e592\",\"version\":0.1,\"displayName\":\"Data Contract - dim_address_comprehensive_contract\",\"executable\":true}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full test suite object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Test suite or version does not exist |

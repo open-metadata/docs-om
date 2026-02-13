@@ -1,0 +1,160 @@
+---
+title: Delete a Messaging Service
+description: Delete a messaging service by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Messaging Service
+api: DELETE /v1/services/messagingServices/{id}
+---
+
+# Delete a Messaging Service
+
+Delete a messaging service by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the messaging service to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all child topics.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the messaging service. If `false`, the service is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/services/messagingServices/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the messaging service (e.g., `sample_kafka`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all child topics.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the messaging service.
+</ParamField>
+
+## Restore a Soft-Deleted Messaging Service
+
+Use `PUT /v1/services/messagingServices/restore` to restore a soft-deleted messaging service.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted messaging service to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/services/messagingServices/{id}
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# Soft delete by ID
+requests.delete(
+    f"{base_url}/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    headers=headers
+)
+
+# Hard delete with recursive (deletes all topics)
+requests.delete(
+    f"{base_url}/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    params={"recursive": True, "hardDelete": True},
+    headers=headers
+)
+
+# Delete by name
+requests.delete(
+    f"{base_url}/v1/services/messagingServices/name/sample_kafka",
+    headers=headers
+)
+
+# Restore a soft-deleted messaging service
+requests.put(
+    f"{base_url}/v1/services/messagingServices/restore",
+    json={"id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30"},
+    headers={**headers, "Content-Type": "application/json"}
+)
+```
+
+```java DELETE /v1/services/messagingServices/{id}
+import static org.openmetadata.sdk.fluent.MessagingServices.*;
+
+// Soft delete
+MessagingServices.delete("469ef25e-9bdf-4d5f-8553-eb0ce8581f30").execute();
+
+// Hard delete with recursive
+MessagingServices.delete("469ef25e-9bdf-4d5f-8553-eb0ce8581f30")
+    .recursive()
+    .hardDelete()
+    .execute();
+```
+
+```bash DELETE /v1/services/messagingServices/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive (deletes all topics)
+curl -X DELETE "{base_url}/api/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30?recursive=true&hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/services/messagingServices/name/sample_kafka?recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted messaging service
+curl -X PUT "{base_url}/api/v1/services/messagingServices/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+  "name": "sample_kafka",
+  "fullyQualifiedName": "sample_kafka",
+  "serviceType": "Kafka",
+  "connection": {
+    "config": {
+      "type": "Kafka",
+      "bootstrapServers": "localhost:9092",
+      "securityProtocol": "PLAINTEXT",
+      "saslMechanism": "PLAIN",
+      "supportsMetadataExtraction": true
+    }
+  },
+  "version": 0.2,
+  "updatedAt": 1769982750000,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/services/messagingServices/469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+  "owners": [],
+  "tags": [],
+  "deleted": true,
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the messaging service object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored messaging service object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this messaging service |
+| `404` | `NOT_FOUND` | Messaging service with given ID or FQN does not exist |

@@ -1,0 +1,162 @@
+---
+title: Delete an ML Model Service
+description: Delete an ML model service by ID or name, with soft/hard delete options
+sidebarTitle: Delete an ML Model Service
+api: DELETE /v1/services/mlmodelServices/{id}
+---
+
+# Delete an ML Model Service
+
+Delete an ML model service by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model service to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (ML models).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the ML model service. If `false`, the service is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/services/mlmodelServices/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the ML model service (e.g., `mlflow_svc`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the ML model service.
+</ParamField>
+
+## Restore a Soft-Deleted ML Model Service
+
+Use `PUT /v1/services/mlmodelServices/restore` to restore a soft-deleted ML model service.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted ML model service to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/services/mlmodelServices/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import MlModelServices
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9")
+
+# Hard delete
+MlModelServices.delete(
+    "ca22d46e-81b9-4e48-85b5-0adc44980da9",
+    hard_delete=True
+)
+
+# Delete by name
+MlModelServices.delete_by_name("mlflow_svc")
+
+# Delete by name with options
+MlModelServices.delete_by_name(
+    "mlflow_svc",
+    hard_delete=True,
+    recursive=True
+)
+
+# Restore a soft-deleted ML model service
+MlModelServices.restore("ca22d46e-81b9-4e48-85b5-0adc44980da9")
+```
+
+```java DELETE /v1/services/mlmodelServices/{id}
+import static org.openmetadata.sdk.fluent.MlModelServices.*;
+
+// Soft delete
+MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9").execute();
+
+// Hard delete
+MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+MlModelServices.deleteByName("mlflow_svc").execute();
+
+// Restore
+MlModelServices.restore("ca22d46e-81b9-4e48-85b5-0adc44980da9");
+```
+
+```bash DELETE /v1/services/mlmodelServices/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/services/mlmodelServices/ca22d46e-81b9-4e48-85b5-0adc44980da9" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/services/mlmodelServices/ca22d46e-81b9-4e48-85b5-0adc44980da9?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/services/mlmodelServices/name/mlflow_svc" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted ML model service
+curl -X PUT "{base_url}/api/v1/services/mlmodelServices/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "ca22d46e-81b9-4e48-85b5-0adc44980da9"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "ca22d46e-81b9-4e48-85b5-0adc44980da9",
+  "name": "mlflow_svc",
+  "fullyQualifiedName": "mlflow_svc",
+  "serviceType": "Mlflow",
+  "version": 0.2,
+  "updatedAt": 1769982621618,
+  "updatedBy": "admin",
+  "connection": {
+    "config": {
+      "type": "Mlflow",
+      "trackingUri": "http://localhost:8088",
+      "registryUri": "http://localhost:8088",
+      "supportsMetadataExtraction": true
+    }
+  },
+  "owners": [],
+  "tags": [],
+  "deleted": true,
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the ML model service object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored ML model service object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this ML model service |
+| `404` | `NOT_FOUND` | ML model service with given ID or FQN does not exist |

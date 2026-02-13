@@ -1,0 +1,309 @@
+---
+title: Create a Storage Service
+description: Create a new storage service connection
+sidebarTitle: Create a Storage Service
+api: POST /v1/services/storageServices
+---
+
+# Create a Storage Service
+
+Create a new storage service connection to a platform such as S3, GCS, or ADLS.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the storage service. Must be unique across all storage services.
+</ParamField>
+
+<ParamField body="serviceType" type="string" required>
+  Type of storage service (e.g., `S3`, `GCS`, `ADLS`, `CustomStorage`).
+</ParamField>
+
+<ParamField body="connection" type="object" required>
+  Connection configuration specific to the service type.
+
+  <Expandable title="properties">
+    <ParamField body="config" type="object">
+      Service-specific connection configuration (e.g., AWS credentials for S3, project ID for GCS).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the storage service.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the storage service in Markdown format.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the service.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Fully qualified name of the domain to assign for governance purposes.
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Array of classification tags to apply to the storage service.
+
+  <Expandable title="properties">
+    <ParamField body="tagFQN" type="string" required>
+      Fully qualified name of the tag.
+    </ParamField>
+
+    <ParamField body="labelType" type="string">
+      Type of label (e.g., `Manual`, `Derived`, `Propagated`).
+    </ParamField>
+
+    <ParamField body="state" type="string">
+      State of the tag (e.g., `Suggested`, `Confirmed`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/services/storageServices
+from metadata.sdk import configure
+from metadata.sdk.entities import StorageServices
+from metadata.generated.schema.api.services.createStorageService import CreateStorageServiceRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateStorageServiceRequest(
+    name="s3_datalake",
+    displayName="S3 Data Lake",
+    serviceType="S3",
+    description="Production S3 data lake for analytics",
+    connection={
+        "config": {
+            "type": "S3",
+            "awsConfig": {
+                "awsAccessKeyId": "AKIA...",
+                "awsSecretAccessKey": "***",
+                "awsRegion": "us-east-1",
+                "endPointURL": "https://s3.amazonaws.com/"
+            }
+        }
+    }
+)
+
+service = StorageServices.create(request)
+print(f"Created: {service.fullyQualifiedName}")
+```
+
+```java POST /v1/services/storageServices
+import static org.openmetadata.sdk.fluent.StorageServices.*;
+
+StorageService service = StorageServices.builder()
+    .name("s3_datalake")
+    .serviceType("S3")
+    .connection(s3Connection()
+        .awsAccessKeyId("AKIA...")
+        .awsSecretAccessKey("***")
+        .awsRegion("us-east-1"))
+    .create();
+```
+
+```bash POST /v1/services/storageServices
+curl -X POST "{base_url}/api/v1/services/storageServices" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "s3_datalake",
+    "serviceType": "S3",
+    "description": "Production S3 data lake for analytics",
+    "connection": {
+      "config": {
+        "type": "S3",
+        "awsConfig": {
+          "awsAccessKeyId": "AKIA...",
+          "awsSecretAccessKey": "***",
+          "awsRegion": "us-east-1",
+          "endPointURL": "https://s3.amazonaws.com/"
+        }
+      }
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "d1589e1d-2ab0-431c-a383-15e4be20a106",
+  "name": "s3_datalake",
+  "fullyQualifiedName": "s3_datalake",
+  "serviceType": "S3",
+  "description": "Production S3 data lake for analytics",
+  "connection": {
+    "config": {
+      "type": "S3",
+      "awsConfig": {
+        "enabled": false,
+        "awsAccessKeyId": "AKIA...",
+        "awsSecretAccessKey": "*********",
+        "awsRegion": "us-east-1",
+        "endPointURL": "https://s3.amazonaws.com/"
+      }
+    }
+  },
+  "version": 0.1,
+  "updatedAt": 1769982621820,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/services/storageServices/d1589e1d-2ab0-431c-a383-15e4be20a106",
+  "owners": [],
+  "tags": [],
+  "deleted": false,
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created storage service object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the storage service (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Storage service name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the service.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the storage service in Markdown format.
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of storage service (e.g., S3, GCS, ADLS, CustomStorage).
+</ResponseField>
+
+<ResponseField name="connection" type="object">
+  Connection configuration for the service.
+
+  <Expandable title="properties">
+    <ResponseField name="config" type="object">
+      Service-specific connection configuration.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the storage service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the owner entity.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the owner entity.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="domain" type="string" optional>
+  Fully qualified name of the assigned domain.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags applied to the storage service.
+
+  <Expandable title="properties">
+    <ResponseField name="tagFQN" type="string">
+      Fully qualified name of the tag.
+    </ResponseField>
+
+    <ResponseField name="labelType" type="string">
+      Type of label (e.g., `Manual`, `Derived`, `Propagated`).
+    </ResponseField>
+
+    <ResponseField name="state" type="string">
+      State of the tag (e.g., `Suggested`, `Confirmed`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/services/storageServices` instead of `POST` to perform an upsert. If a storage service with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new service is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/services/storageServices" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Bulk Create or Update (PUT)
+
+Use `PUT /v1/services/storageServices/bulk` to create or update multiple storage services in a single request. The request body is an array of create request objects.
+
+```bash
+curl -X PUT "{base_url}/api/v1/services/storageServices/bulk" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "name": "s3_datalake", "serviceType": "S3", "connection": { "config": {} } },
+    { "name": "gcs_analytics", "serviceType": "GCS", "connection": { "config": {} } }
+  ]'
+```
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create storage services |
+| `409` | `ENTITY_ALREADY_EXISTS` | Storage service with same name already exists (POST only) |
