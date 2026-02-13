@@ -1,0 +1,148 @@
+---
+title: Delete a Glossary
+description: Delete a glossary by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Glossary
+api: DELETE /v1/glossaries/{id}
+---
+
+# Delete a Glossary
+
+Delete a glossary by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the glossary to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all glossary terms within this glossary.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the glossary. If `false`, the glossary is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/glossaries/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the glossary (e.g., `BusinessGlossary`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete all glossary terms.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the glossary.
+</ParamField>
+
+## Restore a Soft-Deleted Glossary
+
+Use `PUT /v1/glossaries/restore` to restore a soft-deleted glossary.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted glossary to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/glossaries/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Glossaries
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Glossaries.delete("c2940a98-f147-6g46-cdef-31f0c4406dc3")
+
+# Hard delete
+Glossaries.delete(
+    "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+    hard_delete=True
+)
+
+# Delete by name
+Glossaries.delete_by_name("BusinessGlossary")
+
+# Restore a soft-deleted glossary
+Glossaries.restore("c2940a98-f147-6g46-cdef-31f0c4406dc3")
+```
+
+```java DELETE /v1/glossaries/{id}
+import static org.openmetadata.sdk.fluent.Glossaries.*;
+
+// Soft delete
+Glossaries.delete("c2940a98-f147-6g46-cdef-31f0c4406dc3").execute();
+
+// Hard delete
+Glossaries.delete("c2940a98-f147-6g46-cdef-31f0c4406dc3")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Glossaries.deleteByName("BusinessGlossary").execute();
+
+// Restore
+Glossaries.restore("c2940a98-f147-6g46-cdef-31f0c4406dc3");
+```
+
+```bash DELETE /v1/glossaries/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/glossaries/c2940a98-f147-6g46-cdef-31f0c4406dc3" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/glossaries/c2940a98-f147-6g46-cdef-31f0c4406dc3?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/glossaries/name/BusinessGlossary" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted glossary
+curl -X PUT "{base_url}/api/v1/glossaries/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "c2940a98-f147-6g46-cdef-31f0c4406dc3"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+  "name": "BusinessGlossary",
+  "fullyQualifiedName": "BusinessGlossary",
+  "description": "Standard business terminology for the organization",
+  "version": 0.2,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "reviewers": [],
+  "tags": [],
+  "mutuallyExclusive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the glossary object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored glossary object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this glossary |
+| `404` | `NOT_FOUND` | Glossary with given ID or FQN does not exist |

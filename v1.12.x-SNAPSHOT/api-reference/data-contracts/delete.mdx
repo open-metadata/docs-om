@@ -1,0 +1,95 @@
+---
+title: Delete a Data Contract
+description: Delete or restore a data contract
+sidebarTitle: Delete a Data Contract
+api: DELETE /v1/dataContracts/{id}
+---
+
+# Delete a Data Contract
+
+Delete a data contract by ID or fully qualified name. Supports both soft delete and permanent (hard) delete.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Set to `true` to permanently delete the contract. Soft-deleted contracts can be restored.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+## Delete by FQN
+
+Use `DELETE /v1/dataContracts/name/{fqn}` with the same query parameters.
+
+<RequestExample dropdown>
+```python DELETE /v1/dataContracts/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete
+DataContracts.delete("f7a1b2c3-d4e5-6789-0abc-def123456789")
+
+# Hard delete (permanent)
+DataContracts.delete("f7a1b2c3-d4e5-6789-0abc-def123456789", hard_delete=True)
+
+# Restore a soft-deleted contract
+DataContracts.restore("f7a1b2c3-d4e5-6789-0abc-def123456789")
+```
+
+```java DELETE /v1/dataContracts/{id}
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Soft delete
+find(contractId).delete().confirm();
+
+// Hard delete (permanent)
+find(contractId).delete().permanently().confirm();
+```
+
+```bash DELETE /v1/dataContracts/{id}
+# Soft delete
+curl -X DELETE "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by FQN
+curl -X DELETE "{base_url}/api/v1/dataContracts/name/sales-orders-contract?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted contract
+curl -X PUT "{base_url}/api/v1/dataContracts/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "f7a1b2c3-d4e5-6789-0abc-def123456789"}'
+```
+</RequestExample>
+
+---
+
+## Restore
+
+Use `PUT /v1/dataContracts/restore` with a JSON body containing the `id` of the soft-deleted contract to restore it.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete data contracts |
+| `404` | `NOT_FOUND` | Data contract not found |

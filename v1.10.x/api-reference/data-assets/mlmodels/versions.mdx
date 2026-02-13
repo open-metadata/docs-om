@@ -1,0 +1,109 @@
+---
+title: ML Model Versions
+description: List and retrieve historical versions of an ML model
+sidebarTitle: ML Model Versions
+api: GET /v1/mlmodels/{id}/versions
+---
+
+# ML Model Versions
+
+Every change to an ML model entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/mlmodels/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/mlmodels/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import MLModels
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = MLModels.get_versions("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+model_v1 = MLModels.get_specific_version(
+    "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+    "0.1"
+)
+print(f"Original algorithm: {model_v1.algorithm}")
+```
+
+```java GET /v1/mlmodels/{id}/versions
+import static org.openmetadata.sdk.fluent.MlModels.*;
+
+// List all versions
+var history = MlModels.getVersions("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = MlModels.getSpecificVersion(
+    "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+    0.1
+);
+System.out.println("Algorithm: " + v1.getAlgorithm());
+```
+
+```bash GET /v1/mlmodels/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "mlmodel",
+  "versions": [
+    "{\"id\":\"6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2\",\"name\":\"customer_segmentation\",\"fullyQualifiedName\":\"mlflow_svc.customer_segmentation\",\"version\":0.2,\"description\":\"Updated: Customer segmentation using KMeans with 5 clusters\",\"algorithm\":\"KMeans\",\"serviceType\":\"Mlflow\"}",
+    "{\"id\":\"6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2\",\"name\":\"customer_segmentation\",\"fullyQualifiedName\":\"mlflow_svc.customer_segmentation\",\"version\":0.1,\"algorithm\":\"KMeans\",\"serviceType\":\"Mlflow\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full ML model object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | ML model or version does not exist |

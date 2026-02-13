@@ -1,0 +1,216 @@
+---
+title: Retrieve a Data Contract
+description: Get a data contract by ID, fully qualified name, or entity reference
+sidebarTitle: Retrieve a Data Contract
+api: GET /v1/dataContracts/{id}
+---
+
+# Retrieve a Data Contract
+
+Get a data contract by its UUID, fully qualified name, or the entity it's attached to.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `reviewers`, `extension`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include filter: `all`, `deleted`, or `non-deleted`.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/dataContracts/name/{fqn}` with the same query parameters.
+
+## Get Effective Contract for Entity
+
+Use `GET /v1/dataContracts/entity` to get the effective contract for an entity, including inherited properties from its data product.
+
+<ParamField query="entityId" type="string" required>
+  UUID of the entity.
+</ParamField>
+
+<ParamField query="entityType" type="string" required>
+  Type of the entity (e.g., `table`, `topic`, `dashboard`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataContracts/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+contract = DataContracts.get("f7a1b2c3-d4e5-6789-0abc-def123456789")
+print(f"{contract.name}: {contract.entityStatus}")
+
+# Get by FQN
+contract = DataContracts.get_by_name("sales-orders-contract")
+
+# Get effective contract for an entity (includes inherited properties)
+contract = DataContracts.get(params={
+    "entityId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "entityType": "table"
+})
+```
+
+```java GET /v1/dataContracts/{id}
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Get by ID with owners
+FluentDataContract contract = find(contractId)
+    .includeOwners()
+    .fetch();
+System.out.println(contract.getFqn());
+
+// Get by FQN
+FluentDataContract contract = findByName("sales-orders-contract")
+    .includeAll()
+    .fetch();
+
+// Get effective contract for an entity
+FluentDataContract contract = findByEntity(tableId, "table")
+    .fetch();
+```
+
+```bash GET /v1/dataContracts/{id}
+# Get by ID
+curl "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789?fields=owners,reviewers" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by FQN
+curl "{base_url}/api/v1/dataContracts/name/sales-orders-contract" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get effective contract for an entity (includes inherited)
+curl "{base_url}/api/v1/dataContracts/entity?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "f7a1b2c3-d4e5-6789-0abc-def123456789",
+  "name": "sales-orders-contract",
+  "fullyQualifiedName": "sales-orders-contract",
+  "description": "Data contract for the sales orders table",
+  "entityStatus": "Active",
+  "entity": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "type": "table",
+    "name": "sales_orders",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify.sales_orders"
+  },
+  "schema": [
+    {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
+    {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"}
+  ],
+  "semantics": [
+    {"name": "hasOwner"},
+    {"name": "hasDescription"}
+  ],
+  "sla": {
+    "refreshFrequency": "PT1H",
+    "availability": 99.9
+  },
+  "owners": [],
+  "reviewers": [],
+  "inherited": false,
+  "version": 0.2,
+  "updatedAt": 1769982800000,
+  "updatedBy": "admin"
+}
+```
+</ResponseExample>
+
+---
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  UUID of the data contract.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Name of the data contract.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name.
+</ResponseField>
+
+<ResponseField name="entityStatus" type="string">
+  Contract status: `Draft`, `Active`, or `Deprecated`.
+</ResponseField>
+
+<ResponseField name="entity" type="object">
+  Reference to the data asset this contract applies to.
+</ResponseField>
+
+<ResponseField name="schema" type="array">
+  Expected column definitions.
+</ResponseField>
+
+<ResponseField name="semantics" type="array">
+  Semantics rules.
+</ResponseField>
+
+<ResponseField name="qualityExpectations" type="array">
+  References to test cases.
+</ResponseField>
+
+<ResponseField name="sla" type="object">
+  SLA expectations (refresh frequency, latency, availability).
+</ResponseField>
+
+<ResponseField name="termsOfUse" type="string">
+  Terms of use in Markdown.
+</ResponseField>
+
+<ResponseField name="security" type="object">
+  Security and access policy expectations.
+</ResponseField>
+
+<ResponseField name="inherited" type="boolean">
+  Whether this contract is inherited from a data product.
+</ResponseField>
+
+<ResponseField name="latestResult" type="object">
+  Latest validation result summary.
+</ResponseField>
+
+<ResponseField name="owners" type="array">
+  Owner references.
+</ResponseField>
+
+<ResponseField name="reviewers" type="array">
+  Reviewer references.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Entity version.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view data contracts |
+| `404` | `NOT_FOUND` | Data contract with given ID/FQN/entity not found |

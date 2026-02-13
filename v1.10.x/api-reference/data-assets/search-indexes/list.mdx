@@ -1,0 +1,256 @@
+---
+title: List Search Indexes
+description: List all search indexes with optional filtering and pagination
+sidebarTitle: List Search Indexes
+api: GET /v1/searchIndexes
+---
+
+# List Search Indexes
+
+List all search indexes with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="service" type="string">
+  Filter by search service fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/searchIndexes
+from metadata.sdk import configure
+from metadata.sdk.entities import SearchIndexes
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+indexes = SearchIndexes.list(limit=50)
+for si in indexes.data:
+    print(f"{si.fullyQualifiedName}")
+
+# List all with auto-pagination
+for si in SearchIndexes.list_all():
+    print(f"{si.fullyQualifiedName}")
+
+# Filter by service
+indexes = SearchIndexes.list(
+    service="elasticsearch_sample",
+    fields=["owners", "tags", "domain"],
+    limit=50
+)
+
+for si in indexes.data:
+    print(f"{si.fullyQualifiedName}")
+    if si.owners:
+        print(f"  Owners: {[o.name for o in si.owners]}")
+    if si.tags:
+        print(f"  Tags: {[t.tagFQN for t in si.tags]}")
+```
+
+```java GET /v1/searchIndexes
+import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+
+// List first page
+var result = SearchIndexes.list()
+    .limit(50)
+    .execute();
+
+for (var si : result.getData()) {
+    System.out.println(si.getFullyQualifiedName());
+}
+
+// Filter by service with fields
+var result = SearchIndexes.list()
+    .service("elasticsearch_sample")
+    .fields("owners", "tags", "domain")
+    .limit(50)
+    .execute();
+
+for (var si : result.getData()) {
+    System.out.println(si.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/searchIndexes
+# List all
+curl "{base_url}/api/v1/searchIndexes?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by service
+curl "{base_url}/api/v1/searchIndexes?service=elasticsearch_sample&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/searchIndexes?service=elasticsearch_sample&fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "f5b0fa81-f241-4508-9219-dae31dcced18",
+      "name": "table_search_index",
+      "fullyQualifiedName": "elasticsearch_sample.table_search_index",
+      "displayName": "TableSearchIndex",
+      "version": 0.1,
+      "updatedAt": 1769982670810,
+      "updatedBy": "admin",
+      "service": {
+        "id": "search-service-id",
+        "type": "searchService",
+        "name": "elasticsearch_sample",
+        "fullyQualifiedName": "elasticsearch_sample",
+        "deleted": false
+      },
+      "serviceType": "ElasticSearch",
+      "fields": [
+        {"name": "name", "dataType": "TEXT"},
+        {"name": "description", "dataType": "TEXT"}
+      ],
+      "deleted": false,
+      "owners": [],
+      "tags": [],
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 5
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of search index objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of search index objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the search index (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Search index name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.indexName`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="service" type="object">
+      Reference to the parent search service.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of search service (e.g., ElasticSearch, OpenSearch).
+    </ResponseField>
+
+    <ResponseField name="fields" type="array">
+      Field definitions for the index schema.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners assigned to the search index. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="followers" type="array" optional>
+      Users following this search index. Only included when `fields` contains `followers`.
+    </ResponseField>
+
+    <ResponseField name="votes" type="object" optional>
+      User votes and ratings. Only included when `fields` contains `votes`.
+    </ResponseField>
+
+    <ResponseField name="extension" type="object" optional>
+      Custom properties. Only included when `fields` contains `extension`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of search indexes matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `followers` | Users following the search index |
+| `votes` | User votes and ratings |
+| `extension` | Custom property values |
+| `domains` | Domain assignments for governance |
+| `sourceHash` | Hash for change detection |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list search indexes |

@@ -1,0 +1,198 @@
+---
+title: Retrieve a Tag
+description: Get a tag by ID or fully qualified name
+sidebarTitle: Retrieve a Tag
+api: GET /v1/tags/{id}
+---
+
+# Retrieve a Tag
+
+Get a single tag by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the tag to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,children`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/tags/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the tag (e.g., `Certification.Bronze`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `children`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tags/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Tags
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+tag = Tags.retrieve("68ec158c-5f5e-4277-8a19-5e9e0cd5294f")
+print(f"{tag.fullyQualifiedName}: {tag.description}")
+
+# Get by ID with fields
+tag = Tags.retrieve(
+    "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+    fields=["owners", "children"]
+)
+
+# Get by fully qualified name
+tag = Tags.retrieve_by_name("Certification.Bronze")
+
+# Get by name with fields
+tag = Tags.retrieve_by_name(
+    "Certification.Bronze",
+    fields=["owners", "children"]
+)
+```
+
+```java GET /v1/tags/{id}
+import static org.openmetadata.sdk.fluent.Tags.*;
+
+// Get by ID
+var tag = Tags.retrieve("68ec158c-5f5e-4277-8a19-5e9e0cd5294f");
+
+// Get by ID with fields
+var tag = Tags.retrieve(
+    "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+    "owners,children"
+);
+
+// Get by fully qualified name
+var tag = Tags.retrieveByName("Certification.Bronze");
+
+// Get by name with fields
+var tag = Tags.retrieveByName("Certification.Bronze", "owners,children");
+```
+
+```bash GET /v1/tags/{id}
+# Get by ID
+curl "{base_url}/api/v1/tags/68ec158c-5f5e-4277-8a19-5e9e0cd5294f" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/tags/68ec158c-5f5e-4277-8a19-5e9e0cd5294f?fields=owners,children" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/tags/name/Certification.Bronze" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/tags/name/Certification.Bronze?fields=owners,children" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+  "name": "Bronze",
+  "fullyQualifiedName": "Certification.Bronze",
+  "description": "Bronze certified Data Asset.",
+  "style": {
+    "color": "#C08320"
+  },
+  "version": 0.1,
+  "updatedAt": 1769982619666,
+  "updatedBy": "admin",
+  "classification": {
+    "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+    "type": "classification",
+    "name": "Certification",
+    "fullyQualifiedName": "Certification",
+    "deleted": false
+  },
+  "deleted": false,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a tag object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the tag (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Tag name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the tag.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the tag in Markdown format.
+</ResponseField>
+
+<ResponseField name="style" type="object" optional>
+  Visual styling for the tag.
+</ResponseField>
+
+<ResponseField name="classification" type="object">
+  Reference to the parent classification.
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Provider: `user` or `system`.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="children" type="array" optional>
+  Child tag references. Only included when `fields` contains `children`.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this tag |
+| `404` | `NOT_FOUND` | Tag with given ID or FQN does not exist |

@@ -1,0 +1,162 @@
+---
+title: Pipeline Observability
+description: Get and set pipeline observability data for tables
+sidebarTitle: Pipeline Observability
+api: GET /v1/tables/{id}/pipelineObservability
+---
+
+# Pipeline Observability
+
+Manage pipeline observability data for a table. This tracks which pipelines produce or consume the table and their execution status.
+
+## Get Pipeline Observability
+
+`GET /v1/tables/{id}/pipelineObservability`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Add Pipeline Observability
+
+`PUT /v1/tables/{id}/pipelineObservability`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="pipelineName" type="string" required>
+  Name of the pipeline.
+</ParamField>
+
+<ParamField body="pipelineFQN" type="string" required>
+  Fully qualified name of the pipeline.
+</ParamField>
+
+<ParamField body="lastRunStatus" type="string">
+  Status of the last pipeline run: `Successful`, `Failed`, `Pending`, `Aborted`.
+</ParamField>
+
+<ParamField body="lastRunTimestamp" type="integer">
+  Unix timestamp (milliseconds) of the last pipeline run.
+</ParamField>
+
+<ParamField body="nextRunTimestamp" type="integer">
+  Unix timestamp (milliseconds) of the next scheduled run.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tables/{id}/pipelineObservability
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+# Get pipeline observability
+observability = Tables.get_pipeline_observability(table_id)
+for pipeline in observability:
+    print(f"{pipeline['pipelineName']}: {pipeline['lastRunStatus']}")
+
+# Add pipeline observability
+Tables.add_pipeline_observability(table_id, {
+    "pipelineName": "customer_etl",
+    "pipelineFQN": "airflow_prod.customer_etl",
+    "lastRunStatus": "Successful",
+    "lastRunTimestamp": 1706745600000,
+    "nextRunTimestamp": 1706832000000
+})
+```
+
+```java GET /v1/tables/{id}/pipelineObservability
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// Get pipeline observability
+var observability = Tables.getPipelineObservability(tableId);
+
+// Add pipeline observability
+Tables.addPipelineObservability(tableId, Map.of(
+    "pipelineName", "customer_etl",
+    "pipelineFQN", "airflow_prod.customer_etl",
+    "lastRunStatus", "Successful",
+    "lastRunTimestamp", 1706745600000L,
+    "nextRunTimestamp", 1706832000000L
+));
+```
+
+```bash GET /v1/tables/{id}/pipelineObservability
+# Get pipeline observability
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/pipelineObservability" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add pipeline observability
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/pipelineObservability" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pipelineName": "agent_metrics_etl",
+    "pipelineFQN": "airflow_prod.agent_metrics_etl",
+    "lastRunStatus": "Successful",
+    "lastRunTimestamp": 1769982651320,
+    "nextRunTimestamp": 1770069051320
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Get Pipeline Observability)
+{
+  "pipelineName": "customer_etl",
+  "pipelineFQN": "airflow_prod.customer_etl",
+  "lastRunStatus": "Successful",
+  "lastRunTimestamp": 1706745600000,
+  "nextRunTimestamp": 1706832000000
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Get** returns pipeline observability data associated with the table.
+
+**Add** returns the updated pipeline observability data.
+
+## Response
+
+<ResponseField name="pipelineName" type="string">
+  Name of the pipeline.
+</ResponseField>
+
+<ResponseField name="pipelineFQN" type="string">
+  Fully qualified name of the pipeline.
+</ResponseField>
+
+<ResponseField name="lastRunStatus" type="string">
+  Status of the last run.
+</ResponseField>
+
+<ResponseField name="lastRunTimestamp" type="integer">
+  Unix timestamp of the last run in milliseconds.
+</ResponseField>
+
+<ResponseField name="nextRunTimestamp" type="integer">
+  Unix timestamp of the next scheduled run in milliseconds.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Table does not exist |

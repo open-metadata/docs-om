@@ -1,0 +1,224 @@
+---
+title: Create a Test Suite
+description: Create a new executable or logical test suite
+sidebarTitle: Create a Test Suite
+api: POST /v1/dataQuality/testSuites
+---
+
+# Create a Test Suite
+
+Create a new test suite. Logical test suites group test cases across multiple tables. Executable test suites are tied to a specific table.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the test suite. Must be unique.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the test suite.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the test suite in Markdown format.
+</ParamField>
+
+<ParamField body="executable" type="boolean" required>
+  Set to `true` for an executable test suite (tied to a table), `false` for a logical test suite (user-defined grouping).
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataQuality/testSuites
+from metadata.sdk import configure
+from metadata.sdk.entities import TestSuites
+from metadata.generated.schema.api.tests.createTestSuite import CreateTestSuiteRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Create a logical test suite
+request = CreateTestSuiteRequest(
+    name="critical_data_quality_checks",
+    displayName="Critical Data Quality Checks",
+    description="Groups all critical data quality test cases across production tables",
+    executable=False
+)
+
+test_suite = TestSuites.create(request)
+print(f"Created: {test_suite.name}")
+
+# Create an executable test suite
+request = CreateTestSuiteRequest(
+    name="dim_address_test_suite",
+    displayName="Data Contract - dim_address",
+    description="Executable test suite for dim_address table",
+    executable=True
+)
+
+test_suite = TestSuites.create(request)
+print(f"Created: {test_suite.fullyQualifiedName}")
+```
+
+```java POST /v1/dataQuality/testSuites
+import static org.openmetadata.sdk.fluent.TestSuites.*;
+
+// Create a logical test suite
+var testSuite = TestSuites.builder()
+    .name("critical_data_quality_checks")
+    .displayName("Critical Data Quality Checks")
+    .description("Groups all critical data quality test cases across production tables")
+    .executable(false)
+    .create();
+
+// Create an executable test suite
+var testSuite = TestSuites.builder()
+    .name("dim_address_test_suite")
+    .displayName("Data Contract - dim_address")
+    .executable(true)
+    .create();
+```
+
+```bash POST /v1/dataQuality/testSuites
+# Create a logical test suite
+curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "critical_data_quality_checks",
+    "displayName": "Critical Data Quality Checks",
+    "description": "Groups all critical data quality test cases across production tables",
+    "executable": false
+  }'
+
+# Create an executable test suite
+curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dim_address_test_suite",
+    "displayName": "Data Contract - dim_address",
+    "description": "Executable test suite for dim_address table",
+    "executable": true
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+  "name": "critical_data_quality_checks",
+  "displayName": "Critical Data Quality Checks",
+  "fullyQualifiedName": "critical_data_quality_checks",
+  "description": "Groups all critical data quality test cases across production tables",
+  "version": 0.1,
+  "updatedAt": 1769982757893,
+  "updatedBy": "admin",
+  "deleted": false,
+  "owners": [],
+  "executable": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created test suite object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the test suite (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Test suite name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the test suite.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the test suite.
+</ResponseField>
+
+<ResponseField name="executable" type="boolean">
+  Whether this is an executable (`true`) or logical (`false`) test suite.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the test suite.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the owner entity.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the owner entity.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/dataQuality/testSuites` instead of `POST` to perform an upsert. If a test suite with the same name already exists, it will be updated; otherwise, a new test suite is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create test suites |
+| `409` | `ENTITY_ALREADY_EXISTS` | Test suite with same name already exists (POST only) |

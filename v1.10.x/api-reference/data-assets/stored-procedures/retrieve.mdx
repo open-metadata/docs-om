@@ -1,0 +1,253 @@
+---
+title: Retrieve a Stored Procedure
+description: Get a stored procedure by ID or fully qualified name
+sidebarTitle: Retrieve a Stored Procedure
+api: GET /v1/storedProcedures/{id}
+---
+
+# Retrieve a Stored Procedure
+
+Get a single stored procedure by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the stored procedure to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/storedProcedures/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the stored procedure (e.g., `snowflake_prod.analytics.public.usp_refresh_analytics`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/storedProcedures/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import StoredProcedures
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+sp = StoredProcedures.retrieve("770e8400-e29b-41d4-a716-446655440000")
+print(f"{sp.fullyQualifiedName}: {sp.description}")
+
+# Get by ID with fields
+sp = StoredProcedures.retrieve(
+    "770e8400-e29b-41d4-a716-446655440000",
+    fields=["owners", "tags", "storedProcedureCode"]
+)
+
+# Get by fully qualified name
+sp = StoredProcedures.retrieve_by_name("snowflake_prod.analytics.public.usp_refresh_analytics")
+
+# Get by name with fields
+sp = StoredProcedures.retrieve_by_name(
+    "snowflake_prod.analytics.public.usp_refresh_analytics",
+    fields=["owners", "tags", "domain"]
+)
+```
+
+```java GET /v1/storedProcedures/{id}
+import static org.openmetadata.sdk.fluent.StoredProcedures.*;
+
+// Get by ID
+var sp = StoredProcedures.retrieve("770e8400-e29b-41d4-a716-446655440000");
+
+// Get by ID with fields
+var sp = StoredProcedures.retrieve(
+    "770e8400-e29b-41d4-a716-446655440000",
+    "owners,tags,storedProcedureCode"
+);
+
+// Get by fully qualified name
+var sp = StoredProcedures.retrieveByName(
+    "snowflake_prod.analytics.public.usp_refresh_analytics"
+);
+
+// Get by name with fields
+var sp = StoredProcedures.retrieveByName(
+    "snowflake_prod.analytics.public.usp_refresh_analytics",
+    "owners,tags,domain"
+);
+```
+
+```bash GET /v1/storedProcedures/{id}
+# Get by ID
+curl "{base_url}/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/storedProcedures/name/sample_data.ecommerce_db.shopify.calculate_average" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/storedProcedures/name/sample_data.ecommerce_db.shopify.calculate_average?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "d02b24fa-a246-4563-adf1-9ad21f251c0e",
+  "name": "calculate_average",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.calculate_average",
+  "description": "Procedure to calculate average",
+  "storedProcedureCode": {
+    "code": "CREATE OR REPLACE PROCEDURE calculate_average(numbers INT ARRAY) RETURNS FLOAT NOT NULL LANGUAGE SQL AS $$DECLARE sum_val INT = 0;count_val INT = 0;average_val FLOAT;BEGIN\n  FOR num IN ARRAY numbers DO sum_val := sum_val + num;\n  count_val := count_val + 1;\nEND FOR;\nIF count_val = 0 THEN\n  average_val := 0.0;\nELSE\n  average_val := sum_val / count_val;\nEND IF;\nRETURN average_val;\nEND;$$;"
+  },
+  "version": 0.1,
+  "updatedAt": 1769982660822,
+  "updatedBy": "admin",
+  "storedProcedureType": "StoredProcedure",
+  "href": "http://localhost:8585/api/v1/storedProcedures/d02b24fa-a246-4563-adf1-9ad21f251c0e",
+  "databaseSchema": {
+    "id": "4dd30184-009c-4792-b296-9562eaed651f",
+    "type": "databaseSchema",
+    "name": "shopify",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify",
+    "description": "This **mock** database contains schema related to shopify sales and orders with related dimension tables.",
+    "displayName": "shopify",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/databaseSchemas/4dd30184-009c-4792-b296-9562eaed651f"
+  },
+  "database": {
+    "id": "0be090de-0941-48c4-af49-a6157c91cda0",
+    "type": "database",
+    "name": "ecommerce_db",
+    "fullyQualifiedName": "sample_data.ecommerce_db",
+    "description": "This **mock** database contains schemas related to shopify sales and orders with related dimension tables.",
+    "displayName": "ecommerce_db",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/databases/0be090de-0941-48c4-af49-a6157c91cda0"
+  },
+  "serviceType": "BigQuery",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "domains": [],
+  "processedLineage": false,
+  "entityStatus": "Unprocessed"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a stored procedure object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the stored procedure (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Stored procedure name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.database.schema.storedProcedure`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the stored procedure in Markdown format.
+</ResponseField>
+
+<ResponseField name="databaseSchema" type="object">
+  Reference to the parent database schema.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the database schema.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `databaseSchema`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the database schema.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the database schema.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="storedProcedureCode" type="object" optional>
+  Source code and language. Only included when `fields` contains `storedProcedureCode`.
+
+  <Expandable title="properties">
+    <ResponseField name="code" type="string">
+      The source code of the stored procedure.
+    </ResponseField>
+
+    <ResponseField name="language" type="string">
+      Programming language of the code.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this stored procedure |
+| `404` | `NOT_FOUND` | Stored procedure with given ID or FQN does not exist |

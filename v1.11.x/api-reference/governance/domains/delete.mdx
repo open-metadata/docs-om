@@ -1,0 +1,153 @@
+---
+title: Delete a Domain
+description: Delete a domain by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Domain
+api: DELETE /v1/domains/{id}
+---
+
+# Delete a Domain
+
+Delete a domain by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the domain to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child domains.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the domain. If `false`, the domain is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/domains/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the domain (e.g., `TestDomain`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child domains.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the domain.
+</ParamField>
+
+## Restore a Soft-Deleted Domain
+
+Use `PUT /v1/domains/restore` to restore a soft-deleted domain.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted domain to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/domains/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Domains
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1")
+
+# Hard delete
+Domains.delete(
+    "a0729e98-e946-4e25-acde-10e8a2294ba1",
+    hard_delete=True
+)
+
+# Delete by name
+Domains.delete_by_name("TestDomain")
+
+# Delete by name with options
+Domains.delete_by_name(
+    "TestDomain",
+    hard_delete=True
+)
+
+# Restore a soft-deleted domain
+Domains.restore("a0729e98-e946-4e25-acde-10e8a2294ba1")
+```
+
+```java DELETE /v1/domains/{id}
+import static org.openmetadata.sdk.fluent.Domains.*;
+
+// Soft delete
+Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1").execute();
+
+// Hard delete
+Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Domains.deleteByName("TestDomain").execute();
+
+// Restore
+Domains.restore("a0729e98-e946-4e25-acde-10e8a2294ba1");
+```
+
+```bash DELETE /v1/domains/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/domains/name/TestDomain" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted domain
+curl -X PUT "{base_url}/api/v1/domains/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "a0729e98-e946-4e25-acde-10e8a2294ba1"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+  "domainType": "Aggregate",
+  "name": "TestDomain",
+  "fullyQualifiedName": "TestDomain",
+  "description": "Lorem ipsum...",
+  "version": 0.2,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "children": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the domain object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored domain object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this domain |
+| `404` | `NOT_FOUND` | Domain with given ID or FQN does not exist |

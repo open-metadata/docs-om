@@ -1,0 +1,227 @@
+---
+title: Create a Data Product
+description: Create a new data product within a domain
+sidebarTitle: Create a Data Product
+api: POST /v1/dataProducts
+---
+
+# Create a Data Product
+
+Create a new data product within a domain.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the data product. Must be unique within the parent domain.
+</ParamField>
+
+<ParamField body="domain" type="string" required>
+  Fully qualified name of the parent domain (e.g., `Marketing`).
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the data product.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the data product in Markdown format.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the data product.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="experts" type="array">
+  Array of user references who are subject matter experts.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the user.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `user`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the user.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataProducts
+from metadata.sdk import configure
+from metadata.sdk.entities import DataProducts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = {
+    "name": "CustomerInsights",
+    "displayName": "Customer Insights",
+    "domain": "Marketing",
+    "description": "Curated customer analytics data product"
+}
+
+data_product = DataProducts.create(request)
+print(f"Created: {data_product.fullyQualifiedName}")
+```
+
+```java POST /v1/dataProducts
+import static org.openmetadata.sdk.fluent.DataProducts.*;
+
+// Create using builder pattern
+var dataProduct = DataProducts.builder()
+    .name("CustomerInsights")
+    .displayName("Customer Insights")
+    .domain("Marketing")
+    .description("Curated customer analytics data product")
+    .create();
+```
+
+```bash POST /v1/dataProducts
+curl -X POST "{base_url}/api/v1/dataProducts" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "CustomerInsights",
+    "domain": "Marketing",
+    "description": "Curated customer analytics data product",
+    "owners": [],
+    "experts": []
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+  "name": "CustomerInsights",
+  "fullyQualifiedName": "Marketing.CustomerInsights",
+  "displayName": "Customer Insights",
+  "description": "Curated customer analytics data product",
+  "version": 0.1,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
+  "domain": {
+    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+    "type": "domain",
+    "name": "Marketing",
+    "fullyQualifiedName": "Marketing",
+    "deleted": false
+  },
+  "deleted": false,
+  "owners": [],
+  "experts": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created data product object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the data product (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Data product name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `domain.dataProductName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the data product in Markdown format.
+</ResponseField>
+
+<ResponseField name="domain" type="object">
+  Reference to the parent domain.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the domain.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `domain`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the domain.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the domain.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the data product.
+</ResponseField>
+
+<ResponseField name="experts" type="array" optional>
+  Subject matter experts for the data product.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/dataProducts` instead of `POST` to perform an upsert. If a data product with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new data product is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataProducts" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create data products |
+| `409` | `ENTITY_ALREADY_EXISTS` | Data product with same name already exists in domain (POST only) |

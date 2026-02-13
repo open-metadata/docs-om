@@ -1,0 +1,163 @@
+---
+title: Delete an API Endpoint
+description: Delete an API endpoint by ID or name, with soft/hard delete options
+sidebarTitle: Delete an API Endpoint
+api: DELETE /v1/apiEndpoints/{id}
+---
+
+# Delete an API Endpoint
+
+Delete an API endpoint by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the API endpoint to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the API endpoint. If `false`, the API endpoint is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/apiEndpoints/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the API endpoint (e.g., `sample_api_service.pet.addPet`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the API endpoint.
+</ParamField>
+
+## Restore a Soft-Deleted API Endpoint
+
+Use `PUT /v1/apiEndpoints/restore` to restore a soft-deleted API endpoint.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted API endpoint to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/apiEndpoints/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import APIEndpoints
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+APIEndpoints.delete("1f61427a-4a64-4070-9ac8-1d29302dac7c")
+
+# Hard delete
+APIEndpoints.delete(
+    "1f61427a-4a64-4070-9ac8-1d29302dac7c",
+    hard_delete=True
+)
+
+# Delete by name
+APIEndpoints.delete_by_name("sample_api_service.pet.addPet")
+
+# Delete by name with options
+APIEndpoints.delete_by_name(
+    "sample_api_service.pet.addPet",
+    hard_delete=True
+)
+
+# Restore a soft-deleted API endpoint
+APIEndpoints.restore("1f61427a-4a64-4070-9ac8-1d29302dac7c")
+```
+
+```java DELETE /v1/apiEndpoints/{id}
+import static org.openmetadata.sdk.fluent.APIEndpoints.*;
+
+// Soft delete
+APIEndpoints.delete("1f61427a-4a64-4070-9ac8-1d29302dac7c").execute();
+
+// Hard delete
+APIEndpoints.delete("1f61427a-4a64-4070-9ac8-1d29302dac7c")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+APIEndpoints.deleteByName("sample_api_service.pet.addPet")
+    .execute();
+
+// Restore
+APIEndpoints.restore("1f61427a-4a64-4070-9ac8-1d29302dac7c");
+```
+
+```bash DELETE /v1/apiEndpoints/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/apiEndpoints/1f61427a-4a64-4070-9ac8-1d29302dac7c" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/apiEndpoints/1f61427a-4a64-4070-9ac8-1d29302dac7c?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/apiEndpoints/name/sample_api_service.pet.addPet" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted API endpoint
+curl -X PUT "{base_url}/api/v1/apiEndpoints/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "1f61427a-4a64-4070-9ac8-1d29302dac7c"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "1f61427a-4a64-4070-9ac8-1d29302dac7c",
+  "name": "addPet",
+  "displayName": "Add Pet",
+  "fullyQualifiedName": "sample_api_service.pet.addPet",
+  "description": "add a new pet",
+  "version": 0.2,
+  "updatedAt": 1769982733987,
+  "updatedBy": "admin",
+  "endpointURL": "https://petstore3.swagger.io/#/pet/addPet",
+  "requestMethod": "POST",
+  "service": {
+    "id": "58d413a8-abc3-4a6d-bd8a-13a0234b1ff8",
+    "type": "apiService",
+    "name": "sample_api_service"
+  },
+  "serviceType": "Rest",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the API endpoint object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored API endpoint object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this API endpoint |
+| `404` | `NOT_FOUND` | API endpoint with given ID or FQN does not exist |

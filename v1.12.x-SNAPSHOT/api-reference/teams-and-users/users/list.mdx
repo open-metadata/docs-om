@@ -1,0 +1,286 @@
+---
+title: List Users
+description: List all users with optional filtering and pagination
+sidebarTitle: List Users
+api: GET /v1/users
+---
+
+# List Users
+
+List all users with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `teams`, `roles`, `personas`, `domains`, `follows`, `owns`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<ParamField query="isBot" type="boolean">
+  Filter by bot status. Set to `true` to list only bot accounts, `false` for human users only.
+</ParamField>
+
+<ParamField query="isAdmin" type="boolean">
+  Filter by admin status. Set to `true` to list only admin users.
+</ParamField>
+
+<ParamField query="team" type="string">
+  Filter by team name. Returns only users belonging to the specified team.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/users
+from metadata.sdk import configure
+from metadata.sdk.entities import Users
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+users = Users.list(limit=50)
+for user in users.data:
+    print(f"{user.fullyQualifiedName}")
+
+# List all with auto-pagination
+for user in Users.list_all():
+    print(f"{user.fullyQualifiedName}")
+
+# Filter by team with fields
+users = Users.list(
+    team="Sales",
+    fields=["teams", "roles", "domains"],
+    limit=50
+)
+
+for user in users.data:
+    print(f"{user.fullyQualifiedName}")
+    if user.teams:
+        print(f"  Teams: {[t.name for t in user.teams]}")
+    if user.roles:
+        print(f"  Roles: {[r.name for r in user.roles]}")
+
+# Filter bot accounts
+bots = Users.list(isBot=True, limit=50)
+```
+
+```java GET /v1/users
+import static org.openmetadata.sdk.fluent.Users.*;
+
+// List first page
+var result = Users.list()
+    .limit(50)
+    .execute();
+
+for (var user : result.getData()) {
+    System.out.println(user.getFullyQualifiedName());
+}
+
+// Filter by team with fields
+var result = Users.list()
+    .team("Sales")
+    .fields("teams", "roles", "domains")
+    .limit(50)
+    .execute();
+
+for (var user : result.getData()) {
+    System.out.println(user.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/users
+# List all
+curl "{base_url}/api/v1/users?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by team
+curl "{base_url}/api/v1/users?team=Sales&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/users?fields=teams,roles,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter bot accounts
+curl "{base_url}/api/v1/users?isBot=true&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter admin users
+curl "{base_url}/api/v1/users?isAdmin=true&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+      "name": "aaron_johnson0",
+      "fullyQualifiedName": "aaron_johnson0",
+      "displayName": "Aaron Johnson",
+      "version": 0.1,
+      "updatedAt": 1769982624214,
+      "updatedBy": "admin",
+      "email": "aaron_johnson0@gmail.com",
+      "href": "http://localhost:8585/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+      "isBot": false,
+      "isAdmin": false,
+      "allowImpersonation": false,
+      "teams": [
+        {
+          "id": "7a2b921b-f623-4eb5-9736-649788ad842c",
+          "type": "team",
+          "name": "Sales",
+          "fullyQualifiedName": "Sales",
+          "displayName": "Sales",
+          "deleted": false
+        }
+      ],
+      "personas": [],
+      "deleted": false,
+      "roles": [
+        {
+          "id": "761c2bb2-0b77-4bc5-9af9-cf89536d6a12",
+          "type": "role",
+          "name": "DataSteward",
+          "fullyQualifiedName": "DataSteward",
+          "displayName": "Data Steward",
+          "deleted": false
+        }
+      ],
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 117
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of user objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of user objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the user (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Username.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name (same as `name` for users).
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="email" type="string">
+      Email address of the user.
+    </ResponseField>
+
+    <ResponseField name="isBot" type="boolean">
+      Whether this user is a bot account.
+    </ResponseField>
+
+    <ResponseField name="isAdmin" type="boolean">
+      Whether this user has admin privileges.
+    </ResponseField>
+
+    <ResponseField name="teams" type="array" optional>
+      Teams the user belongs to. Only included when `fields` contains `teams`.
+    </ResponseField>
+
+    <ResponseField name="roles" type="array" optional>
+      Roles assigned to the user. Only included when `fields` contains `roles`.
+    </ResponseField>
+
+    <ResponseField name="personas" type="array" optional>
+      Personas assigned to the user. Only included when `fields` contains `personas`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="follows" type="array" optional>
+      Entities the user follows. Only included when `fields` contains `follows`.
+    </ResponseField>
+
+    <ResponseField name="owns" type="array" optional>
+      Entities owned by the user. Only included when `fields` contains `owns`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of users matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `teams` | Teams the user belongs to |
+| `roles` | Roles assigned to the user |
+| `personas` | Personas assigned to the user |
+| `domains` | Domain assignments for governance |
+| `follows` | Entities the user follows |
+| `owns` | Entities owned by the user |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list users |

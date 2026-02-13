@@ -1,0 +1,141 @@
+---
+title: Delete a Table
+description: Delete a table by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Table
+api: DELETE /v1/tables/{id}
+---
+
+# Delete a Table
+
+Delete a table by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the table to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the table. If `false`, the table is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/tables/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the table (e.g., `snowflake_prod.analytics.public.customers`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the table.
+</ParamField>
+
+## Restore a Soft-Deleted Table
+
+Use `PUT /v1/tables/restore` to restore a soft-deleted table.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted table to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/tables/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Tables.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+# Hard delete
+Tables.delete(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    recursive=True,
+    hard_delete=True
+)
+
+# Delete by name
+Tables.delete_by_name("snowflake_prod.analytics.public.customers")
+
+# Restore a soft-deleted table
+Tables.restore("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+```
+
+```java DELETE /v1/tables/{id}
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+// Soft delete
+Tables.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890").execute();
+
+// Hard delete with recursive
+Tables.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    .recursive()
+    .hardDelete()
+    .execute();
+```
+
+```bash DELETE /v1/tables/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3?recursive=true&hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/tables/name/sample_data.ecommerce_db.shopify.agent_performance_summary?recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted table
+curl -X PUT "{base_url}/api/v1/tables/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "455e3d9d-dbbf-455e-b3be-7191daa825f3"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+  "name": "agent_performance_summary",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary",
+  "version": 0.2,
+  "updatedAt": 1769982700000,
+  "updatedBy": "admin",
+  "tableType": "Regular",
+  "serviceType": "BigQuery",
+  "deleted": true
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the table object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored table object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this table |
+| `404` | `NOT_FOUND` | Table with given ID or FQN does not exist |

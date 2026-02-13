@@ -1,0 +1,253 @@
+---
+title: Table Profiler
+description: Manage profiler configuration and retrieve profile data for tables
+sidebarTitle: Table Profiler
+api: GET /v1/tables/{id}/profilerConfig
+---
+
+# Table Profiler
+
+Manage the profiler configuration for a table and retrieve profiling results including table-level, column-level, and system-level profiles.
+
+## Get Profiler Config
+
+`GET /v1/tables/{id}/profilerConfig`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Set Profiler Config
+
+`PUT /v1/tables/{id}/profilerConfig`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="profileSample" type="number">
+  Sample size for profiling (percentage or row count depending on `profileSampleType`).
+</ParamField>
+
+<ParamField body="profileSampleType" type="string">
+  Type of sample: `PERCENTAGE` or `ROWS`.
+</ParamField>
+
+<ParamField body="sampleDataCount" type="integer">
+  Number of sample data rows to collect during profiling.
+</ParamField>
+
+<ParamField body="profileQuery" type="string">
+  Custom SQL query to use for profiling instead of the full table.
+</ParamField>
+
+<ParamField body="excludeColumns" type="array">
+  List of column names to exclude from profiling.
+</ParamField>
+
+<ParamField body="includeColumns" type="array">
+  List of column-level profiler configurations.
+
+  <Expandable title="properties">
+    <ParamField body="columnName" type="string">
+      Name of the column.
+    </ParamField>
+
+    <ParamField body="metrics" type="array">
+      List of metrics to compute for this column.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Delete Profiler Config
+
+`DELETE /v1/tables/{id}/profilerConfig`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Get Table Profile
+
+`GET /v1/tables/{id}/tableProfile`
+
+Returns table-level profiling results (row count, size, creation date).
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Get Column Profile
+
+`GET /v1/tables/{id}/columnProfile`
+
+Returns column-level profiling results (min, max, mean, null count, distinct count).
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Get System Profile
+
+`GET /v1/tables/{id}/systemProfile`
+
+Returns system-level profiling results (DML operations, rows affected).
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tables/{id}/profilerConfig
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+# Get profiler config
+config = Tables.get_profiler_config(table_id)
+print(f"Sample: {config.get('profileSample')}%")
+
+# Set profiler config - profile 50% of rows
+Tables.set_profiler_config(table_id, {
+    "profileSample": 50,
+    "profileSampleType": "PERCENTAGE",
+    "sampleDataCount": 200,
+    "excludeColumns": ["created_at"]
+})
+
+# Set profiler config with specific column metrics
+Tables.set_profiler_config(table_id, {
+    "profileSample": 100,
+    "profileSampleType": "PERCENTAGE",
+    "includeColumns": [
+        {"columnName": "email", "metrics": ["distinctCount", "nullCount"]},
+        {"columnName": "name", "metrics": ["distinctCount", "maxLength", "minLength"]}
+    ]
+})
+
+# Delete profiler config
+Tables.delete_profiler_config(table_id)
+```
+
+```java GET /v1/tables/{id}/profilerConfig
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// Get profiler config
+var config = Tables.getProfilerConfig(tableId);
+
+// Set profiler config
+Tables.setProfilerConfig(tableId, Map.of(
+    "profileSample", 50,
+    "profileSampleType", "PERCENTAGE",
+    "sampleDataCount", 200,
+    "excludeColumns", List.of("created_at")
+));
+
+// Delete profiler config
+Tables.deleteProfilerConfig(tableId);
+```
+
+```bash GET /v1/tables/{id}/profilerConfig
+# Get profiler config
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+  -H "Authorization: Bearer {access_token}"
+
+# Set profiler config
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profileSample": 50,
+    "profileSampleType": "PERCENTAGE",
+    "sampleDataCount": 200,
+    "excludeColumns": ["performance_score"]
+  }'
+
+# Delete profiler config
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get table profile
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/tableProfile" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get column profile
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/columnProfile" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get system profile
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfile" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Profiler Config)
+{
+  "profileSample": 50,
+  "profileSampleType": "PERCENTAGE",
+  "sampleDataCount": 200,
+  "excludeColumns": ["created_at"]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Get profiler config** returns the profiler configuration object.
+
+**Set profiler config** returns the updated profiler configuration.
+
+**Delete profiler config** returns no content (204).
+
+**Get table profile** returns table-level metrics (row count, size, etc.).
+
+**Get column profile** returns column-level metrics (min, max, mean, null count, distinct count, etc.).
+
+**Get system profile** returns system-level metrics (DML operations, rows affected, etc.).
+
+## Response (Profiler Config)
+
+<ResponseField name="profileSample" type="number">
+  Sample size for profiling.
+</ResponseField>
+
+<ResponseField name="profileSampleType" type="string">
+  Type of sample: `PERCENTAGE` or `ROWS`.
+</ResponseField>
+
+<ResponseField name="sampleDataCount" type="integer">
+  Number of sample data rows to collect.
+</ResponseField>
+
+<ResponseField name="profileQuery" type="string" optional>
+  Custom SQL query used for profiling.
+</ResponseField>
+
+<ResponseField name="excludeColumns" type="array" optional>
+  Columns excluded from profiling.
+</ResponseField>
+
+<ResponseField name="includeColumns" type="array" optional>
+  Column-level profiler configurations.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Table does not exist or has no profiler config |

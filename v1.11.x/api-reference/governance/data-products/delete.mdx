@@ -1,0 +1,152 @@
+---
+title: Delete a Data Product
+description: Delete a data product by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Data Product
+api: DELETE /v1/dataProducts/{id}
+---
+
+# Delete a Data Product
+
+Delete a data product by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the data product to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the data product. If `false`, the data product is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/dataProducts/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the data product (e.g., `Marketing.CustomerInsights`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the data product.
+</ParamField>
+
+## Restore a Soft-Deleted Data Product
+
+Use `PUT /v1/dataProducts/restore` to restore a soft-deleted data product.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted data product to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/dataProducts/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DataProducts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2")
+
+# Hard delete
+DataProducts.delete(
+    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+    hard_delete=True
+)
+
+# Delete by name
+DataProducts.delete_by_name("Marketing.CustomerInsights")
+
+# Restore a soft-deleted data product
+DataProducts.restore("b1839f98-f046-5f35-bdef-20f9b3395cb2")
+```
+
+```java DELETE /v1/dataProducts/{id}
+import static org.openmetadata.sdk.fluent.DataProducts.*;
+
+// Soft delete
+DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2").execute();
+
+// Hard delete
+DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+DataProducts.deleteByName("Marketing.CustomerInsights").execute();
+
+// Restore
+DataProducts.restore("b1839f98-f046-5f35-bdef-20f9b3395cb2");
+```
+
+```bash DELETE /v1/dataProducts/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/dataProducts/name/Marketing.CustomerInsights" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted data product
+curl -X PUT "{base_url}/api/v1/dataProducts/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "b1839f98-f046-5f35-bdef-20f9b3395cb2"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+  "name": "CustomerInsights",
+  "fullyQualifiedName": "Marketing.CustomerInsights",
+  "description": "Curated customer analytics data product",
+  "version": 0.2,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "domain": {
+    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+    "type": "domain",
+    "name": "Marketing",
+    "fullyQualifiedName": "Marketing"
+  },
+  "deleted": true,
+  "owners": [],
+  "experts": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the data product object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored data product object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this data product |
+| `404` | `NOT_FOUND` | Data product with given ID or FQN does not exist |

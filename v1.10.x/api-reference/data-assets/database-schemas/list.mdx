@@ -1,0 +1,266 @@
+---
+title: List Database Schemas
+description: List all database schemas with optional filtering and pagination
+sidebarTitle: List Database Schemas
+api: GET /v1/databaseSchemas
+---
+
+# List Database Schemas
+
+List all database schemas with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="database" type="string">
+  Filter by database fully qualified name.
+</ParamField>
+
+<ParamField query="domain" type="string">
+  Filter by domain fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tables`, `usageSummary`, `tags`, `certification`, `extension`, `domains`, `sourceHash`, `followers`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/databaseSchemas
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseSchemas
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List with pagination
+page = DatabaseSchemas.list(limit=50, fields=["owners", "tags"])
+for s in page.entities:
+    print(f"{s.fullyQualifiedName}")
+    if s.owners:
+        print(f"  Owners: {[o.name for o in s.owners]}")
+
+# List all with auto-pagination
+all_schemas = DatabaseSchemas.list_all(batch_size=100)
+for schema in all_schemas:
+    print(f"{schema.fullyQualifiedName}")
+```
+
+```java GET /v1/databaseSchemas
+import static org.openmetadata.sdk.fluent.DatabaseSchemas.*;
+
+// Retrieve by ID
+DatabaseSchema schema = DatabaseSchemas.retrieve(schemaId);
+
+// List schemas
+var result = DatabaseSchemas.list()
+    .fields("owners", "tags")
+    .limit(50)
+    .execute();
+
+for (DatabaseSchema s : result.getData()) {
+    System.out.println(s.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/databaseSchemas
+# List all
+curl "{base_url}/api/v1/databaseSchemas?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by database
+curl "{base_url}/api/v1/databaseSchemas?database=Glue.default&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/databaseSchemas?database=Glue.default&fields=owners,tables,usageSummary&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With multiple fields
+curl "{base_url}/api/v1/databaseSchemas?database=Glue.default&fields=owners,tables,tags,domains,usageSummary&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "f681432b-e66c-4096-a1cd-7771358c5323",
+      "name": "information_schema",
+      "fullyQualifiedName": "Glue.default.information_schema",
+      "description": "This **mock** database contains tables related to the Glue service",
+      "version": 0.1,
+      "updatedAt": 1769982658171,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323",
+      "owners": [],
+      "service": {
+        "id": "0fab117a-4c58-4ebb-9d42-beab0768fa8e",
+        "type": "databaseService",
+        "name": "Glue",
+        "fullyQualifiedName": "Glue",
+        "displayName": "Glue",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/services/databaseServices/0fab117a-4c58-4ebb-9d42-beab0768fa8e"
+      },
+      "serviceType": "Glue",
+      "database": {
+        "id": "9655ba5b-b8d7-419c-98f4-16b976692ad8",
+        "type": "database",
+        "name": "default",
+        "fullyQualifiedName": "Glue.default",
+        "description": "This **mock** database contains tables related to the Glue service",
+        "displayName": "default",
+        "deleted": false,
+        "href": "http://localhost:8585/api/v1/databases/9655ba5b-b8d7-419c-98f4-16b976692ad8"
+      },
+      "tables": [
+        {
+          "id": "49cae725-62e6-48b4-b604-7ea915659d9a",
+          "type": "table",
+          "name": "sales",
+          "fullyQualifiedName": "Glue.default.information_schema.sales",
+          "description": "Sales data",
+          "displayName": "sales",
+          "deleted": false,
+          "href": "http://localhost:8585/api/v1/tables/49cae725-62e6-48b4-b604-7ea915659d9a"
+        },
+        {
+          "id": "b9988329-cb3e-469b-8d10-d6a21de8b0b9",
+          "type": "table",
+          "name": "marketing",
+          "fullyQualifiedName": "Glue.default.information_schema.marketing",
+          "description": "Marketing data",
+          "displayName": "marketing",
+          "deleted": false,
+          "href": "http://localhost:8585/api/v1/tables/b9988329-cb3e-469b-8d10-d6a21de8b0b9"
+        }
+      ],
+      "tags": [],
+      "deleted": false,
+      "sourceUrl": "https://www.glue.com/information_schema",
+      "domains": [],
+      "entityStatus": "Unprocessed"
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 28
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of database schema objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of database schema objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the schema (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Schema name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `service.database.schema`.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="database" type="object">
+      Reference to the parent database.
+    </ResponseField>
+
+    <ResponseField name="service" type="object">
+      Reference to the parent database service.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners (teams and users) assigned to the schema. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied to the schema. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+
+    <ResponseField name="tables" type="array" optional>
+      Child tables within this schema. Only included when `fields` contains `tables`.
+    </ResponseField>
+
+    <ResponseField name="usageSummary" type="object" optional>
+      Usage statistics and query counts. Only included when `fields` contains `usageSummary`.
+    </ResponseField>
+
+    <ResponseField name="certification" type="object" optional>
+      Certification status of the schema. Only included when `fields` contains `certification`.
+    </ResponseField>
+
+    <ResponseField name="extension" type="object" optional>
+      Custom properties defined on this schema. Only included when `fields` contains `extension`.
+    </ResponseField>
+
+    <ResponseField name="sourceHash" type="string" optional>
+      Hash of the source metadata for change detection. Only included when `fields` contains `sourceHash`.
+    </ResponseField>
+
+    <ResponseField name="followers" type="array" optional>
+      Users following this schema for updates. Only included when `fields` contains `followers`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of schemas matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

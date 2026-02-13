@@ -1,0 +1,185 @@
+---
+title: Create a Classification
+description: Create a new classification for organizing tags
+sidebarTitle: Create a Classification
+api: POST /v1/classifications
+---
+
+# Create a Classification
+
+Create a new classification for organizing tags into categories.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the classification. Must be unique.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the classification.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the classification in Markdown format.
+</ParamField>
+
+<ParamField body="mutuallyExclusive" type="boolean" default="false">
+  If `true`, only one tag from this classification can be applied to an entity at a time.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the classification.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="provider" type="string">
+  Provider of the classification: `user` (custom) or `system` (built-in).
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/classifications
+from metadata.sdk import configure
+from metadata.sdk.entities import Classifications
+from metadata.generated.schema.api.classification.createClassification import CreateClassificationRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateClassificationRequest(
+    name="Certification",
+    description="Certifying Data Asset will provide the users with a clear idea of...",
+    mutuallyExclusive=True
+)
+
+classification = Classifications.create(request)
+print(f"Created: {classification.fullyQualifiedName}")
+```
+
+```java POST /v1/classifications
+import static org.openmetadata.sdk.fluent.Classifications.*;
+
+// Create using builder pattern
+var classification = Classifications.builder()
+    .name("Certification")
+    .description("Certifying Data Asset will provide the users with a clear idea of...")
+    .mutuallyExclusive(true)
+    .create();
+```
+
+```bash POST /v1/classifications
+curl -X POST "{base_url}/api/v1/classifications" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Certification",
+    "description": "Certifying Data Asset will provide the users with a clear idea of...",
+    "mutuallyExclusive": true,
+    "owners": []
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+  "name": "Certification",
+  "fullyQualifiedName": "Certification",
+  "description": "Certifying Data Asset will provide the users with a clear idea of...",
+  "version": 0.1,
+  "updatedAt": 1769982619610,
+  "updatedBy": "admin",
+  "deleted": false,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": true
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created classification object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the classification (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Classification name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the classification.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the classification in Markdown format.
+</ResponseField>
+
+<ResponseField name="mutuallyExclusive" type="boolean">
+  Whether tags in this classification are mutually exclusive.
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Provider of the classification: `user` or `system`.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the classification.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/classifications` instead of `POST` to perform an upsert. If a classification with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new classification is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/classifications" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create classifications |
+| `409` | `ENTITY_ALREADY_EXISTS` | Classification with same name already exists (POST only) |

@@ -1,0 +1,248 @@
+---
+title: Create a Tag
+description: Create a new tag within a classification
+sidebarTitle: Create a Tag
+api: POST /v1/tags
+---
+
+# Create a Tag
+
+Create a new tag within a classification.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the tag. Must be unique within the parent classification or parent tag.
+</ParamField>
+
+<ParamField body="classification" type="string" required>
+  Fully qualified name of the parent classification (e.g., `Certification`).
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the tag.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the tag in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent tag for creating nested tags (e.g., `PII.Sensitive`).
+</ParamField>
+
+<ParamField body="style" type="object">
+  Visual styling for the tag.
+
+  <Expandable title="properties">
+    <ParamField body="color" type="string">
+      Hex color code (e.g., `#C08320`).
+    </ParamField>
+
+    <ParamField body="iconURL" type="string">
+      URL to a custom icon for the tag.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the tag.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="provider" type="string">
+  Provider of the tag: `user` (custom) or `system` (built-in).
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/tags
+from metadata.sdk import configure
+from metadata.sdk.entities import Tags
+from metadata.generated.schema.api.classification.createTag import CreateTagRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateTagRequest(
+    name="Bronze",
+    classification="Certification",
+    description="Bronze certified Data Asset.",
+    style={"color": "#C08320"}
+)
+
+tag = Tags.create(request)
+print(f"Created: {tag.fullyQualifiedName}")
+```
+
+```java POST /v1/tags
+import static org.openmetadata.sdk.fluent.Tags.*;
+
+// Create using builder pattern
+var tag = Tags.builder()
+    .name("Bronze")
+    .classification("Certification")
+    .description("Bronze certified Data Asset.")
+    .style(Map.of("color", "#C08320"))
+    .create();
+```
+
+```bash POST /v1/tags
+curl -X POST "{base_url}/api/v1/tags" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Bronze",
+    "classification": "Certification",
+    "description": "Bronze certified Data Asset.",
+    "style": {"color": "#C08320"},
+    "owners": []
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+  "name": "Bronze",
+  "fullyQualifiedName": "Certification.Bronze",
+  "description": "Bronze certified Data Asset.",
+  "style": {
+    "color": "#C08320"
+  },
+  "version": 0.1,
+  "updatedAt": 1769982619666,
+  "updatedBy": "admin",
+  "classification": {
+    "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+    "type": "classification",
+    "name": "Certification",
+    "fullyQualifiedName": "Certification",
+    "deleted": false
+  },
+  "deleted": false,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created tag object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the tag (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Tag name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `classification.tagName` or `classification.parent.child`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the tag in Markdown format.
+</ResponseField>
+
+<ResponseField name="style" type="object" optional>
+  Visual styling for the tag.
+
+  <Expandable title="properties">
+    <ResponseField name="color" type="string">
+      Hex color code.
+    </ResponseField>
+
+    <ResponseField name="iconURL" type="string">
+      URL to a custom icon.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="classification" type="object">
+  Reference to the parent classification.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the classification.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `classification`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the classification.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the classification.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Provider: `user` or `system`.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the tag.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/tags` instead of `POST` to perform an upsert. If a tag with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new tag is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/tags" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create tags |
+| `409` | `ENTITY_ALREADY_EXISTS` | Tag with same name already exists in classification (POST only) |

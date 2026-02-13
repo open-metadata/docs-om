@@ -1,0 +1,403 @@
+---
+title: Errors
+description: Understanding and handling Collate API errors
+sidebarTitle: Errors
+mode: "wide"
+---
+
+import { CodeLayout } from '/snippets/components/CodeLayout/CodeLayout.jsx'
+
+# Errors
+
+The Collate API uses conventional HTTP response codes to indicate the success or failure of an API request. Error responses include a JSON body with details about what went wrong.
+
+<CodeLayout
+title="Error Response Format"
+description={
+  <>
+    All error responses follow this structure:
+
+    <ParamField path="code" type="integer" required>
+      HTTP status code
+    </ParamField>
+
+    <ParamField path="errorType" type="string" required>
+      Machine-readable error type
+    </ParamField>
+
+    <ParamField path="message" type="string" required>
+      Human-readable error description
+    </ParamField>
+  </>
+}
+>
+
+<CodeGroup>
+```json Error Response
+{
+  "code": 404,
+  "errorType": "ENTITY_NOT_FOUND",
+  "message": "Table with name [prod.analytics.customers] not found"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+## HTTP Status Codes
+
+### Success Codes (2xx)
+
+| Code | Description |
+|------|-------------|
+| `200 OK` | Request succeeded |
+| `201 Created` | Resource created successfully |
+| `202 Accepted` | Request accepted for async processing |
+| `204 No Content` | Success with no response body |
+
+### Client Error Codes (4xx)
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request parameters or malformed JSON |
+| `401` | `UNAUTHORIZED` | Missing or invalid authentication token |
+| `403` | `FORBIDDEN` | Valid token but insufficient permissions |
+| `404` | `ENTITY_NOT_FOUND` | Requested resource doesn't exist |
+| `409` | `ENTITY_ALREADY_EXISTS` | Resource with same identifier exists |
+| `409` | `ENTITY_LOCKED` | Entity is locked during deletion |
+| `412` | `PRECONDITION_FAILED` | ETag mismatch on conditional update |
+| `413` | `BULK_LIMIT_EXCEPTION` | Request payload exceeds size limits |
+| `429` | `LIMITS_EXCEPTION` | Rate limit exceeded |
+
+### Server Error Codes (5xx)
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `500` | `INTERNAL_ERROR` | Unexpected server error |
+
+## Error Types Reference
+
+### BAD_REQUEST
+
+<CodeLayout
+description={
+  <>
+    Returned when the request is malformed or contains invalid parameters.
+    <br /><br />
+    <strong>Common causes:</strong>
+    <ul>
+      <li>Missing required fields</li>
+      <li>Invalid field values or types</li>
+      <li>Malformed JSON body</li>
+      <li>Invalid query parameters</li>
+    </ul>
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 400,
+  "errorType": "BAD_REQUEST",
+  "message": "Invalid value for parameter 'limit': must be between 1 and 1000"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### ENTITY_NOT_FOUND
+
+<CodeLayout
+description={
+  <>
+    Returned when the requested resource doesn't exist.
+    <br /><br />
+    <strong>Variants:</strong>
+    <ul>
+      <li>Entity with id [&lt;id&gt;] not found</li>
+      <li>Entity with name [&lt;fqn&gt;] not found</li>
+      <li>Entity not found for query params [&lt;params&gt;]</li>
+    </ul>
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 404,
+  "errorType": "ENTITY_NOT_FOUND",
+  "message": "Entity with id [550e8400-e29b-41d4-a716-446655440000] not found"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### ENTITY_ALREADY_EXISTS
+
+<CodeLayout
+description={
+  <>
+    Returned when attempting to create a resource that already exists.
+    <br /><br />
+    <strong>Resolution:</strong> Use PUT for upsert operations or verify the entity doesn't exist before creating.
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 409,
+  "errorType": "ENTITY_ALREADY_EXISTS",
+  "message": "Entity already exists"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### UNAUTHORIZED
+
+<CodeLayout
+description={
+  <>
+    Returned when authentication fails.
+    <br /><br />
+    <strong>Common causes:</strong>
+    <ul>
+      <li>Missing Authorization header</li>
+      <li>Invalid or malformed token</li>
+      <li>Expired token</li>
+      <li>Token used after logout</li>
+    </ul>
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 401,
+  "errorType": "UNAUTHORIZED",
+  "message": "Token has expired"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### FORBIDDEN
+
+<CodeLayout
+description={
+  <>
+    Returned when the authenticated user lacks permission for the operation.
+    <br /><br />
+    <strong>Resolution:</strong> Ensure the user or bot has the required role/policy for the operation.
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 403,
+  "errorType": "FORBIDDEN",
+  "message": "User does not have permission to delete table"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### PRECONDITION_FAILED
+
+<CodeLayout
+description={
+  <>
+    Returned when a conditional update fails due to version mismatch.
+    <br /><br />
+    <strong>Resolution:</strong> Fetch the latest version and retry with the updated ETag.
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 412,
+  "errorType": "PRECONDITION_FAILED",
+  "message": "Entity version mismatch"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+### LIMITS_EXCEPTION
+
+<CodeLayout
+description={
+  <>
+    Returned when rate limits are exceeded.
+    <br /><br />
+    <strong>Resolution:</strong> Implement exponential backoff and retry logic.
+  </>
+}
+>
+
+<CodeGroup>
+```json Example
+{
+  "code": 429,
+  "errorType": "LIMITS_EXCEPTION",
+  "message": "Rate limit exceeded. Please retry after 60 seconds"
+}
+```
+</CodeGroup>
+</CodeLayout>
+
+## Handling Errors
+
+<CodeGroup dropdown>
+```python Python SDK
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.table import Table
+
+metadata = OpenMetadata(config)
+
+try:
+    # Attempt to get a table
+    table = metadata.get_by_name(entity=Table, fqn="prod.analytics.customers")
+except Exception as e:
+    if "404" in str(e):
+        print("Table not found")
+    elif "401" in str(e):
+        print("Authentication failed - check your token")
+    elif "403" in str(e):
+        print("Permission denied")
+    else:
+        print(f"API error: {e}")
+```
+
+```java JAVA SDK
+import org.openmetadata.client.api.TablesApi;
+import org.openmetadata.client.ApiException;
+
+TablesApi tablesApi = client.buildClient(TablesApi.class);
+
+try {
+    Table table = tablesApi.getTableByFQN("prod.analytics.customers", null, null);
+} catch (ApiException e) {
+    switch (e.getCode()) {
+        case 404:
+            System.out.println("Table not found");
+            break;
+        case 401:
+            System.out.println("Authentication failed");
+            break;
+        case 403:
+            System.out.println("Permission denied");
+            break;
+        default:
+            System.out.println("API error: " + e.getMessage());
+    }
+}
+```
+
+```bash HTTP (cURL with error handling)
+response=$(curl -s -w "\n%{http_code}" \
+  -X GET "https://your-company.getcollate.io/api/v1/tables/name/prod.analytics.customers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json")
+
+http_code=$(echo "$response" | tail -n1)
+body=$(echo "$response" | sed '$d')
+
+case $http_code in
+  200)
+    echo "Success: $body"
+    ;;
+  404)
+    echo "Table not found"
+    ;;
+  401)
+    echo "Authentication failed"
+    ;;
+  403)
+    echo "Permission denied"
+    ;;
+  *)
+    echo "Error $http_code: $body"
+    ;;
+esac
+```
+</CodeGroup>
+
+## Validation Errors
+
+When request validation fails, the error message includes details about which field(s) failed:
+
+<CodeGroup>
+```json Validation Error
+{
+  "code": 400,
+  "errorType": "BAD_REQUEST",
+  "message": "query param limit must be greater than 0"
+}
+```
+</CodeGroup>
+
+For JSON body validation errors:
+
+<CodeGroup>
+```json JSON Validation Error
+{
+  "code": 400,
+  "errorType": "BAD_REQUEST",
+  "message": "name is required and cannot be empty"
+}
+```
+</CodeGroup>
+
+## Retry Logic
+
+For transient errors (5xx, 429), implement retry with exponential backoff:
+
+<CodeGroup>
+```python Retry
+import time
+import random
+
+def api_call_with_retry(func, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if "429" in str(e) or "500" in str(e):
+                # Exponential backoff with jitter
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                print(f"Retrying in {wait_time:.2f}s...")
+                time.sleep(wait_time)
+            else:
+                raise
+    raise Exception("Max retries exceeded")
+```
+</CodeGroup>
+
+## Debugging Tips
+
+<Steps>
+  <Step title="Check the error message">
+    The `message` field usually contains specific details about what went wrong.
+  </Step>
+  <Step title="Verify authentication">
+    Ensure your token is valid and not expired. Try generating a new token.
+  </Step>
+  <Step title="Check permissions">
+    For 403 errors, verify the user/bot has the required role for the operation.
+  </Step>
+  <Step title="Validate request format">
+    For 400 errors, check that all required fields are present and properly formatted.
+  </Step>
+  <Step title="Check resource existence">
+    For 404 errors, verify the resource exists and the FQN/ID is correct.
+  </Step>
+</Steps>

@@ -1,0 +1,287 @@
+---
+title: Validate & Results
+description: Validate data contracts and manage execution results
+sidebarTitle: Validate & Results
+api: POST /v1/dataContracts/{id}/validate
+---
+
+# Validate & Results
+
+Run on-demand validation of data contracts and manage execution results. Validation checks schema compliance, semantics rules, quality expectations, and SLA targets.
+
+## Validate a Contract
+
+Trigger on-demand validation of a data contract. Returns a `DataContractResult` with status for each validation dimension.
+
+`POST /v1/dataContracts/{id}/validate`
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract.
+</ParamField>
+
+## Validate by Entity
+
+Validate the effective contract for a specific entity. If the entity only has an inherited contract from a data product, a local contract is materialized to store results.
+
+`POST /v1/dataContracts/entity/validate`
+
+<ParamField query="entityId" type="string" required>
+  UUID of the entity.
+</ParamField>
+
+<ParamField query="entityType" type="string" required>
+  Type of the entity (e.g., `table`, `topic`).
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataContracts/{id}/validate
+from metadata.sdk import configure, get_client
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+client = get_client()
+
+# Validate a specific contract
+result = client.post(
+    f"/dataContracts/{contract_id}/validate"
+)
+print(f"Status: {result['contractExecutionStatus']}")
+
+# Validate by entity
+result = client.post("/dataContracts/entity/validate", params={
+    "entityId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "entityType": "table"
+})
+```
+
+```java POST /v1/dataContracts/{id}/validate
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Validate a contract
+DataContractResult result = forContract(contractId).validate();
+System.out.println("Status: " + result.getContractExecutionStatus());
+
+// Or from a loaded contract
+FluentDataContract contract = find(contractId).fetch();
+DataContractResult result = contract.validate();
+```
+
+```bash POST /v1/dataContracts/{id}/validate
+# Validate a contract
+curl -X POST "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/validate" \
+  -H "Authorization: Bearer {access_token}"
+
+# Validate by entity
+curl -X POST "{base_url}/api/v1/dataContracts/entity/validate?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Validation Result)
+{
+  "id": "e1f2a3b4-c5d6-7890-ef12-345678901234",
+  "dataContractFQN": "sales-orders-contract",
+  "timestamp": 1769986400000,
+  "contractExecutionStatus": "Success",
+  "schemaValidation": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "failedFields": []
+  },
+  "semanticsValidation": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "failedRules": []
+  },
+  "qualityValidation": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "qualityScore": 100.0
+  },
+  "slaValidation": {
+    "refreshFrequencyMet": true,
+    "latencyMet": true,
+    "availabilityMet": true
+  },
+  "executionTime": 1250
+}
+```
+</ResponseExample>
+
+---
+
+## Execution Status Values
+
+| Status | Description |
+|--------|-------------|
+| `Running` | Validation is in progress |
+| `Success` | All validations passed |
+| `Failed` | One or more validations failed |
+| `PartialSuccess` | Some validations passed, some failed |
+| `Aborted` | Validation was aborted due to an error |
+| `Queued` | Validation is queued for execution |
+
+---
+
+## List Results
+
+Retrieve execution results for a contract.
+
+`GET /v1/dataContracts/{id}/results`
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (0–10,000).
+</ParamField>
+
+<ParamField query="startTs" type="integer">
+  Return results after this epoch timestamp (milliseconds).
+</ParamField>
+
+<ParamField query="endTs" type="integer">
+  Return results before this epoch timestamp (milliseconds).
+</ParamField>
+
+## Get Latest Result
+
+`GET /v1/dataContracts/{id}/results/latest`
+
+Returns the most recent validation result.
+
+## Add a Result
+
+`PUT /v1/dataContracts/{id}/results`
+
+Programmatically add a validation result (useful for external validation pipelines).
+
+### Body Parameters
+
+<ParamField body="timestamp" type="integer" required>
+  Epoch timestamp (milliseconds) of the validation run.
+</ParamField>
+
+<ParamField body="contractExecutionStatus" type="string" required>
+  Status: `Running`, `Success`, `Failed`, `PartialSuccess`, `Aborted`, `Queued`.
+</ParamField>
+
+<ParamField body="result" type="string">
+  Human-readable summary message.
+</ParamField>
+
+<ParamField body="schemaValidation" type="object">
+  Schema validation details.
+
+  <Expandable title="properties">
+    <ParamField body="passed" type="integer">Number of fields that passed.</ParamField>
+    <ParamField body="failed" type="integer">Number of fields that failed.</ParamField>
+    <ParamField body="total" type="integer">Total fields checked.</ParamField>
+    <ParamField body="failedFields" type="array">List of field names that failed validation.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="semanticsValidation" type="object">
+  Semantics validation details.
+
+  <Expandable title="properties">
+    <ParamField body="passed" type="integer">Number of rules that passed.</ParamField>
+    <ParamField body="failed" type="integer">Number of rules that failed.</ParamField>
+    <ParamField body="total" type="integer">Total rules checked.</ParamField>
+    <ParamField body="failedRules" type="array">List of rule names that failed.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="qualityValidation" type="object">
+  Quality validation details.
+
+  <Expandable title="properties">
+    <ParamField body="passed" type="integer">Number of quality tests that passed.</ParamField>
+    <ParamField body="failed" type="integer">Number of quality tests that failed.</ParamField>
+    <ParamField body="total" type="integer">Total quality tests.</ParamField>
+    <ParamField body="qualityScore" type="number">Quality score (0-100).</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="slaValidation" type="object">
+  SLA validation details.
+
+  <Expandable title="properties">
+    <ParamField body="refreshFrequencyMet" type="boolean">Whether refresh frequency target was met.</ParamField>
+    <ParamField body="latencyMet" type="boolean">Whether latency target was met.</ParamField>
+    <ParamField body="availabilityMet" type="boolean">Whether availability target was met.</ParamField>
+    <ParamField body="actualLatency" type="integer">Actual observed latency in milliseconds.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="executionTime" type="integer">
+  Total validation execution time in milliseconds.
+</ParamField>
+
+```python Add Result
+from metadata.sdk import configure, get_client
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+client = get_client()
+
+# Add a validation result
+client.put(f"/dataContracts/{contract_id}/results", json={
+    "timestamp": 1769986400000,
+    "contractExecutionStatus": "Success",
+    "schemaValidation": {"passed": 4, "failed": 0, "total": 4},
+    "semanticsValidation": {"passed": 3, "failed": 0, "total": 3},
+    "executionTime": 850
+})
+```
+
+```java Add Result
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Add a result using fluent API
+forContract(contractId)
+    .addResult()
+    .success()
+    .withMessage("All validations passed")
+    .withExecutionTime(850L)
+    .execute();
+```
+
+```bash Add Result
+curl -X PUT "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/results" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": 1769986400000,
+    "contractExecutionStatus": "Success",
+    "schemaValidation": {"passed": 4, "failed": 0, "total": 4, "failedFields": []},
+    "semanticsValidation": {"passed": 3, "failed": 0, "total": 3, "failedRules": []},
+    "executionTime": 850
+  }'
+```
+
+## Delete Results
+
+`DELETE /v1/dataContracts/{id}/results/{timestamp}` — Delete a result at a specific timestamp.
+
+`DELETE /v1/dataContracts/{id}/results/before/{timestamp}` — Delete all results before a timestamp.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Data contract not found |

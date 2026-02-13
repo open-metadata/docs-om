@@ -1,0 +1,223 @@
+---
+title: Authentication
+description: Authenticate your API requests using JWT Bearer tokens
+sidebarTitle: Authentication
+---
+
+# Authentication
+
+The Collate API uses JWT (JSON Web Token) authentication. All API requests must include a valid token in the `Authorization` header.
+
+## Obtaining a Token
+
+There are two ways to obtain an API token:
+
+### Bot Token (Recommended for Automation)
+
+Bot tokens are ideal for service accounts, CI/CD pipelines, and automated integrations.
+
+1. Navigate to **Settings > Bots** in the Collate UI
+2. Click **Add Bot** or select an existing bot
+3. Under **Token**, click **Generate Token**
+4. Copy and securely store the generated JWT token
+
+<Warning>
+Bot tokens have the permissions assigned to the bot's role. Ensure the bot has appropriate roles for your use case.
+</Warning>
+
+### Personal Access Token
+
+Personal access tokens are tied to your user account and inherit your permissions.
+
+1. Click your profile icon in the top-right corner
+2. Select **Access Tokens**
+3. Click **Generate New Token**
+4. Set an expiration date and click **Generate**
+5. Copy and securely store the token
+
+<Note>
+Personal access tokens cannot be retrieved after creation. Store them securely immediately after generation.
+</Note>
+
+## Using the Token
+
+Include the token in the `Authorization` header of all API requests:
+
+<CodeGroup>
+```text Header Token
+Authorization: Bearer <your-jwt-token>
+```
+</CodeGroup>
+
+### Examples
+
+<CodeGroup dropdown>
+```python Token Example
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+# Configure with JWT token
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.getcollate.io/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+    ),
+)
+
+# Create authenticated client
+metadata = OpenMetadata(server_config)
+
+# All subsequent calls are authenticated
+tables = metadata.list_all_entities(entity=Table)
+```
+
+```java Token Example
+import org.openmetadata.client.gateway.OpenMetadata;
+import org.openmetadata.schema.services.connections.metadata.OpenMetadataConnection;
+import org.openmetadata.schema.security.client.OpenMetadataJWTClientConfig;
+
+// Configure with JWT token
+OpenMetadataConnection config = new OpenMetadataConnection();
+config.setHostPort("https://your-company.getcollate.io/api");
+config.setAuthProvider(AuthProvider.OPENMETADATA);
+
+OpenMetadataJWTClientConfig jwtConfig = new OpenMetadataJWTClientConfig();
+jwtConfig.setJwtToken("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...");
+config.setSecurityConfig(jwtConfig);
+
+// Create authenticated client
+OpenMetadata client = new OpenMetadata(config);
+```
+
+```bash Token Example
+# Include token in Authorization header
+curl -X GET "https://your-company.getcollate.io/api/v1/tables" \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json"
+```
+</CodeGroup>
+
+## Token Structure
+
+Collate JWT tokens contain the following claims:
+
+| Claim | Description |
+|-------|-------------|
+| `sub` | Subject - username or bot name |
+| `iss` | Issuer - `open-metadata.org` |
+| `roles` | Array of assigned roles |
+| `email` | User or bot email |
+| `isBot` | Boolean indicating if token is for a bot |
+| `tokenType` | `BOT` or `PERSONAL_ACCESS` |
+| `iat` | Issued at timestamp |
+| `exp` | Expiration timestamp (null for non-expiring bot tokens) |
+
+Example decoded token payload:
+
+<CodeGroup>
+```json Token Payload
+{
+  "iss": "open-metadata.org",
+  "sub": "ingestion-bot",
+  "roles": ["IngestionBotRole"],
+  "email": "ingestion-bot@open-metadata.org",
+  "isBot": true,
+  "tokenType": "BOT",
+  "iat": 1704067200,
+  "exp": null
+}
+```
+</CodeGroup>
+
+## Authentication Errors
+
+| Error | Status Code | Description |
+|-------|-------------|-------------|
+| Missing token | `401` | No Authorization header provided |
+| Invalid token | `401` | Token is malformed or signature invalid |
+| Expired token | `401` | Token has passed its expiration time |
+| Insufficient permissions | `403` | Token lacks required role/permission |
+
+### Error Response Format
+
+<CodeGroup>
+```json Error Response
+{
+  "code": 401,
+  "message": "Token has expired"
+}
+```
+</CodeGroup>
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use Bot Tokens for Automation">
+    Create dedicated bot accounts for each integration rather than using personal tokens.
+  </Step>
+  <Step title="Rotate Tokens Regularly">
+    Set expiration dates on personal access tokens and rotate bot tokens periodically.
+  </Step>
+  <Step title="Apply Least Privilege">
+    Assign only the minimum required roles to bots and service accounts.
+  </Step>
+  <Step title="Store Tokens Securely">
+    Use environment variables or secret managers. Never commit tokens to source control.
+  </Step>
+  <Step title="Monitor Token Usage">
+    Review audit logs to track API usage and detect anomalies.
+  </Step>
+</Steps>
+
+## Environment Variables
+
+For convenience, you can configure authentication using environment variables:
+
+<CodeGroup>
+```bash Environment Variables
+# Set your Collate host
+export OPENMETADATA_HOST=https://your-company.getcollate.io/api
+
+# Set your JWT token
+export OPENMETADATA_JWT_TOKEN=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+```python Python SDK Usage
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+
+# Reads from environment variables
+config = OpenMetadataConnection(
+    hostPort=os.getenv("OPENMETADATA_HOST"),
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken=os.getenv("OPENMETADATA_JWT_TOKEN")
+    ),
+)
+metadata = OpenMetadata(config)
+```
+</CodeGroup>
+
+## SSO Integration
+
+Collate supports SSO authentication providers for the UI. For API access, you still need to use JWT tokens, but users authenticated via SSO can generate personal access tokens from their profile.
+
+Supported SSO providers:
+- Okta
+- Azure AD
+- Google
+- Auth0
+- Custom OIDC
+- SAML
+- LDAP
+
+<Card title="SSO Configuration" icon="shield" href="/how-to-guides/sso">
+  Configure Single Sign-On for your organization
+</Card>

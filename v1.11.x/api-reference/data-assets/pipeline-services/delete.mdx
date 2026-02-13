@@ -1,0 +1,155 @@
+---
+title: Delete a Pipeline Service
+description: Delete a pipeline service by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Pipeline Service
+api: DELETE /v1/services/pipelineServices/{id}
+---
+
+# Delete a Pipeline Service
+
+Delete a pipeline service by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline service to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (pipelines).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the pipeline service. If `false`, the service is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/services/pipelineServices/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline service (e.g., `sample_airflow`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the pipeline service.
+</ParamField>
+
+## Restore a Soft-Deleted Pipeline Service
+
+Use `PUT /v1/services/pipelineServices/restore` to restore a soft-deleted pipeline service.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted pipeline service to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/services/pipelineServices/{id}
+import requests
+
+base_url = "https://your-company.getcollate.io/api"
+headers = {"Authorization": "Bearer your-jwt-token"}
+
+# Soft delete by ID
+requests.delete(
+    f"{base_url}/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5",
+    headers=headers
+)
+
+# Hard delete with recursive
+requests.delete(
+    f"{base_url}/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5?hardDelete=true&recursive=true",
+    headers=headers
+)
+
+# Delete by name
+requests.delete(
+    f"{base_url}/v1/services/pipelineServices/name/sample_airflow",
+    headers=headers
+)
+
+# Restore a soft-deleted pipeline service
+requests.put(
+    f"{base_url}/v1/services/pipelineServices/restore",
+    json={"id": "daa58a49-df05-48a3-a417-45dfd12eacf5"},
+    headers={**headers, "Content-Type": "application/json"}
+)
+```
+
+```java DELETE /v1/services/pipelineServices/{id}
+import static org.openmetadata.sdk.fluent.PipelineServices.*;
+
+// Soft delete
+PipelineServices.delete("daa58a49-df05-48a3-a417-45dfd12eacf5").execute();
+
+// Hard delete
+PipelineServices.delete("daa58a49-df05-48a3-a417-45dfd12eacf5")
+    .hardDelete()
+    .recursive()
+    .execute();
+
+// Delete by name
+PipelineServices.deleteByName("sample_airflow").execute();
+
+// Restore
+PipelineServices.restore("daa58a49-df05-48a3-a417-45dfd12eacf5");
+```
+
+```bash DELETE /v1/services/pipelineServices/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive
+curl -X DELETE "{base_url}/api/v1/services/pipelineServices/daa58a49-df05-48a3-a417-45dfd12eacf5?hardDelete=true&recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/services/pipelineServices/name/sample_airflow" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted pipeline service
+curl -X PUT "{base_url}/api/v1/services/pipelineServices/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "daa58a49-df05-48a3-a417-45dfd12eacf5"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "daa58a49-df05-48a3-a417-45dfd12eacf5",
+  "name": "sample_airflow",
+  "fullyQualifiedName": "sample_airflow",
+  "serviceType": "Airflow",
+  "version": 0.2,
+  "updatedAt": 1769982621418,
+  "updatedBy": "admin",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the pipeline service object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored pipeline service object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this pipeline service |
+| `404` | `NOT_FOUND` | Pipeline service with given ID or FQN does not exist |

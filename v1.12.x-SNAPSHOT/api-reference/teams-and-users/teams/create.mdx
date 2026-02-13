@@ -1,0 +1,261 @@
+---
+title: Create a Team
+description: Create a new team for organizing users and controlling access
+sidebarTitle: Create a Team
+api: POST /v1/teams
+---
+
+# Create a Team
+
+Create a new team for organizing users and controlling access to data assets.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the team. Must be unique across all teams.
+</ParamField>
+
+<ParamField body="teamType" type="string" required>
+  Type of team. One of: `Group`, `Department`, `Division`, `BusinessUnit`, `Organization`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the team.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the team in Markdown format.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Email address associated with the team.
+</ParamField>
+
+<ParamField body="parents" type="array">
+  Array of parent team references. A team can belong to a parent team in the hierarchy.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the parent team.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="isJoinable" type="boolean" default="true">
+  Whether users can join this team without an invitation.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign as owners of this team.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="policies" type="array">
+  Array of policy references to attach to the team.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the policy.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `policy`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Fully qualified name of the domain to assign for governance purposes.
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/teams
+from metadata.sdk import configure
+from metadata.sdk.entities import Teams
+from metadata.generated.schema.api.teams.createTeam import CreateTeamRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateTeamRequest(
+    name="Accounting",
+    teamType="Group",
+    displayName="Accounting",
+    description="Accounting team under Finance",
+    parents=["4f87a3ea-d798-4509-8c64-5b11f8a96f89"]
+)
+
+team = Teams.create(request)
+print(f"Created: {team.fullyQualifiedName}")
+```
+
+```java POST /v1/teams
+import static org.openmetadata.sdk.fluent.Teams.*;
+
+// Create using builder pattern
+var team = Teams.builder()
+    .name("Accounting")
+    .teamType("Group")
+    .displayName("Accounting")
+    .description("Accounting team under Finance")
+    .parents(List.of("4f87a3ea-d798-4509-8c64-5b11f8a96f89"))
+    .create();
+```
+
+```bash POST /v1/teams
+curl -X POST "{base_url}/api/v1/teams" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Accounting",
+    "teamType": "Group",
+    "displayName": "Accounting",
+    "description": "Accounting team under Finance",
+    "parents": [
+      {
+        "id": "4f87a3ea-d798-4509-8c64-5b11f8a96f89",
+        "type": "team"
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+  "teamType": "Group",
+  "name": "Accounting",
+  "fullyQualifiedName": "Accounting",
+  "version": 0.1,
+  "updatedAt": 1769982623753,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+  "parents": [
+    {
+      "id": "4f87a3ea-d798-4509-8c64-5b11f8a96f89",
+      "type": "team",
+      "name": "Finance",
+      "fullyQualifiedName": "Finance",
+      "displayName": "Finance",
+      "deleted": false
+    }
+  ],
+  "users": [],
+  "deleted": false,
+  "owners": [],
+  "domains": [],
+  "children": [],
+  "policies": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created team object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the team (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Team name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (same as name for teams).
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="teamType" type="string">
+  Type of team (`Group`, `Department`, `Division`, `BusinessUnit`, `Organization`).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the team in Markdown format.
+</ResponseField>
+
+<ResponseField name="parents" type="array" optional>
+  Parent team references.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the parent team.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `team`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the parent team.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the parent team.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="users" type="array" optional>
+  Users belonging to this team.
+</ResponseField>
+
+<ResponseField name="children" type="array" optional>
+  Child team references.
+</ResponseField>
+
+<ResponseField name="policies" type="array" optional>
+  Policy references attached to the team.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the team.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments for governance.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create teams |
+| `409` | `ENTITY_ALREADY_EXISTS` | Team with same name already exists |

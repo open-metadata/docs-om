@@ -1,0 +1,225 @@
+---
+title: Update a Topic
+description: Update topic properties using JSON Patch
+sidebarTitle: Update a Topic
+api: PATCH /v1/topics/{id}
+---
+
+# Update a Topic
+
+Update a topic's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the topic to update.
+</ParamField>
+
+## Update by Name
+
+Use `PATCH /v1/topics/name/{fqn}` to update by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the topic (e.g., `sample_kafka.address_book`).
+</ParamField>
+
+## Body Parameters
+
+Send a JSON object with the fields to update. Only provided fields are changed.
+
+<ParamField body="description" type="string">
+  Updated description in Markdown format.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Updated display name.
+</ParamField>
+
+<ParamField body="messageSchema" type="object">
+  Updated message schema.
+
+  <Expandable title="properties">
+    <ParamField body="schemaType" type="string">
+      Type of schema (e.g., `Avro`, `Protobuf`, `JSON`, `Other`).
+    </ParamField>
+
+    <ParamField body="schemaText" type="string">
+      The schema definition text.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Updated list of owner references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Updated classification tags.
+
+  <Expandable title="properties">
+    <ParamField body="tagFQN" type="string" required>
+      Fully qualified name of the tag.
+    </ParamField>
+
+    <ParamField body="labelType" type="string">
+      Type of label (e.g., `Manual`, `Derived`, `Propagated`).
+    </ParamField>
+
+    <ParamField body="state" type="string">
+      State of the tag (e.g., `Suggested`, `Confirmed`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Updated domain FQN.
+</ParamField>
+
+<ParamField body="extension" type="object">
+  Updated custom property values.
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/topics/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Topics
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016")
+topic.description = "Updated: All Protobuf record events captured with enhanced schema"
+topic.messageSchema = {
+    "schemaType": "Protobuf",
+    "schemaText": "syntax = \"proto3\";\npackage tutorial;\nmessage Person { ... }"
+}
+updated = Topics.update(topic)
+
+print(f"Updated to version {updated.version}")
+```
+
+```java PATCH /v1/topics/{id}
+import static org.openmetadata.sdk.fluent.Topics.*;
+
+// Retrieve, modify, and update
+var topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016");
+topic.setDescription("Updated: All Protobuf record events captured with enhanced schema");
+var updated = Topics.update(topic);
+```
+
+```bash PATCH /v1/topics/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: All Protobuf record events captured with enhanced schema"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/topics/name/sample_kafka.address_book" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: All Protobuf record events captured with enhanced schema"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "name": "address_book",
+  "fullyQualifiedName": "sample_kafka.address_book",
+  "description": "Updated: All Protobuf record events captured with enhanced schema",
+  "version": 0.2,
+  "updatedAt": 1769982663546,
+  "updatedBy": "admin",
+  "service": {
+    "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    "type": "messagingService",
+    "name": "sample_kafka",
+    "fullyQualifiedName": "sample_kafka",
+    "displayName": "sample_kafka",
+    "deleted": false
+  },
+  "serviceType": "Kafka",
+  "messageSchema": {
+    "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+    "schemaType": "Protobuf",
+    "schemaFields": [
+      {
+        "name": "AddressBook",
+        "dataType": "RECORD",
+        "fullyQualifiedName": "sample_kafka.address_book.AddressBook",
+        "children": []
+      }
+    ]
+  },
+  "partitions": 1,
+  "cleanupPolicies": ["delete"],
+  "replicationFactor": 1,
+  "maximumMessageSize": 1,
+  "retentionSize": -1,
+  "href": "http://localhost:8585/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated topic object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the topic (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Topic name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.topicName`.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this topic |
+| `404` | `NOT_FOUND` | Topic with given ID or FQN does not exist |
+| `409` | `CONFLICT` | Concurrent modification detected |

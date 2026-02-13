@@ -1,0 +1,277 @@
+---
+title: Create a Test Case
+description: Create a new test case instance applied to a specific table or column
+sidebarTitle: Create a Test Case
+api: POST /v1/dataQuality/testCases
+---
+
+# Create a Test Case
+
+Create a new test case by linking a test definition to a specific table or column with concrete parameter values.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the test case. Must be unique within the target entity scope.
+</ParamField>
+
+<ParamField body="testDefinition" type="string" required>
+  Fully qualified name of the test definition to use (e.g., `columnValueMaxToBeBetween`).
+</ParamField>
+
+<ParamField body="testSuite" type="string" required>
+  Fully qualified name of the test suite this test case belongs to.
+</ParamField>
+
+<ParamField body="entityLink" type="string" required>
+  Entity link to the target table or column. Format: `<#E::table::tableFQN>` for table-level or `<#E::table::tableFQN::columns::colName>` for column-level.
+</ParamField>
+
+<ParamField body="parameterValues" type="array">
+  Array of parameter name/value pairs as defined by the test definition.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the parameter (must match a parameter in the test definition).
+    </ParamField>
+
+    <ParamField body="value" type="string" required>
+      Value for the parameter (always provided as a string).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the test case in Markdown format.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataQuality/testCases
+from metadata.sdk import configure
+from metadata.sdk.entities import TestCases
+from metadata.generated.schema.api.tests.createTestCase import CreateTestCaseRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Create a column-level test case
+request = CreateTestCaseRequest(
+    name="column_value_max_to_be_between",
+    testDefinition="columnValueMaxToBeBetween",
+    testSuite="b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+    entityLink="<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
+    parameterValues=[
+        {"name": "minValueForMaxInCol", "value": "1"},
+        {"name": "maxValueForMaxInCol", "value": "100"}
+    ],
+    description="Validates shop_id max value stays between 1 and 100"
+)
+
+test_case = TestCases.create(request)
+print(f"Created: {test_case.fullyQualifiedName}")
+```
+
+```java POST /v1/dataQuality/testCases
+import static org.openmetadata.sdk.fluent.TestCases.*;
+
+var testCase = TestCases.builder()
+    .name("column_value_max_to_be_between")
+    .testDefinition("columnValueMaxToBeBetween")
+    .testSuite("b5fcae09-02c2-4c0b-8c4a-5b52d650e592")
+    .entityLink("<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>")
+    .parameterValues(List.of(
+        Map.of("name", "minValueForMaxInCol", "value", "1"),
+        Map.of("name", "maxValueForMaxInCol", "value", "100")
+    ))
+    .create();
+```
+
+```bash POST /v1/dataQuality/testCases
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "column_value_max_to_be_between",
+    "testDefinition": "columnValueMaxToBeBetween",
+    "testSuite": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
+    "parameterValues": [
+      {"name": "minValueForMaxInCol", "value": "1"},
+      {"name": "maxValueForMaxInCol", "value": "100"}
+    ],
+    "description": "Validates shop_id max value stays between 1 and 100"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+  "name": "column_value_max_to_be_between",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between",
+  "description": "Validates shop_id max value stays between 1 and 100",
+  "version": 0.1,
+  "updatedAt": 1769982759035,
+  "updatedBy": "admin",
+  "testDefinition": {
+    "id": "def-id",
+    "type": "testDefinition",
+    "name": "columnValueMaxToBeBetween",
+    "fullyQualifiedName": "columnValueMaxToBeBetween",
+    "deleted": false
+  },
+  "testSuite": {
+    "id": "suite-id",
+    "type": "testSuite",
+    "name": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+    "deleted": false
+  },
+  "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
+  "parameterValues": [
+    {"name": "minValueForMaxInCol", "value": "1"},
+    {"name": "maxValueForMaxInCol", "value": "100"}
+  ],
+  "deleted": false,
+  "owners": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created test case object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the test case (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Test case name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `table.column.testCaseName` or `table.testCaseName`.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the test case.
+</ResponseField>
+
+<ResponseField name="testDefinition" type="object">
+  Reference to the test definition.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the test definition.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Always `testDefinition`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the test definition.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      FQN of the test definition.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="testSuite" type="object">
+  Reference to the test suite.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the test suite.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Always `testSuite`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the test suite.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="entityLink" type="string">
+  Entity link to the target table or column.
+</ResponseField>
+
+<ResponseField name="parameterValues" type="array">
+  Parameter values for this test case.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Parameter name.
+    </ResponseField>
+
+    <ResponseField name="value" type="string">
+      Parameter value.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the test case.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/dataQuality/testCases` instead of `POST` to perform an upsert. If a test case with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new test case is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create test cases |
+| `409` | `ENTITY_ALREADY_EXISTS` | Test case with same name already exists for this entity (POST only) |

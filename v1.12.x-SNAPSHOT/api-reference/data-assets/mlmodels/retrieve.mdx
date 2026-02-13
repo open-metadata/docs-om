@@ -1,0 +1,240 @@
+---
+title: Retrieve an ML Model
+description: Get an ML model by ID or fully qualified name
+sidebarTitle: Retrieve an ML Model
+api: GET /v1/mlmodels/{id}
+---
+
+# Retrieve an ML Model
+
+Get a single ML model by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the ML model to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/mlmodels/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the ML model (e.g., `mlflow_svc.customer_segmentation`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/mlmodels/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import MLModels
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+model = MLModels.retrieve("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2")
+print(f"{model.fullyQualifiedName}: {model.algorithm}")
+
+# Get by ID with fields
+model = MLModels.retrieve(
+    "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+    fields=["owners", "tags", "followers", "votes"]
+)
+
+# Get by fully qualified name
+model = MLModels.retrieve_by_name("mlflow_svc.customer_segmentation")
+
+# Get by name with fields
+model = MLModels.retrieve_by_name(
+    "mlflow_svc.customer_segmentation",
+    fields=["owners", "tags", "domains"]
+)
+```
+
+```java GET /v1/mlmodels/{id}
+import static org.openmetadata.sdk.fluent.MlModels.*;
+
+// Get by ID
+var model = MlModels.retrieve("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2");
+
+// Get by ID with fields
+var model = MlModels.retrieve(
+    "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+    "owners,tags,followers,votes"
+);
+
+// Get by fully qualified name
+var model = MlModels.retrieveByName("mlflow_svc.customer_segmentation");
+
+// Get by name with fields
+var model = MlModels.retrieveByName(
+    "mlflow_svc.customer_segmentation",
+    "owners,tags,domains"
+);
+```
+
+```bash GET /v1/mlmodels/{id}
+# Get by ID
+curl "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/mlmodels/name/mlflow_svc.customer_segmentation" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/mlmodels/name/mlflow_svc.customer_segmentation?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+  "name": "customer_segmentation",
+  "fullyQualifiedName": "mlflow_svc.customer_segmentation",
+  "displayName": "Customer Segmentation Model",
+  "algorithm": "KMeans",
+  "version": 0.1,
+  "updatedAt": 1769982669247,
+  "updatedBy": "admin",
+  "service": {
+    "id": "ca22d46e-81b9-4e48-85b5-0adc44980da9",
+    "type": "mlmodelService",
+    "name": "mlflow_svc",
+    "fullyQualifiedName": "mlflow_svc",
+    "deleted": false
+  },
+  "serviceType": "Mlflow",
+  "href": "http://localhost:8585/api/v1/mlmodels/6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0
+  },
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns an ML model object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the ML model (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  ML model name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.modelName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the ML model in Markdown format.
+</ResponseField>
+
+<ResponseField name="algorithm" type="string">
+  Algorithm used by the ML model.
+</ResponseField>
+
+<ResponseField name="mlFeatures" type="array" optional>
+  Features used by the ML model.
+</ResponseField>
+
+<ResponseField name="mlHyperParameters" type="array" optional>
+  Hyperparameters used by the ML model.
+</ResponseField>
+
+<ResponseField name="target" type="string" optional>
+  Target variable or objective.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent ML model service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the ML model service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `mlmodelService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the ML model service.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the ML model service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of ML model service (e.g., Mlflow, Sklearn, SageMaker).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this ML model |
+| `404` | `NOT_FOUND` | ML model with given ID or FQN does not exist |

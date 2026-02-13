@@ -1,0 +1,213 @@
+---
+title: List Data Products
+description: List all data products with optional filtering and pagination
+sidebarTitle: List Data Products
+api: GET /v1/dataProducts
+---
+
+# List Data Products
+
+List all data products with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="domain" type="string">
+  Filter by domain fully qualified name.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `domain`, `experts`, `assets`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataProducts
+from metadata.sdk import configure
+from metadata.sdk.entities import DataProducts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+products = DataProducts.list(limit=50)
+for dp in products.data:
+    print(f"{dp.fullyQualifiedName}")
+
+# List all with auto-pagination
+for dp in DataProducts.list_all():
+    print(f"{dp.fullyQualifiedName}")
+
+# Filter by domain with fields
+products = DataProducts.list(
+    domain="Marketing",
+    fields=["owners", "domain", "experts", "assets"],
+    limit=50
+)
+
+for dp in products.data:
+    print(f"{dp.fullyQualifiedName}")
+    if dp.owners:
+        print(f"  Owners: {[o.name for o in dp.owners]}")
+```
+
+```java GET /v1/dataProducts
+import static org.openmetadata.sdk.fluent.DataProducts.*;
+
+// List first page
+var result = DataProducts.list()
+    .limit(50)
+    .execute();
+
+for (var dp : result.getData()) {
+    System.out.println(dp.getFullyQualifiedName());
+}
+
+// Filter by domain with fields
+var result = DataProducts.list()
+    .domain("Marketing")
+    .fields("owners", "domain", "experts", "assets")
+    .limit(50)
+    .execute();
+```
+
+```bash GET /v1/dataProducts
+# List all
+curl "{base_url}/api/v1/dataProducts?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by domain
+curl "{base_url}/api/v1/dataProducts?domain=Marketing&fields=owners,domain,experts,assets&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
+      "name": "CustomerInsights",
+      "fullyQualifiedName": "Marketing.CustomerInsights",
+      "displayName": "Customer Insights",
+      "description": "Curated customer analytics data product",
+      "version": 0.1,
+      "updatedAt": 1769984330261,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
+      "domain": {
+        "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+        "type": "domain",
+        "name": "Marketing",
+        "fullyQualifiedName": "Marketing",
+        "deleted": false
+      },
+      "deleted": false,
+      "owners": [],
+      "experts": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 3
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of data product objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of data product objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the data product (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Data product name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name in format `domain.dataProductName`.
+    </ResponseField>
+
+    <ResponseField name="domain" type="object" optional>
+      Parent domain reference. Only included when `fields` contains `domain`.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="experts" type="array" optional>
+      Subject matter experts. Only included when `fields` contains `experts`.
+    </ResponseField>
+
+    <ResponseField name="assets" type="array" optional>
+      Associated data assets. Only included when `fields` contains `assets`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of data products matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `domain` | Parent domain reference |
+| `experts` | Subject matter expert references |
+| `assets` | Associated data assets |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list data products |

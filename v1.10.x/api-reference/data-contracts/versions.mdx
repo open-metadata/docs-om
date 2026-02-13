@@ -1,0 +1,96 @@
+---
+title: Data Contract Versions
+description: Track version history of data contract changes
+sidebarTitle: Data Contract Versions
+api: GET /v1/dataContracts/{id}/versions
+---
+
+# Data Contract Versions
+
+Every change to a data contract creates a new version. Use the versions API to list all versions and retrieve a specific version.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the data contract.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/dataContracts/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="version" type="string" required>
+  Version number in `major.minor` format (e.g., `0.1`, `0.2`, `1.0`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataContracts/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = DataContracts.list_versions("f7a1b2c3-d4e5-6789-0abc-def123456789")
+for v in versions:
+    print(f"v{v.version}: {v.updatedBy} at {v.updatedAt}")
+
+# Get specific version
+contract_v1 = DataContracts.get_version(
+    "f7a1b2c3-d4e5-6789-0abc-def123456789",
+    "0.1"
+)
+```
+
+```java GET /v1/dataContracts/{id}/versions
+// List versions using the client
+var history = client.dataContracts().listVersions(contractId);
+for (var version : history.getVersions()) {
+    System.out.println("v" + version.getVersion());
+}
+```
+
+```bash GET /v1/dataContracts/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get specific version
+curl "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/versions/0.2" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "dataContract",
+  "versions": [
+    "{\"id\":\"f7a1b2c3-d4e5-6789-0abc-def123456789\",\"name\":\"sales-orders-contract\",\"version\":0.2,\"entityStatus\":\"Active\"}",
+    "{\"id\":\"f7a1b2c3-d4e5-6789-0abc-def123456789\",\"name\":\"sales-orders-contract\",\"version\":0.1,\"entityStatus\":\"Draft\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Version Numbering
+
+| Change Type | Version Impact | Example |
+|-------------|----------------|---------|
+| Minor field updates (description, display name) | Minor bump (`0.1` → `0.2`) | Update description |
+| Major structural changes (status, schema, entity) | Major bump (`0.2` → `1.0`) | Change status to Active |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Data contract or version not found |

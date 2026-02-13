@@ -1,0 +1,190 @@
+---
+title: Update a Team
+description: Update team properties using JSON Patch
+sidebarTitle: Update a Team
+api: PATCH /v1/teams/{id}
+---
+
+# Update a Team
+
+Update a team's properties using JSON Merge Patch. You can update by ID.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the team to update.
+</ParamField>
+
+## Body Parameters
+
+Send a JSON object with the fields to update. Only provided fields are changed.
+
+<ParamField body="displayName" type="string">
+  Updated display name.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated description in Markdown format.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Updated email address for the team.
+</ParamField>
+
+<ParamField body="isJoinable" type="boolean">
+  Whether users can join this team without an invitation.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Updated list of owner references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="policies" type="array">
+  Updated list of policy references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the policy.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `policy`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="domain" type="string">
+  Updated domain FQN.
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/teams/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Teams
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+team = Teams.retrieve("449b5f25-4cbb-42db-8f71-3be2c5cd888a")
+team.description = "Updated: Accounting team handling all financial reporting"
+team.displayName = "Accounting & Reporting"
+updated = Teams.update(team)
+
+print(f"Updated to version {updated.version}")
+```
+
+```java PATCH /v1/teams/{id}
+import static org.openmetadata.sdk.fluent.Teams.*;
+
+// Retrieve, modify, and update
+var team = Teams.retrieve("449b5f25-4cbb-42db-8f71-3be2c5cd888a");
+team.setDescription("Updated: Accounting team handling all financial reporting");
+var updated = Teams.update(team);
+```
+
+```bash PATCH /v1/teams/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: Accounting team handling all financial reporting"},
+    {"op": "replace", "path": "/displayName", "value": "Accounting & Reporting"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+  "teamType": "Group",
+  "name": "Accounting",
+  "fullyQualifiedName": "Accounting",
+  "displayName": "Accounting & Reporting",
+  "description": "Updated: Accounting team handling all financial reporting",
+  "version": 0.2,
+  "updatedAt": 1769982623753,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+  "parents": [
+    {
+      "id": "4f87a3ea-d798-4509-8c64-5b11f8a96f89",
+      "type": "team",
+      "name": "Finance",
+      "fullyQualifiedName": "Finance",
+      "displayName": "Finance",
+      "deleted": false
+    }
+  ],
+  "users": [
+    {
+      "id": "2c4036a5-27d5-4d47-949f-3e8666e9d371",
+      "type": "user",
+      "name": "andrew_jennings3",
+      "fullyQualifiedName": "andrew_jennings3",
+      "displayName": "Andrew Jennings",
+      "deleted": false
+    }
+  ],
+  "deleted": false,
+  "owners": [],
+  "domains": [],
+  "children": [],
+  "policies": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated team object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the team (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Team name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (same as name for teams).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this team |
+| `404` | `NOT_FOUND` | Team with given ID does not exist |
+| `409` | `CONFLICT` | Concurrent modification detected |

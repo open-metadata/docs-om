@@ -1,0 +1,331 @@
+---
+title: Import & Export
+description: Import and export data contracts using the Open Data Contract Standard (ODCS) v3.1.0 format
+sidebarTitle: Import & Export
+api: GET /v1/dataContracts/{id}/odcs
+---
+
+# Import & Export
+
+Data contracts can be imported and exported using the [Open Data Contract Standard (ODCS)](https://bitol.io/open-data-contract-standard/) v3.1.0 format. Both JSON and YAML are supported, with smart merge and full replace modes for updates.
+
+## Export to ODCS
+
+### Export by ID (JSON)
+
+`GET /v1/dataContracts/{id}/odcs`
+
+### Export by ID (YAML)
+
+`GET /v1/dataContracts/{id}/odcs/yaml`
+
+### Export by FQN (JSON)
+
+`GET /v1/dataContracts/name/{fqn}/odcs`
+
+### Export by FQN (YAML)
+
+`GET /v1/dataContracts/name/{fqn}/odcs/yaml`
+
+<ParamField path="id" type="string">
+  UUID of the data contract.
+</ParamField>
+
+<ParamField path="fqn" type="string">
+  Fully qualified name of the data contract.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Fields to include in the export. Defaults to `owners,reviewers,extension,schema,sla,security`.
+</ParamField>
+
+<RequestExample dropdown>
+```python Export ODCS
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Export as ODCS JSON object
+odcs = DataContracts.export_odcs(contract_id).execute()
+print(f"ODCS version: {odcs.apiVersion}")
+print(f"Status: {odcs.status}")
+
+# Export as YAML string
+yaml_str = DataContracts.export_odcs(contract_id).as_yaml().execute()
+print(yaml_str)
+
+# Export by FQN
+odcs = DataContracts.export_odcs_by_name("sales-orders-contract").execute()
+```
+
+```java Export ODCS
+// Export using the REST client
+var odcs = client.dataContracts().exportToODCS(contractId);
+System.out.println("ODCS version: " + odcs.getApiVersion());
+
+// Export as YAML
+String yaml = client.dataContracts().exportToODCSYaml(contractId);
+```
+
+```bash Export ODCS
+# Export as JSON
+curl "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/odcs" \
+  -H "Authorization: Bearer {access_token}"
+
+# Export as YAML
+curl "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/odcs/yaml" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Accept: application/yaml"
+
+# Export by FQN
+curl "{base_url}/api/v1/dataContracts/name/sales-orders-contract/odcs" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (ODCS JSON)
+{
+  "apiVersion": "v3.1.0",
+  "kind": "DataContract",
+  "name": "sales-orders-contract",
+  "version": "1.0.0",
+  "status": "active",
+  "domain": "ecommerce",
+  "description": {
+    "purpose": "Data contract for the sales orders table"
+  },
+  "schema": [
+    {
+      "name": "orders",
+      "logicalType": "object",
+      "properties": [
+        {
+          "name": "order_id",
+          "logicalType": "integer",
+          "required": true,
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "logicalType": "integer",
+          "required": true
+        },
+        {
+          "name": "order_date",
+          "logicalType": "timestamp",
+          "required": true
+        },
+        {
+          "name": "total_amount",
+          "logicalType": "decimal"
+        }
+      ]
+    }
+  ],
+  "quality": [
+    {
+      "type": "custom",
+      "dimension": "completeness",
+      "description": "All required fields must be present"
+    }
+  ],
+  "slaProperties": [
+    {
+      "property": "frequency",
+      "value": "PT1H"
+    },
+    {
+      "property": "availability",
+      "value": "99.9"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Import from ODCS
+
+### Create from ODCS JSON
+
+`POST /v1/dataContracts/odcs`
+
+### Create from ODCS YAML
+
+`POST /v1/dataContracts/odcs/yaml`
+
+### Create or Update from ODCS JSON
+
+`PUT /v1/dataContracts/odcs`
+
+### Create or Update from ODCS YAML
+
+`PUT /v1/dataContracts/odcs/yaml`
+
+<ParamField query="entityId" type="string" required>
+  UUID of the entity to attach the contract to.
+</ParamField>
+
+<ParamField query="entityType" type="string" required>
+  Type of the entity (e.g., `table`, `topic`, `apiEndpoint`).
+</ParamField>
+
+<ParamField query="mode" type="string" default="merge">
+  Import mode for PUT endpoints: `merge` (preserves existing fields not in the import) or `replace` (fully overwrites the contract).
+</ParamField>
+
+<ParamField query="objectName" type="string">
+  Schema object name to import for multi-object ODCS contracts. If not specified, auto-selects based on entity name.
+</ParamField>
+
+```python Import ODCS
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Import from ODCS object (creates new contract)
+contract = (DataContracts.import_odcs(table_id, "table")
+    .from_odcs(odcs_contract)
+    .execute())
+
+# Import from YAML with smart merge
+yaml_content = open("contract.yaml").read()
+contract = (DataContracts.import_odcs(table_id, "table")
+    .from_yaml(yaml_content)
+    .merge()
+    .execute())
+```
+
+```java Import ODCS
+// Import from ODCS JSON
+var contract = client.dataContracts().importFromODCS(
+    entityId, "table", odcsContract
+);
+
+// Import from YAML
+var contract = client.dataContracts().importFromODCSYaml(
+    entityId, "table", yamlContent
+);
+```
+
+```bash Import ODCS
+# Import from ODCS JSON (create new)
+curl -X POST "{base_url}/api/v1/dataContracts/odcs?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d @contract.json
+
+# Import from ODCS YAML
+curl -X POST "{base_url}/api/v1/dataContracts/odcs/yaml?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @contract.yaml
+
+# Create or update with smart merge
+curl -X PUT "{base_url}/api/v1/dataContracts/odcs?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table&mode=merge" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d @contract.json
+
+# Full replace
+curl -X PUT "{base_url}/api/v1/dataContracts/odcs?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table&mode=replace" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d @contract.json
+```
+
+---
+
+## Parse ODCS YAML
+
+Preview an ODCS YAML contract without importing. Useful for inspecting multi-object contracts.
+
+`POST /v1/dataContracts/odcs/parse/yaml`
+
+```bash Parse YAML
+curl -X POST "{base_url}/api/v1/dataContracts/odcs/parse/yaml" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @contract.yaml
+```
+
+```json Response
+{
+  "name": "sales-contract",
+  "version": "1.0.0",
+  "status": "active",
+  "schemaObjects": ["orders", "order_items"],
+  "hasMultipleObjects": true
+}
+```
+
+---
+
+## Validate ODCS YAML
+
+Validate an ODCS YAML contract against a target entity without creating it.
+
+`POST /v1/dataContracts/odcs/validate/yaml`
+
+<ParamField query="entityId" type="string" required>
+  UUID of the entity to validate against.
+</ParamField>
+
+<ParamField query="entityType" type="string" required>
+  Type of the entity.
+</ParamField>
+
+<ParamField query="objectName" type="string">
+  Schema object name for multi-object contracts.
+</ParamField>
+
+```bash Validate YAML
+curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @contract.yaml
+```
+
+```json Response
+{
+  "passed": 3,
+  "failed": 1,
+  "total": 4,
+  "failedFields": ["missing_column"]
+}
+```
+
+---
+
+## Supported ODCS Versions
+
+| Version | Status |
+|---------|--------|
+| v3.1.0 | Full support |
+| v3.0.2 | Supported |
+| v3.0.1 | Supported |
+| v3.0.0 | Supported |
+| v2.2.2 | Supported |
+| v2.2.1 | Supported |
+| v2.2.0 | Supported |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid ODCS content or YAML syntax |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Data contract or entity not found |

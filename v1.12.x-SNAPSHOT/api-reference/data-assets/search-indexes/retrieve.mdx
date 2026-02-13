@@ -1,0 +1,250 @@
+---
+title: Retrieve a Search Index
+description: Get a search index by ID or fully qualified name
+sidebarTitle: Retrieve a Search Index
+api: GET /v1/searchIndexes/{id}
+---
+
+# Retrieve a Search Index
+
+Get a single search index by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the search index to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/searchIndexes/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the search index (e.g., `elasticsearch_sample.table_search_index`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/searchIndexes/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import SearchIndexes
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+si = SearchIndexes.retrieve("f5b0fa81-f241-4508-9219-dae31dcced18")
+print(f"{si.fullyQualifiedName}: {si.description}")
+
+# Get by ID with fields
+si = SearchIndexes.retrieve(
+    "f5b0fa81-f241-4508-9219-dae31dcced18",
+    fields=["owners", "tags", "fields"]
+)
+
+# Get by fully qualified name
+si = SearchIndexes.retrieve_by_name("elasticsearch_sample.table_search_index")
+
+# Get by name with fields
+si = SearchIndexes.retrieve_by_name(
+    "elasticsearch_sample.table_search_index",
+    fields=["owners", "tags", "domain"]
+)
+```
+
+```java GET /v1/searchIndexes/{id}
+import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+
+// Get by ID
+var si = SearchIndexes.retrieve("f5b0fa81-f241-4508-9219-dae31dcced18");
+
+// Get by ID with fields
+var si = SearchIndexes.retrieve(
+    "f5b0fa81-f241-4508-9219-dae31dcced18",
+    "owners,tags,fields"
+);
+
+// Get by fully qualified name
+var si = SearchIndexes.retrieveByName(
+    "elasticsearch_sample.table_search_index"
+);
+
+// Get by name with fields
+var si = SearchIndexes.retrieveByName(
+    "elasticsearch_sample.table_search_index",
+    "owners,tags,domain"
+);
+```
+
+```bash GET /v1/searchIndexes/{id}
+# Get by ID
+curl "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/searchIndexes/name/elasticsearch_sample.table_search_index" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/searchIndexes/name/elasticsearch_sample.table_search_index?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "f5b0fa81-f241-4508-9219-dae31dcced18",
+  "name": "table_search_index",
+  "fullyQualifiedName": "elasticsearch_sample.table_search_index",
+  "displayName": "TableSearchIndex",
+  "version": 0.1,
+  "updatedAt": 1769982670810,
+  "updatedBy": "admin",
+  "service": {
+    "id": "search-service-id",
+    "type": "searchService",
+    "name": "elasticsearch_sample",
+    "fullyQualifiedName": "elasticsearch_sample",
+    "deleted": false
+  },
+  "serviceType": "ElasticSearch",
+  "fields": [
+    {"name": "name", "dataType": "TEXT"},
+    {"name": "description", "dataType": "TEXT"}
+  ],
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0
+  },
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a search index object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the search index (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Search index name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.indexName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the search index in Markdown format.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent search service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the search service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `searchService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the search service.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the search service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="fields" type="array">
+  Field definitions for the index schema.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Name of the field.
+    </ResponseField>
+
+    <ResponseField name="dataType" type="string">
+      Data type of the field.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Description of the field.
+    </ResponseField>
+
+    <ResponseField name="children" type="array">
+      Nested child fields.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of search service (e.g., ElasticSearch, OpenSearch).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this search index |
+| `404` | `NOT_FOUND` | Search index with given ID or FQN does not exist |

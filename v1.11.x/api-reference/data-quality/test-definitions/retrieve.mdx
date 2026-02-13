@@ -1,0 +1,209 @@
+---
+title: Retrieve a Test Definition
+description: Get a test definition by ID or name
+sidebarTitle: Retrieve a Test Definition
+api: GET /v1/dataQuality/testDefinitions/{id}
+---
+
+# Retrieve a Test Definition
+
+Get a single test definition by its unique ID or name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the test definition to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Name
+
+Use `GET /v1/dataQuality/testDefinitions/name/{name}` to retrieve by name.
+
+<ParamField path="name" type="string" required>
+  Name of the test definition (e.g., `columnValueLengthsToBeBetween`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataQuality/testDefinitions/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import TestDefinitions
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+td = TestDefinitions.retrieve("a636d153-f1e8-45be-86d3-52aa6b71730d")
+print(f"{td.name}: {td.description}")
+
+# Get by ID with fields
+td = TestDefinitions.retrieve(
+    "a636d153-f1e8-45be-86d3-52aa6b71730d",
+    fields=["owners"]
+)
+
+# Get by name
+td = TestDefinitions.retrieve_by_name("columnValueLengthsToBeBetween")
+print(f"Entity type: {td.entityType}")
+print(f"Parameters: {[p.name for p in td.parameterDefinition]}")
+```
+
+```java GET /v1/dataQuality/testDefinitions/{id}
+import static org.openmetadata.sdk.fluent.TestDefinitions.*;
+
+// Get by ID
+var td = TestDefinitions.retrieve("a636d153-f1e8-45be-86d3-52aa6b71730d");
+
+// Get by name
+var td = TestDefinitions.retrieveByName("columnValueLengthsToBeBetween");
+```
+
+```bash GET /v1/dataQuality/testDefinitions/{id}
+# Get by ID
+curl "{base_url}/api/v1/dataQuality/testDefinitions/a636d153-f1e8-45be-86d3-52aa6b71730d" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name
+curl "{base_url}/api/v1/dataQuality/testDefinitions/name/columnValueLengthsToBeBetween" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/dataQuality/testDefinitions/name/columnValueLengthsToBeBetween?fields=owners" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "a636d153-f1e8-45be-86d3-52aa6b71730d",
+  "name": "columnValueLengthsToBeBetween",
+  "displayName": "Column Value Lengths To Be Between",
+  "fullyQualifiedName": "columnValueLengthsToBeBetween",
+  "description": "This test definition validates that the lengths of column values are between a specified range...",
+  "version": 0.1,
+  "updatedAt": 1769982618104,
+  "updatedBy": "admin",
+  "testPlatforms": ["OpenMetadata"],
+  "supportedDataTypes": ["STRING", "VARCHAR", "CHAR", "TEXT"],
+  "parameterDefinition": [
+    {
+      "name": "minLength",
+      "dataType": "INT",
+      "required": false,
+      "description": "The min length"
+    },
+    {
+      "name": "maxLength",
+      "dataType": "INT",
+      "required": false,
+      "description": "The max length"
+    }
+  ],
+  "entityType": "COLUMN",
+  "provider": "system",
+  "deleted": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a test definition object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the test definition (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Test definition name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (same as name for test definitions).
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of what the test validates.
+</ResponseField>
+
+<ResponseField name="entityType" type="string">
+  Target entity type: `TABLE` or `COLUMN`.
+</ResponseField>
+
+<ResponseField name="testPlatforms" type="array">
+  Supported test platforms.
+</ResponseField>
+
+<ResponseField name="supportedDataTypes" type="array">
+  Data types this test can be applied to.
+</ResponseField>
+
+<ResponseField name="parameterDefinition" type="array">
+  Parameters accepted by this test definition.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Parameter name.
+    </ResponseField>
+
+    <ResponseField name="dataType" type="string">
+      Data type of the parameter.
+    </ResponseField>
+
+    <ResponseField name="required" type="boolean">
+      Whether this parameter is required.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Description of the parameter.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Whether the definition is `system` (built-in) or `user` (custom).
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this test definition |
+| `404` | `NOT_FOUND` | Test definition with given ID or name does not exist |

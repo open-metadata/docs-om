@@ -1,0 +1,143 @@
+---
+title: Delete a Team
+description: Delete a team by ID, with soft/hard delete options
+sidebarTitle: Delete a Team
+api: DELETE /v1/teams/{id}
+---
+
+# Delete a Team
+
+Delete a team by ID. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the team to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the team. If `false`, the team is soft-deleted and can be restored.
+</ParamField>
+
+## Restore a Soft-Deleted Team
+
+Use `PUT /v1/teams/restore` to restore a soft-deleted team.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted team to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/teams/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Teams
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Teams.delete("449b5f25-4cbb-42db-8f71-3be2c5cd888a")
+
+# Hard delete
+Teams.delete(
+    "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+    hard_delete=True
+)
+
+# Delete by name
+Teams.delete_by_name("Accounting")
+
+# Delete by name with options
+Teams.delete_by_name(
+    "Accounting",
+    hard_delete=True
+)
+
+# Restore a soft-deleted team
+Teams.restore("449b5f25-4cbb-42db-8f71-3be2c5cd888a")
+```
+
+```java DELETE /v1/teams/{id}
+import static org.openmetadata.sdk.fluent.Teams.*;
+
+// Soft delete
+Teams.delete("449b5f25-4cbb-42db-8f71-3be2c5cd888a").execute();
+
+// Hard delete
+Teams.delete("449b5f25-4cbb-42db-8f71-3be2c5cd888a")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Teams.deleteByName("Accounting")
+    .execute();
+
+// Restore
+Teams.restore("449b5f25-4cbb-42db-8f71-3be2c5cd888a");
+```
+
+```bash DELETE /v1/teams/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/teams/449b5f25-4cbb-42db-8f71-3be2c5cd888a?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted team
+curl -X PUT "{base_url}/api/v1/teams/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "449b5f25-4cbb-42db-8f71-3be2c5cd888a"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "449b5f25-4cbb-42db-8f71-3be2c5cd888a",
+  "teamType": "Group",
+  "name": "Accounting",
+  "fullyQualifiedName": "Accounting",
+  "version": 0.2,
+  "updatedAt": 1769982623753,
+  "updatedBy": "admin",
+  "parents": [
+    {
+      "id": "4f87a3ea-d798-4509-8c64-5b11f8a96f89",
+      "type": "team",
+      "name": "Finance",
+      "fullyQualifiedName": "Finance"
+    }
+  ],
+  "deleted": true,
+  "owners": [],
+  "domains": [],
+  "children": [],
+  "policies": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the team object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored team object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this team |
+| `404` | `NOT_FOUND` | Team with given ID does not exist |

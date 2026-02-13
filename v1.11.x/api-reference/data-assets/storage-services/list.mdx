@@ -1,0 +1,226 @@
+---
+title: List Storage Services
+description: List all storage services with optional filtering and pagination
+sidebarTitle: List Storage Services
+api: GET /v1/services/storageServices
+---
+
+# List Storage Services
+
+List all storage services with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `domains`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/storageServices
+from metadata.sdk import configure
+from metadata.sdk.entities import StorageServices
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+services = StorageServices.list(limit=50)
+for svc in services.data:
+    print(f"{svc.fullyQualifiedName} ({svc.serviceType})")
+
+# List all with auto-pagination
+for svc in StorageServices.list_all():
+    print(f"{svc.fullyQualifiedName}")
+
+# List with fields
+services = StorageServices.list(
+    fields=["owners", "tags", "domains"],
+    limit=50
+)
+
+for svc in services.data:
+    print(f"{svc.fullyQualifiedName}")
+    if svc.owners:
+        print(f"  Owners: {[o.name for o in svc.owners]}")
+```
+
+```java GET /v1/services/storageServices
+import static org.openmetadata.sdk.fluent.StorageServices.*;
+
+// List first page
+var result = StorageServices.list()
+    .limit(50)
+    .execute();
+
+for (var svc : result.getData()) {
+    System.out.println(svc.getFullyQualifiedName());
+}
+
+// List with fields
+var result = StorageServices.list()
+    .fields("owners", "tags", "domains")
+    .limit(50)
+    .execute();
+
+for (var svc : result.getData()) {
+    System.out.println(svc.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/services/storageServices
+# List all
+curl "{base_url}/api/v1/services/storageServices?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/services/storageServices?fields=owners,tags,domains&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "d1589e1d-2ab0-431c-a383-15e4be20a106",
+      "name": "s3_datalake",
+      "fullyQualifiedName": "s3_datalake",
+      "serviceType": "S3",
+      "description": "Production S3 data lake for analytics",
+      "connection": {
+        "config": {
+          "type": "S3",
+          "awsConfig": {
+            "enabled": false,
+            "awsAccessKeyId": "AKIA...",
+            "awsSecretAccessKey": "*********",
+            "awsRegion": "us-east-1",
+            "endPointURL": "https://s3.amazonaws.com/"
+          }
+        }
+      },
+      "version": 0.1,
+      "updatedAt": 1769982621820,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/services/storageServices/d1589e1d-2ab0-431c-a383-15e4be20a106",
+      "owners": [],
+      "tags": [],
+      "deleted": false,
+      "domains": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 3
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of storage service objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of storage service objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the storage service (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Storage service name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the service.
+    </ResponseField>
+
+    <ResponseField name="displayName" type="string">
+      Human-readable display name.
+    </ResponseField>
+
+    <ResponseField name="serviceType" type="string">
+      Type of storage service (e.g., S3, GCS, ADLS, CustomStorage).
+    </ResponseField>
+
+    <ResponseField name="connection" type="object">
+      Connection configuration for the service.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners assigned to the storage service. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="tags" type="array" optional>
+      Classification tags applied. Only included when `fields` contains `tags`.
+    </ResponseField>
+
+    <ResponseField name="domains" type="array" optional>
+      Domain assignments for governance. Only included when `fields` contains `domains`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of storage services matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `tags` | Classification tags |
+| `domains` | Domain assignments for governance |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list storage services |

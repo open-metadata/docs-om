@@ -1,0 +1,242 @@
+---
+title: List Test Cases
+description: List all test cases with optional filtering and pagination
+sidebarTitle: List Test Cases
+api: GET /v1/dataQuality/testCases
+---
+
+# List Test Cases
+
+List all test cases with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `testSuite`, `testDefinition`, `testCaseResult`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<ParamField query="testSuiteId" type="string">
+  Filter by test suite UUID.
+</ParamField>
+
+<ParamField query="entityLink" type="string">
+  Filter by entity link (URL-encoded). Returns test cases for a specific table or column.
+</ParamField>
+
+<ParamField query="includeAllTests" type="boolean" default="false">
+  Include test cases from all test suites, not just the primary executable suite.
+</ParamField>
+
+<ParamField query="orderByLastExecutionDate" type="boolean" default="false">
+  Order results by the most recent test execution date.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/dataQuality/testCases
+from metadata.sdk import configure
+from metadata.sdk.entities import TestCases
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+cases = TestCases.list(limit=50)
+for tc in cases.data:
+    print(f"{tc.fullyQualifiedName}")
+
+# List all with auto-pagination
+for tc in TestCases.list_all():
+    print(f"{tc.name}: {tc.entityLink}")
+
+# Filter by test suite
+cases = TestCases.list(
+    testSuiteId="e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+    fields=["owners", "testDefinition", "testCaseResult"],
+    limit=50
+)
+
+for tc in cases.data:
+    print(f"{tc.name} - {tc.testDefinition.name}")
+
+# Filter by entity link
+cases = TestCases.list(
+    entityLink="<#E::table::sample_data.ecommerce_db.shopify.dim_address>",
+    fields=["testCaseResult"],
+    limit=50
+)
+```
+
+```java GET /v1/dataQuality/testCases
+import static org.openmetadata.sdk.fluent.TestCases.*;
+
+// List first page
+var result = TestCases.list()
+    .limit(50)
+    .execute();
+
+for (var tc : result.getData()) {
+    System.out.println(tc.getFullyQualifiedName());
+}
+
+// Filter by test suite
+var result = TestCases.list()
+    .testSuiteId("e86a9a11-852f-4bac-b5a7-993b2bbbb572")
+    .fields("owners", "testDefinition", "testCaseResult")
+    .limit(50)
+    .execute();
+```
+
+```bash GET /v1/dataQuality/testCases
+# List all
+curl "{base_url}/api/v1/dataQuality/testCases?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by test suite
+curl "{base_url}/api/v1/dataQuality/testCases?testSuiteId=e86a9a11-852f-4bac-b5a7-993b2bbbb572&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# Filter by entity link
+curl "{base_url}/api/v1/dataQuality/testCases?entityLink=%3C%23E%3A%3Atable%3A%3Asample_data.ecommerce_db.shopify.dim_address%3E&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields and ordering
+curl "{base_url}/api/v1/dataQuality/testCases?fields=testCaseResult,testDefinition&orderByLastExecutionDate=true&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
+      "name": "column_value_max_to_be_between",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between",
+      "version": 0.1,
+      "updatedAt": 1769982759035,
+      "updatedBy": "admin",
+      "testDefinition": {
+        "id": "def-id",
+        "type": "testDefinition",
+        "name": "columnValueMaxToBeBetween",
+        "fullyQualifiedName": "columnValueMaxToBeBetween",
+        "deleted": false
+      },
+      "testSuite": {
+        "id": "suite-id",
+        "type": "testSuite",
+        "name": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+        "deleted": false
+      },
+      "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
+      "parameterValues": [
+        {"name": "minValueForMaxInCol", "value": "1"},
+        {"name": "maxValueForMaxInCol", "value": "100"}
+      ],
+      "deleted": false,
+      "owners": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 8
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of test case objects. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of test case objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the test case (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Test case name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the test case.
+    </ResponseField>
+
+    <ResponseField name="entityLink" type="string">
+      Entity link to the target table or column.
+    </ResponseField>
+
+    <ResponseField name="testDefinition" type="object" optional>
+      Reference to the test definition. Only included when `fields` contains `testDefinition`.
+    </ResponseField>
+
+    <ResponseField name="testSuite" type="object" optional>
+      Reference to the test suite. Only included when `fields` contains `testSuite`.
+    </ResponseField>
+
+    <ResponseField name="parameterValues" type="array">
+      Parameter values for this test case.
+    </ResponseField>
+
+    <ResponseField name="testCaseResult" type="object" optional>
+      Most recent test result. Only included when `fields` contains `testCaseResult`.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners. Only included when `fields` contains `owners`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of test cases matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list test cases |

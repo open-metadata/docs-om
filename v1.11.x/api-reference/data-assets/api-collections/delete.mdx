@@ -1,0 +1,161 @@
+---
+title: Delete an API Collection
+description: Delete an API collection by ID or name, with soft/hard delete options
+sidebarTitle: Delete an API Collection
+api: DELETE /v1/apiCollections/{id}
+---
+
+# Delete an API Collection
+
+Delete an API collection by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the API collection to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (API endpoints).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the API collection. If `false`, the API collection is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/apiCollections/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the API collection (e.g., `sample_api_service.pet`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities (API endpoints).
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the API collection.
+</ParamField>
+
+## Restore a Soft-Deleted API Collection
+
+Use `PUT /v1/apiCollections/restore` to restore a soft-deleted API collection.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted API collection to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/apiCollections/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import APICollections
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+APICollections.delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b")
+
+# Hard delete
+APICollections.delete(
+    "0f7ee81c-8163-4097-8adb-45c3d6c7b14b",
+    hard_delete=True
+)
+
+# Delete by name
+APICollections.delete_by_name("sample_api_service.pet")
+
+# Delete by name with options
+APICollections.delete_by_name(
+    "sample_api_service.pet",
+    hard_delete=True
+)
+
+# Restore a soft-deleted API collection
+APICollections.restore("0f7ee81c-8163-4097-8adb-45c3d6c7b14b")
+```
+
+```java DELETE /v1/apiCollections/{id}
+import static org.openmetadata.sdk.fluent.APICollections.*;
+
+// Soft delete
+APICollections.delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b").execute();
+
+// Hard delete
+APICollections.delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+APICollections.deleteByName("sample_api_service.pet")
+    .execute();
+
+// Restore
+APICollections.restore("0f7ee81c-8163-4097-8adb-45c3d6c7b14b");
+```
+
+```bash DELETE /v1/apiCollections/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/apiCollections/0f7ee81c-8163-4097-8adb-45c3d6c7b14b" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/apiCollections/0f7ee81c-8163-4097-8adb-45c3d6c7b14b?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/apiCollections/name/sample_api_service.pet" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted API collection
+curl -X PUT "{base_url}/api/v1/apiCollections/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "0f7ee81c-8163-4097-8adb-45c3d6c7b14b"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "0f7ee81c-8163-4097-8adb-45c3d6c7b14b",
+  "name": "pet",
+  "fullyQualifiedName": "sample_api_service.pet",
+  "version": 0.2,
+  "updatedAt": 1769982733673,
+  "updatedBy": "admin",
+  "endpointURL": "https://petstore3.swagger.io/#/pet",
+  "service": {
+    "id": "58d413a8-abc3-4a6d-bd8a-13a0234b1ff8",
+    "type": "apiService",
+    "name": "sample_api_service",
+    "fullyQualifiedName": "sample_api_service"
+  },
+  "serviceType": "Rest",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the API collection object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored API collection object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this API collection |
+| `404` | `NOT_FOUND` | API collection with given ID or FQN does not exist |

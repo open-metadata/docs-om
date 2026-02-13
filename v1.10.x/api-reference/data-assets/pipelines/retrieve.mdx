@@ -1,0 +1,253 @@
+---
+title: Retrieve a Pipeline
+description: Get a pipeline by ID or fully qualified name
+sidebarTitle: Retrieve a Pipeline
+api: GET /v1/pipelines/{id}
+---
+
+# Retrieve a Pipeline
+
+Get a single pipeline by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the pipeline to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,tasks,sourceHash`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/pipelines/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the pipeline (e.g., `sample_airflow.dbt_analytics_customers`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `tasks`, `sourceHash`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/pipelines/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Pipelines
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+pipeline = Pipelines.retrieve("538faa63-d204-46ff-aead-d158d0401cac")
+print(f"{pipeline.fullyQualifiedName}: {pipeline.description}")
+
+# Get by ID with fields
+pipeline = Pipelines.retrieve(
+    "538faa63-d204-46ff-aead-d158d0401cac",
+    fields=["owners", "tags", "tasks"]
+)
+
+# Get by fully qualified name
+pipeline = Pipelines.retrieve_by_name("sample_airflow.dbt_analytics_customers")
+
+# Get by name with fields
+pipeline = Pipelines.retrieve_by_name(
+    "sample_airflow.dbt_analytics_customers",
+    fields=["owners", "tags", "tasks", "domain"]
+)
+```
+
+```java GET /v1/pipelines/{id}
+import static org.openmetadata.sdk.fluent.Pipelines.*;
+
+// Get by ID
+var pipeline = Pipelines.retrieve("538faa63-d204-46ff-aead-d158d0401cac");
+
+// Get by ID with fields
+var pipeline = Pipelines.retrieve(
+    "538faa63-d204-46ff-aead-d158d0401cac",
+    "owners,tags,tasks"
+);
+
+// Get by fully qualified name
+var pipeline = Pipelines.retrieveByName(
+    "sample_airflow.dbt_analytics_customers"
+);
+
+// Get by name with fields
+var pipeline = Pipelines.retrieveByName(
+    "sample_airflow.dbt_analytics_customers",
+    "owners,tags,tasks,domain"
+);
+```
+
+```bash GET /v1/pipelines/{id}
+# Get by ID
+curl "{base_url}/api/v1/pipelines/538faa63-d204-46ff-aead-d158d0401cac" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/pipelines/538faa63-d204-46ff-aead-d158d0401cac?fields=owners,tags,tasks,domains" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/pipelines/name/sample_airflow.dbt_analytics_customers" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/pipelines/name/sample_airflow.dbt_analytics_customers?fields=owners,tags,tasks,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "538faa63-d204-46ff-aead-d158d0401cac",
+  "name": "dbt_analytics_customers",
+  "displayName": "DBT Customer Analytics",
+  "fullyQualifiedName": "sample_airflow.dbt_analytics_customers",
+  "description": "Analytics pipeline for customer data processing",
+  "version": 0.1,
+  "updatedAt": 1769982668397,
+  "updatedBy": "admin",
+  "sourceUrl": "http://localhost:8080/tree?dag_id=dbt_analytics_customers",
+  "service": {
+    "id": "daa58a49-df05-48a3-a417-45dfd12eacf5",
+    "type": "pipelineService",
+    "name": "sample_airflow",
+    "fullyQualifiedName": "sample_airflow",
+    "deleted": false
+  },
+  "serviceType": "DBTCloud",
+  "href": "http://localhost:8585/api/v1/pipelines/538faa63-d204-46ff-aead-d158d0401cac",
+  "deleted": false,
+  "owners": [],
+  "tags": [],
+  "followers": [],
+  "votes": {
+    "upVotes": 0,
+    "downVotes": 0
+  },
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a pipeline object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the pipeline (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Pipeline name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name in format `service.pipelineName`.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the pipeline in Markdown format.
+</ResponseField>
+
+<ResponseField name="sourceUrl" type="string">
+  URL to the pipeline in the source system.
+</ResponseField>
+
+<ResponseField name="service" type="object">
+  Reference to the parent pipeline service.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the pipeline service.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Type of entity (always `pipelineService`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the pipeline service.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the pipeline service.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="serviceType" type="string">
+  Type of pipeline service (e.g., Airflow, Dagster, DBTCloud).
+</ResponseField>
+
+<ResponseField name="tasks" type="array" optional>
+  Pipeline tasks. Only included when `fields` contains `tasks`.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Name of the task.
+    </ResponseField>
+
+    <ResponseField name="taskType" type="string">
+      Type of the task.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Description of the task.
+    </ResponseField>
+
+    <ResponseField name="downstreamTasks" type="array">
+      Names of downstream dependent tasks.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this pipeline |
+| `404` | `NOT_FOUND` | Pipeline with given ID or FQN does not exist |

@@ -1,0 +1,289 @@
+---
+title: Create a Test Definition
+description: Create a custom test definition for data quality validation
+sidebarTitle: Create a Test Definition
+api: POST /v1/dataQuality/testDefinitions
+---
+
+# Create a Test Definition
+
+Create a custom test definition to define organization-specific data quality validation logic.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the test definition. Must be unique across all test definitions.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the test definition.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of what this test validates, in Markdown format.
+</ParamField>
+
+<ParamField body="entityType" type="string" required>
+  The entity type this test targets: `TABLE` or `COLUMN`.
+</ParamField>
+
+<ParamField body="testPlatforms" type="array" required>
+  Array of supported test platforms. Typically `["OpenMetadata"]`.
+</ParamField>
+
+<ParamField body="supportedDataTypes" type="array">
+  Array of data types this test can be applied to (e.g., `STRING`, `INT`, `DOUBLE`, `VARCHAR`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BOOLEAN`). Only applicable when `entityType` is `COLUMN`.
+
+</ParamField>
+
+<ParamField body="parameterDefinition" type="array">
+  Array of parameter definitions that this test accepts.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the parameter.
+    </ParamField>
+
+    <ParamField body="dataType" type="string" required>
+      Data type of the parameter (e.g., `INT`, `STRING`, `BOOLEAN`, `ARRAY`, `TABLE`).
+    </ParamField>
+
+    <ParamField body="required" type="boolean">
+      Whether this parameter is required when creating a test case. Defaults to `false`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the parameter.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataQuality/testDefinitions
+from metadata.sdk import configure
+from metadata.sdk.entities import TestDefinitions
+from metadata.generated.schema.api.tests.createTestDefinition import CreateTestDefinitionRequest
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateTestDefinitionRequest(
+    name="columnValuesToMatchBusinessRule",
+    displayName="Column Values To Match Business Rule",
+    description="Validates that column values conform to a custom business rule regex pattern",
+    entityType="COLUMN",
+    testPlatforms=["OpenMetadata"],
+    supportedDataTypes=["STRING", "VARCHAR", "TEXT"],
+    parameterDefinition=[
+        {
+            "name": "regexPattern",
+            "dataType": "STRING",
+            "required": True,
+            "description": "The regex pattern to match against"
+        },
+        {
+            "name": "threshold",
+            "dataType": "INT",
+            "required": False,
+            "description": "Maximum number of non-matching values allowed"
+        }
+    ]
+)
+
+test_def = TestDefinitions.create(request)
+print(f"Created: {test_def.name}")
+```
+
+```java POST /v1/dataQuality/testDefinitions
+import static org.openmetadata.sdk.fluent.TestDefinitions.*;
+
+var testDef = TestDefinitions.builder()
+    .name("columnValuesToMatchBusinessRule")
+    .displayName("Column Values To Match Business Rule")
+    .description("Validates that column values conform to a custom business rule regex pattern")
+    .entityType("COLUMN")
+    .testPlatforms(List.of("OpenMetadata"))
+    .supportedDataTypes(List.of("STRING", "VARCHAR", "TEXT"))
+    .create();
+```
+
+```bash POST /v1/dataQuality/testDefinitions
+curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "columnValuesToMatchBusinessRule",
+    "displayName": "Column Values To Match Business Rule",
+    "description": "Validates that column values conform to a custom business rule regex pattern",
+    "entityType": "COLUMN",
+    "testPlatforms": ["OpenMetadata"],
+    "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
+    "parameterDefinition": [
+      {
+        "name": "regexPattern",
+        "dataType": "STRING",
+        "required": true,
+        "description": "The regex pattern to match against"
+      },
+      {
+        "name": "threshold",
+        "dataType": "INT",
+        "required": false,
+        "description": "Maximum number of non-matching values allowed"
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b7c4e912-3a1f-4d6e-9c2b-8f5a7d3e1b4c",
+  "name": "columnValuesToMatchBusinessRule",
+  "displayName": "Column Values To Match Business Rule",
+  "fullyQualifiedName": "columnValuesToMatchBusinessRule",
+  "description": "Validates that column values conform to a custom business rule regex pattern",
+  "version": 0.1,
+  "updatedAt": 1769982700000,
+  "updatedBy": "admin",
+  "testPlatforms": ["OpenMetadata"],
+  "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
+  "parameterDefinition": [
+    {
+      "name": "regexPattern",
+      "dataType": "STRING",
+      "required": true,
+      "description": "The regex pattern to match against"
+    },
+    {
+      "name": "threshold",
+      "dataType": "INT",
+      "required": false,
+      "description": "Maximum number of non-matching values allowed"
+    }
+  ],
+  "entityType": "COLUMN",
+  "provider": "user",
+  "deleted": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created test definition object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the test definition (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Test definition name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name (same as name for test definitions).
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of what the test validates.
+</ResponseField>
+
+<ResponseField name="entityType" type="string">
+  Target entity type: `TABLE` or `COLUMN`.
+</ResponseField>
+
+<ResponseField name="testPlatforms" type="array">
+  Supported test platforms.
+</ResponseField>
+
+<ResponseField name="supportedDataTypes" type="array">
+  Data types this test can be applied to.
+</ResponseField>
+
+<ResponseField name="parameterDefinition" type="array">
+  Parameters accepted by this test definition.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Parameter name.
+    </ResponseField>
+
+    <ResponseField name="dataType" type="string">
+      Data type of the parameter.
+    </ResponseField>
+
+    <ResponseField name="required" type="boolean">
+      Whether this parameter is required.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Description of the parameter.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Always `user` for custom test definitions.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create or Update (PUT)
+
+Use `PUT /v1/dataQuality/testDefinitions` instead of `POST` to perform an upsert. If a test definition with the same name already exists, it will be updated; otherwise, a new test definition is created. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataQuality/testDefinitions" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as POST ... }'
+```
+
+<Note>
+`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create test definitions |
+| `409` | `ENTITY_ALREADY_EXISTS` | Test definition with same name already exists (POST only) |

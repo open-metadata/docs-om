@@ -1,0 +1,109 @@
+---
+title: User Versions
+description: List and retrieve historical versions of a user
+sidebarTitle: User Versions
+api: GET /v1/users/{id}/versions
+---
+
+# User Versions
+
+Every change to a user entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the user.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/users/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the user.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/users/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Users
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Users.get_versions("77655e6e-ad33-49da-bbca-db4ba4d4e2cd")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+user_v1 = Users.get_specific_version(
+    "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+    "0.1"
+)
+print(f"Original display name: {user_v1.displayName}")
+```
+
+```java GET /v1/users/{id}/versions
+import static org.openmetadata.sdk.fluent.Users.*;
+
+// List all versions
+var history = Users.getVersions("77655e6e-ad33-49da-bbca-db4ba4d4e2cd");
+
+for (var version : history.getVersions()) {
+    System.out.println("Version: " + version);
+}
+
+// Get a specific version
+var v1 = Users.getSpecificVersion(
+    "77655e6e-ad33-49da-bbca-db4ba4d4e2cd",
+    0.1
+);
+System.out.println("Display Name: " + v1.getDisplayName());
+```
+
+```bash GET /v1/users/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/users/77655e6e-ad33-49da-bbca-db4ba4d4e2cd/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "user",
+  "versions": [
+    "{\"id\":\"77655e6e-ad33-49da-bbca-db4ba4d4e2cd\",\"name\":\"aaron_johnson0\",\"fullyQualifiedName\":\"aaron_johnson0\",\"version\":0.2,\"displayName\":\"Aaron M. Johnson\",\"email\":\"aaron_johnson0@gmail.com\",\"isBot\":false,\"isAdmin\":false}",
+    "{\"id\":\"77655e6e-ad33-49da-bbca-db4ba4d4e2cd\",\"name\":\"aaron_johnson0\",\"fullyQualifiedName\":\"aaron_johnson0\",\"version\":0.1,\"displayName\":\"Aaron Johnson\",\"email\":\"aaron_johnson0@gmail.com\",\"isBot\":false,\"isAdmin\":false}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full user object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | User or version does not exist |

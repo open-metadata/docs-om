@@ -1,0 +1,205 @@
+---
+title: List Domains
+description: List all domains with optional filtering and pagination
+sidebarTitle: List Domains
+api: GET /v1/domains
+---
+
+# List Domains
+
+List all domains with optional filtering and pagination.
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="10">
+  Maximum number of results to return (max: 1000000).
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for backward pagination.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for forward pagination.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `children`, `experts`. See [Supported Fields](#supported-fields) below.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/domains
+from metadata.sdk import configure
+from metadata.sdk.entities import Domains
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List first page
+domains = Domains.list(limit=50)
+for d in domains.data:
+    print(f"{d.fullyQualifiedName} ({d.domainType})")
+
+# List all with auto-pagination
+for d in Domains.list_all():
+    print(f"{d.fullyQualifiedName}")
+
+# With fields
+domains = Domains.list(
+    fields=["owners", "children", "experts"],
+    limit=50
+)
+
+for d in domains.data:
+    print(f"{d.fullyQualifiedName}")
+    if d.owners:
+        print(f"  Owners: {[o.name for o in d.owners]}")
+```
+
+```java GET /v1/domains
+import static org.openmetadata.sdk.fluent.Domains.*;
+
+// List first page
+var result = Domains.list()
+    .limit(50)
+    .execute();
+
+for (var d : result.getData()) {
+    System.out.println(d.getFullyQualifiedName());
+}
+
+// With fields
+var result = Domains.list()
+    .fields("owners", "children", "experts")
+    .limit(50)
+    .execute();
+
+for (var d : result.getData()) {
+    System.out.println(d.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/domains
+# List all
+curl "{base_url}/api/v1/domains?limit=50" \
+  -H "Authorization: Bearer {access_token}"
+
+# With fields
+curl "{base_url}/api/v1/domains?fields=owners,children,experts&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+      "domainType": "Aggregate",
+      "name": "TestDomain",
+      "fullyQualifiedName": "TestDomain",
+      "description": "Lorem ipsum...",
+      "version": 0.1,
+      "updatedAt": 1769984330261,
+      "updatedBy": "admin",
+      "href": "http://localhost:8585/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1",
+      "deleted": false,
+      "owners": [],
+      "children": []
+    }
+  ],
+  "paging": {
+    "after": "...",
+    "total": 5
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a paginated list of domain objects. By default, only basic fields are included. Use the `fields` parameter to request additional data.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of domain objects.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the domain (UUID format).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Domain name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the domain.
+    </ResponseField>
+
+    <ResponseField name="domainType" type="string">
+      Type of domain: `Source-aligned`, `Consumer-aligned`, or `Aggregate`.
+    </ResponseField>
+
+    <ResponseField name="owners" type="array" optional>
+      List of owners. Only included when `fields` contains `owners`.
+    </ResponseField>
+
+    <ResponseField name="children" type="array" optional>
+      Child domain references. Only included when `fields` contains `children`.
+    </ResponseField>
+
+    <ResponseField name="experts" type="array" optional>
+      Subject matter experts. Only included when `fields` contains `experts`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of domains matching the query.
+    </ResponseField>
+
+    <ResponseField name="after" type="string" optional>
+      Cursor for the next page of results. Null if this is the last page.
+    </ResponseField>
+
+    <ResponseField name="before" type="string" optional>
+      Cursor for the previous page of results. Null if this is the first page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Supported Fields
+
+The following fields can be requested via the `fields` query parameter:
+
+| Field | Description |
+|-------|-------------|
+| `owners` | Owner references (users and teams) |
+| `children` | Child domain references |
+| `experts` | Subject matter expert references |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to list domains |

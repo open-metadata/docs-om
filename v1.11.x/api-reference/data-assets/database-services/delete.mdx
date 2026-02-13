@@ -1,0 +1,163 @@
+---
+title: Delete a Database Service
+description: Delete a database service by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Database Service
+api: DELETE /v1/services/databaseServices/{id}
+---
+
+# Delete a Database Service
+
+Delete a database service by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the database service to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child databases, schemas, and tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the database service. If `false`, the service is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/services/databaseServices/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the database service (e.g., `snowflake_prod`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child databases, schemas, and tables.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the database service.
+</ParamField>
+
+## Restore a Soft-Deleted Database Service
+
+Use `PUT /v1/services/databaseServices/restore` to restore a soft-deleted database service.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted database service to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/services/databaseServices/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseServices
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+DatabaseServices.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+# Hard delete with recursive
+DatabaseServices.delete(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    recursive=True,
+    hard_delete=True
+)
+
+# Delete by name
+DatabaseServices.delete_by_name("snowflake_prod")
+
+# Delete by name with options
+DatabaseServices.delete_by_name(
+    "snowflake_prod",
+    recursive=True,
+    hard_delete=True
+)
+
+# Restore a soft-deleted database service
+DatabaseServices.restore("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+```
+
+```java DELETE /v1/services/databaseServices/{id}
+import static org.openmetadata.sdk.fluent.DatabaseServices.*;
+
+// Soft delete
+DatabaseServices.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890").execute();
+
+// Hard delete with recursive
+DatabaseServices.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    .recursive()
+    .hardDelete()
+    .execute();
+```
+
+```bash DELETE /v1/services/databaseServices/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete with recursive
+curl -X DELETE "{base_url}/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09?recursive=true&hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/services/databaseServices/name/sample_data?recursive=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted database service
+curl -X PUT "{base_url}/api/v1/services/databaseServices/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "fd2193af-fe09-4366-92b7-1e0d01cd8c09"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "fd2193af-fe09-4366-92b7-1e0d01cd8c09",
+  "name": "sample_data",
+  "fullyQualifiedName": "sample_data",
+  "serviceType": "BigQuery",
+  "description": "Sample data service for BigQuery",
+  "version": 0.2,
+  "updatedAt": 1769982750000,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09",
+  "connection": {
+    "config": {
+      "type": "BigQuery",
+      "scheme": "bigquery",
+      "hostPort": "bigquery.googleapis.com",
+      "supportsMetadataExtraction": true,
+      "supportsProfiler": true,
+      "supportsQueryComment": true
+    }
+  },
+  "owners": [],
+  "tags": [],
+  "deleted": true,
+  "domains": [],
+  "entityStatus": "Unprocessed"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the database service object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored database service object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this database service |
+| `404` | `NOT_FOUND` | Database service with given ID or FQN does not exist |

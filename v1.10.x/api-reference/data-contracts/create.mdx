@@ -1,0 +1,291 @@
+---
+title: Create a Data Contract
+description: Create a new data contract for a data asset
+sidebarTitle: Create a Data Contract
+api: POST /v1/dataContracts
+---
+
+# Create a Data Contract
+
+Create a new data contract and attach it to a data asset. Only the `name` and `entity` reference are required — all other sections (schema, semantics, quality, SLA, security, terms of use) are optional.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the data contract. Must be unique.
+</ParamField>
+
+<ParamField body="entity" type="object" required>
+  Reference to the data asset this contract applies to.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the entity.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Entity type: `table`, `topic`, `apiEndpoint`, `dashboardDataModel`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `chart`, `pipeline`, `searchIndex`, `apiCollection`, `mlmodel`, `container`, `dataProduct`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description in Markdown format.
+</ParamField>
+
+<ParamField body="entityStatus" type="string" default="Draft">
+  Contract status: `Draft`, `Active`, or `Deprecated`.
+</ParamField>
+
+<ParamField body="schema" type="array">
+  Expected column definitions. Each item follows the Column schema.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Column name.
+    </ParamField>
+
+    <ParamField body="dataType" type="string" required>
+      Data type (e.g., `INT`, `VARCHAR`, `TIMESTAMP`).
+    </ParamField>
+
+    <ParamField body="constraint" type="string">
+      Constraint: `NULL`, `NOT_NULL`, `UNIQUE`, `PRIMARY_KEY`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Column description.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="semantics" type="array">
+  Semantics rules defining business expectations.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Rule name (e.g., `hasOwner`, `hasDescription`, `hasDomain`, `hasTags`).
+    </ParamField>
+
+    <ParamField body="args" type="object">
+      Rule arguments (varies by rule type).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="qualityExpectations" type="array">
+  References to test cases that must pass.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the test case.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Must be `testCase`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="sla" type="object">
+  Service level agreement expectations.
+
+  <Expandable title="properties">
+    <ParamField body="refreshFrequency" type="string">
+      Expected refresh frequency in ISO 8601 duration (e.g., `PT1H`, `P1D`).
+    </ParamField>
+
+    <ParamField body="maxLatency" type="integer">
+      Maximum acceptable latency in milliseconds.
+    </ParamField>
+
+    <ParamField body="availability" type="number">
+      Target availability percentage (0-100).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="termsOfUse" type="string">
+  Terms of use in Markdown format. Describes allowed/disallowed use cases and compliance requirements.
+</ParamField>
+
+<ParamField body="security" type="object">
+  Security and access policy expectations.
+
+  <Expandable title="properties">
+    <ParamField body="accessPolicy" type="string">
+      Access policy description.
+    </ParamField>
+
+    <ParamField body="requiredClassifications" type="array">
+      Required classification tags (e.g., `PII.Sensitive`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Owner references (users or teams).
+</ParamField>
+
+<ParamField body="reviewers" type="array">
+  Reviewer user references.
+</ParamField>
+
+<ParamField body="effectiveFrom" type="string">
+  ISO 8601 date from which this contract is effective.
+</ParamField>
+
+<ParamField body="effectiveUntil" type="string">
+  ISO 8601 date until which this contract is effective.
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataContracts
+from metadata.sdk import configure
+from metadata.sdk.entities import DataContracts
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Create a basic data contract for a table
+contract = DataContracts.create(
+    name="sales-orders-contract",
+    entity={
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "type": "table"
+    },
+    description="Data contract for the sales orders table",
+    entityStatus="Active",
+    schema=[
+        {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
+        {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
+        {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
+        {"name": "total_amount", "dataType": "DECIMAL"}
+    ],
+    semantics=[
+        {"name": "hasOwner"},
+        {"name": "hasDescription"},
+        {"name": "hasTags"}
+    ],
+    sla={
+        "refreshFrequency": "PT1H",
+        "availability": 99.9
+    }
+)
+print(f"Created contract: {contract.fullyQualifiedName}")
+```
+
+```java POST /v1/dataContracts
+import static org.openmetadata.sdk.fluent.DataContracts.*;
+
+// Create a data contract with fluent API
+DataContract contract = create()
+    .name("sales-orders-contract")
+    .forEntity(new EntityReference()
+        .withId(tableId)
+        .withType("table"))
+    .withDescription("Data contract for the sales orders table")
+    .withStatus(EntityStatus.ACTIVE)
+    .withSchema(List.of(
+        new Column().withName("order_id").withDataType(ColumnDataType.INT),
+        new Column().withName("customer_id").withDataType(ColumnDataType.INT),
+        new Column().withName("order_date").withDataType(ColumnDataType.TIMESTAMP)
+    ))
+    .withSemanticRule(new SemanticsRule().withName("hasOwner"))
+    .withSemanticRule(new SemanticsRule().withName("hasDescription"))
+    .withSla(new ContractSLA()
+        .withRefreshFrequency("PT1H")
+        .withAvailability(99.9))
+    .execute();
+```
+
+```bash POST /v1/dataContracts
+curl -X POST "{base_url}/api/v1/dataContracts" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sales-orders-contract",
+    "entity": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "type": "table"
+    },
+    "description": "Data contract for the sales orders table",
+    "entityStatus": "Active",
+    "schema": [
+      {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
+      {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
+      {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
+      {"name": "total_amount", "dataType": "DECIMAL"}
+    ],
+    "semantics": [
+      {"name": "hasOwner"},
+      {"name": "hasDescription"},
+      {"name": "hasTags"}
+    ],
+    "sla": {
+      "refreshFrequency": "PT1H",
+      "availability": 99.9
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "f7a1b2c3-d4e5-6789-0abc-def123456789",
+  "name": "sales-orders-contract",
+  "fullyQualifiedName": "sales-orders-contract",
+  "displayName": "sales-orders-contract",
+  "description": "Data contract for the sales orders table",
+  "entityStatus": "Active",
+  "entity": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "type": "table",
+    "name": "sales_orders",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify.sales_orders"
+  },
+  "schema": [
+    {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
+    {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
+    {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
+    {"name": "total_amount", "dataType": "DECIMAL"}
+  ],
+  "semantics": [
+    {"name": "hasOwner"},
+    {"name": "hasDescription"},
+    {"name": "hasTags"}
+  ],
+  "sla": {
+    "refreshFrequency": "PT1H",
+    "availability": 99.9
+  },
+  "version": 0.1,
+  "updatedAt": 1769982800000,
+  "updatedBy": "admin"
+}
+```
+</ResponseExample>
+
+---
+
+## Upsert (Create or Update)
+
+Use `PUT /v1/dataContracts` with the same body to create a new contract or update an existing one.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create data contracts |
+| `409` | `CONFLICT` | A contract with the same name already exists |

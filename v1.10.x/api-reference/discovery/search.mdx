@@ -1,0 +1,237 @@
+---
+title: Search Entities
+description: Full-text search across all entity types in the metadata catalog
+sidebarTitle: Search Entities
+api: GET /v1/search/query
+---
+
+# Search Entities
+
+Full-text search across all entity types in the metadata catalog. Uses Elasticsearch query syntax under the hood.
+
+## Query Parameters
+
+<ParamField query="q" type="string" required>
+  Search query string. Supports Elasticsearch query syntax including wildcards, boolean operators, and phrase matching.
+</ParamField>
+
+<ParamField query="index" type="string" default="all">
+  Search index to query. Options: `all`, `table_search_index`, `topic_search_index`, `dashboard_search_index`, `pipeline_search_index`, `mlmodel_search_index`, `container_search_index`, `search_entity_search_index`, `glossary_term_search_index`, `tag_search_index`, `user_search_index`, `team_search_index`, `domain_search_index`, `data_product_search_index`.
+</ParamField>
+
+<ParamField query="from" type="integer" default="0">
+  Starting offset for pagination.
+</ParamField>
+
+<ParamField query="size" type="integer" default="10">
+  Number of results to return.
+</ParamField>
+
+<ParamField query="deleted" type="boolean" default="false">
+  Include soft-deleted entities in the results.
+</ParamField>
+
+<ParamField query="sortField" type="string">
+  Field to sort by (e.g., `name`, `updatedAt`, `totalVotes`).
+</ParamField>
+
+<ParamField query="sortOrder" type="string">
+  Sort order: `asc` or `desc`.
+</ParamField>
+
+<ParamField query="trackTotalHits" type="boolean" default="true">
+  Track exact total hit count. Set to `false` for faster queries when exact count is not needed.
+</ParamField>
+
+<ParamField query="getHierarchy" type="boolean" default="false">
+  Include entity hierarchy in results.
+</ParamField>
+
+<ParamField query="fetchSource" type="boolean" default="true">
+  Include the full source document in results. Set to `false` to return only metadata.
+</ParamField>
+
+<ParamField query="includeSourceFields" type="string">
+  Comma-separated list of source fields to include. Use this to limit the response payload.
+</ParamField>
+
+<ParamField query="queryFilter" type="string">
+  JSON query filter using Elasticsearch DSL. Applied before scoring.
+</ParamField>
+
+<ParamField query="postFilter" type="string">
+  JSON post-filter using Elasticsearch DSL. Applied after scoring without affecting aggregations.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/search/query
+from metadata.sdk import configure, get_client
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+client = get_client()
+
+# Search for tables matching "customer"
+response = client.get("/search/query", params={
+    "q": "customer",
+    "index": "table_search_index",
+    "from": 0,
+    "size": 10
+})
+
+for hit in response["hits"]["hits"]:
+    entity = hit["_source"]
+    print(f"{entity['entityType']}: {entity['fullyQualifiedName']} (score: {hit['_score']})")
+```
+
+```java GET /v1/search/query
+// Search using the OpenMetadata client
+var response = client.searchApi().searchEntities(
+    "customer",           // query
+    "table_search_index", // index
+    0,                    // from
+    10                    // size
+);
+
+for (var hit : response.getHits().getHits()) {
+    var source = hit.getSource();
+    System.out.println(source.getEntityType() + ": " + source.getFullyQualifiedName());
+}
+```
+
+```bash GET /v1/search/query
+# Basic search across all entities
+curl "{base_url}/api/v1/search/query?q=dim&from=0&size=10" \
+  -H "Authorization: Bearer {access_token}"
+
+# Search within a specific index
+curl "{base_url}/api/v1/search/query?q=customer&index=table_search_index&size=5" \
+  -H "Authorization: Bearer {access_token}"
+
+# Search with sorting
+curl "{base_url}/api/v1/search/query?q=*&index=table_search_index&sortField=name&sortOrder=asc&size=20" \
+  -H "Authorization: Bearer {access_token}"
+
+# Search with query filter (Elasticsearch DSL)
+curl -G "{base_url}/api/v1/search/query" \
+  --data-urlencode "q=*" \
+  --data-urlencode "index=table_search_index" \
+  --data-urlencode 'queryFilter={"query":{"bool":{"must":[{"term":{"serviceType":"BigQuery"}}]}}}' \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "took": 8,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": {
+    "total": {
+      "value": 53,
+      "relation": "eq"
+    },
+    "hits": [
+      {
+        "_index": "table_search_index",
+        "_id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+        "_score": 2.3,
+        "_source": {
+          "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+          "name": "dim_address",
+          "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_address",
+          "entityType": "table",
+          "serviceType": "BigQuery",
+          "description": "Address dimension table",
+          "owners": [],
+          "tags": [],
+          "columns": [
+            {
+              "name": "address_id",
+              "dataType": "NUMERIC",
+              "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_address.address_id"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns an Elasticsearch-style response containing matched entities ranked by relevance score.
+
+## Response
+
+<ResponseField name="took" type="integer">
+  Time in milliseconds the search took to execute.
+</ResponseField>
+
+<ResponseField name="timed_out" type="boolean">
+  Whether the search timed out.
+</ResponseField>
+
+<ResponseField name="hits" type="object">
+  Search results container.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="object">
+      Total hit count information.
+
+      <Expandable title="properties">
+        <ResponseField name="value" type="integer">
+          Total number of matching entities.
+        </ResponseField>
+
+        <ResponseField name="relation" type="string">
+          Relation to the actual count. `eq` means exact, `gte` means the count is a lower bound.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="hits" type="array">
+      Array of matching entity results.
+
+      <Expandable title="properties">
+        <ResponseField name="_index" type="string">
+          Search index the result was found in (e.g., `table_search_index`).
+        </ResponseField>
+
+        <ResponseField name="_id" type="string">
+          Unique identifier of the entity (UUID format).
+        </ResponseField>
+
+        <ResponseField name="_score" type="number">
+          Relevance score for the match. Higher scores indicate better matches.
+        </ResponseField>
+
+        <ResponseField name="_source" type="object">
+          The full entity object. Contents vary by entity type but always include `id`, `name`, `fullyQualifiedName`, and `entityType`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid query syntax or parameters |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to search entities |

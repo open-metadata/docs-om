@@ -1,0 +1,326 @@
+---
+title: Getting Started
+description: Set up your environment and make your first API call in minutes
+sidebarTitle: Getting Started
+---
+
+# Getting Started
+
+Get up and running with the Collate API and SDKs. This guide walks you through authentication, SDK installation, and making your first API call.
+
+## Prerequisites
+
+- A Collate account (cloud or self-hosted instance)
+- Your instance base URL (e.g., `https://your-company.getcollate.io/api`)
+- **Python 3.11+**, **Java 21+**, or **Go 1.19+** (depending on your SDK choice)
+
+<Steps>
+
+<Step title="Get Your API Credentials">
+
+You need a JWT token to authenticate API requests. There are two ways to get one:
+
+**Bot Token** (recommended for automation)
+
+1. Navigate to **Settings > Bots** in the Collate UI
+2. Click on the **ingestion-bot** (or create a new bot for your use case)
+3. Copy the JWT token from the bot details page
+
+<img src="/public/images/apis/bots/bots.png" alt="Navigate to Settings > Bots to find available bots" />
+
+<img src="/public/images/apis/bots/bots-token.png" alt="Copy the JWT token from the bot details page" />
+
+**Personal Access Token** (for development)
+
+1. Click your profile image in the top-right corner
+2. Go to the **Access Token** tab
+3. Click **Generate New Token**
+
+<img src="/public/images/apis/users/user-profile-page.png" alt="Navigate to your user profile" />
+
+<img src="/public/images/apis/users/user-profile-access-token.png" alt="Generate a personal access token" />
+
+<Warning>
+Your JWT token carries full API privileges. Keep it secure — never share tokens in publicly accessible areas such as GitHub repositories or client-side code.
+</Warning>
+
+</Step>
+
+<Step title="Install an SDK">
+
+Choose your preferred language and install the SDK:
+
+<CodeGroup>
+```bash Python
+pip install "openmetadata-ingestion~=1.11.9"
+```
+
+```xml Java (Maven)
+<dependency>
+  <groupId>org.open-metadata</groupId>
+  <artifactId>openmetadata-java-client</artifactId>
+  <version>1.11.9</version>
+</dependency>
+```
+
+```bash Go
+go get github.com/open-metadata/openmetadata-sdk/openmetadata-go-client
+```
+</CodeGroup>
+
+Or skip SDK installation and use cURL to interact with the REST API directly.
+
+</Step>
+
+<Step title="Initialize Your Client">
+
+Set up the connection to your Collate instance:
+
+<CodeGroup dropdown>
+```python Python
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.getcollate.io/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="your-jwt-token"
+    ),
+)
+
+metadata = OpenMetadata(server_config)
+```
+
+```java Java
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("https://your-company.getcollate.io/api")
+    .accessToken("your-jwt-token")
+    .build();
+
+OpenMetadataClient client = new OpenMetadataClient(config);
+```
+
+```go Go
+import ometa "github.com/open-metadata/openmetadata-sdk/openmetadata-go-client/pkg/ometa"
+
+restConfig := ometa.NewRestConfig(
+    "https://your-company.getcollate.io",
+    "",  // APIVersion
+    0,   // Retry -> defaults to 3
+    0,   // RetryWait -> defaults to 30 seconds
+    nil, // RetryCodes -> defaults to [429, 504]
+    "your-jwt-token",
+)
+client, err := ometa.NewRest(restConfig)
+```
+
+```bash cURL
+# Set your token as an environment variable
+export COLLATE_TOKEN="your-jwt-token"
+export COLLATE_HOST="https://your-company.getcollate.io/api/v1"
+```
+</CodeGroup>
+
+</Step>
+
+<Step title="Make Your First API Call">
+
+List the tables in your catalog to verify everything is working:
+
+<CodeGroup dropdown>
+```python Python
+from metadata.generated.schema.entity.data.table import Table
+
+tables = metadata.list_all_entities(entity=Table)
+for table in tables:
+    print(f"{table.fullyQualifiedName}: {table.description}")
+```
+
+```java Java
+TablesApi tablesApi = client.buildClient(TablesApi.class);
+TableList tables = tablesApi.listTables(null, 10, null, null, null);
+
+for (Table table : tables.getData()) {
+    System.out.println(table.getFullyQualifiedName());
+}
+```
+
+```go Go
+resp, err := rest.Get("tables", map[string]string{"limit": "10"})
+if err != nil {
+    log.Fatal(err)
+}
+defer resp.Body.Close()
+
+var result struct {
+    Data []struct {
+        FullyQualifiedName string `json:"fullyQualifiedName"`
+    } `json:"data"`
+}
+if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+    log.Fatal(err)
+}
+
+for _, table := range result.Data {
+    fmt.Println(table.FullyQualifiedName)
+}
+```
+
+```bash cURL
+curl -X GET "$COLLATE_HOST/tables?limit=10" \
+  -H "Authorization: Bearer $COLLATE_TOKEN" \
+  -H "Content-Type: application/json"
+```
+</CodeGroup>
+
+You should see a JSON response like this:
+
+```json Expected Response
+{
+  "data": [
+    {
+      "id": "a]f1c8e2-4b3a-4e5f-9c6d-7e8f9a0b1c2d",
+      "name": "customers",
+      "fullyQualifiedName": "mysql-prod.analytics.customers",
+      "description": "Core customer records",
+      "tableType": "Regular",
+      "columns": [ ... ],
+      "service": { "id": "...", "type": "databaseService" }
+    }
+  ],
+  "paging": {
+    "total": 142,
+    "after": "eyJsaW1pdCI6MTAsIm9mZnNldCI6MTB9"
+  }
+}
+```
+
+<Tip>
+The `paging.after` cursor can be passed to the next request to paginate through results. See the [Pagination guide](/api-reference/pagination) for details.
+</Tip>
+
+</Step>
+
+<Step title="Create Resources with the Fluent API">
+
+The SDKs provide a fluent API for creating and managing resources. Here's how to create a table programmatically:
+
+<CodeGroup dropdown>
+```python Python
+from metadata.sdk import Tables, configure
+from metadata.generated.schema.api.data.createTable import CreateTableRequest
+from metadata.generated.schema.entity.data.table import Column, DataType
+
+# Initialize the SDK
+configure(host="https://your-company.getcollate.io", jwt_token="your-jwt-token")
+
+# Create and persist the table
+table = Tables.create(CreateTableRequest(
+    name="customers",
+    databaseSchema="mysql-prod.analytics.public",
+    description="Customer master table",
+    columns=[
+        Column(name="id", dataType=DataType.BIGINT, description="Primary key"),
+        Column(name="name", dataType=DataType.VARCHAR, dataLength=255, description="Customer name"),
+        Column(name="email", dataType=DataType.VARCHAR, dataLength=255, description="Email address"),
+    ],
+))
+
+print(f"Created: {table.fullyQualifiedName}")
+```
+
+```java Java
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+import org.openmetadata.sdk.fluent.builders.TableBuilder;
+import org.openmetadata.sdk.fluent.builders.ColumnBuilder;
+
+// Create and persist the table in one fluent chain
+Table table = new TableBuilder(client)
+    .name("customers")
+    .description("Customer master table")
+    .schemaFQN("mysql-prod.analytics.public")
+    .addColumn("id", "BIGINT", "Primary key")
+    .column(ColumnBuilder.varchar("name", 255))
+    .column(ColumnBuilder.varchar("email", 255))
+    .tags("PII.Sensitive", "Tier.Tier1")
+    .create();
+
+System.out.println("Created: " + table.getFullyQualifiedName());
+```
+
+```bash cURL
+curl -X POST "$COLLATE_HOST/tables" \
+  -H "Authorization: Bearer $COLLATE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "new_table",
+    "databaseSchema": "mysql-prod.analytics",
+    "columns": [
+      {
+        "name": "id",
+        "dataType": "BIGINT",
+        "description": "Primary key"
+      },
+      {
+        "name": "name",
+        "dataType": "VARCHAR",
+        "dataLength": 255,
+        "description": "Customer name"
+      }
+    ]
+  }'
+```
+</CodeGroup>
+
+The Java SDK uses a fluent `.withXXX()` pattern for building request objects, while the Python SDK uses typed dataclasses with nested constructors. Both provide full type safety and IDE autocompletion.
+
+</Step>
+
+</Steps>
+
+## Common Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Discover Tables" icon="magnifying-glass" href="/api-reference/discovery">
+    Search and explore metadata across your entire catalog.
+  </Card>
+  <Card title="Manage Metadata" icon="database" href="/api-reference/data-assets">
+    Create, update, and manage tables, dashboards, pipelines, and more.
+  </Card>
+  <Card title="Run Quality Tests" icon="chart-line" href="/api-reference/data-quality">
+    Define test suites and monitor data quality metrics programmatically.
+  </Card>
+  <Card title="Govern Data" icon="shield-check" href="/api-reference/governance">
+    Manage domains, glossaries, classifications, and tags.
+  </Card>
+  <Card title="Manage Teams" icon="users" href="/api-reference/teams-and-users">
+    Provision users, teams, and manage organizational structure.
+  </Card>
+  <Card title="Define Data Contracts" icon="file-contract" href="/api-reference/data-contracts">
+    Create and validate data contracts for your assets.
+  </Card>
+</CardGroup>
+
+## What's Next?
+
+<CardGroup cols={3}>
+  <Card title="Authentication" icon="key" href="/api-reference/authentication">
+    Deep dive into auth methods and token management.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api-reference/errors">
+    Understand error codes and how to handle them.
+  </Card>
+  <Card title="Pagination" icon="arrow-right-arrow-left" href="/api-reference/pagination">
+    Learn how to paginate through large result sets.
+  </Card>
+</CardGroup>

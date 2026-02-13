@@ -1,0 +1,105 @@
+---
+title: Database Versions
+description: List and retrieve historical versions of a database
+sidebarTitle: Database Versions
+api: GET /v1/databases/{id}/versions
+---
+
+# Database Versions
+
+Every change to a database entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the database.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/databases/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the database.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/databases/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Databases
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Databases.get_versions("550e8400-e29b-41d4-a716-446655440000")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+database_v1 = Databases.get_specific_version(
+    "550e8400-e29b-41d4-a716-446655440000",
+    "0.1"
+)
+print(f"Original description: {database_v1.description}")
+```
+
+```java GET /v1/databases/{id}/versions
+import static org.openmetadata.sdk.fluent.Databases.*;
+
+// List all versions
+var versions = Databases.getVersions("550e8400-e29b-41d4-a716-446655440000");
+
+// Get a specific version
+Database v1 = Databases.getSpecificVersion(
+    "550e8400-e29b-41d4-a716-446655440000",
+    "0.1"
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/databases/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "database",
+  "versions": [
+    "{\"id\":\"1d08c2c6-cea7-4adf-9043-0f6a6aaf9721\",\"name\":\"default\",\"fullyQualifiedName\":\"mysql_sample.default\",\"version\":0.2,\"updatedAt\":1769982700000,\"updatedBy\":\"admin\",\"service\":{\"id\":\"4724c3cb-d4b8-4ac0-aa55-e8bb66f01ac3\",\"type\":\"databaseService\",\"name\":\"mysql_sample\"},\"serviceType\":\"Mysql\",\"description\":\"Updated default MySQL database\"}",
+    "{\"id\":\"1d08c2c6-cea7-4adf-9043-0f6a6aaf9721\",\"name\":\"default\",\"fullyQualifiedName\":\"mysql_sample.default\",\"version\":0.1,\"updatedAt\":1769982658682,\"updatedBy\":\"admin\",\"service\":{\"id\":\"4724c3cb-d4b8-4ac0-aa55-e8bb66f01ac3\",\"type\":\"databaseService\",\"name\":\"mysql_sample\"},\"serviceType\":\"Mysql\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full database object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Database or version does not exist |

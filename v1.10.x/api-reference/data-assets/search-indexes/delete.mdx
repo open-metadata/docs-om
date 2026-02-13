@@ -1,0 +1,161 @@
+---
+title: Delete a Search Index
+description: Delete a search index by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Search Index
+api: DELETE /v1/searchIndexes/{id}
+---
+
+# Delete a Search Index
+
+Delete a search index by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the search index to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the search index. If `false`, the search index is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/searchIndexes/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the search index (e.g., `elasticsearch_sample.table_search_index`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child entities.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the search index.
+</ParamField>
+
+## Restore a Soft-Deleted Search Index
+
+Use `PUT /v1/searchIndexes/restore` to restore a soft-deleted search index.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted search index to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/searchIndexes/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import SearchIndexes
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+SearchIndexes.delete("f5b0fa81-f241-4508-9219-dae31dcced18")
+
+# Hard delete
+SearchIndexes.delete(
+    "f5b0fa81-f241-4508-9219-dae31dcced18",
+    hard_delete=True
+)
+
+# Delete by name
+SearchIndexes.delete_by_name("elasticsearch_sample.table_search_index")
+
+# Delete by name with options
+SearchIndexes.delete_by_name(
+    "elasticsearch_sample.table_search_index",
+    hard_delete=True
+)
+
+# Restore a soft-deleted search index
+SearchIndexes.restore("f5b0fa81-f241-4508-9219-dae31dcced18")
+```
+
+```java DELETE /v1/searchIndexes/{id}
+import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+
+// Soft delete
+SearchIndexes.delete("f5b0fa81-f241-4508-9219-dae31dcced18").execute();
+
+// Hard delete
+SearchIndexes.delete("f5b0fa81-f241-4508-9219-dae31dcced18")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+SearchIndexes.deleteByName("elasticsearch_sample.table_search_index")
+    .execute();
+
+// Restore
+SearchIndexes.restore("f5b0fa81-f241-4508-9219-dae31dcced18");
+```
+
+```bash DELETE /v1/searchIndexes/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/searchIndexes/f5b0fa81-f241-4508-9219-dae31dcced18?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/searchIndexes/name/elasticsearch_sample.table_search_index" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted search index
+curl -X PUT "{base_url}/api/v1/searchIndexes/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "f5b0fa81-f241-4508-9219-dae31dcced18"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "f5b0fa81-f241-4508-9219-dae31dcced18",
+  "name": "table_search_index",
+  "fullyQualifiedName": "elasticsearch_sample.table_search_index",
+  "displayName": "TableSearchIndex",
+  "version": 0.2,
+  "updatedAt": 1769982670810,
+  "updatedBy": "admin",
+  "service": {
+    "id": "search-service-id",
+    "type": "searchService",
+    "name": "elasticsearch_sample",
+    "fullyQualifiedName": "elasticsearch_sample"
+  },
+  "serviceType": "ElasticSearch",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the search index object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored search index object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this search index |
+| `404` | `NOT_FOUND` | Search index with given ID or FQN does not exist |

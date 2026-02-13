@@ -1,0 +1,174 @@
+---
+title: Update a Domain
+description: Update domain properties using JSON Patch
+sidebarTitle: Update a Domain
+api: PATCH /v1/domains/{id}
+---
+
+# Update a Domain
+
+Update a domain's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the domain to update.
+</ParamField>
+
+## Update by Name
+
+Use `PATCH /v1/domains/name/{fqn}` to update by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the domain (e.g., `TestDomain`).
+</ParamField>
+
+## Body Parameters
+
+Send a JSON object with the fields to update. Only provided fields are changed.
+
+<ParamField body="description" type="string">
+  Updated description in Markdown format.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Updated display name.
+</ParamField>
+
+<ParamField body="domainType" type="string">
+  Updated domain type: `Source-aligned`, `Consumer-aligned`, or `Aggregate`.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Updated list of owner references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity (e.g., `user`, `team`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="experts" type="array">
+  Updated list of expert references.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the user.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `user`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/domains/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Domains
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+domain = Domains.retrieve("a0729e98-e946-4e25-acde-10e8a2294ba1")
+domain.description = "Updated domain description for business analytics"
+domain.domainType = "Consumer-aligned"
+updated = Domains.update(domain)
+
+print(f"Updated to version {updated.version}")
+```
+
+```java PATCH /v1/domains/{id}
+import static org.openmetadata.sdk.fluent.Domains.*;
+
+// Retrieve, modify, and update
+var domain = Domains.retrieve("a0729e98-e946-4e25-acde-10e8a2294ba1");
+domain.setDescription("Updated domain description for business analytics");
+var updated = Domains.update(domain);
+```
+
+```bash PATCH /v1/domains/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated domain description for business analytics"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/domains/name/TestDomain" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated domain description for business analytics"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+  "domainType": "Consumer-aligned",
+  "name": "TestDomain",
+  "fullyQualifiedName": "TestDomain",
+  "description": "Updated domain description for business analytics",
+  "version": 0.2,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1",
+  "deleted": false,
+  "owners": [],
+  "children": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated domain object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the domain (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Domain name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the domain.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this domain |
+| `404` | `NOT_FOUND` | Domain with given ID or FQN does not exist |
+| `409` | `CONFLICT` | Concurrent modification detected |

@@ -1,0 +1,151 @@
+---
+title: Import & Export Tables
+description: Import and export table metadata as CSV
+sidebarTitle: Import & Export Tables
+api: GET /v1/tables/name/{fqn}/export
+---
+
+# Import & Export
+
+Export table metadata (columns, owners, tags, descriptions) to CSV and import changes back. Supports both synchronous and asynchronous operations.
+
+## Export to CSV
+
+`GET /v1/tables/name/{fqn}/export`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the table (e.g., `snowflake_prod.analytics.public.customers`).
+</ParamField>
+
+## Export Async
+
+`GET /v1/tables/name/{fqn}/exportAsync`
+
+Returns a job ID for large exports that can be polled for completion.
+
+## Import from CSV
+
+`PUT /v1/tables/name/{fqn}/import`
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the table.
+</ParamField>
+
+<ParamField query="dryRun" type="boolean" default="true">
+  If `true`, validates the CSV without applying changes. Set to `false` to apply.
+</ParamField>
+
+## Import Async
+
+`PUT /v1/tables/name/{fqn}/importAsync`
+
+For large imports, use the async variant which returns a job ID.
+
+<RequestExample dropdown>
+```python GET /v1/tables/name/{fqn}/export
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Synchronous export
+csv_data = Tables.export_csv("snowflake_prod.analytics.public.customers").execute()
+print(csv_data)
+
+# Async export
+job = Tables.export_csv("snowflake_prod.analytics.public.customers").execute_async()
+print(f"Export job: {job}")
+
+# Synchronous import (dry run first)
+result = (
+    Tables.import_csv("snowflake_prod.analytics.public.customers")
+    .with_data(csv_data)
+    .set_dry_run(True)
+    .execute()
+)
+print(f"Dry run result: {result}")
+
+# Apply the import
+result = (
+    Tables.import_csv("snowflake_prod.analytics.public.customers")
+    .with_data(csv_data)
+    .set_dry_run(False)
+    .execute()
+)
+```
+
+```java GET /v1/tables/name/{fqn}/export
+import org.openmetadata.sdk.fluent.Tables;
+
+// Synchronous export
+String csvData = Tables.exportCsv("snowflake_prod.analytics.public.customers")
+    .execute();
+
+// Async export
+String jobId = Tables.exportCsv("snowflake_prod.analytics.public.customers")
+    .async()
+    .execute();
+
+// Synchronous import (dry run)
+String result = Tables.importCsv("snowflake_prod.analytics.public.customers")
+    .withData(csvData)
+    .dryRun(true)
+    .execute();
+
+// Apply import
+String result = Tables.importCsv("snowflake_prod.analytics.public.customers")
+    .withData(csvData)
+    .dryRun(false)
+    .execute();
+```
+
+```bash GET /v1/tables/name/{fqn}/export
+# Export to CSV
+curl "{base_url}/api/v1/tables/name/sample_data.ecommerce_db.shopify.agent_performance_summary/export" \
+  -H "Authorization: Bearer {access_token}"
+
+# Async export
+curl "{base_url}/api/v1/tables/name/sample_data.ecommerce_db.shopify.agent_performance_summary/exportAsync" \
+  -H "Authorization: Bearer {access_token}"
+
+# Import CSV (dry run)
+curl -X PUT "{base_url}/api/v1/tables/name/sample_data.ecommerce_db.shopify.agent_performance_summary/import?dryRun=true" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @table_export.csv
+
+# Import CSV (apply)
+curl -X PUT "{base_url}/api/v1/tables/name/sample_data.ecommerce_db.shopify.agent_performance_summary/import?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @table_export.csv
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Export)
+"name,displayName,description,dataType,tags\nagent_id,,Agent identifier,VARCHAR,\nperformance_score,,Overall performance score,DECIMAL,"
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Export** returns CSV text with headers and rows for each column in the table.
+
+**Import** returns a summary of changes applied (or validation results for dry run).
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission for import/export |
+| `404` | `NOT_FOUND` | Table with given FQN does not exist |
+| `400` | `BAD_REQUEST` | Invalid CSV format or content |

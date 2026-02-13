@@ -1,0 +1,190 @@
+---
+title: Custom Metrics
+description: Add and delete custom metrics for tables
+sidebarTitle: Custom Metrics
+api: PUT /v1/tables/{id}/customMetric
+---
+
+# Custom Metrics
+
+Define custom SQL-based metrics on a table or specific column. Custom metrics are evaluated during profiling runs and tracked over time.
+
+## Add Custom Metric
+
+`PUT /v1/tables/{id}/customMetric`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Name of the custom metric. Must be unique within the table.
+</ParamField>
+
+<ParamField body="expression" type="string" required>
+  SQL expression to evaluate for this metric. Must return a single numeric value.
+</ParamField>
+
+<ParamField body="columnName" type="string">
+  Name of the column this metric applies to. If omitted, the metric is table-level.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of what this metric measures.
+</ParamField>
+
+## Delete Custom Metric
+
+`DELETE /v1/tables/{id}/customMetric/{metricName}`
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField path="metricName" type="string" required>
+  Name of the custom metric to delete.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/tables/{id}/customMetric
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+# Add a table-level custom metric
+Tables.add_custom_metric(table_id, {
+    "name": "active_customer_ratio",
+    "description": "Ratio of active customers to total customers",
+    "expression": "SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
+})
+
+# Add a column-level custom metric
+Tables.add_custom_metric(table_id, {
+    "name": "email_domain_count",
+    "description": "Number of distinct email domains",
+    "columnName": "email",
+    "expression": "SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
+})
+
+# Delete a custom metric
+Tables.delete_custom_metric(table_id, "active_customer_ratio")
+```
+
+```java PUT /v1/tables/{id}/customMetric
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// Add a table-level custom metric
+Tables.addCustomMetric(tableId, Map.of(
+    "name", "active_customer_ratio",
+    "description", "Ratio of active customers to total customers",
+    "expression", "SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
+));
+
+// Add a column-level custom metric
+Tables.addCustomMetric(tableId, Map.of(
+    "name", "email_domain_count",
+    "description", "Number of distinct email domains",
+    "columnName", "email",
+    "expression", "SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
+));
+
+// Delete a custom metric
+Tables.deleteCustomMetric(tableId, "active_customer_ratio");
+```
+
+```bash PUT /v1/tables/{id}/customMetric
+# Add a table-level custom metric
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/customMetric" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "high_performer_ratio",
+    "description": "Ratio of high-performing agents (score > 90) to total agents",
+    "expression": "SELECT CAST(SUM(CASE WHEN performance_score > 90 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
+  }'
+
+# Add a column-level custom metric
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/customMetric" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "avg_performance",
+    "description": "Average performance score across all agents",
+    "columnName": "performance_score",
+    "expression": "SELECT AVG(performance_score) FROM {table}"
+  }'
+
+# Delete a custom metric
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/customMetric/high_performer_ratio" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Custom Metric)
+{
+  "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+  "name": "agent_performance_summary",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.agent_performance_summary",
+  "customMetrics": [
+    {
+      "name": "high_performer_ratio",
+      "description": "Ratio of high-performing agents (score > 90) to total agents",
+      "expression": "SELECT CAST(SUM(CASE WHEN performance_score > 90 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Add** returns the updated table object with the custom metric included.
+
+**Delete** returns no content (204).
+
+## Response
+
+<ResponseField name="customMetrics" type="array">
+  Array of custom metrics defined on the table.
+
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">
+      Name of the custom metric.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Description of the metric.
+    </ResponseField>
+
+    <ResponseField name="expression" type="string">
+      SQL expression for the metric.
+    </ResponseField>
+
+    <ResponseField name="columnName" type="string" optional>
+      Column name if this is a column-level metric.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Table or custom metric does not exist |
+| `400` | `BAD_REQUEST` | Invalid metric definition or SQL expression |
+| `409` | `CONFLICT` | Custom metric with same name already exists |

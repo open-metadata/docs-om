@@ -1,0 +1,169 @@
+---
+title: Followers & Votes
+description: Manage followers and votes for topics
+sidebarTitle: Followers & Votes
+api: PUT /v1/topics/{id}/followers
+---
+
+# Followers & Votes
+
+Manage followers and votes for topic entities.
+
+## Followers
+
+### Add Follower
+
+`PUT /v1/topics/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/topics/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/topics/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/topics/{id}/followers
+from metadata.sdk import configure
+from metadata.sdk.entities import Topics
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+topic_id = "0a021819-982e-4ee4-a5a2-4af30eaa3016"
+user_id = "user-uuid-here"
+
+# Add a follower
+topic = Topics.add_followers(topic_id, [user_id])
+print(f"Followers: {len(topic.followers)}")
+
+# Remove a follower
+topic = Topics.remove_followers(topic_id, [user_id])
+
+# Add a vote
+topic = Topics.add_vote(topic_id, vote_type="votedUp")
+
+# Remove a vote
+topic = Topics.remove_vote(topic_id)
+```
+
+```java PUT /v1/topics/{id}/followers
+import static org.openmetadata.sdk.fluent.Topics.*;
+
+String topicId = "0a021819-982e-4ee4-a5a2-4af30eaa3016";
+
+// Add a follower
+Topics.addFollower(topicId, "user-uuid-here");
+
+// Remove a follower
+Topics.removeFollower(topicId, "user-uuid-here");
+
+// Add a vote
+Topics.vote(topicId, "votedUp");
+
+// Remove a vote
+Topics.vote(topicId, "unVoted");
+```
+
+```bash PUT /v1/topics/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "name": "address_book",
+  "fullyQualifiedName": "sample_kafka.address_book",
+  "description": "All Protobuf record related events gets captured in this topic",
+  "version": 0.1,
+  "updatedAt": 1769982663546,
+  "updatedBy": "admin",
+  "service": {
+    "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    "type": "messagingService",
+    "name": "sample_kafka",
+    "fullyQualifiedName": "sample_kafka"
+  },
+  "serviceType": "Kafka",
+  "messageSchema": {
+    "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+    "schemaType": "Protobuf"
+  },
+  "partitions": 1,
+  "cleanupPolicies": ["delete"],
+  "replicationFactor": 1,
+  "deleted": false,
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ],
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Topic or user does not exist |

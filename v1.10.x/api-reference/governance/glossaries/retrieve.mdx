@@ -1,0 +1,191 @@
+---
+title: Retrieve a Glossary
+description: Get a glossary by ID or fully qualified name
+sidebarTitle: Retrieve a Glossary
+api: GET /v1/glossaries/{id}
+---
+
+# Retrieve a Glossary
+
+Get a single glossary by its unique ID or fully qualified name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the glossary to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include (e.g., `owners,tags,domains,reviewers`).
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/glossaries/name/{fqn}` to retrieve by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the glossary (e.g., `BusinessGlossary`).
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include: `owners`, `tags`, `domains`, `reviewers`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` entities.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/glossaries/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Glossaries
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID
+glossary = Glossaries.retrieve("c2940a98-f147-6g46-cdef-31f0c4406dc3")
+print(f"{glossary.fullyQualifiedName}: {glossary.description}")
+
+# Get by ID with fields
+glossary = Glossaries.retrieve(
+    "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+    fields=["owners", "tags", "reviewers"]
+)
+
+# Get by fully qualified name
+glossary = Glossaries.retrieve_by_name("BusinessGlossary")
+
+# Get by name with fields
+glossary = Glossaries.retrieve_by_name(
+    "BusinessGlossary",
+    fields=["owners", "tags", "reviewers"]
+)
+```
+
+```java GET /v1/glossaries/{id}
+import static org.openmetadata.sdk.fluent.Glossaries.*;
+
+// Get by ID
+var glossary = Glossaries.retrieve("c2940a98-f147-6g46-cdef-31f0c4406dc3");
+
+// Get by ID with fields
+var glossary = Glossaries.retrieve(
+    "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+    "owners,tags,reviewers"
+);
+
+// Get by fully qualified name
+var glossary = Glossaries.retrieveByName("BusinessGlossary");
+
+// Get by name with fields
+var glossary = Glossaries.retrieveByName("BusinessGlossary", "owners,tags,reviewers");
+```
+
+```bash GET /v1/glossaries/{id}
+# Get by ID
+curl "{base_url}/api/v1/glossaries/c2940a98-f147-6g46-cdef-31f0c4406dc3" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with fields
+curl "{base_url}/api/v1/glossaries/c2940a98-f147-6g46-cdef-31f0c4406dc3?fields=owners,tags,reviewers" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name
+curl "{base_url}/api/v1/glossaries/name/BusinessGlossary" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by name with fields
+curl "{base_url}/api/v1/glossaries/name/BusinessGlossary?fields=owners,tags,domains,reviewers" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "c2940a98-f147-6g46-cdef-31f0c4406dc3",
+  "name": "BusinessGlossary",
+  "fullyQualifiedName": "BusinessGlossary",
+  "displayName": "Business Glossary",
+  "description": "Standard business terminology for the organization",
+  "version": 0.1,
+  "updatedAt": 1769984330261,
+  "updatedBy": "admin",
+  "href": "http://localhost:8585/api/v1/glossaries/c2940a98-f147-6g46-cdef-31f0c4406dc3",
+  "deleted": false,
+  "owners": [],
+  "reviewers": [],
+  "tags": [],
+  "mutuallyExclusive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a glossary object with all requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the glossary (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Glossary name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the glossary.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the glossary in Markdown format.
+</ResponseField>
+
+<ResponseField name="mutuallyExclusive" type="boolean">
+  Whether terms in this glossary are mutually exclusive.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners. Only included when `fields` contains `owners`.
+</ResponseField>
+
+<ResponseField name="tags" type="array" optional>
+  Classification tags. Only included when `fields` contains `tags`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain assignments. Only included when `fields` contains `domains`.
+</ResponseField>
+
+<ResponseField name="reviewers" type="array" optional>
+  Reviewers. Only included when `fields` contains `reviewers`.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this glossary |
+| `404` | `NOT_FOUND` | Glossary with given ID or FQN does not exist |

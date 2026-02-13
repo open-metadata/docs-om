@@ -1,0 +1,105 @@
+---
+title: Database Service Versions
+description: List and retrieve historical versions of a database service
+sidebarTitle: Database Service Versions
+api: GET /v1/services/databaseServices/{id}/versions
+---
+
+# Database Service Versions
+
+Every change to a database service entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the database service.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/services/databaseServices/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the database service.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/services/databaseServices/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseServices
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = DatabaseServices.get_versions("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+service_v1 = DatabaseServices.get_specific_version(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "0.1"
+)
+print(f"Original description: {service_v1.description}")
+```
+
+```java GET /v1/services/databaseServices/{id}/versions
+import static org.openmetadata.sdk.fluent.DatabaseServices.*;
+
+// List all versions
+var versions = DatabaseServices.getVersions("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+// Get a specific version
+DatabaseService v1 = DatabaseServices.getSpecificVersion(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "0.1"
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/services/databaseServices/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/services/databaseServices/fd2193af-fe09-4366-92b7-1e0d01cd8c09/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "databaseService",
+  "versions": [
+    "{\"id\":\"fd2193af-fe09-4366-92b7-1e0d01cd8c09\",\"name\":\"sample_data\",\"fullyQualifiedName\":\"sample_data\",\"serviceType\":\"BigQuery\",\"description\":\"Updated BigQuery data service\",\"version\":0.2,\"updatedAt\":1769982700000,\"updatedBy\":\"admin\",\"deleted\":false}",
+    "{\"id\":\"fd2193af-fe09-4366-92b7-1e0d01cd8c09\",\"name\":\"sample_data\",\"fullyQualifiedName\":\"sample_data\",\"serviceType\":\"BigQuery\",\"description\":\"Sample data service for BigQuery\",\"version\":0.1,\"updatedAt\":1769982650000,\"updatedBy\":\"admin\",\"deleted\":false}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full database service object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Database service or version does not exist |

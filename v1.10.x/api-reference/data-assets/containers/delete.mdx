@@ -1,0 +1,162 @@
+---
+title: Delete a Container
+description: Delete a container by ID or name, with soft/hard delete options
+sidebarTitle: Delete a Container
+api: DELETE /v1/containers/{id}
+---
+
+# Delete a Container
+
+Delete a container by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the container to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child containers.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the container. If `false`, the container is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/containers/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the container (e.g., `s3_datalake.analytics-bucket`).
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child containers.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the container.
+</ParamField>
+
+## Restore a Soft-Deleted Container
+
+Use `PUT /v1/containers/restore` to restore a soft-deleted container.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted container to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/containers/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Containers
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# Soft delete by ID
+Containers.delete("14744329-85c2-499e-b1fa-249fb8162341")
+
+# Hard delete
+Containers.delete(
+    "14744329-85c2-499e-b1fa-249fb8162341",
+    hard_delete=True
+)
+
+# Delete by name
+Containers.delete_by_name("s3_datalake.analytics-bucket")
+
+# Delete by name with options
+Containers.delete_by_name(
+    "s3_datalake.analytics-bucket",
+    hard_delete=True,
+    recursive=True
+)
+
+# Restore a soft-deleted container
+Containers.restore("14744329-85c2-499e-b1fa-249fb8162341")
+```
+
+```java DELETE /v1/containers/{id}
+import static org.openmetadata.sdk.fluent.Containers.*;
+
+// Soft delete
+Containers.delete("14744329-85c2-499e-b1fa-249fb8162341").execute();
+
+// Hard delete
+Containers.delete("14744329-85c2-499e-b1fa-249fb8162341")
+    .hardDelete()
+    .execute();
+
+// Delete by name
+Containers.deleteByName("s3_datalake.analytics-bucket").execute();
+
+// Restore
+Containers.restore("14744329-85c2-499e-b1fa-249fb8162341");
+```
+
+```bash DELETE /v1/containers/{id}
+# Soft delete by ID
+curl -X DELETE "{base_url}/api/v1/containers/14744329-85c2-499e-b1fa-249fb8162341" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete
+curl -X DELETE "{base_url}/api/v1/containers/14744329-85c2-499e-b1fa-249fb8162341?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/containers/name/s3_datalake.analytics-bucket" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore soft-deleted container
+curl -X PUT "{base_url}/api/v1/containers/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "14744329-85c2-499e-b1fa-249fb8162341"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "14744329-85c2-499e-b1fa-249fb8162341",
+  "name": "analytics-bucket",
+  "displayName": "Analytics Bucket",
+  "fullyQualifiedName": "s3_datalake.analytics-bucket",
+  "description": "Primary analytics data lake bucket",
+  "version": 0.2,
+  "updatedAt": 1769982673032,
+  "updatedBy": "admin",
+  "service": {
+    "id": "d1589e1d-2ab0-431c-a383-15e4be20a106",
+    "type": "storageService",
+    "name": "s3_datalake",
+    "fullyQualifiedName": "s3_datalake"
+  },
+  "serviceType": "S3",
+  "deleted": true,
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Soft delete returns the container object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored container object.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this container |
+| `404` | `NOT_FOUND` | Container with given ID or FQN does not exist |

@@ -1,0 +1,105 @@
+---
+title: Table Versions
+description: List and retrieve historical versions of a table
+sidebarTitle: Table Versions
+api: GET /v1/tables/{id}/versions
+---
+
+# Table Versions
+
+Every change to a table entity creates a new version. Use these endpoints to view the version history and retrieve specific versions.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+## Get Specific Version
+
+Use `GET /v1/tables/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the table.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve (e.g., `0.2`).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/tables/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Tables
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+# List all versions
+versions = Tables.get_versions("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+for v in versions:
+    print(f"Version {v.version}: {v.description}")
+
+# Get a specific version
+table_v1 = Tables.get_specific_version(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "0.1"
+)
+print(f"Original description: {table_v1.description}")
+```
+
+```java GET /v1/tables/{id}/versions
+import static org.openmetadata.sdk.fluent.Tables.*;
+
+// List all versions
+var versions = Tables.getVersions("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+// Get a specific version
+Table v1 = Tables.getSpecificVersion(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "0.1"
+);
+System.out.println("Description: " + v1.getDescription());
+```
+
+```bash GET /v1/tables/{id}/versions
+# List all versions
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get a specific version
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "table",
+  "versions": [
+    "{\"id\":\"455e3d9d-dbbf-455e-b3be-7191daa825f3\",\"name\":\"agent_performance_summary\",\"version\":0.2,\"updatedAt\":1769982700000,\"updatedBy\":\"admin\",\"description\":\"Updated agent performance summary with new metrics.\"}",
+    "{\"id\":\"455e3d9d-dbbf-455e-b3be-7191daa825f3\",\"name\":\"agent_performance_summary\",\"version\":0.1,\"updatedAt\":1769982651320,\"updatedBy\":\"admin\",\"description\":\"Summary of agent performance metrics derived from multiple tables including ssot_utilization_detail for comprehensive reporting.\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**List versions** returns an object with `entityType` and a `versions` array of serialized entity snapshots (newest first).
+
+**Get specific version** returns the full table object as it existed at that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Table or version does not exist |

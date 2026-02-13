@@ -1,0 +1,184 @@
+---
+title: Advanced Database Schema Operations
+description: Manage followers, votes, and profiler configuration for database schemas
+sidebarTitle: Advanced Database Schema Operations
+api: PUT /v1/databaseSchemas/{id}/followers
+---
+
+# Advanced Database Schema Operations
+
+Manage followers, votes, and profiler configuration for database schema entities.
+
+## Followers
+
+### Add Followers
+
+`PUT /v1/databaseSchemas/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the database schema.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/databaseSchemas/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the database schema.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/databaseSchemas/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the database schema.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+## Profiler Configuration
+
+### Get Profiler Config
+
+`GET /v1/databaseSchemas/{id}/profilerConfig`
+
+### Set Profiler Config
+
+`PUT /v1/databaseSchemas/{id}/profilerConfig`
+
+### Delete Profiler Config
+
+`DELETE /v1/databaseSchemas/{id}/profilerConfig`
+
+<RequestExample dropdown>
+```python PUT /v1/databaseSchemas/{id}/followers
+from metadata.sdk import configure
+from metadata.sdk.entities import DatabaseSchemas
+
+configure(
+    host="https://your-company.getcollate.io/api",
+    jwt_token="your-jwt-token"
+)
+
+schema_id = "770e8400-e29b-41d4-a716-446655440000"
+user_id = "user-uuid-here"
+
+# Add a follower
+schema = DatabaseSchemas.add_followers(schema_id, [user_id])
+print(f"Followers: {len(schema.followers)}")
+
+# Remove a follower
+schema = DatabaseSchemas.remove_followers(schema_id, [user_id])
+
+# Add a vote
+schema = DatabaseSchemas.add_vote(schema_id, vote_type="votedUp")
+
+# Remove a vote
+schema = DatabaseSchemas.remove_vote(schema_id)
+
+# Get profiler config
+config = DatabaseSchemas.get_profiler_config(schema_id)
+
+# Set profiler config
+DatabaseSchemas.set_profiler_config(schema_id, {
+    "profileSample": 50,
+    "profileSampleType": "PERCENTAGE",
+    "sampleDataCount": 200
+})
+
+# Delete profiler config
+DatabaseSchemas.delete_profiler_config(schema_id)
+```
+
+```java PUT /v1/databaseSchemas/{id}/followers
+import static org.openmetadata.sdk.fluent.DatabaseSchemas.*;
+
+String schemaId = "770e8400-e29b-41d4-a716-446655440000";
+
+// Followers - use REST client directly
+// Votes and profiler config - use REST client directly
+// See curl examples for request format
+```
+
+```bash PUT /v1/databaseSchemas/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+
+# Get profiler config
+curl "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+  -H "Authorization: Bearer {access_token}"
+
+# Set profiler config
+curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profileSample": 50,
+    "profileSampleType": "PERCENTAGE",
+    "sampleDataCount": 200
+  }'
+
+# Delete profiler config
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "f681432b-e66c-4096-a1cd-7771358c5323",
+  "name": "information_schema",
+  "fullyQualifiedName": "Glue.default.information_schema",
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Database schema or user does not exist |
