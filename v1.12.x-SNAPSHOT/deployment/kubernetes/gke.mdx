@@ -44,13 +44,23 @@ We recommend -
 Make sure to increase `sort_buffer_size` ([for MySQL](https://cloud.google.com/sql/docs/mysql/flags)) or `work_mem` ([for PostgreSQL](https://cloud.google.com/sql/docs/postgres/flags)) to the recommended value of **20MB** or more using flags. This is especially important when running migrations to prevent **Out of Sort Memory Error**. You can revert the setting once the migrations are complete.
 </Warning>
 
-Once you have the Database and Search Engine configured and available, update the helm values below for OpenMetadata kubernetes deployments to connect with Database and ElasticSearch.
+## Kubernetes Orchestrator Configuration (Recommended)
+
+Starting with OpenMetadata 1.12, we recommend using the **Kubernetes native orchestrator** for running ingestion pipelines. This eliminates the need for Apache Airflow and simplifies your deployment.
+
+<Tip>
+The Kubernetes orchestrator runs ingestion pipelines as native K8s Jobs and CronJobs. For full documentation, see the [Kubernetes Orchestrator Guide](/v1.12.x-SNAPSHOT/deployment/ingestion/kubernetes).
+</Tip>
+
+### OpenMetadata Values Configuration
+
+Create your `openmetadata-values.yaml` with the following configuration:
 
 ```yaml
-# openmetadata-values.prod.yaml
-...
+# openmetadata-values.yaml
 openmetadata:
   config:
+    # Database configuration
     elasticsearch:
       host: <ELASTIC_CLOUD_SERVICE_ENDPOINT_WITHOUT_HTTPS>
       searchType: elasticsearch
@@ -78,42 +88,119 @@ openmetadata:
         password:
           secretRef: mysql-secrets
           secretKey: openmetadata-mysql-password
-  ...
+
+    # Kubernetes Orchestrator configuration
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata:8585/api
+      
+      k8s:
+        className: "org.openmetadata.service.clients.pipeline.k8s.K8sPipelineClient"
+        ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.0"
+        imagePullPolicy: "IfNotPresent"
+        serviceAccountName: "openmetadata-ingestion"
+        
+        # Use OMJob Operator for guaranteed exit handlers (recommended)
+        useOMJobOperator: true
+        
+        # Job settings
+        ttlSecondsAfterFinished: 86400
+        activeDeadlineSeconds: 7200
+        backoffLimit: 3
+        
+        # Resource limits
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        
+        # Enable failure diagnostics (requires OMJob Operator)
+        enableFailureDiagnostics: true
+        rbac:
+          enabled: true
+
+# Enable the OMJob Operator (recommended for production)
+omjobOperator:
+  enabled: true
+  image:
+    repository: docker.getcollate.io/openmetadata/omjob-operator
+    tag: "1.12.0"
 ```
 
 <Tip>
 
-For Database as PostgreSQL, the use the below config for database values -
+For Database as PostgreSQL, use the below config for database values:
 
 ```yaml
-# openmetadata-values.prod.yaml
-...
-openmetadata:
-  config:
-    ...
-    database:
-      host: <GCP_CLOUD_SQL_ENDPOINT_IP>
-      port: 5432
-      driverClass: org.postgresql.Driver
-      dbScheme: postgresql
-      dbUseSSL: true
-      databaseName: <GCP_CLOUD_SQL_DATABASE_NAME>
-      auth:
-        username: <GCP_CLOUD_SQL_DATABASE_USERNAME>
-        password:
-          secretRef: sql-secrets
-          secretKey: openmetadata-sql-password
+database:
+  host: <GCP_CLOUD_SQL_ENDPOINT_IP>
+  port: 5432
+  driverClass: org.postgresql.Driver
+  dbScheme: postgresql
+  dbUseSSL: true
+  databaseName: <GCP_CLOUD_SQL_DATABASE_NAME>
+  auth:
+    username: <GCP_CLOUD_SQL_DATABASE_USERNAME>
+    password:
+      secretRef: sql-secrets
+      secretKey: openmetadata-sql-password
 ```
 
 </Tip>
 
+### Create Kubernetes Secrets
+
+Create the required secrets for CloudSQL and ElasticSearch:
+
+```bash
+# Database secret
+kubectl create secret generic mysql-secrets \
+  --from-literal=openmetadata-mysql-password=<YOUR_CLOUDSQL_PASSWORD>
+
+# ElasticSearch secret
+kubectl create secret generic elasticsearch-secrets \
+  --from-literal=openmetadata-elasticsearch-password=<YOUR_ELASTIC_CLOUD_PASSWORD>
+```
+
+### Deploy OpenMetadata
+
+```bash
+# Add the OpenMetadata Helm repository
+helm repo add open-metadata https://helm.open-metadata.org/
+helm repo update
+
+# Install OpenMetadata (no dependencies chart needed with K8s orchestrator)
+helm install openmetadata open-metadata/openmetadata \
+  --values openmetadata-values.yaml
+```
+
 <Tip>
-
-Make sure to create CloudSQL and ElasticSearch credentials as Kubernetes Secrets mentioned [here](/quick-start/local-kubernetes-deployment#2.-create-kubernetes-secrets-required-for-helm-charts).
-
-Also, disable MySQL and ElasticSearch from OpenMetadata Dependencies Helm Charts as mentioned in the FAQs [here](#how-to-disable-mysql-and-elasticsearch-from-openmetadata-dependencies-helm-charts).
-
+With the Kubernetes orchestrator, you don't need to deploy the `openmetadata-dependencies` chart that includes Airflow. This significantly simplifies your deployment.
 </Tip>
+
+### Verify the Deployment
+
+```bash
+# Check pods are running
+kubectl get pods
+
+# Check the K8s orchestrator health in OpenMetadata UI
+# Navigate to Settings → Preferences → Health
+```
+
+---
+
+## Using Airflow Orchestrator (Alternative)
+
+If you prefer to use Apache Airflow as the orchestrator (e.g., for existing Airflow investments or complex DAG requirements), follow the configuration below.
+
+<Warning>
+Using Airflow requires additional infrastructure: persistent volumes with ReadWriteMany access, the openmetadata-dependencies Helm chart, and more complex configuration.
+</Warning>
 
 ### Persistent Volumes with ReadWriteMany Access Modes
 
@@ -121,9 +208,9 @@ OpenMetadata helm chart depends on Airflow and Airflow expects a persistent disk
 
 The workaround is to create nfs-server disk on Google Kubernetes Engine and use that as the persistent claim and deploy OpenMetadata by implementing the following steps in order.
 
-## Create NFS Share
+### Create NFS Share
 
-### Provision GCP Persistent Disk for Google Kubernetes Engine
+#### Provision GCP Persistent Disk for Google Kubernetes Engine
 
 Run the below command to create a gcloud compute zonal disk. For more information on Google Cloud Disk Options, please visit [here](https://cloud.google.com/compute/docs/disks).
 
@@ -131,9 +218,7 @@ Run the below command to create a gcloud compute zonal disk. For more informatio
 gcloud compute disks create --size=100GB --zone=<zone_id> nfs-disk
 ```
 
-### Deploy NFS Server in GKE
-
-### Code Samples
+#### Deploy NFS Server in GKE
 
 ```yaml
 # nfs-server-deployment.yml
@@ -204,7 +289,7 @@ kubectl create -f nfs-cluster-ip-service.yml
 
 We create a ClusterIP Service for pods to access NFS within the cluster at a fixed IP/DNS.
 
-### Provision NFS backed PV and PVC for Airflow DAGs and Airflow Logs
+#### Provision NFS backed PV and PVC for Airflow DAGs and Airflow Logs
 
 Update `<NFS_SERVER_CLUSTER_IP>` with the NFS Service Cluster IP Address for below code snippets.
 You can get the clusterIP using the following command
@@ -213,7 +298,7 @@ You can get the clusterIP using the following command
 kubectl get service nfs-server -o jsonpath='{.spec.clusterIP}'
 ```
 
-### Code Samples for PV and PVC for Airflow DAGs
+#### Code Samples for PV and PVC for Airflow DAGs
 
 ```yaml
 # dags_pv_pvc.yml
@@ -254,7 +339,7 @@ Create Persistent Volumes and Persistent Volume claims with the below command.
 kubectl create -f dags_pv_pvc.yml
 ```
 
-### Code Samples for PV and PVC for Airflow Logs
+#### Code Samples for PV and PVC for Airflow Logs
 
 ```yaml
 # logs_pv_pvc.yml
@@ -294,7 +379,7 @@ Create Persistent Volumes and Persistent Volume claims with the below command.
 kubectl create -f logs_pv_pvc.yml
 ```
 
-## Change owner and permission manually on disks
+### Change owner and permission manually on disks
 
 Since airflow pods run as non root users, they would not have write access on the nfs server volumes. In order to fix the permission here, spin up a pod with persistent volumes attached and run it once.
 
@@ -347,7 +432,7 @@ kubectl exec --tty my-permission-pod --container my-permission-pod -- chown -R 5
 kubectl exec --tty my-permission-pod --container my-permission-pod -- chmod -R a+rwx /airflow-dags
 ```
 
-## Create OpenMetadata dependencies Values
+### Create OpenMetadata dependencies Values
 
 Override openmetadata dependencies airflow helm values to bind the nfs persistent volumes for DAGs and logs.
 
@@ -403,9 +488,13 @@ Once the openmetadata dependencies helm chart deployed, you can then run the bel
 helm install openmetadata open-metadata/openmetadata --values <path-to-values-file>
 ```
 
+Make sure to create CloudSQL and ElasticSearch credentials as Kubernetes Secrets mentioned [here](/quick-start/local-kubernetes-deployment#2.-create-kubernetes-secrets-required-for-helm-charts).
+
+Also, disable MySQL and ElasticSearch from OpenMetadata Dependencies Helm Charts as mentioned in the FAQs [here](#how-to-disable-mysql-and-elasticsearch-from-openmetadata-dependencies-helm-charts).
+
 ## Troubleshooting
 
-## Pods are stuck in Pending State due to Persistent Volume Creation Failure
+### Pods are stuck in Pending State due to Persistent Volume Creation Failure
 
 If you came across `invalid access type while creating the pvc`, and the permission pod is stuck in "pending" state.
 
