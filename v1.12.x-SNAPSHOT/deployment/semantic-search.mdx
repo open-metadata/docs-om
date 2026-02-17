@@ -15,13 +15,9 @@ sidebarTitle: Enable Semantic Search
 ## Overview
 
 Semantic Search enhances OpenMetadata's search capabilities by using **vector embeddings** to understand the meaning behind
-queries, rather than relying solely on keyword matching. When enabled, users and AI agents can search using natural language
--- for example, *"tables with customer demographics and purchase history"* -- and get meaningful results even if those exact
-words don't appear in the metadata.
-
-Semantic Search also powers the [Semantic Search MCP tool](/v1.12.x-SNAPSHOT/how-to-guides/mcp/semantic-search),
-enabling AI assistants connected via the Model Context Protocol to perform natural language queries against your
-metadata catalog.
+queries, rather than relying solely on keyword matching. This means users and AI agents can search using natural language
+-- for example, *"tables with customer demographics and purchase history"* -- and get meaningful results even if those
+exact words don't appear in the metadata.
 
 <Info>
 
@@ -30,25 +26,29 @@ for a future release.
 
 </Info>
 
-## Supported Entity Types
+Semantic Search also powers the [Semantic Search MCP tool](/v1.12.x-SNAPSHOT/how-to-guides/mcp/semantic-search),
+enabling AI assistants connected via the Model Context Protocol to perform natural language queries against your
+metadata catalog.
 
-Semantic Search supports the following entity types:
+## How It Works
+
+For each entity, a structured text representation is constructed from its metadata -- including name, description,
+entity type, tags, glossary terms, owners, and other relevant fields. This text is then sent to the configured
+embedding provider to generate a numerical vector (embedding), which is stored in a dedicated OpenSearch
+`vector_search_index` using the HNSW algorithm with cosine similarity.
+
+At query time, the search text is also embedded and a KNN (K-Nearest Neighbor) similarity search finds the most
+relevant results.
+
+Embeddings follow the same lifecycle as the entities themselves. When entities are created, updated, deleted, or
+restored, their embeddings are automatically kept in sync using the same indexing strategies the platform already
+uses for search. No manual intervention is required after initial setup.
+
+### Supported Entity Types
 
 `table`, `glossary`, `glossaryTerm`, `chart`, `dashboard`, `dashboardDataModel`, `database`, `databaseSchema`,
 `dataProduct`, `pipeline`, `mlmodel`, `metric`, `apiEndpoint`, `apiCollection`, `page`, `storedProcedure`,
 `searchIndex`, `topic`
-
-## How It Works
-
-Semantic Search operates through a simple pipeline:
-
-1. **Text Construction**: For each entity, we construct text from its metadata (name, description, entity type, service type, fully qualified name, tags, glossary terms, owners, tier, domains, and entity-specific fields).
-
-2. **Embedding Generation**: The text is sent to the configured embedding provider (OpenAI, AWS Bedrock, or DJL) which returns a numerical vector representation.
-
-3. **Vector Indexing & Storage**: Each vector is stored in a dedicated OpenSearch vector index with metadata for filtering, using the HNSW (Hierarchical Navigable Small World) algorithm for fast similarity search.
-
-4. **Automatic Lifecycle Management**: Embeddings are automatically created, updated, deleted, or restored in sync with entity lifecycle events using the same indexing strategies OpenMetadata already uses. No manual intervention is required after initial setup.
 
 ## Configuration
 
@@ -74,8 +74,8 @@ elasticsearch:
 Choose one of the following embedding providers and configure it accordingly.
 
 <Tabs>
-  <Tab title="OpenAI">
-    Supports both OpenAI and Azure OpenAI endpoints.
+  <Tab title="OpenAI (Recommended)">
+    Supports both OpenAI and Azure OpenAI endpoints. Recommended for production deployments.
 
     | Environment Variable | Default | Description |
     |---------------------|---------|-------------|
@@ -100,8 +100,9 @@ Choose one of the following embedding providers and configure it accordingly.
           embeddingDimension: ${OPENAI_EMBEDDING_DIMENSION:-1536}
     ```
   </Tab>
-  <Tab title="AWS Bedrock">
-    Uses AWS Bedrock for embedding generation.
+  <Tab title="AWS Bedrock (Recommended)">
+    Uses AWS Bedrock for embedding generation. Recommended for production deployments, especially if you are
+    already running on AWS infrastructure.
 
     | Environment Variable | Default | Description |
     |---------------------|---------|-------------|
@@ -125,11 +126,13 @@ Choose one of the following embedding providers and configure it accordingly.
           embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-""}
     ```
   </Tab>
-  <Tab title="DJL (Testing/Development Only)">
+  <Tab title="DJL (Test / Dev Only)">
     Uses [Deep Java Library](https://djl.ai/) to run embedding models locally. No external API calls required.
 
     <Warning>
-    DJL is intended for **testing and development only**. For production environments, we recommend **OpenAI** or **AWS Bedrock**.
+
+    DJL is intended for **testing and development** only. For production deployments, use **OpenAI** or **AWS Bedrock**.
+
     </Warning>
 
     | Environment Variable | Default | Description |
@@ -194,14 +197,15 @@ hardcoding them in `values.yaml`.
 
 </Tip>
 
-## Automatic Re-Indexing
+## Generating Embeddings
 
-Embeddings are automatically generated and maintained for all entities. When entities are created, updated, or deleted,
-the platform automatically computes embeddings using the configured embedding provider.
+Once Semantic Search is enabled, embeddings are generated and kept in sync automatically as entities are created
+or updated. To generate embeddings for all existing entities, run a **Reindex** from the OpenMetadata UI
+(`Settings > Applications > SearchIndexingApplication`).
 
-To optimize performance and avoid unnecessary API calls, each reindex operation computes a fingerprint of the entity text.
-If the fingerprint matches the existing one, embedding generation is skipped. This ensures embeddings are only recomputed
-when entity content actually changes.
+Every Reindex operation computes embeddings taking a fingerprint into account -- if the text representation of an entity
+has not changed since its last embedding, the embedding is not recomputed. This avoids unnecessary calls to the
+embedding provider and makes re-indexing efficient even for large catalogs.
 
 ## API Reference
 
@@ -247,7 +251,7 @@ multiple text chunks.
 - Verify that `SEMANTIC_SEARCH_ENABLED` is set to `true` and the server has been restarted.
 - Confirm that OpenSearch is your search backend (Elasticsearch is not yet supported).
 - Check that the `vector_search_index` exists in OpenSearch.
-- Run the `reembed` command to generate embeddings for existing entities.
+- Run a Reindex to generate embeddings for existing entities.
 
 ### Embedding generation fails
 - Verify network connectivity from the OpenMetadata server to your embedding provider.
