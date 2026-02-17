@@ -1,0 +1,352 @@
+---
+title: dbt Artifact Storage - Local Filesystem Configuration | Collate
+description: Configure local or shared filesystem for dbt artifact storage with Collate. Includes Docker Compose and Kubernetes PVC examples.
+slug: /connectors/database/dbt/storage-local-guide
+sidebarTitle: Local Configuration
+---
+
+# dbt Artifact Storage: Local/Shared Filesystem
+
+This guide walks you through configuring a **local or shared filesystem** as the artifact storage layer for dbt Core + Collate integration. Ideal for development, single-server deployments, or Kubernetes with shared volumes.
+
+<Warning>
+**Not recommended for production distributed systems.** dbt and Collate must access the same filesystem. Use cloud storage (S3/GCS/Azure) for production multi-server deployments.
+</Warning>
+
+## Prerequisites Checklist
+
+| Requirement | Details | How to Verify |
+|-------------|---------|---------------|
+| **Shared Filesystem** | dbt on same machine or shared volume | Can access same directory |
+| **dbt Project** | Existing dbt project | `dbt debug` |
+| **Database Service** | Data warehouse already ingested | Check Settings → Services |
+
+## Configuration Options
+
+### Option A: Same Machine (Development)
+
+If dbt and Collate run on the same machine:
+
+**1. Run dbt and generate artifacts:**
+```bash
+cd /path/to/dbt/project
+dbt run
+dbt test
+dbt docs generate
+```
+
+**2. Note the target directory path:**
+```bash
+# Artifacts are in target/ directory
+ls -la target/
+# Output: manifest.json, catalog.json, run_results.json
+```
+
+**3. Configure Collate with absolute path:**
+- Manifest: `/path/to/dbt/project/target/manifest.json`
+- Catalog: `/path/to/dbt/project/target/catalog.json`
+- Run Results: `/path/to/dbt/project/target/run_results.json`
+
+### Option B: Docker Compose with Shared Volume
+
+Perfect for local development stacks.
+
+**docker-compose.yml:**
+```yaml
+version: '3.8'
+
+services:
+  # dbt service (runs dbt commands)
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:latest
+    volumes:
+      - ./dbt:/usr/app/dbt          # dbt project
+      - dbt-artifacts:/dbt-artifacts # Shared volume for artifacts
+    command: >
+      bash -c "
+        dbt run --project-dir /usr/app/dbt &&
+        dbt test --project-dir /usr/app/dbt &&
+        dbt docs generate --project-dir /usr/app/dbt &&
+        cp /usr/app/dbt/target/*.json /dbt-artifacts/
+      "
+    environment:
+      DBT_PROFILES_DIR: /usr/app/dbt
+
+  # Collate service
+  collate:
+    image: openmetadata/server:latest
+    ports:
+      - "8585:8585"
+    volumes:
+      - dbt-artifacts:/dbt-artifacts  # Same shared volume
+    environment:
+      # Collate will read from /dbt-artifacts/
+      DBT_ARTIFACTS_PATH: /dbt-artifacts
+
+volumes:
+  dbt-artifacts:  # Named volume shared between services
+```
+
+**Configure Collate:**
+- Manifest: `/dbt-artifacts/manifest.json`
+- Catalog: `/dbt-artifacts/catalog.json`
+- Run Results: `/dbt-artifacts/run_results.json`
+
+### Option C: Kubernetes with PersistentVolumeClaim
+
+For Kubernetes deployments where dbt and Collate run in the same cluster.
+
+**1. Create PersistentVolumeClaim:**
+
+```yaml
+# dbt-artifacts-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dbt-artifacts
+  namespace: data-platform
+spec:
+  accessModes:
+    - ReadWriteMany  # Critical: Allows multiple pods to read
+  storageClassName: nfs-client  # Use NFS, EFS, or similar
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+```bash
+kubectl apply -f dbt-artifacts-pvc.yaml
+```
+
+**2. dbt CronJob (uploads artifacts):**
+
+```yaml
+# dbt-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dbt-runner
+  namespace: data-platform
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: dbt
+            image: ghcr.io/dbt-labs/dbt-postgres:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              dbt run &&
+              dbt test &&
+              dbt docs generate &&
+              cp target/*.json /dbt-artifacts/
+            volumeMounts:
+            - name: dbt-project
+              mountPath: /usr/app/dbt
+            - name: dbt-artifacts
+              mountPath: /dbt-artifacts
+          volumes:
+          - name: dbt-project
+            configMap:
+              name: dbt-project-config
+          - name: dbt-artifacts
+            persistentVolumeClaim:
+              claimName: dbt-artifacts
+          restartPolicy: OnFailure
+```
+
+**3. Mount volume in Collate deployment:**
+
+```yaml
+# collate-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collate
+  namespace: data-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collate
+  template:
+    metadata:
+      labels:
+        app: collate
+    spec:
+      containers:
+      - name: collate
+        image: openmetadata/server:latest
+        ports:
+        - containerPort: 8585
+        volumeMounts:
+        - name: dbt-artifacts
+          mountPath: /dbt-artifacts
+          readOnly: true  # Collate only reads
+      volumes:
+      - name: dbt-artifacts
+        persistentVolumeClaim:
+          claimName: dbt-artifacts
+```
+
+**Configure Collate:**
+- Manifest: `/dbt-artifacts/manifest.json`
+- Catalog: `/dbt-artifacts/catalog.json`
+- Run Results: `/dbt-artifacts/run_results.json`
+
+### Option D: NFS Mounted Shared Storage
+
+For VMs or bare-metal servers with shared NFS storage.
+
+**1. Set up NFS share:**
+
+**On NFS server:**
+```bash
+# Install NFS server
+sudo apt install -y nfs-kernel-server
+
+# Create shared directory
+sudo mkdir -p /export/dbt-artifacts
+sudo chmod 777 /export/dbt-artifacts
+
+# Configure exports
+echo "/export/dbt-artifacts *(rw,sync,no_subtree_check,no_root_squash)" | \
+    sudo tee -a /etc/exports
+
+# Restart NFS
+sudo systemctl restart nfs-kernel-server
+```
+
+**2. Mount on client machines:**
+
+**On dbt server:**
+```bash
+sudo apt install -y nfs-common
+sudo mkdir -p /mnt/dbt-artifacts
+sudo mount nfs-server:/export/dbt-artifacts /mnt/dbt-artifacts
+
+# Make permanent
+echo "nfs-server:/export/dbt-artifacts /mnt/dbt-artifacts nfs defaults 0 0" | \
+    sudo tee -a /etc/fstab
+```
+
+**On Collate server:**
+```bash
+sudo apt install -y nfs-common
+sudo mkdir -p /mnt/dbt-artifacts
+sudo mount nfs-server:/export/dbt-artifacts /mnt/dbt-artifacts
+
+# Make permanent
+echo "nfs-server:/export/dbt-artifacts /mnt/dbt-artifacts nfs defaults 0 0" | \
+    sudo tee -a /etc/fstab
+```
+
+**3. Configure dbt to write to NFS:**
+```bash
+cd /path/to/dbt/project
+dbt run && dbt test && dbt docs generate
+cp target/*.json /mnt/dbt-artifacts/
+```
+
+**Configure Collate:**
+- Manifest: `/mnt/dbt-artifacts/manifest.json`
+- Catalog: `/mnt/dbt-artifacts/catalog.json`
+- Run Results: `/mnt/dbt-artifacts/run_results.json`
+
+## Step 2: Configure Collate
+
+### Configuration
+
+1. Go to **Settings → Services → Database Services**
+2. Click on your database service
+3. Go to the **Ingestion** tab
+4. Click **Add Ingestion**
+5. Select **dbt** from the dropdown
+
+**Configure dbt Source (Local):**
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| **dbt Configuration Source** | `Local` | Select from dropdown |
+| **dbt Catalog File Path** | `/dbt-artifacts/catalog.json` | Absolute path accessible by Collate |
+| **dbt Manifest File Path** | `/dbt-artifacts/manifest.json` | Absolute path accessible by Collate |
+| **dbt Run Results File Path** | `/dbt-artifacts/run_results.json` | Optional - absolute path |
+
+**Configure dbt Options:**
+
+| Field | Recommended Value |
+|-------|-------------------|
+| **Update Descriptions** | `Enabled` |
+| **Update Owners** | `Enabled` |
+| **Include Tags** | `Enabled` |
+| **Classification Name** | `dbtTags` |
+
+## Verification
+
+```bash
+# Verify artifacts exist and are readable
+ls -la /dbt-artifacts/
+cat /dbt-artifacts/manifest.json | jq '.metadata.dbt_version'
+
+# Check from Collate's perspective (if in Docker)
+docker exec collate-container ls -la /dbt-artifacts/
+docker exec collate-container cat /dbt-artifacts/manifest.json | jq '.'
+```
+
+## Best Practices
+
+### 1. Use Absolute Paths
+Always use absolute paths, not relative:
+- ✓ `/dbt-artifacts/manifest.json`
+- ✗ `../dbt/target/manifest.json`
+
+### 2. Ensure Read Permissions
+```bash
+# Set correct permissions
+chmod 644 /dbt-artifacts/*.json
+chown collate-user:collate-group /dbt-artifacts/*.json
+```
+
+### 3. Automate Artifact Copying
+```bash
+# Add to dbt wrapper script
+dbt run && dbt test && dbt docs generate
+cp target/*.json /dbt-artifacts/
+```
+
+### 4. Use ReadWriteMany for Kubernetes
+For Kubernetes PVC, ensure `accessMode: ReadWriteMany`:
+- Works: NFS, EFS, Azure Files, GlusterFS
+- Doesn't work: EBS (ReadWriteOnce only)
+
+## Troubleshooting
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| **File not found** | "No such file or directory" | Verify absolute path is correct and accessible from Collate |
+| **Permission denied** | "Permission denied" | Run `chmod 644 /dbt-artifacts/*.json` |
+| **Stale data** | Old metadata showing | Ensure dbt writes artifacts before Collate reads |
+| **Mount issue** | "Transport endpoint not connected" | Check NFS mount: `mount | grep dbt-artifacts` |
+| **Volume not shared** | Works for dbt, not Collate | Verify both containers/pods mount the same volume |
+
+- **No built-in versioning or backup**
+- **File locking issues** possible with concurrent access
+- **Requires shared filesystem** infrastructure
+
+For production, consider:
+- [S3 Storage](/connectors/database/dbt/storage-s3-guide) for AWS
+- [GCS Storage](/connectors/database/dbt/storage-gcs-guide) for GCP
+- [Azure Blob Storage](/connectors/database/dbt/storage-azure-guide) for Azure
+
+## Next Steps
+
+- [Configure dbt Workflow](/connectors/database/dbt/configure-dbt-workflow)
+- [dbt Troubleshooting](/connectors/database/dbt/dbt-troubleshooting)
+
+<Note>
+See other storage options: [S3](/connectors/database/dbt/storage-s3-guide) | [GCS](/connectors/database/dbt/storage-gcs-guide) | [Azure](/connectors/database/dbt/storage-azure-guide) | [HTTP](/connectors/database/dbt/storage-http-guide) | [dbt Cloud](/connectors/database/dbt/dbt-cloud-api-guide)
+</Note>

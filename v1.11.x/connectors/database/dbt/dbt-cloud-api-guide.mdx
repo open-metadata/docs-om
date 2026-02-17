@@ -1,0 +1,254 @@
+---
+title: dbt Cloud API Configuration | Collate
+description: Connect Collate to dbt Cloud with zero infrastructure setup. No storage configuration needed - pull artifacts directly via API.
+slug: /connectors/database/dbt/dbt-cloud-api-guide
+sidebarTitle: dbt Cloud API
+---
+
+# dbt Cloud API Configuration
+
+This guide shows you how to integrate **dbt Cloud** with **Collate** using the **dbt Cloud API**.
+
+<Note>
+**This guide is ONLY for dbt Cloud users.** If you're using dbt Core, see [dbt Core Configuration](/connectors/database/dbt/storage-configuration-overview) for storage setup options.
+</Note>
+
+## Prerequisites Checklist
+
+| Requirement | Details | How to Verify |
+|-------------|---------|---------------|
+| **dbt Cloud Account** | Active subscription | Can log in to cloud.getdbt.com |
+| **dbt Cloud Jobs** | At least one successful job run | Check job run history |
+| **API Access** | Account Viewer permission minimum | Can create API tokens |
+| **Database Service** | Data warehouse already ingested | Check Settings → Services |
+
+## Step 1: Get dbt Cloud API Token
+
+### 1.1 Create API Token
+
+1. Log in to **dbt Cloud** (cloud.getdbt.com)
+2. Click your **profile icon** (top right)
+3. Go to **Account Settings**
+4. Click **API Access** in the left sidebar
+5. Click **+ Create Token**
+6. Configure the token:
+   - **Description**: `Collate Integration`
+   - **Permission**: `Account Viewer`
+7. Click **Save**
+8. **Copy the token immediately** - you won't see it again!
+
+**Expected token format:**
+```
+dbt_cloud_abc123def456ghi789jkl...
+```
+
+<Warning>
+Save this token securely. You'll need it for Collate configuration.
+</Warning>
+
+### 1.2 Find Your Account ID
+
+**Method A: From URL** (Easiest)
+
+When logged into dbt Cloud, look at the browser URL:
+```
+https://cloud.getdbt.com/accounts/12345/projects/...
+                                 ^^^^^
+                         This is your Account ID
+```
+
+**Method B: Via API**
+
+```bash
+export DBT_CLOUD_TOKEN="your-token-here"
+
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     https://cloud.getdbt.com/api/v2/accounts/ | jq '.data[].id'
+```
+
+### 1.3 Identify Your dbt Cloud Region
+
+dbt Cloud has regional deployments:
+
+| Region | URL | Use If |
+|--------|-----|--------|
+| **North America** | `https://cloud.getdbt.com` | Default (most common) |
+| **EMEA** | `https://emea.dbt.com` | European accounts |
+| **APAC** | `https://au.dbt.com` | Asia-Pacific accounts |
+
+**How to check**: Look at your dbt Cloud login URL.
+
+### 1.4 (Optional) Get Project/Job IDs
+
+By default, Collate will use the **most recent successful run** from any project/job. To filter to a specific project or job, you'll need their IDs.
+
+**Get IDs from dbt Cloud UI:**
+- **Account ID**: In URL: `https://cloud.getdbt.com/#/accounts/{ACCOUNT_ID}/...`
+- **Project ID**: Go to **Account Settings → Projects**, click a project, ID is in the URL
+- **Job ID**: Go to **Deploy → Jobs**, click a job, ID is in the URL
+
+**Or retrieve via API:**
+
+**List Projects:**
+```bash
+export ACCOUNT_ID="12345"
+
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/projects/ | \
+     jq '.data[] | {id, name}'
+```
+
+**Example output:**
+```json
+{
+  "id": 98765,
+  "name": "analytics"
+}
+```
+
+**List Jobs:**
+```bash
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/jobs/ | \
+     jq '.data[] | {id, name, project_id}'
+```
+
+**Example output:**
+```json
+{
+  "id": 54321,
+  "name": "Daily Production Run",
+  "project_id": 98765
+}
+```
+
+## Step 2: Configure Collate
+
+### Configuration
+
+1. Go to **Settings → Services → Database Services**
+2. Click on your database service (e.g., "production-snowflake")
+   - **Important**: Must match the database dbt connects to
+3. Go to the **Ingestion** tab
+4. Click **Add Ingestion**
+5. Select **dbt** from the dropdown
+
+**Configure dbt Source (dbt Cloud):**
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| **dbt Configuration Source** | `dbt Cloud` | Select from dropdown |
+| **dbt Cloud Auth Token** | `dbt_cloud_abc123...` | Your API token from Step 1.1 |
+| **dbt Cloud Account ID** | `12345` | Your account ID from Step 1.2 |
+| **dbt Cloud URL** | `https://cloud.getdbt.com` | Or your regional URL |
+| **dbt Cloud Project ID** | *(optional)* | Leave empty to use latest run from any project |
+| **dbt Cloud Job ID** | *(optional)* | Leave empty to use latest run from any job |
+
+**How filtering works:**
+- **Both empty**: Uses most recent successful run from **any** job in the account
+- **Project ID provided**: Uses most recent run from that specific project
+- **Both provided**: Uses most recent run from that specific job
+
+**Configure dbt Options:**
+
+| Field | Recommended Value |
+|-------|-------------------|
+| **Update Descriptions** | `Enabled` |
+| **Update Owners** | `Enabled` |
+| **Include Tags** | `Enabled` |
+| **Classification Name** | `dbtTags` |
+
+<Tip>
+Match your schedule to dbt Cloud job frequency. If jobs run every 6 hours, schedule Collate ingestion every 6 hours.
+</Tip>
+
+**Test & Deploy:**
+1. Click **Test Connection**
+   - Should show: ✓ API connectivity, ✓ Account access, ✓ Recent run found
+2. If successful, click **Deploy**
+3. Click **Run** to trigger immediately
+
+## Verification
+
+### Verification Checklist
+
+| Check | How to Verify | Expected Result |
+|-------|---------------|-----------------|
+| **dbt Cloud run exists** | Check dbt Cloud job history | Recent successful run visible |
+| **Ingestion completed** | Collate UI → Service → Ingestion tab | Green status, no errors |
+| **Lineage appears** | Click on a dbt model → Lineage tab | Upstream/downstream connections |
+| **Descriptions synced** | Click on a table → Schema tab | dbt descriptions visible |
+| **Test results visible** | Click on a table → Data Quality tab | dbt test results shown |
+
+## Best Practices
+
+### Ensure Jobs Generate All Artifacts
+
+Your dbt Cloud job **must** include these commands:
+
+```bash
+dbt run           # Generates manifest.json
+dbt test          # Generates run_results.json with test results
+dbt docs generate # Generates catalog.json with column descriptions
+```
+
+**How to verify:**
+1. Go to **dbt Cloud → Jobs**
+2. Click on your job
+3. Go to **Settings → Commands**
+4. Confirm all three commands are present
+
+### Schedule Alignment
+
+| dbt Cloud Job Frequency | Recommended Collate Schedule |
+|------------------------|------------------------------|
+| Hourly | `0 * * * *` (Every hour) |
+| Every 6 hours | `0 */6 * * *` (Every 6 hours) |
+| Daily (6 AM) | `0 7 * * *` (Daily at 7 AM) |
+| On-demand only | `0 */3 * * *` (Every 3 hours) |
+
+### API Rate Limits
+
+dbt Cloud API has rate limits:
+- **100 requests per minute** per API token
+
+Collate makes ~3-5 API calls per ingestion. Don't schedule more frequently than **every 15 minutes**.
+
+## Troubleshooting
+
+| Issue | Symptom | Cause | Solution |
+|-------|---------|-------|----------|
+| **Invalid Token** | "401 Unauthorized" | Token expired or wrong | Regenerate API token in dbt Cloud |
+| **No Runs Found** | "No recent successful runs" | No completed jobs | Run a dbt Cloud job and wait for completion |
+| **Wrong Account** | "403 Forbidden" | Account ID incorrect | Verify Account ID from URL or API |
+| **Missing catalog.json** | No column descriptions | Job didn't run `dbt docs generate` | Add docs generation to job commands |
+| **Wrong Database Service** | No lineage appears | Service name mismatch | Ensure Collate service name matches dbt target |
+| **Stale data** | Old metadata showing | Ingestion not running | Check ingestion schedule and logs |
+
+### Debug Commands
+
+```bash
+# Test API connectivity
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/ | jq '.'
+
+# Get most recent successful run (what Collate will use)
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     "https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/runs/?status=10&order_by=-finished_at&limit=1" | \
+     jq '.data[0] | {id, job_id, finished_at, status_humanized}'
+
+# Download manifest from run
+curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     "https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/runs/${RUN_ID}/artifacts/manifest.json" | \
+     jq '.metadata.dbt_version'
+```
+
+## Next Steps
+
+- [Configure dbt Workflow](/connectors/database/dbt/configure-dbt-workflow)
+- [dbt Troubleshooting](/connectors/database/dbt/dbt-troubleshooting)
+- [Ingest dbt Descriptions](/connectors/database/dbt/ingest-dbt-descriptions)
+
+<Note>
+Questions? See the main [dbt Overview](/connectors/database/dbt) or visit our documentation.
+</Note>
