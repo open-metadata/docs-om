@@ -1,0 +1,158 @@
+---
+title: Semantic Search MCP Tool
+description: Use the Semantic Search MCP tool to perform natural language queries against your OpenMetadata catalog through AI assistants.
+sidebarTitle: Semantic Search Tool
+---
+
+# Semantic Search MCP Tool
+
+## Overview
+
+The Semantic Search tool extends OpenMetadata's [MCP Server](/v1.12.x-SNAPSHOT/how-to-guides/mcp) with the ability to
+perform **natural language vector searches** against your metadata catalog. Instead of relying on exact keyword matches,
+this tool uses vector embeddings to understand the semantic meaning of queries, returning results that are conceptually
+relevant even if they don't contain the exact search terms.
+
+For example, a query like *"tables storing customer purchase behavior"* can surface tables named `order_transactions`
+or `buyer_activity` that are semantically related but don't share the same keywords.
+
+<Info>
+
+Semantic Search requires **OpenSearch** as the search backend and must be [enabled in your deployment
+configuration](/v1.12.x-SNAPSHOT/deployment/semantic-search) before it can be used through MCP.
+
+</Info>
+
+## How It Works
+
+When an AI assistant calls the Semantic Search tool through MCP:
+
+1. The natural language query is sent to the OpenMetadata server's vector search endpoint (`/api/v1/search/vector/query`).
+2. The query text is converted into a vector embedding using the configured embedding provider (OpenAI, AWS Bedrock,
+   or DJL).
+3. OpenSearch performs a KNN (K-Nearest Neighbor) similarity search against pre-computed entity embeddings.
+4. Results are deduplicated by entity and returned to the AI assistant with metadata including entity type,
+   fully qualified name, owners, tags, and similarity score.
+
+The AI assistant can then use these results to answer questions, provide context, or drive further actions.
+
+## Prerequisites
+
+- OpenMetadata v1.12.x or later
+- Semantic Search [enabled and configured](/v1.12.x-SNAPSHOT/deployment/semantic-search) in your deployment
+- The [MCP Application installed](/v1.12.x-SNAPSHOT/how-to-guides/mcp#installing-mcp-server) in OpenMetadata
+- A [Personal Access Token](/v1.12.x-SNAPSHOT/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client)
+  for authentication
+
+## Using the Semantic Search Tool
+
+The Semantic Search tool is automatically available through the MCP Server when Semantic Search is enabled in your
+deployment. AI assistants connected via MCP can call it directly.
+
+### Tool: `search_metadata` (with Semantic Search)
+
+When Semantic Search is enabled, the existing `search_metadata` MCP tool is enhanced with vector search capabilities.
+The AI agent's natural language query is used for semantic similarity matching, providing more accurate and contextually
+relevant results.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Natural language search text |
+| `entity_type` | string | No | Filter by entity type (table, dashboard, pipeline, etc.) |
+| `limit` | integer | No | Maximum number of results to return (default: 10) |
+| `fields` | string | No | Comma-separated additional fields to include |
+
+### Example Prompts
+
+Once your MCP client is connected and Semantic Search is enabled, try these natural language prompts with your AI
+assistant:
+
+**Find related data assets:**
+```
+Find tables related to customer purchase behavior and transaction history
+```
+
+**Discover assets by concept:**
+```
+What dashboards do we have about revenue forecasting?
+```
+
+**Search across entity types:**
+```
+Show me all data assets related to user engagement metrics
+```
+
+**Narrow by entity type:**
+```
+Find pipelines that process financial compliance data
+```
+
+### Sample MCP Request
+
+Under the hood, when an AI assistant calls the semantic search tool, it sends an MCP request like:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "customer purchase behavior and transaction history",
+      "entity_type": "table",
+      "limit": 10
+    }
+  }
+}
+```
+
+### Sample Response
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Found 3 results matching your search:\n\n1. **order_transactions** (Table)\n   - Description: Records of all customer order transactions\n   - Service: postgres_prod\n   - Database: ecommerce\n   - Schema: public\n   - Owners: data-engineering-team\n   - Tags: PII, Financial\n   - [View in OpenMetadata](https://your-om.com/table/postgres_prod.ecommerce.public.order_transactions)\n\n2. **buyer_activity** (Table)\n   - Description: Customer browsing and purchasing activity log\n   - Service: clickhouse_analytics\n   - Database: events\n   - Schema: main\n   - [View in OpenMetadata](https://your-om.com/table/clickhouse_analytics.events.main.buyer_activity)\n\n3. **purchase_summary** (Table)\n   - Description: Aggregated purchase metrics by customer segment\n   - Service: snowflake_dwh\n   - Database: analytics\n   - Schema: reporting\n   - [View in OpenMetadata](https://your-om.com/table/snowflake_dwh.analytics.reporting.purchase_summary)"
+      }
+    ]
+  }
+}
+```
+
+## Keyword Search vs Semantic Search
+
+| Feature | Keyword Search | Semantic Search |
+|---------|---------------|-----------------|
+| Matching | Exact keyword and text matching | Meaning-based similarity matching |
+| Query style | Specific keywords and filters | Natural language questions |
+| Results | Documents containing the search terms | Conceptually related documents |
+| Search backend | OpenSearch or Elasticsearch | OpenSearch only |
+| Configuration | Available by default | Requires [enabling](/v1.12.x-SNAPSHOT/deployment/semantic-search) and an embedding provider |
+
+Both search methods are complementary. Keyword search is precise when you know the exact terms, while Semantic Search
+excels at discovery when you describe what you're looking for in natural language.
+
+## Troubleshooting
+
+### The AI assistant doesn't use Semantic Search
+- Verify that `SEMANTIC_SEARCH_ENABLED` is set to `true` in your OpenMetadata deployment.
+- Ensure entities have been embedded by running a Reindex from the OpenMetadata UI. See the
+  [deployment guide](/v1.12.x-SNAPSHOT/deployment/semantic-search#generating-embeddings) for details.
+
+### Results seem irrelevant
+- Try rephrasing your query with more descriptive language.
+- The quality of results depends on the embedding model. Consider using a higher-quality model like
+  `text-embedding-3-large` if using OpenAI.
+- Ensure entity descriptions and metadata are well-populated -- richer metadata produces better embeddings.
+
+### No results returned
+- Check that the `vector_search_index` exists in OpenSearch and contains documents.
+- Verify the embedding provider is correctly configured and accessible.
+- Review the OpenMetadata server logs for errors related to vector search.
