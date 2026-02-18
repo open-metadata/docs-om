@@ -1,0 +1,319 @@
+---
+title: dbt Artifact Storage - HTTP Server Configuration | Collate
+description: Configure HTTP/HTTPS servers for dbt artifact storage with Collate. Includes Nginx, Apache, and S3+CloudFront examples.
+slug: /connectors/database/dbt/storage-http-guide
+sidebarTitle: HTTP Configuration
+---
+
+# dbt Artifact Storage: HTTP Server Configuration
+
+This guide walks you through configuring an **HTTP/HTTPS server** as the artifact storage layer for dbt Core + Collate integration. Ideal for multi-cloud or on-premises deployments.
+
+## Prerequisites Checklist
+
+| Requirement | Details | How to Verify |
+|-------------|---------|---------------|
+| **Web Server** | Nginx, Apache, or cloud CDN | `curl http://your-server/` |
+| **dbt Project** | Existing dbt project | `dbt debug` |
+| **Server Access** | SSH or deployment access | Can upload files to server |
+| **Database Service** | Data warehouse already ingested | Check Settings → Services |
+
+## HTTP Server Options
+
+### Option 1: S3 + CloudFront (Recommended)
+
+Combine S3 storage with CloudFront CDN for HTTPS and global access.
+
+**Setup:**
+1. Follow [S3 guide](/connectors/database/dbt/storage-s3-guide) to create bucket and upload artifacts
+2. Create CloudFront distribution:
+
+```bash
+# Create CloudFront distribution (AWS Console or CLI)
+aws cloudfront create-distribution \
+  --origin-domain-name your-bucket.s3.amazonaws.com \
+  --default-root-object index.html
+```
+
+3. Configure Collate with CloudFront URL:
+   - URL: `https://d123abc.cloudfront.net/dbt/`
+
+### Option 2: Nginx Static File Server
+
+**Install Nginx:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y nginx
+
+# CentOS/RHEL
+sudo yum install -y nginx
+
+# macOS
+brew install nginx
+```
+
+**Configure Nginx:**
+
+Create `/etc/nginx/sites-available/dbt-artifacts`:
+
+```nginx
+server {
+    listen 80;
+    server_name artifacts.yourcompany.com;
+
+    # Root directory for dbt artifacts
+    root /var/www/dbt-artifacts;
+    
+    # Enable directory listing (optional)
+    autoindex on;
+    
+    # CORS headers for Collate access
+    add_header 'Access-Control-Allow-Origin' '*';
+    add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS';
+    
+    location /dbt/ {
+        alias /var/www/dbt-artifacts/;
+        try_files $uri $uri/ =404;
+    }
+    
+    # Optional: Basic authentication
+    # auth_basic "Restricted Access";
+    # auth_basic_user_file /etc/nginx/.htpasswd;
+}
+```
+
+**Enable the site:**
+```bash
+sudo ln -s /etc/nginx/sites-available/dbt-artifacts /etc/nginx/sites-enabled/
+sudo mkdir -p /var/www/dbt-artifacts
+sudo chmod 755 /var/www/dbt-artifacts
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Option 3: Apache Static File Server
+
+**Install Apache:**
+```bash
+# Ubuntu/Debian
+sudo apt install -y apache2
+
+# CentOS/RHEL
+sudo yum install -y httpd
+```
+
+**Configure Apache:**
+
+Create `/etc/apache2/sites-available/dbt-artifacts.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName artifacts.yourcompany.com
+    DocumentRoot /var/www/dbt-artifacts
+
+    <Directory /var/www/dbt-artifacts>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        Require all granted
+        
+        # Enable CORS
+        Header set Access-Control-Allow-Origin "*"
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/dbt-artifacts-error.log
+    CustomLog ${APACHE_LOG_DIR}/dbt-artifacts-access.log combined
+</VirtualHost>
+```
+
+**Enable the site:**
+```bash
+sudo a2ensite dbt-artifacts
+sudo mkdir -p /var/www/dbt-artifacts
+sudo chmod 755 /var/www/dbt-artifacts
+sudo systemctl reload apache2
+```
+
+## Step 2: Upload Artifacts from dbt
+
+### 2.1 Manual Upload with rsync
+
+```bash
+# Upload artifacts to server
+rsync -avz target/*.json user@server:/var/www/dbt-artifacts/
+
+# Or via SCP
+scp target/*.json user@server:/var/www/dbt-artifacts/
+```
+
+### 2.2 Automated Upload in Airflow DAG
+
+```python
+"""
+dbt + HTTP Upload DAG
+"""
+
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+from datetime import datetime, timedelta
+
+default_args = {
+    "owner": "data-engineering",
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+with DAG(
+    dag_id="dbt_with_http",
+    default_args=default_args,
+    schedule_interval="0 6 * * *",
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+) as dag:
+
+    dbt_run = BashOperator(
+        task_id="dbt_run",
+        bash_command="cd /opt/airflow/dbt && dbt run && dbt test && dbt docs generate"
+    )
+
+    upload_artifacts = BashOperator(
+        task_id="upload_to_http_server",
+        bash_command="""
+            rsync -avz /opt/airflow/dbt/target/*.json \
+                user@artifacts.yourcompany.com:/var/www/dbt-artifacts/
+        """
+    )
+
+    dbt_run >> upload_artifacts
+```
+
+### 2.3 Upload with curl (Simple HTTP POST)
+
+If your server accepts POST requests:
+
+```bash
+cd target
+curl -X POST -F "file=@manifest.json" http://artifacts.yourcompany.com/upload
+curl -X POST -F "file=@catalog.json" http://artifacts.yourcompany.com/upload
+curl -X POST -F "file=@run_results.json" http://artifacts.yourcompany.com/upload
+```
+
+## Step 3: Configure Collate
+
+### Configuration
+
+1. Go to **Settings → Services → Database Services**
+2. Click on your database service
+3. Go to the **Ingestion** tab
+4. Click **Add Ingestion**
+5. Select **dbt** from the dropdown
+
+**Configure dbt Source (HTTP):**
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| **dbt Configuration Source** | `HTTP` | Select from dropdown |
+| **dbt Catalog HTTP Path** | `http://artifacts.yourcompany.com/dbt/catalog.json` | Full URL to catalog.json |
+| **dbt Manifest HTTP Path** | `http://artifacts.yourcompany.com/dbt/manifest.json` | Full URL to manifest.json |
+| **dbt Run Results HTTP Path** | `http://artifacts.yourcompany.com/dbt/run_results.json` | Full URL to run_results.json (optional) |
+
+**If using Basic Auth:**
+
+| Field | Value |
+|-------|-------|
+| **Username** | `your-username` |
+| **Password** | `your-password` |
+
+**Configure dbt Options:**
+
+| Field | Recommended Value |
+|-------|-------------------|
+| **Update Descriptions** | `Enabled` |
+| **Update Owners** | `Enabled` |
+| **Include Tags** | `Enabled` |
+| **Classification Name** | `dbtTags` |
+
+## Verification
+
+```bash
+# Verify artifacts are accessible
+curl http://artifacts.yourcompany.com/dbt/manifest.json | jq '.metadata.dbt_version'
+curl http://artifacts.yourcompany.com/dbt/catalog.json | jq '.metadata.dbt_version'
+
+# Check from Collate's network
+# (Run this from Collate's server/container)
+curl -I http://artifacts.yourcompany.com/dbt/manifest.json
+```
+
+## Security Considerations
+
+### Enable HTTPS
+
+Use Let's Encrypt for free SSL certificates:
+
+```bash
+# Install certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Get certificate
+sudo certbot --nginx -d artifacts.yourcompany.com
+
+# Auto-renew
+sudo certbot renew --dry-run
+```
+
+### Add Basic Authentication
+
+**For Nginx:**
+```bash
+# Create password file
+sudo apt install -y apache2-utils
+sudo htpasswd -c /etc/nginx/.htpasswd collate
+
+# Update Nginx config (already shown above)
+```
+
+**For Apache:**
+```bash
+# Create password file
+sudo htpasswd -c /etc/apache2/.htpasswd collate
+
+# Add to Apache config
+<Directory /var/www/dbt-artifacts>
+    AuthType Basic
+    AuthName "Restricted Access"
+    AuthUserFile /etc/apache2/.htpasswd
+    Require valid-user
+</Directory>
+```
+
+### IP Whitelisting
+
+**For Nginx:**
+```nginx
+location /dbt/ {
+    allow 10.0.0.0/8;        # Internal network
+    allow 203.0.113.0/24;    # Collate servers
+    deny all;
+    
+    alias /var/www/dbt-artifacts/;
+}
+```
+
+## Troubleshooting
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| **403 Forbidden** | Access denied | Check file permissions: `chmod 644 /var/www/dbt-artifacts/*.json` |
+| **404 Not Found** | Files not found | Verify file paths and Nginx/Apache config |
+| **Connection Timeout** | Can't reach server | Check firewall rules, ensure port 80/443 open |
+| **CORS Error** | Browser blocks request | Add CORS headers to web server config |
+| **Stale Data** | Old metadata | Verify upload happens after dbt completes |
+
+## Next Steps
+
+- [Configure dbt Workflow](/connectors/database/dbt/configure-dbt-workflow)
+- [dbt Troubleshooting](/connectors/database/dbt/dbt-troubleshooting)
+
+<Note>
+See other storage options: [S3](/connectors/database/dbt/storage-s3-guide) | [GCS](/connectors/database/dbt/storage-gcs-guide) | [Azure](/connectors/database/dbt/storage-azure-guide) | [Local](/connectors/database/dbt/storage-local-guide) | [dbt Cloud](/connectors/database/dbt/dbt-cloud-api-guide)
+</Note>
