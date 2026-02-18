@@ -39,7 +39,6 @@ export const Integrations = () => {
                 { name: 'Glue', image: '/public/images/connectors/glue.webp', link: '/v1.11.x/connectors/database/glue' },
                 { name: 'Greenplum', image: '/public/images/connectors/greenplum.webp', link: '/v1.11.x/connectors/database/greenplum' },
                 { name: 'Hive', image: '/public/images/connectors/hive.webp', link: '/v1.11.x/connectors/database/hive' },
-                { name: 'Iceberg', image: '/public/images/connectors/iceberg.webp', link: '/v1.11.x/connectors/database/iceberg' },
                 { name: 'Impala', image: '/public/images/connectors/impala.webp', link: '/v1.11.x/connectors/database/impala' },
                 { name: 'MariaDB', image: '/public/images/connectors/mariadb.webp', link: '/v1.11.x/connectors/database/mariadb' },
                 { name: 'MongoDB', image: '/public/images/connectors/mongodb.webp', link: '/v1.11.x/connectors/database/mongodb' },
