@@ -7,8 +7,9 @@ collate: false
 
 import Faqs from '/snippets/deployment/faqs.mdx'
 
-# Openmetadata Deployment on Azure Kubernetes Service Cluster
-Openmetadata can be deployed on Azure Kubernetes Service. It however requires certain cloud specific configurations with regards to setting up storage accounts for Airflow which is one of its dependencies.
+# OpenMetadata Deployment on Azure Kubernetes Service Cluster
+
+OpenMetadata can be deployed on Azure Kubernetes Service. This guide covers both the recommended Kubernetes orchestrator (new in 1.12) and the alternative Airflow-based orchestrator.
 
 ## Prerequisites
 
@@ -16,19 +17,88 @@ Openmetadata can be deployed on Azure Kubernetes Service. It however requires ce
 
 It is recommended to use [Azure SQL](https://azure.microsoft.com/en-in/products/azure-sql/database) and [Elastic Cloud on Azure](https://www.elastic.co/partners/microsoft-azure) for Production Deployments.
 
-We support
-
+We support:
 - Azure SQL (MySQL) engine version 8 or higher
 - Azure SQL (PostgreSQL) engine version 12 or higher
 - Elastic Cloud (ElasticSearch version 8.11.4)
 
-Once you have the Azure SQL and Elastic Cloud on Azure configured, you can update the environment variables below for OpenMetadata kubernetes deployments to connect with Database and ElasticSearch.
+We recommend:
+- Azure SQL to be Multi Zone Available and Production Workload Environment
+- Elastic Cloud Environment with multiple zones and minimum 2 nodes
+
+### Step 1 - Create an AKS Cluster
+
+If you are deploying on a new cluster set the `EnableAzureDiskFileCSIDriver=true` to enable container storage interface storage drivers.
+
+```azure-cli
+az aks create   --resource-group  MyResourceGroup    \
+                --name MyAKSClusterName              \
+                --nodepool-name agentpool            \
+                --outbound-type loadbalancer         \
+                --location YourPreferredLocation     \
+                --generate-ssh-keys                  \
+                --enable-addons monitoring           \
+                EnableAzureDiskFileCSIDriver=true
+```
+
+For existing cluster it is important to enable the CSI storage drivers:
+
+```azure-cli
+az aks update -n MyAKSCluster -g MyResourceGroup --enable-disk-driver --enable-file-driver
+```
+
+### Step 2 - Create a Namespace (optional)
+
+```azure-cli
+kubectl create namespace openmetadata
+```
+
+### Step 3 - Add the Helm OpenMetadata Repo
+
+```azure-cli
+helm repo add open-metadata https://helm.open-metadata.org/
+helm repo update
+```
+
+---
+
+## Kubernetes Orchestrator Configuration (Recommended)
+
+Starting with OpenMetadata 1.12, we recommend using the **Kubernetes native orchestrator** for running ingestion pipelines. This eliminates the need for Apache Airflow and simplifies your deployment.
+
+<Tip>
+The Kubernetes orchestrator runs ingestion pipelines as native K8s Jobs and CronJobs. For full documentation on features, configuration options, and troubleshooting, see the [Kubernetes Orchestrator Guide](/deployment/ingestion/kubernetes).
+</Tip>
+
+<Warning>
+The recommended OMJob Operator approach requires installing Custom Resource Definitions (CRDs), which needs elevated cluster permissions. If your cluster policies don't allow CRDs, you can disable the operator by setting `useOMJobOperator: false` and `omjobOperator.enabled: false` in your values file to use native K8s Jobs instead.
+</Warning>
+
+### Create Kubernetes Secrets
+
+Create the required secrets for your database and search engine:
+
+```azure-cli
+# Database secret (for MySQL)
+kubectl create secret generic mysql-secrets \
+  --namespace openmetadata \
+  --from-literal=openmetadata-mysql-password=<YOUR_AZURE_SQL_PASSWORD>
+
+# ElasticSearch secret
+kubectl create secret generic elasticsearch-secrets \
+  --namespace openmetadata \
+  --from-literal=openmetadata-elasticsearch-password=<YOUR_ELASTIC_CLOUD_PASSWORD>
+```
+
+### OpenMetadata Values Configuration
+
+Create your `openmetadata-values.yaml` with the following configuration:
 
 ```yaml
-# openmetadata-values.prod.yaml
-...
+# openmetadata-values.yaml
 openmetadata:
   config:
+    # Database configuration
     elasticsearch:
       host: <ELASTIC_CLOUD_ENDPOINT_WITHOUT_HTTPS>
       searchType: elasticsearch
@@ -56,42 +126,95 @@ openmetadata:
         password:
           secretRef: mysql-secrets
           secretKey: openmetadata-mysql-password
-  ...
+
+    # Kubernetes Orchestrator configuration
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata.openmetadata.svc.cluster.local:8585/api
+
+      k8s:
+        ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.0"
+        useOMJobOperator: true
+
+# Enable the OMJob Operator (recommended for production)
+omjobOperator:
+  enabled: true
+  image:
+    repository: docker.getcollate.io/openmetadata/omjob-operator
+    tag: "1.12.0"
+
+image:
+  tag: "1.12.0"
 ```
 
-We recommend -
-- Azure SQL to be Multi Zone Available and Production Workload Environment
-- Elastic Cloud Environment with multiple zones and minimum 2 nodes
+<Info>
+For advanced configuration options such as resource limits, job lifecycle settings, failure diagnostics, RBAC, and security contexts, see the [Kubernetes Orchestrator Guide](/deployment/ingestion/kubernetes).
+</Info>
 
-Make sure to create database and elastic cloud credentials as Kubernetes Secrets mentioned [here](/quick-start/local-kubernetes-deployment#2.-create-kubernetes-secrets-required-for-helm-charts).
+<Tip>
 
-Also, disable MySQL and ElasticSearch from OpenMetadata Dependencies Helm Charts as mentioned in the FAQs [here](#how-to-disable-mysql-and-elasticsearch-from-openmetadata-dependencies-helm-charts).
+For Database as PostgreSQL, use the below config for database values:
 
-### Step 1 - Create a AKS cluster
-If you are deploying on a new cluster set the `EnableAzureDiskFileCSIDriver=true` to enable container storage interface storage drivers.
+```yaml
+database:
+  host: <AZURE_SQL_ENDPOINT>
+  port: 5432
+  driverClass: org.postgresql.Driver
+  dbScheme: postgresql
+  dbUseSSL: true
+  databaseName: <AZURE_SQL_DATABASE_NAME>
+  auth:
+    username: <AZURE_SQL_DATABASE_USERNAME>
+    password:
+      secretRef: postgresql-secret
+      secretKey: postgresql-password
+```
+
+</Tip>
+
+### Deploy OpenMetadata
+
+```bash
+# Install OpenMetadata (no dependencies chart needed with K8s orchestrator)
+helm install openmetadata open-metadata/openmetadata \
+  --namespace openmetadata \
+  --values openmetadata-values.yaml
+```
+
+<Tip>
+With the Kubernetes orchestrator, you don't need to deploy the `openmetadata-dependencies` chart that includes Airflow. This significantly simplifies your deployment.
+</Tip>
+
+### Verify the Deployment
+
+```bash
+# Check pods are running
+kubectl get pods -n openmetadata
+
+# Check the K8s orchestrator health in OpenMetadata UI
+# Navigate to Settings → Preferences → Health
+```
+
+### Access OpenMetadata
+
 ```azure-cli
-az aks create   --resource-group  MyResourceGroup    \
-                --name MyAKSClusterName              \
-                --nodepool-name agentpool            \
-                --outbound-type loadbalancer         \
-                --location YourPreferredLocation        \
-                --generate-ssh-keys                  \
-		        --enable-addons monitoring           \
-		          EnableAzureDiskFileCSIDriver=true  \
-
-```
-For existing cluster it is important to enable the CSI storage drivers
-```azure-cli
-az aks update -n MyAKSCluster -g MyResourceGroup --enable-disk-driver --enable-file-driver
+kubectl port-forward service/openmetadata 8585:8585 -n openmetadata
 ```
 
-### Step 2 - Create a Namespace (optional)
-```azure-cli
-kubectl create namespace openmetadata
-```
+---
 
-### Step 3 - Create Persistent Volumes
-OpenMetadata helm chart depends on Airflow and Airflow expects a persistent disk that support ReadWriteMany (the volume can be mounted as read-write by many nodes). The Azure CSI storage drivers we enabled earlier support the provisioning of the disks in ReadWriteMany mode,.
+## Using Airflow Orchestrator (Alternative)
+
+If you prefer to use Apache Airflow as the orchestrator (e.g., for existing Airflow investments or complex DAG requirements), follow the configuration below.
+
+<Warning>
+Using Airflow requires additional infrastructure: persistent volumes with ReadWriteMany access, the openmetadata-dependencies Helm chart, and more complex configuration.
+</Warning>
+
+### Create Persistent Volumes
+
+OpenMetadata helm chart depends on Airflow and Airflow expects a persistent disk that support ReadWriteMany (the volume can be mounted as read-write by many nodes). The Azure CSI storage drivers we enabled earlier support the provisioning of the disks in ReadWriteMany mode.
 
 ```yaml
 # logs_dags_pvc.yaml
@@ -121,13 +244,16 @@ spec:
       storage: 5Gi
   storageClassName: azurefile-csi
 ```
-Create the volume claims by applying the manifest.
+
+Create the volume claims by applying the manifest:
+
 ```azure-cli
 kubectl apply -f logs_dags_pvc.yaml
 ```
 
-### Step 4 - Change owner and update permission for persistent volumes
-Airflow pods run as non-root user and lack write access to our persistent volumes. To fix this we create a job permissions_pod.yaml that runs a pod that mounts volumnes into the persistent volume claim and updates the owner of the mounted folders /airflow-dags and /airflow-logs to user id 5000, which is the default linux user id of Airflow pods.
+### Change Owner and Update Permission for Persistent Volumes
+
+Airflow pods run as non-root user and lack write access to our persistent volumes. To fix this we create a job permissions_pod.yaml that runs a pod that mounts volumes into the persistent volume claim and updates the owner of the mounted folders /airflow-dags and /airflow-logs to user id 50000, which is the default linux user id of Airflow pods.
 
 ```yaml
 # permissions_pod.yaml
@@ -159,38 +285,35 @@ spec:
         persistentVolumeClaim:
           claimName: openmetadata-dependencies-dags-pvc
 ```
-Start the job by applying the manifest in permissions_pod.yaml.
+
+Start the job by applying the manifest:
+
 ```azure-cli
 kubectl apply -f permissions_pod.yaml
 ```
 
-### Step 5 - Add the Helm Openmetadata repo and set-up secrets
-#### Add Helm Repo
-``` azure-cli
-helm repo add open-metadata https://helm.open-metadata.org/
-```
-#### Create secrets
-It is recommeded to use external database and search for production deplyoments. The following implementation uses external postgresql DB from Azure Database. Any of the popular databases can be used. The default implementation uses mysql.
+### Create Airflow Secrets
 
 ```azure-cli
-kubectl create secret generic airflow-secrets                                    \
-                    --namespace openmetadata                                     \
-                    --from-literal=openmetadata-airflow-password=<AdminPassword>
+kubectl create secret generic airflow-secrets \
+  --namespace openmetadata \
+  --from-literal=openmetadata-airflow-password=<AdminPassword>
 ```
-For production deployments connecting external postgresql database provide external database connection details by settings up appropriate secrets as below to use in manifests.
+
+For production deployments connecting external postgresql database:
 
 ```azure-cli
-kubectl create secret generic postgresql-secret                                       \
-                                --namespace openmetadata                              \
-                                --from-literal=postgresql-password=<MyPGDBPassword>
-
+kubectl create secret generic postgresql-secret \
+  --namespace openmetadata \
+  --from-literal=postgresql-password=<MyPGDBPassword>
 ```
 
-### Step 6 - Install Openmetadata dependencies
-The values-dependencies-yaml is used to overwride default values in the official helm chart and must be configured for customizing for use cases. Uncomment the externalDatabase section with meaningful values to connect to external database for production deployments. We set sensitive information like host address, DB name and DB username through the CLI.
+### Install OpenMetadata Dependencies
+
+Create `values-dependencies.yaml` to configure Airflow with persistent volumes:
+
 ```yaml
 # values-dependencies.yaml
-
 airflow:
   airflow:
     extraVolumeMounts:
@@ -224,73 +347,72 @@ airflow:
     dbUseSSL: true
     passwordSecret: postgresql-secret
     passwordSecretKey: postgresql-password
-
 ```
-We overwrite some of the default values in the official openmetadata-dependencies helm chart with the values-dependencies.yaml to include an external postgresql db. And it's important to turn the mysql.enable flag to false if you are not using the default mysql db. This can be done both through the yaml file or as shown by setting variable values in the helm install command.
 
-For more information on airflow helm chart values, please refer to [airflow-helm](https://artifacthub.io/packages/helm/airflow-helm/airflow/8.5.3)
+Install the dependencies:
+
 ```azure-cli
-helm install openmetadata-dependencies open-metadata/openmetadata-dependencies  \
-                            --values values-dependencies.yaml                           \
-                            --namespace openmetadata                                    \
-                            --set mysql.enabled=false
+helm install openmetadata-dependencies open-metadata/openmetadata-dependencies \
+  --values values-dependencies.yaml \
+  --namespace openmetadata \
+  --set mysql.enabled=false
 ```
 
-It takes a few minutes for all the pods to be correctly set-up and running.
+It takes a few minutes for all the pods to be correctly set-up and running:
+
 ```azure-cli
 kubectl get pods -n openmetadata
 ```
-```
-NAME                                                       READY   STATUS    RESTARTS   AGE
-openmetadata-dependencies-db-migrations-69fcf8c9d9-ctd2f   1/1     Running   0          4m51s
-openmetadata-dependencies-pgbouncer-d9476f85-bwht9         1/1     Running   0          4m54s
-openmetadata-dependencies-scheduler-5f785954cb-792ls       1/1     Running   0          4m54s
-openmetadata-dependencies-sync-users-b58ccc589-ncb2d       1/1     Running   0          4m47s
-openmetadata-dependencies-triggerer-684b8bb998-mbzvs       1/1     Running   0          4m53s
-openmetadata-dependencies-web-9f6b4ff-5hfqj                1/1     Running   0          4m53s
-opensearch-0                                               1/1     Running   0          42m
 
-```
+### Install OpenMetadata with Airflow
 
-### Step 7 - Install Openmetadata
-Finally install Openmetadata optionally customizing the values provided in the official chart [here](https://github.com/open-metadata/openmetadata-helm-charts/blob/main/charts/openmetadata/values.yaml) using the values.yaml file.
+Create `openmetadata-values.yaml` for Airflow-based deployment:
+
 ```yaml
-# values.yaml
-
+# openmetadata-values.yaml
 global:
   pipelineServiceClientConfig:
-    apiEndpoint: http://openmetadata-dependencies-web.<replace_with_your_namespace>.svc.cluster.local:8080
-    metadataApiEndpoint: http://openmetadata.<replace_with_your_namespace>.svc.cluster.local:8585/api
+    apiEndpoint: http://openmetadata-dependencies-web.openmetadata.svc.cluster.local:8080
+    metadataApiEndpoint: http://openmetadata.openmetadata.svc.cluster.local:8585/api
 
 openmetadata:
   config:
+    elasticsearch:
+      host: <ELASTIC_CLOUD_ENDPOINT_WITHOUT_HTTPS>
+      searchType: elasticsearch
+      port: 443
+      scheme: https
+      auth:
+        enabled: true
+        username: <ELASTIC_CLOUD_USERNAME>
+        password:
+          secretRef: elasticsearch-secrets
+          secretKey: openmetadata-elasticsearch-password
     database:
-      host: postgresql
+      host: <AZURE_SQL_ENDPOINT>
       port: 5432
       driverClass: org.postgresql.Driver
       dbScheme: postgresql
       databaseName: openmetadata_db
       auth:
-        username:
+        username: <DB_USERNAME>
         password:
-          secretRef: postgresql-secret  # referring to secret set in step 5 above
+          secretRef: postgresql-secret
           secretKey: postgresql-password
 
 image:
-  tag: <image-tag>
+  tag: "1.12.0"
 ```
 
 ```azure-cli
-helm install openmetadata open-metadata/openmetadata    \
-                            --values values.yaml        \
-                            --namespace openmetadata
- ```
-Give it again a few seconds for the pod to get ready. And when its ready, the service can be accessed by forwarding port 8585 of the cluster ip to you local host port.
-```azure-cli
-kubectl port-forward service/openmetadata 8585:8585 -n openmetadata
+helm install openmetadata open-metadata/openmetadata \
+  --values openmetadata-values.yaml \
+  --namespace openmetadata
 ```
 
-## Troubleshooting Airflow
+## Troubleshooting
+
+### Troubleshooting Airflow
 
 ### JSONDecodeError: Unterminated string starting
 
