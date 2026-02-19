@@ -1,16 +1,16 @@
 ---
-title: dbt Artifact Storage - Local Filesystem Configuration | Collate
-description: Configure local or shared filesystem for dbt artifact storage with Collate. Includes Docker Compose and Kubernetes PVC examples.
+title: dbt Artifact Storage - Local Filesystem Configuration | OpenMetadata
+description: Configure local or shared filesystem for dbt artifact storage with OpenMetadata. Includes Docker Compose and Kubernetes PVC examples.
 slug: /connectors/database/dbt/storage-local-guide
 sidebarTitle: Local Configuration
 ---
 
 # dbt Artifact Storage: Local/Shared Filesystem
 
-This guide walks you through configuring a **local or shared filesystem** as the artifact storage layer for dbt Core + Collate integration. Ideal for development, single-server deployments, or Kubernetes with shared volumes.
+This guide walks you through configuring a **local or shared filesystem** as the artifact storage layer for dbt Core + OpenMetadata integration. Ideal for development, single-server deployments, or Kubernetes with shared volumes.
 
 <Warning>
-**Not recommended for production distributed systems.** dbt and Collate must access the same filesystem. Use cloud storage (S3/GCS/Azure) for production multi-server deployments.
+**Not recommended for production distributed systems.** dbt and OpenMetadata must access the same filesystem. Use cloud storage (S3/GCS/Azure) for production multi-server deployments.
 </Warning>
 
 ## Prerequisites Checklist
@@ -25,7 +25,7 @@ This guide walks you through configuring a **local or shared filesystem** as the
 
 ### Option A: Same Machine (Development)
 
-If dbt and Collate run on the same machine:
+If dbt and OpenMetadata run on the same machine:
 
 **1. Run dbt and generate artifacts:**
 ```bash
@@ -42,7 +42,7 @@ ls -la target/
 # Output: manifest.json, catalog.json, run_results.json
 ```
 
-**3. Configure Collate with absolute path:**
+**3. Configure OpenMetadata with absolute path:**
 - Manifest: `/path/to/dbt/project/target/manifest.json`
 - Catalog: `/path/to/dbt/project/target/catalog.json`
 - Run Results: `/path/to/dbt/project/target/run_results.json`
@@ -72,7 +72,7 @@ services:
     environment:
       DBT_PROFILES_DIR: /usr/app/dbt
 
-  # Collate service
+  # OpenMetadata service
   collate:
     image: openmetadata/server:latest
     ports:
@@ -80,21 +80,21 @@ services:
     volumes:
       - dbt-artifacts:/dbt-artifacts  # Same shared volume
     environment:
-      # Collate will read from /dbt-artifacts/
+      # OpenMetadata will read from /dbt-artifacts/
       DBT_ARTIFACTS_PATH: /dbt-artifacts
 
 volumes:
   dbt-artifacts:  # Named volume shared between services
 ```
 
-**Configure Collate:**
+**Configure OpenMetadata:**
 - Manifest: `/dbt-artifacts/manifest.json`
 - Catalog: `/dbt-artifacts/catalog.json`
 - Run Results: `/dbt-artifacts/run_results.json`
 
 ### Option C: Kubernetes with PersistentVolumeClaim
 
-For Kubernetes deployments where dbt and Collate run in the same cluster.
+For Kubernetes deployments where dbt and OpenMetadata run in the same cluster.
 
 **1. Create PersistentVolumeClaim:**
 
@@ -159,7 +159,7 @@ spec:
           restartPolicy: OnFailure
 ```
 
-**3. Mount volume in Collate deployment:**
+**3. Mount volume in OpenMetadata deployment:**
 
 ```yaml
 # collate-deployment.yaml
@@ -186,14 +186,14 @@ spec:
         volumeMounts:
         - name: dbt-artifacts
           mountPath: /dbt-artifacts
-          readOnly: true  # Collate only reads
+          readOnly: true  # OpenMetadata only reads
       volumes:
       - name: dbt-artifacts
         persistentVolumeClaim:
           claimName: dbt-artifacts
 ```
 
-**Configure Collate:**
+**Configure OpenMetadata:**
 - Manifest: `/dbt-artifacts/manifest.json`
 - Catalog: `/dbt-artifacts/catalog.json`
 - Run Results: `/dbt-artifacts/run_results.json`
@@ -234,7 +234,7 @@ echo "nfs-server:/export/dbt-artifacts /mnt/dbt-artifacts nfs defaults 0 0" | \
     sudo tee -a /etc/fstab
 ```
 
-**On Collate server:**
+**On OpenMetadata server:**
 ```bash
 sudo apt install -y nfs-common
 sudo mkdir -p /mnt/dbt-artifacts
@@ -252,12 +252,12 @@ dbt run && dbt test && dbt docs generate
 cp target/*.json /mnt/dbt-artifacts/
 ```
 
-**Configure Collate:**
+**Configure OpenMetadata:**
 - Manifest: `/mnt/dbt-artifacts/manifest.json`
 - Catalog: `/mnt/dbt-artifacts/catalog.json`
 - Run Results: `/mnt/dbt-artifacts/run_results.json`
 
-## Step 2: Configure Collate
+## Step 2: Configure OpenMetadata
 
 ### Configuration
 
@@ -272,8 +272,8 @@ cp target/*.json /mnt/dbt-artifacts/
 | Field | Value | Notes |
 |-------|-------|-------|
 | **dbt Configuration Source** | `Local` | Select from dropdown |
-| **dbt Catalog File Path** | `/dbt-artifacts/catalog.json` | Absolute path accessible by Collate |
-| **dbt Manifest File Path** | `/dbt-artifacts/manifest.json` | Absolute path accessible by Collate |
+| **dbt Catalog File Path** | `/dbt-artifacts/catalog.json` | Absolute path accessible by OpenMetadata |
+| **dbt Manifest File Path** | `/dbt-artifacts/manifest.json` | Absolute path accessible by OpenMetadata |
 | **dbt Run Results File Path** | `/dbt-artifacts/run_results.json` | Optional - absolute path |
 
 **Configure dbt Options:**
@@ -292,7 +292,7 @@ cp target/*.json /mnt/dbt-artifacts/
 ls -la /dbt-artifacts/
 cat /dbt-artifacts/manifest.json | jq '.metadata.dbt_version'
 
-# Check from Collate's perspective (if in Docker)
+# Check from OpenMetadata's perspective (if in Docker)
 docker exec collate-container ls -la /dbt-artifacts/
 docker exec collate-container cat /dbt-artifacts/manifest.json | jq '.'
 ```
@@ -327,11 +327,11 @@ For Kubernetes PVC, ensure `accessMode: ReadWriteMany`:
 
 | Issue | Symptom | Solution |
 |-------|---------|----------|
-| **File not found** | "No such file or directory" | Verify absolute path is correct and accessible from Collate |
+| **File not found** | "No such file or directory" | Verify absolute path is correct and accessible from OpenMetadata |
 | **Permission denied** | "Permission denied" | Run `chmod 644 /dbt-artifacts/*.json` |
-| **Stale data** | Old metadata showing | Ensure dbt writes artifacts before Collate reads |
+| **Stale data** | Old metadata showing | Ensure dbt writes artifacts before OpenMetadata reads |
 | **Mount issue** | "Transport endpoint not connected" | Check NFS mount: `mount | grep dbt-artifacts` |
-| **Volume not shared** | Works for dbt, not Collate | Verify both containers/pods mount the same volume |
+| **Volume not shared** | Works for dbt, not OpenMetadata | Verify both containers/pods mount the same volume |
 
 - **No built-in versioning or backup**
 - **File locking issues** possible with concurrent access
