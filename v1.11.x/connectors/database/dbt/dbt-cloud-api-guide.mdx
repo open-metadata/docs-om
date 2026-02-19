@@ -1,13 +1,13 @@
 ---
-title: dbt Cloud API Configuration | Collate
-description: Connect Collate to dbt Cloud with zero infrastructure setup. No storage configuration needed - pull artifacts directly via API.
+title: dbt Cloud API Configuration | OpenMetadata
+description: Connect OpenMetadata to dbt Cloud with zero infrastructure setup. No storage configuration needed - pull artifacts directly via API.
 slug: /connectors/database/dbt/dbt-cloud-api-guide
 sidebarTitle: dbt Cloud API
 ---
 
 # dbt Cloud API Configuration
 
-This guide shows you how to integrate **dbt Cloud** with **Collate** using the **dbt Cloud API**.
+This guide shows you how to integrate **dbt Cloud** with **OpenMetadata** using the **dbt Cloud API**.
 
 <Note>
 **This guide is ONLY for dbt Cloud users.** If you're using dbt Core, see [dbt Core Configuration](/connectors/database/dbt/storage-configuration-overview) for storage setup options.
@@ -32,7 +32,7 @@ This guide shows you how to integrate **dbt Cloud** with **Collate** using the *
 4. Click **API Access** in the left sidebar
 5. Click **+ Create Token**
 6. Configure the token:
-   - **Description**: `Collate Integration`
+   - **Description**: `OpenMetadata Integration`
    - **Permission**: `Account Viewer`
 7. Click **Save**
 8. **Copy the token immediately** - you won't see it again!
@@ -43,7 +43,7 @@ dbt_cloud_abc123def456ghi789jkl...
 ```
 
 <Warning>
-Save this token securely. You'll need it for Collate configuration.
+Save this token securely. You'll need it for OpenMetadata configuration.
 </Warning>
 
 ### 1.2 Find Your Account ID
@@ -80,7 +80,7 @@ dbt Cloud has regional deployments:
 
 ### 1.4 (Optional) Get Project/Job IDs
 
-By default, Collate will use the **most recent successful run** from any project/job. To filter to a specific project or job, you'll need their IDs.
+By default, OpenMetadata will use the **most recent successful run** from any project/job. To filter to a specific project or job, you'll need their IDs.
 
 **Get IDs from dbt Cloud UI:**
 - **Account ID**: In URL: `https://cloud.getdbt.com/#/accounts/{ACCOUNT_ID}/...`
@@ -122,7 +122,7 @@ curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
 }
 ```
 
-## Step 2: Configure Collate
+## Step 2: Configure OpenMetadata
 
 ### Configuration
 
@@ -159,7 +159,7 @@ curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
 | **Classification Name** | `dbtTags` |
 
 <Tip>
-Match your schedule to dbt Cloud job frequency. If jobs run every 6 hours, schedule Collate ingestion every 6 hours.
+Match your schedule to dbt Cloud job frequency. If jobs run every 6 hours, schedule OpenMetadata ingestion every 6 hours.
 </Tip>
 
 **Test & Deploy:**
@@ -175,7 +175,7 @@ Match your schedule to dbt Cloud job frequency. If jobs run every 6 hours, sched
 | Check | How to Verify | Expected Result |
 |-------|---------------|-----------------|
 | **dbt Cloud run exists** | Check dbt Cloud job history | Recent successful run visible |
-| **Ingestion completed** | Collate UI → Service → Ingestion tab | Green status, no errors |
+| **Ingestion completed** | OpenMetadata UI → Service → Ingestion tab | Green status, no errors |
 | **Lineage appears** | Click on a dbt model → Lineage tab | Upstream/downstream connections |
 | **Descriptions synced** | Click on a table → Schema tab | dbt descriptions visible |
 | **Test results visible** | Click on a table → Data Quality tab | dbt test results shown |
@@ -200,7 +200,7 @@ dbt docs generate # Generates catalog.json with column descriptions
 
 ### Schedule Alignment
 
-| dbt Cloud Job Frequency | Recommended Collate Schedule |
+| dbt Cloud Job Frequency | Recommended OpenMetadata Schedule |
 |------------------------|------------------------------|
 | Hourly | `0 * * * *` (Every hour) |
 | Every 6 hours | `0 */6 * * *` (Every 6 hours) |
@@ -212,7 +212,7 @@ dbt docs generate # Generates catalog.json with column descriptions
 dbt Cloud API has rate limits:
 - **100 requests per minute** per API token
 
-Collate makes ~3-5 API calls per ingestion. Don't schedule more frequently than **every 15 minutes**.
+OpenMetadata makes ~3-5 API calls per ingestion. Don't schedule more frequently than **every 15 minutes**.
 
 ## Troubleshooting
 
@@ -222,7 +222,7 @@ Collate makes ~3-5 API calls per ingestion. Don't schedule more frequently than 
 | **No Runs Found** | "No recent successful runs" | No completed jobs | Run a dbt Cloud job and wait for completion |
 | **Wrong Account** | "403 Forbidden" | Account ID incorrect | Verify Account ID from URL or API |
 | **Missing catalog.json** | No column descriptions | Job didn't run `dbt docs generate` | Add docs generation to job commands |
-| **Wrong Database Service** | No lineage appears | Service name mismatch | Ensure Collate service name matches dbt target |
+| **Wrong Database Service** | No lineage appears | Service name mismatch | Ensure OpenMetadata service name matches dbt target |
 | **Stale data** | Old metadata showing | Ingestion not running | Check ingestion schedule and logs |
 
 ### Debug Commands
@@ -232,7 +232,7 @@ Collate makes ~3-5 API calls per ingestion. Don't schedule more frequently than 
 curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
      https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/ | jq '.'
 
-# Get most recent successful run (what Collate will use)
+# Get most recent successful run (what OpenMetadata will use)
 curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
      "https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/runs/?status=10&order_by=-finished_at&limit=1" | \
      jq '.data[0] | {id, job_id, finished_at, status_humanized}'
