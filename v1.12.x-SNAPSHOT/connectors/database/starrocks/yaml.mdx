@@ -1,0 +1,195 @@
+---
+title: Run the StarRocks Connector Externally
+description: Use YAML to configure StarRocks ingestion, enabling structured metadata, lineage, and profiler extraction for your StarRocks database.
+slug: /connectors/database/starrocks/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/v1.12.x-SNAPSHOT/connectors/yaml/data-profiler.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v1.12.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/starrocks.webp'
+  name="StarRocks"
+  stage="BETA"
+  availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt"]}
+  unavailableFeatures={["Owners", "Tags", "Stored Procedures"]}
+/>
+In this section, we provide guides and references to use the StarRocks connector.
+Configure and schedule StarRocks metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the StarRocks ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[starrocks]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/starrocksConnection.json)
+you can find the structure to create a connection to StarRocks.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for StarRocks:
+<CodePreview>
+  <ContentPanel>
+    <ContentSection id={1} title="Source Configuration" lines="1-3">
+      Configure the source type and service name for your StarRocks connector.
+    </ContentSection>
+    <ContentSection id={2} title="Scheme" lines="7">
+      **scheme**: SQLAlchemy driver scheme options. StarRocks uses the MySQL-compatible `mysql+pymysql` driver.
+    </ContentSection>
+    <ContentSection id={3} title="Username" lines="8">
+      **username**: Username to connect to StarRocks. This user should have privileges to read all the metadata in StarRocks.
+    </ContentSection>
+    <ContentSection id={4} title="Password" lines="9">
+      **password**: Password to connect to StarRocks.
+    </ContentSection>
+    <ContentSection id={5} title="Host and Port" lines="10">
+      **hostPort**: Host and port of the StarRocks FE (Frontend) service. This should be specified as `hostname:port`. For example, `localhost:9030`.
+    </ContentSection>
+    <ContentSection id={6} title="Database Name" lines="11">
+      **databaseName** (Optional): Name to give to the database in OpenMetadata. If left blank, `default` will be used as the database name.
+    </ContentSection>
+    <ContentSection id={7} title="Database Schema" lines="12">
+      **databaseSchema** (Optional): Restrict metadata reading to a single schema. When left blank, OpenMetadata Ingestion scans all schemas.
+    </ContentSection>
+    <ContentSection id={8} title="Schema Filter Pattern" lines="13-17">
+      **schemaFilterPattern** (Optional): Regex to only include/exclude schemas that match the pattern. System schemas (`information_schema`, `_statistics_`, `sys`) are excluded by default.
+    </ContentSection>
+    <ContentSection id={9} title="Table Filter Pattern" lines="18-22">
+      **tableFilterPattern** (Optional): Regex to only include/exclude tables that match the pattern.
+    </ContentSection>
+    <ContentSection id={10} title="Database Filter Pattern" lines="23-27">
+      **databaseFilterPattern** (Optional): Regex to only include/exclude databases that match the pattern.
+    </ContentSection>
+    <ContentSection id={11} title="Source Config" lines="28-71">
+      <SourceConfigDef />
+    </ContentSection>
+    <ContentSection id={12} title="Sink Configuration" lines="72-74">
+      <IngestionSinkDef />
+    </ContentSection>
+    <ContentSection id={13} title="Workflow Configuration" lines="75-91">
+      <WorkflowConfigDef />
+    </ContentSection>
+  </ContentPanel>
+  <CodePanel fileName="starrocks_config.yaml">
+```yaml
+source:
+  type: starrocks
+  serviceName: local_starrocks
+  serviceConnection:
+    config:
+      type: StarRocks
+      scheme: mysql+pymysql
+      username: your_username
+      password: your_password
+      hostPort: localhost:9030
+      # databaseName: my_database
+      # databaseSchema: my_schema
+      # schemaFilterPattern:
+      #   includes:
+      #     - schema_.*
+      #   excludes:
+      #     - temp_.*
+      # tableFilterPattern:
+      #   includes:
+      #     - table_.*
+      #   excludes:
+      #     - test_.*
+      # databaseFilterPattern:
+      #   includes:
+      #     - db_.*
+      #   excludes:
+      #     - temp_.*
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+### Configuration Examples
+#### Basic Configuration
+```yaml
+source:
+  type: starrocks
+  serviceName: starrocks_prod
+  serviceConnection:
+    config:
+      type: StarRocks
+      scheme: mysql+pymysql
+      username: admin
+      password: your_secure_password
+      hostPort: starrocks-fe.example.com:9030
+```
+#### Configuration with Schema Filtering
+```yaml
+source:
+  type: starrocks
+  serviceName: starrocks_prod
+  serviceConnection:
+    config:
+      type: StarRocks
+      scheme: mysql+pymysql
+      username: admin
+      password: your_secure_password
+      hostPort: starrocks-fe.example.com:9030
+      databaseName: analytics
+      schemaFilterPattern:
+        includes:
+          - sales_.*
+          - marketing_.*
+          - finance_.*
+        excludes:
+          - .*_test
+          - .*_backup
+          - temp_.*
+      tableFilterPattern:
+        includes:
+          - fact_.*
+          - dim_.*
+        excludes:
+          - .*_staging
+```
+#### Configuration with SSL
+```yaml
+source:
+  type: starrocks
+  serviceName: starrocks_secure
+  serviceConnection:
+    config:
+      type: StarRocks
+      scheme: mysql+pymysql
+      username: admin
+      password: your_secure_password
+      hostPort: starrocks-fe.example.com:9030
+      sslConfig:
+        caCertificate: /path/to/ca-cert.pem
+        sslCertificate: /path/to/client-cert.pem
+        sslKey: /path/to/client-key.pem
+```
+<IngestionCli />
+<DataProfiler connector="starrocks" />
+<AutoClassification connector="starrocks" />
+<DataQuality />
