@@ -1,0 +1,410 @@
+---
+title: Kubernetes Native Orchestrator
+description: Run ingestion pipelines using native Kubernetes Jobs and CronJobs without requiring Apache Airflow.
+sidebarTitle: Kubernetes Orchestrator
+collate: false
+---
+
+# Kubernetes Native Orchestrator
+
+Starting with OpenMetadata 1.12, you can run ingestion pipelines directly using **native Kubernetes**, 
+eliminating the need for Apache Airflow. This is ideal for organizations that:
+
+- Already run workloads on Kubernetes and prefer native solutions
+- Don't need the full feature set of Apache Airflow
+
+## Orchestration Modes
+
+The Kubernetes orchestrator supports two modes for running ingestion pipelines:
+
+### Option 1: OMJob Operator (Recommended)
+
+Uses custom Kubernetes CRDs (`OMJob` and `CronOMJob`) managed by the OpenMetadata operator.
+
+| Resource | Description |
+|----------|-------------|
+| **CronOMJob** | Scheduled pipelines - runs on a cron schedule |
+| **OMJob** | On-demand pipelines - one-off execution when triggered |
+
+<Tip>
+**Recommended for production.** The OMJob Operator provides guaranteed exit handler execution and failure diagnostics.
+</Tip>
+
+**Advantages:**
+- **Exit Handler Guarantee**: Even if the ingestion pod crashes (OOMKilled, node failure, etc.), the operator ensures pipeline status is always reported back to OpenMetadata
+- **Failure Diagnostics**: Automatically collects detailed error context from pod logs and events when pipelines fail
+- **Pod Lifecycle Monitoring**: The operator watches pod events and updates pipeline status in real-time
+
+**Requirements:**
+- Elevated permissions to install Custom Resource Definitions (CRDs)
+- The OMJob Operator deployment running in your cluster
+
+### Option 2: Native Kubernetes Jobs
+
+Uses standard Kubernetes resources (`Job` and `CronJob`) without any custom CRDs.
+
+| Resource | Description |
+|----------|-------------|
+| **CronJob** | Scheduled pipelines - runs on a cron schedule |
+| **Job** | On-demand pipelines - one-off execution when triggered |
+
+**Advantages:**
+- No CRD installation required - uses only built-in Kubernetes resources
+- Works in environments with restricted permissions
+- Simpler setup
+
+**Limitations:**
+- No guaranteed exit handler - if a pod is killed unexpectedly, status updates may not reach OpenMetadata
+- No automatic failure diagnostics
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Native K8s Integration" icon="cube">
+    Pipelines run as standard Kubernetes Jobs, making them easy to monitor with existing K8s tooling.
+  </Card>
+  <Card title="Automatic Status Updates" icon="rotate">
+    Pipeline status is automatically reported back to OpenMetadata, including success/failure details.
+  </Card>
+  <Card title="Failure Diagnostics" icon="bug">
+    When pipelines fail, detailed diagnostics are collected from pod logs and events. **(OMJob Operator only)**
+  </Card>
+  <Card title="Resource Control" icon="sliders">
+    Configure CPU, memory, node selectors, and security contexts for ingestion pods.
+  </Card>
+</CardGroup>
+
+---
+
+## Setup Option 1: OMJob Operator (Recommended)
+
+This setup uses custom CRDs for guaranteed exit handler execution and failure diagnostics.
+
+### Prerequisites
+
+1. **OpenMetadata deployed on Kubernetes** (Helm chart recommended)
+2. **Permissions to install CRDs** in your cluster
+3. **Ingestion image** accessible from your cluster (`docker.getcollate.io/openmetadata/ingestion-base`)
+
+### Helm Values Configuration
+
+```yaml
+# Enable the OMJob Operator
+omjobOperator:
+  enabled: true
+  image:
+    repository: docker.getcollate.io/openmetadata/omjob-operator
+    tag: "1.12.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+openmetadata:
+  config:
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata:8585/api
+
+      k8s:
+        # Use the OMJob Operator
+        useOMJobOperator: true
+        
+        # Container image for ingestion jobs
+        ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.0"
+        imagePullPolicy: "IfNotPresent"
+        imagePullSecrets: ""
+        
+        # Service account for ingestion jobs
+        serviceAccountName: "openmetadata-ingestion"
+        
+        # Job lifecycle settings
+        ttlSecondsAfterFinished: 86400  # Keep completed jobs for 24 hours
+        activeDeadlineSeconds: 7200      # Max 2 hour runtime
+        backoffLimit: 3                  # Retry up to 3 times
+        
+        # Job history
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 3
+        
+        # Pod security context
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          runAsNonRoot: true
+        
+        # Resource limits
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        
+        # Enable failure diagnostics (only works with OMJob Operator)
+        enableFailureDiagnostics: true
+        
+        # RBAC - set to false if managed externally
+        rbac:
+          enabled: true
+```
+
+### Required RBAC Permissions
+
+When using the OMJob Operator, additional permissions are needed for the custom resources:
+
+```yaml
+rules:
+  # Pod management for pipeline jobs and diagnostics
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # ConfigMaps for pipeline configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Secrets for pipeline credentials
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Events for diagnostics
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+  # Jobs and CronJobs management
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # OMJob CRDs
+  - apiGroups: ["pipelines.openmetadata.org"]
+    resources: ["omjobs"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["pipelines.openmetadata.org"]
+    resources: ["omjobs/status"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["pipelines.openmetadata.org"]
+    resources: ["cronomjobs"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["pipelines.openmetadata.org"]
+    resources: ["cronomjobs/status"]
+    verbs: ["get", "patch"]
+```
+
+---
+
+## Setup Option 2: Native Kubernetes Jobs
+
+This setup uses standard Kubernetes Jobs and CronJobs without any custom CRDs.
+
+### Prerequisites
+
+1. **OpenMetadata deployed on Kubernetes** (Helm chart recommended)
+2. **RBAC permissions** for the OpenMetadata service account to manage Jobs, CronJobs, ConfigMaps, and Secrets
+3. **Ingestion image** accessible from your cluster (`docker.getcollate.io/openmetadata/ingestion-base`)
+
+### Helm Values Configuration
+
+```yaml
+openmetadata:
+  config:
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata:8585/api
+
+      k8s:
+        # Do NOT use the OMJob Operator (default)
+        useOMJobOperator: false
+        
+        # Container image for ingestion jobs
+        ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.0"
+        imagePullPolicy: "IfNotPresent"
+        imagePullSecrets: ""
+        
+        # Service account for ingestion jobs
+        serviceAccountName: "openmetadata-ingestion"
+        
+        # Job lifecycle settings
+        ttlSecondsAfterFinished: 86400
+        activeDeadlineSeconds: 7200
+        backoffLimit: 3
+        
+        # Job history
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 3
+        
+        # Pod security context
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          runAsNonRoot: true
+        
+        # Resource limits
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        
+        # RBAC - set to false if managed externally
+        rbac:
+          enabled: true
+```
+
+### Required RBAC Permissions
+
+```yaml
+rules:
+  # Pod management for pipeline jobs
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # ConfigMaps for pipeline configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Secrets for pipeline credentials
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Events for diagnostics
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+  # Jobs and CronJobs management
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+```
+
+---
+
+## Validating the Setup
+
+### 1. Check Service Health
+
+Navigate to **Settings → Preferences → Health** in the OpenMetadata UI to verify the Kubernetes pipeline client is properly configured and can connect to the Kubernetes API.
+
+### 2. Deploy a Test Pipeline
+
+Create a simple metadata ingestion pipeline from the OpenMetadata UI. The pipeline should:
+- Show "Deployed" status
+- Display the Kubernetes Job/CronJob name
+
+### 3. Check Kubernetes Resources
+
+```bash
+# List ingestion ConfigMaps
+kubectl get configmaps -l app.kubernetes.io/managed-by=openmetadata
+
+# List ingestion Jobs
+kubectl get jobs -l app.kubernetes.io/managed-by=openmetadata
+
+# List ingestion CronJobs (native mode)
+kubectl get cronjobs -l app.kubernetes.io/managed-by=openmetadata
+
+# List CronOMJobs (operator mode)
+kubectl get cronomjobs -l app.kubernetes.io/managed-by=openmetadata
+
+# View pod logs
+kubectl logs -l app.kubernetes.io/component=ingestion -f
+```
+
+## Pipeline Logs
+
+Pipeline logs are retrieved directly from Kubernetes pod logs. OpenMetadata implements log pagination for large log files, splitting them into ~1MB chunks for efficient retrieval.
+
+To view logs:
+1. Navigate to **Settings → Services → Agents**
+2. Select your pipeline
+3. Click on Logs to view them directly on OpenMetadata UI
+
+Alternatively, view logs directly with kubectl:
+
+```bash
+kubectl logs job/<pipeline-name> -c main
+```
+
+## Troubleshooting
+
+### Pipeline stuck in "Queued" state
+
+If the pipeline cannot start and remains in "Queued" state, check if the pod can be scheduled:
+```bash
+kubectl get pods -l app.kubernetes.io/pipeline=<pipeline-name>
+kubectl describe pod <pod-name>
+```
+
+Common causes:
+- Image pull errors (check `imagePullSecrets`)
+- Insufficient cluster resources (increase CPU/memory limits or add nodes)
+- Node selector constraints
+
+### Permission Denied Errors
+
+If you see RBAC-related errors:
+```bash
+kubectl auth can-i create jobs --as=system:serviceaccount:<namespace>:openmetadata
+```
+
+Ensure the service account has the required permissions.
+
+### Ingestion Pod Crashes (OOMKilled)
+
+Increase memory limits in the Helm values:
+```yaml
+k8s:
+  resources:
+    limits:
+      memory: "8Gi"
+    requests:
+      memory: "2Gi"
+```
+
+### CronJob Not Triggering
+
+Check CronJob status and events:
+```bash
+kubectl get cronjob <cronjob-name> -o yaml
+kubectl describe cronjob <cronjob-name>
+```
+
+Common issues:
+- Invalid cron expression
+- `startingDeadlineSeconds` too short
+- Concurrency policy blocking execution
+
+## Migrating from Airflow
+
+If you're migrating from Airflow to the Kubernetes orchestrator:
+
+1. **Stop existing Airflow-managed pipelines** - Disable or delete pipelines managed by Airflow
+2. **Update Helm values** - Switch `type: "airflow"` to `type: "k8s"`
+3. **Redeploy OpenMetadata** - Apply the new Helm configuration
+4. **Re-deploy pipelines** - Navigate to each pipeline and click "Deploy" to create the Kubernetes resources
+
+<Warning>
+The migration does not automatically transfer pipeline schedules. You'll need to re-configure and deploy each pipeline after switching to the Kubernetes orchestrator.
+</Warning>
+
+## Comparison: Airflow vs Kubernetes Orchestrator
+
+| Feature | Airflow | K8s Native | K8s with OMJob Operator |
+|---------|---------|------------|-------------------------|
+| **Infrastructure** | Requires Airflow deployment | Uses existing K8s cluster | Uses existing K8s cluster |
+| **CRD Installation** | N/A | Not required | Required |
+| **Exit Handler Guarantee** | ✅ Airflow handles | ❌ Best effort | ✅ Guaranteed |
+| **Failure Diagnostics** | ❌ | ❌ | ✅ |
+| **UI for DAGs** | ✅ Airflow UI | OpenMetadata UI | OpenMetadata UI |
+| **Resource efficiency** | Always running | Jobs on-demand | Jobs on-demand |
+| **K8s-native monitoring** | Extra setup | ✅ Native | ✅ Native |
