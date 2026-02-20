@@ -41,24 +41,9 @@ All functions that we are going to use related to Lineage can be found in [here]
 ### 1. Preparing the Client
 
 ```python
-from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
-    OpenMetadataConnection,
-)
-from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
-    OpenMetadataJWTClientConfig,
-)
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.sdk import configure
 
-server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
-    authProvider="openmetadata",
-    securityConfig=OpenMetadataJWTClientConfig(
-        jwtToken="<token>"
-    ),
-)
-metadata = OpenMetadata(server_config)
-
-assert metadata.health_check()  # Will fail if we cannot reach the server
+configure(host="http://localhost:8585/api", jwt_token="<token>")
 ```
 
 ### 2. Creating the Database Service
@@ -67,6 +52,7 @@ We are mocking a MySQL instance. Note how we need to pass the right configuratio
 parameter for the generic `DatabaseConnection` type.
 
 ```python
+from metadata.sdk import DatabaseServices
 from metadata.generated.schema.api.services.createDatabaseService import (
     CreateDatabaseServiceRequest,
 )
@@ -78,7 +64,6 @@ from metadata.generated.schema.entity.services.connections.database.mysqlConnect
 )
 from metadata.generated.schema.entity.services.databaseService import (
     DatabaseConnection,
-    DatabaseService,
     DatabaseServiceType,
 )
 
@@ -94,7 +79,7 @@ db_service = CreateDatabaseServiceRequest(
     ),
 )
 
-db_service_entity = metadata.create_or_update(data=db_service)
+db_service_entity = DatabaseServices.create(db_service)
 ```
 
 ### 3. Creating the Database
@@ -103,6 +88,7 @@ Any Entity that is created and linked to another Entity, has to hold the `fullyQ
 relates to. In this case, a Database is bound to a specific service.
 
 ```python
+from metadata.sdk import Databases
 from metadata.generated.schema.api.data.createDatabase import CreateDatabaseRequest
 
 create_db = CreateDatabaseRequest(
@@ -110,7 +96,7 @@ create_db = CreateDatabaseRequest(
     service=db_service_entity.fullyQualifiedName,
 )
 
-create_db_entity = metadata.create_or_update(data=create_db)
+create_db_entity = Databases.create(create_db)
 ```
 
 ### 4. Creating the Schema
@@ -118,6 +104,7 @@ create_db_entity = metadata.create_or_update(data=create_db)
 The same happens with the Schemas. They are related to a Database.
 
 ```python
+from metadata.sdk import DatabaseSchemas
 from metadata.generated.schema.api.data.createDatabaseSchema import (
     CreateDatabaseSchemaRequest,
 )
@@ -126,7 +113,7 @@ create_schema = CreateDatabaseSchemaRequest(
     name="test-schema", database=create_db_entity.fullyQualifiedName
 )
 
-create_schema_entity = metadata.create_or_update(data=create_schema)
+create_schema_entity = DatabaseSchemas.create(create_schema)
 ```
 
 ### 5. Creating the Tables
@@ -136,6 +123,7 @@ And finally, Tables are contained in a specific Schema, so we use the `fullyQual
 We are doing a simple example with a single column.
 
 ```python
+from metadata.sdk import Tables
 from metadata.generated.schema.api.data.createTable import CreateTableRequest
 from metadata.generated.schema.entity.data.table import Column, DataType
 
@@ -151,8 +139,8 @@ table_b = CreateTableRequest(
     columns=[Column(name="id", dataType=DataType.BIGINT)],
 )
 
-table_a_entity = metadata.create_or_update(data=table_a)
-table_b_entity = metadata.create_or_update(data=table_b)
+table_a_entity = Tables.create(table_a)
+table_b_entity = Tables.create(table_b)
 ```
 
 ### 6. Adding Lineage
@@ -161,19 +149,15 @@ With everything prepared, we can now create the Lineage between both Entities. A
 represents the edge between two Entities, typed under `EntitiesEdge`.
 
 ```python
-from metadata.generated.schema.type.entityReference import EntityReference
-from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
-from metadata.generated.schema.type.entityLineage import EntitiesEdge
+from metadata.sdk.api import Lineage
 
-add_lineage_request = AddLineageRequest(
-    edge=EntitiesEdge(
-        description="test lineage",
-        fromEntity=EntityReference(id=table_a_entity.id, type="table"),
-        toEntity=EntityReference(id=table_b_entity.id, type="table"),
-    ),
+created_lineage = Lineage.add_lineage(
+    from_entity_id=str(table_a_entity.id),
+    from_entity_type="table",
+    to_entity_id=str(table_b_entity.id),
+    to_entity_type="table",
+    description="test lineage",
 )
-
-created_lineage = metadata.add_lineage(data=add_lineage_request)
 ```
 
 The Python client will already return us a JSON object with the Lineage information about the `fromEntity` node
@@ -221,14 +205,13 @@ If we validate the Lineage from the UI, we will see:
 Finally, let's fetch the lineage from the other node involved:
 
 ```python
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk.api import Lineage
 
-metadata.get_lineage_by_name(
-    entity=Table,
-    fqn="test-service-db-lineage.test-db.test-schema.tableB",
+lineage = Lineage.get_lineage(
+    "test-service-db-lineage.test-db.test-schema.tableB",
     # Tune this to control how far in the lineage graph to go
-    up_depth=1,
-    down_depth=1
+    upstream_depth=1,
+    downstream_depth=1,
 )
 ```
 
@@ -266,7 +249,7 @@ Which will give us the symmetric results from above
 
 <Tip>
 
-You can also get lineage by ID using the `get_lineage_by_id` method, which accepts `entity_id` instead of `fqn`.
+You can also get lineage by entity type and ID using `Lineage.get_entity_lineage(entity_type="table", entity_id="entity-id", upstream_depth=1, downstream_depth=1)`.
 
 </Tip>
 
@@ -291,6 +274,7 @@ see how to do that and play with the possible combinations:
 First, import the required classes and create a new table:
 
 ```python
+from metadata.sdk import Tables
 from metadata.generated.schema.type.entityLineage import (
     ColumnLineage,
     EntitiesEdge,
@@ -300,11 +284,11 @@ from metadata.generated.schema.type.entityLineage import (
 # Prepare a new table
 table_c = CreateTableRequest(
     name="tableC",
-    databaseSchema=create_schema_entity.ifullyQualifiedName,
+    databaseSchema=create_schema_entity.fullyQualifiedName,
     columns=[Column(name="id", dataType=DataType.BIGINT)],
 )
 
-table_c_entity = metadata.create_or_update(data=table_c)
+table_c_entity = Tables.create(table_c)
 ```
 
 ## Column Level Lineage
@@ -315,6 +299,8 @@ We can start by linking our columns together. For that we are going to create:
 2. A `LineageDetails` object, passing the column lineage and the SQL query that powers the transformation.
 
 ```python
+from metadata.sdk.api import Lineage
+
 column_lineage = ColumnLineage(
     fromColumns=["test-service-db-lineage.test-db.test-schema.tableA.id"],
     toColumn="test-service-db-lineage.test-db.test-schema.tableC.id"
@@ -325,15 +311,13 @@ lineage_details = LineageDetails(
     columnsLineage=[column_lineage],
 )
 
-add_lineage_request = AddLineageRequest(
-    edge=EntitiesEdge(
-        fromEntity=EntityReference(id=table_a_entity.id, type="table"),
-        toEntity=EntityReference(id=table_c_entity.id, type="table"),
-        lineageDetails=lineage_details,
-    ),
+created_lineage = Lineage.add_lineage(
+    from_entity_id=str(table_a_entity.id),
+    from_entity_type="table",
+    to_entity_id=str(table_c_entity.id),
+    to_entity_type="table",
+    lineage_details=lineage_details,
 )
-
-created_lineage = metadata.add_lineage(data=add_lineage_request)
 ```
 
 This information will now be reflected in the UI as well:
@@ -347,40 +331,21 @@ We can as well pass the reference to the pipeline used to create the lineage (e.
 To prepare this example, we need to start by creating the Pipeline Entity. Again, we'll need first
 to prepare the Pipeline Service:
 
+<Info>
+Pipeline service creation is managed through the OpenMetadata UI or the ingestion CLI. Once a pipeline service exists, you can create pipeline entities against it using the SDK as shown below.
+</Info>
+
 ```python
-from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.sdk import Pipelines
 from metadata.generated.schema.api.data.createPipeline import CreatePipelineRequest
-from metadata.generated.schema.api.services.createPipelineService import (
-    CreatePipelineServiceRequest,
-)
-from metadata.generated.schema.entity.services.pipelineService import (
-    PipelineConnection,
-    PipelineService,
-    PipelineServiceType,
-)
-from metadata.generated.schema.entity.services.connections.pipeline.backendConnection import (
-    BackendConnection,
-)
 
-pipeline_service = CreatePipelineServiceRequest(
-    name="test-service-pipeline",
-    serviceType=PipelineServiceType.Airflow,
-    connection=PipelineConnection(
-        config=AirflowConnection(
-            hostPort="http://localhost:8080",
-            connection=BackendConnection(),
-        ),
-    ),
-)
-
-pipeline_service_entity = metadata.create_or_update(data=pipeline_service)
-
+# Assumes "test-service-pipeline" already exists (created via UI or ingestion CLI)
 create_pipeline = CreatePipelineRequest(
     name="test",
-    service=pipeline_service_entity.fullyQualifiedName,
+    service="test-service-pipeline",
 )
 
-pipeline_entity = metadata.create_or_update(data=create_pipeline)
+pipeline_entity = Pipelines.create(create_pipeline)
 ```
 
 With these ingredients ready, we can then follow the code above and add there a `pipeline` argument
@@ -403,27 +368,10 @@ will be surfaced soon. Thanks!
 
 ## Automated SQL lineage
 
-In case you want OpenMetadata to identify the lineage based on the sql query, then you can make use of the method `add_lineage_by_query` of the python SDK to parser the sql and generate the lineage in OpenMetadata.
-
-
-follow the below code snippet for the example:
-
-```python
-from metadata.generated.schema.entity.services.databaseService import DatabaseService
-
-database_service: DatabaseService = metadata.get_by_name(
-    entity=DatabaseService, fqn="my_service"
-)
-
-metadata.add_lineage_by_query(
-    database_service=database_service,
-    timeout=200, # timeout in seconds
-    sql="insert into target_table(id) as select id from source_table" # your sql query
-)
-```
-
-Above example would create a lineage between `target_table` and `source_table` within `my_service` database service.
-
+<Info>
+SQL-based lineage parsing is handled through the lineage ingestion workflow configuration.
+See the [Lineage Ingestion](/v1.12.x-SNAPSHOT/connectors/pipeline) documentation for details.
+</Info>
 
 ## Automated SQL lineage via CLI
 

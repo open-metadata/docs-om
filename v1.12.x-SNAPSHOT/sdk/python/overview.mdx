@@ -20,46 +20,35 @@ pip install openmetadata-ingestion
 ### Basic Connection
 
 ```python
-from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
-    OpenMetadataConnection,
-)
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
-    OpenMetadataJWTClientConfig,
-)
+from metadata.sdk import configure
 
-# Configure connection
-server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
-    authProvider="collate",
-    securityConfig=OpenMetadataJWTClientConfig(
-        jwtToken="your-jwt-token"
-    ),
+# Configure with your host and JWT token
+configure(
+    host="http://localhost:8585/api",
+    jwt_token="your-jwt-token"
 )
+```
 
-# Create OpenMetadata client
-metadata = OpenMetadata(server_config)
+You can also configure from environment variables (`OPENMETADATA_HOST` and `OPENMETADATA_JWT_TOKEN`):
 
-# Health check
-if metadata.health_check():
-    print("Successfully connected to OpenMetadata!")
+```python
+from metadata.sdk import configure
+
+# Reads OPENMETADATA_HOST and OPENMETADATA_JWT_TOKEN automatically
+configure()
 ```
 
 ### Working with Entities
 
 ```python
-from metadata.generated.schema.entity.data.table import Table
-from metadata.generated.schema.entity.services.databaseService import DatabaseService
+from metadata.sdk import Tables, DatabaseServices
 
 # Get all database services
-services = list(metadata.list_all_entities(entity=DatabaseService))
+services = list(DatabaseServices.list().auto_paging_iterable())
 print(f"Found {len(services)} database services")
 
 # Get a specific table by name
-table = metadata.get_by_name(
-    entity=Table,
-    fqn="your-service.your-database.your-schema.your-table"
-)
+table = Tables.retrieve_by_name("your-service.your-database.your-schema.your-table")
 
 if table:
     print(f"Table: {table.name}")
@@ -75,6 +64,7 @@ The Python SDK provides full CRUD operations for all OpenMetadata entities:
 #### Create or Update Entities
 
 ```python
+from metadata.sdk import Tables
 from metadata.generated.schema.api.data.createTable import CreateTableRequest
 
 # Create table request
@@ -87,107 +77,102 @@ create_table = CreateTableRequest(
     description="Sample table created via Python SDK"
 )
 
-# Create or update the table
-table = metadata.create_or_update(data=create_table)
+# Create the table
+table = Tables.create(create_table)
 ```
 
 #### Retrieve Entities
 
 ```python
+from metadata.sdk import Tables
+
 # Get by ID
-table = metadata.get_by_id(entity=Table, entity_id="uuid-here")
+table = Tables.retrieve("uuid-here")
 
 # Get by fully qualified name
-table = metadata.get_by_name(
-    entity=Table,
-    fqn="service.database.schema.table"
-)
+table = Tables.retrieve_by_name("service.database.schema.table")
 
-# List entities with pagination
-tables = metadata.list_entities(
-    entity=Table,
-    fields=["owner", "tags"],
-    limit=50
+# Get with specific fields
+table = Tables.retrieve_by_name(
+    "service.database.schema.table",
+    fields=["owners", "tags"]
 )
 ```
 
 #### List All Entities
 
 ```python
-# Generator for large datasets
-all_tables = metadata.list_all_entities(
-    entity=Table,
-    fields=["owner", "columns"],
-    params={"service": "your-service-name"}
-)
+from metadata.sdk import Tables
 
-for table in all_tables:
+# Auto-paginating iterator for large datasets
+for table in Tables.list().auto_paging_iterable():
     print(f"Processing table: {table.name}")
+```
+
+#### List with Filters
+
+```python
+from metadata.sdk import Tables
+from metadata.sdk.entities.tables import TableListParams
+
+# List with filters and field selection
+params = TableListParams.builder().limit(50).fields(["owners", "tags"]).build()
+tables = Tables.list(params)
+```
+
+#### Update Entities
+
+```python
+from metadata.sdk import Tables
+
+table = Tables.retrieve_by_name("service.database.schema.table")
+table.description = "Updated description"
+updated = Tables.update(str(table.id), table)
+```
+
+#### Delete Entities
+
+```python
+from metadata.sdk import Tables
+
+# Soft delete
+Tables.delete("uuid-here")
+
+# Hard delete with recursive removal of children
+Tables.delete("uuid-here", recursive=True, hard_delete=True)
 ```
 
 ### Entity References
 
 ```python
-# Get entity reference for relationships
-table_ref = metadata.get_entity_reference(
-    entity=Table,
-    fqn="service.database.schema.table"
-)
+from metadata.sdk import to_entity_reference, Tables
+
+# Retrieve the entity first, then get a reference
+table = Tables.retrieve_by_name("service.database.schema.table")
+ref = to_entity_reference(table)
 
 # Use in other entity creation
-if table_ref:
-    print(f"Table reference: {table_ref.id}")
+if ref:
+    print(f"Table reference ID: {ref.id}")
 ```
 
 ## Advanced Features
 
-### Custom Configuration
-
-```python
-# Using custom authentication
-from metadata.generated.schema.security.client.basicAuthenticationProvider import (
-    BasicAuthenticationProvider,
-)
-
-server_config = OpenMetadataConnection(
-    hostPort="https://your-openmetadata-instance.com/api",
-    authProvider="basic",
-    securityConfig=BasicAuthenticationProvider(
-        username="your-username",
-        password="your-password"
-    ),
-)
-
-metadata = OpenMetadata(server_config)
-```
-
 ### Error Handling
 
 ```python
-from metadata.ingestion.ometa.ometa_api import (
-    OpenMetadata,
-    InvalidEntityException,
-    EmptyPayloadException
-)
+from metadata.ingestion.ometa.client import APIError
+from metadata.sdk import Tables
 
 try:
-    table = metadata.get_by_name(entity=Table, fqn="non-existent-table")
-except InvalidEntityException as e:
-    print(f"Invalid entity: {e}")
-except EmptyPayloadException as e:
-    print(f"No data received: {e}")
-```
-
-### Working with Versions
-
-```python
-# Get entity version history
-versions = metadata.list_versions(
-    entity_id="your-entity-id",
-    entity=Table
-)
-
-print(f"Found {len(versions.versions)} versions")
+    table = Tables.retrieve("table-id")
+except APIError as e:
+    if e.status_code == 404:
+        print("Table not found")
+    elif e.status_code == 401:
+        print("Authentication failed")
+    else:
+        print(f"Error: {e}")
 ```
 
 ## Common Use Cases
@@ -195,11 +180,11 @@ print(f"Found {len(versions.versions)} versions")
 ### Data Discovery
 
 ```python
-# Search for tables containing specific keywords
-all_tables = metadata.list_all_entities(entity=Table)
+from metadata.sdk import Tables
 
+# Iterate all tables and filter for a keyword
 matching_tables = [
-    table for table in all_tables
+    table for table in Tables.list().auto_paging_iterable()
     if "customer" in table.name.lower()
 ]
 
@@ -210,33 +195,29 @@ for table in matching_tables:
 ### Metadata Automation
 
 ```python
-# Bulk update table descriptions
-tables_to_update = metadata.list_all_entities(
-    entity=Table,
-    params={"service": "production-db"}
-)
+from metadata.sdk import Tables
 
-for table in tables_to_update:
+# Bulk update table descriptions
+for table in Tables.list().auto_paging_iterable():
     if not table.description:
-        # Update with a default description
         table.description = f"Production table: {table.name}"
-        metadata.create_or_update(data=table)
+        Tables.update(str(table.id), table)
 ```
 
 ### Lineage Management
 
 ```python
-from metadata.generated.schema.type.entityLineage import EntityLineage
+from metadata.sdk.api import Lineage
 
-# Get table lineage
-lineage = metadata.get_lineage_by_name(
-    entity=Table,
-    fqn="service.database.schema.table"
+lineage = Lineage.get_lineage(
+    "service.database.schema.table",
+    upstream_depth=1,
+    downstream_depth=1
 )
 
 if lineage:
-    print(f"Upstream entities: {len(lineage.upstreamEdges)}")
-    print(f"Downstream entities: {len(lineage.downstreamEdges)}")
+    print(f"Upstream entities: {len(lineage.get('upstreamEdges', []))}")
+    print(f"Downstream entities: {len(lineage.get('downstreamEdges', []))}")
 ```
 
 ## API Reference
@@ -245,19 +226,22 @@ The Python SDK provides a comprehensive API based on the OpenMetadata data model
 
 ### Core Classes
 
-- **`OpenMetadata`**: Main client class for API interactions
-- **`OpenMetadataConnection`**: Connection configuration
-- **Entity Classes**: Type-safe representations of all OpenMetadata entities
+- **Entity classes** (`Tables`, `Databases`, `DatabaseSchemas`, `DatabaseServices`, `Users`, etc.): Static-method interfaces for each entity type — no instantiation required
+- **`configure()`**: One-time global setup for host and JWT token
+- **`to_entity_reference(entity)`**: Convert a retrieved entity to an `EntityReference` for use in relationships
+- **Entity Request Classes**: Pydantic-based typed request objects (e.g., `CreateTableRequest`)
 
 ### Key Methods
 
-- `create_or_update(data)`: Create or update an entity
-- `get_by_name(entity, fqn)`: Retrieve entity by fully qualified name
-- `get_by_id(entity, entity_id)`: Retrieve entity by ID
-- `list_entities(entity, **kwargs)`: List entities with pagination
-- `list_all_entities(entity, **kwargs)`: Generator for all entities
-- `delete(entity, entity_id)`: Delete an entity
-- `health_check()`: Check API connectivity
+Each entity class exposes the same consistent interface:
+
+- `EntityClass.create(request)`: Create a new entity
+- `EntityClass.retrieve(entity_id)`: Retrieve entity by UUID
+- `EntityClass.retrieve_by_name(fqn, fields=[])`: Retrieve entity by fully qualified name
+- `EntityClass.list(params=None)`: List entities (returns a pageable result)
+- `EntityClass.list().auto_paging_iterable()`: Auto-paginating generator for all entities
+- `EntityClass.update(entity_id, entity)`: Update an existing entity
+- `EntityClass.delete(entity_id, recursive=False, hard_delete=False)`: Delete an entity
 
 ## Type Safety
 
@@ -269,19 +253,18 @@ The Python SDK is built on generated Pydantic models, providing:
 - **Error prevention** through static typing
 
 ```python
-# Type-safe entity creation
+from metadata.sdk import Tables
 from metadata.generated.schema.entity.data.table import Table
 
-# IDE will provide auto-completion and type checking
-table: Table = metadata.get_by_name(entity=Table, fqn="my.table")
+# Type-safe retrieval — IDE provides auto-completion and type checking
+table: Table = Tables.retrieve_by_name("service.database.schema.table")
 if table:
     columns_count: int = len(table.columns) if table.columns else 0
 ```
 
 ## Best Practices
 
-1. **Connection Management**: Reuse OpenMetadata client instances
-2. **Error Handling**: Always handle potential exceptions
-3. **Pagination**: Use `list_all_entities()` for large datasets
-4. **Performance**: Specify only required fields when fetching entities
-5. **Resource Cleanup**: Call `metadata.close()` when done
+1. **Configure once**: Call `configure()` once at application startup and reuse globally — no need to pass a client object around
+2. **Error Handling**: Always handle `APIError` exceptions for robust integrations
+3. **Pagination**: Use `.auto_paging_iterable()` for large datasets to avoid loading everything into memory at once
+4. **Performance**: Specify only required fields when fetching entities (e.g., `fields=["owners", "tags"]`)
