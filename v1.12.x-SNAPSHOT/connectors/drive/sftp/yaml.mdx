@@ -1,0 +1,197 @@
+---
+title: Run the SFTP Connector Externally
+description: Use YAML to configure SFTP ingestion, enabling structured metadata extraction for secure file transfer protocol servers.
+slug: /connectors/drive/sftp/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+collate: true
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/drive/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/drive/source-config.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/sftp.webp'
+  name="SFTP"
+  stage="BETA"
+  availableFeatures={["Metadata"]}
+  unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "Owners", "Tags"]}
+/>
+In this section, we provide guides and references to use the SFTP connector.
+Configure and schedule SFTP metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the SFTP ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[sftp]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/drive/sftpConnection.json)
+you can find the structure to create a connection to an SFTP server.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for SFTP:
+<CodePreview>
+  <ContentPanel>
+    <ContentSection id={1} title="Source Configuration" lines="1-3">
+      Configure the source type and service name for your SFTP connector.
+    </ContentSection>
+    <ContentSection id={2} title="Host" lines="7">
+      **host**: SFTP server hostname or IP address.
+    </ContentSection>
+    <ContentSection id={3} title="Port" lines="8">
+      **port**: SFTP server port number. Defaults to `22`.
+    </ContentSection>
+    <ContentSection id={4} title="Authentication Type" lines="9-11">
+      **authType**: Choose between `basicAuth` (username and password) or `keyAuth` (SSH private key). See configuration examples below for both options.
+    </ContentSection>
+    <ContentSection id={5} title="Root Directories" lines="12-13">
+      **rootDirectories** (Optional): List of root directories to scan. Defaults to `/`.
+    </ContentSection>
+    <ContentSection id={6} title="Directory Filter Pattern" lines="14-18">
+      **directoryFilterPattern** (Optional): Regex to only include/exclude directories that match the pattern.
+    </ContentSection>
+    <ContentSection id={7} title="File Filter Pattern" lines="19-24">
+      **fileFilterPattern** (Optional): Regex to only include/exclude files that match the pattern.
+    </ContentSection>
+    <ContentSection id={8} title="Structured Data Files Only" lines="25">
+      **structuredDataFilesOnly** (Optional): When `true`, only catalog structured data files (CSV, TSV). Defaults to `false`.
+    </ContentSection>
+    <ContentSection id={9} title="Extract Sample Data" lines="26">
+      **extractSampleData** (Optional): When `true`, extract sample data from structured files (CSV, TSV). Defaults to `false`.
+    </ContentSection>
+    <ContentSection id={11} title="Sink Configuration" lines="27-29">
+      <IngestionSinkDef />
+    </ContentSection>
+    <ContentSection id={12} title="Workflow Configuration" lines="30-46">
+      <WorkflowConfigDef />
+    </ContentSection>
+  </ContentPanel>
+  <CodePanel fileName="sftp_config.yaml">
+```yaml
+source:
+  type: sftp
+  serviceName: local_sftp
+  serviceConnection:
+    config:
+      type: Sftp
+      host: sftp.example.com
+      port: 22
+      authType:
+        username: your_username
+        password: your_password
+      rootDirectories:
+        - /data
+      # directoryFilterPattern:
+      #   includes:
+      #     - /data/reports/.*
+      #   excludes:
+      #     - /data/temp/.*
+      # fileFilterPattern:
+      #   includes:
+      #     - .*\.csv
+      #     - .*\.tsv
+      #   excludes:
+      #     - .*\.tmp
+      # structuredDataFilesOnly: false
+      # extractSampleData: false
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+### Configuration Examples
+#### Basic Authentication (Username/Password)
+```yaml
+source:
+  type: sftp
+  serviceName: sftp_prod
+  serviceConnection:
+    config:
+      type: Sftp
+      host: sftp.example.com
+      port: 22
+      authType:
+        username: sftp_user
+        password: your_secure_password
+      rootDirectories:
+        - /data/exports
+        - /data/reports
+```
+#### SSH Private Key Authentication
+```yaml
+source:
+  type: sftp
+  serviceName: sftp_prod
+  serviceConnection:
+    config:
+      type: Sftp
+      host: sftp.example.com
+      port: 22
+      authType:
+        username: sftp_user
+        privateKey: |
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          <your_private_key_content>
+          -----END OPENSSH PRIVATE KEY-----
+        # privateKeyPassphrase: your_passphrase  # only if key is encrypted
+      rootDirectories:
+        - /data
+```
+#### Configuration with File Filtering and Sample Data
+```yaml
+source:
+  type: sftp
+  serviceName: sftp_analytics
+  serviceConnection:
+    config:
+      type: Sftp
+      host: sftp.example.com
+      port: 22
+      authType:
+        username: sftp_user
+        password: your_secure_password
+      rootDirectories:
+        - /data/analytics
+      directoryFilterPattern:
+        includes:
+          - /data/analytics/sales/.*
+          - /data/analytics/marketing/.*
+        excludes:
+          - /data/analytics/temp/.*
+          - /data/analytics/archive/.*
+      fileFilterPattern:
+        includes:
+          - .*\.csv
+          - .*\.tsv
+        excludes:
+          - .*_backup\.csv
+      structuredDataFilesOnly: true
+      extractSampleData: true
+```
+<IngestionCli />
+## Related
+<Columns cols={2}>
+  <Card title="Configure Ingestion Externally" href="/v1.12.x-SNAPSHOT/deployment/ingestion">
+    Deploy, configure, and manage the ingestion workflows externally.
+  </Card>
+</Columns>
