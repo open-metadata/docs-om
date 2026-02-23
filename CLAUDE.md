@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.10.x, v1.11.x, v1.12.x-SNAPSHOT). The default/current version is **v1.11.x** — unversioned URLs redirect there.
+OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.10.x, v1.11.x, v1.12.x). The default/current version is **v1.11.x** — unversioned URLs redirect there.
 
 ## Development Commands
 
