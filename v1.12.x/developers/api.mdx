@@ -123,27 +123,19 @@ curl -X PUT https://collate.company.com/api/v1/lineage \
 ### Python SDK
 
 ```python
-from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
-    OpenMetadataConnection,
-)
-from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
-    OpenMetadataJWTClientConfig,
-)
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.sdk import configure, Tables
+from metadata.generated.schema.api.data.createTable import CreateTableRequest
+from metadata.generated.schema.entity.data.table import Column, DataType
 
 # Initialize client
-server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
-    authProvider="collate",
-    securityConfig=OpenMetadataJWTClientConfig(
-        jwtToken="your-jwt-token"
-    ),
+configure(
+    host="http://localhost:8585/api",
+    jwt_token="your-jwt-token"
 )
 
-metadata = OpenMetadata(server_config)
-
 # Get all tables
-tables = metadata.list_all_entities(entity=Table)
+for table in Tables.list().auto_paging_iterable():
+    print(table.name)
 
 # Create a table
 table_entity = CreateTableRequest(
@@ -155,7 +147,7 @@ table_entity = CreateTableRequest(
     ],
 )
 
-created_table = metadata.create_or_update(table_entity)
+created_table = Tables.create(table_entity)
 ```
 
 ## Rate Limiting

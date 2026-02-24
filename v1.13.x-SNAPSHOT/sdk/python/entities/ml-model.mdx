@@ -116,16 +116,28 @@ Note how we added a list of `FeatureSource`, with values such as `name`, `dataTy
 Thanks to this extra piece of information, we now can run the following method on our `MlModel` instance:
 
 ```python
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.ingestion.ometa.openmetadata_rest import MetadataServerConfig
+from metadata.sdk import configure, MLModels, Tables
+from metadata.sdk.api import Lineage
 
-server_config = MetadataServerConfig(api_endpoint="http://localhost:8585/api")
-metadata = OpenMetadata(server_config)
+configure(host="http://localhost:8585/api", jwt_token="<token>")
 
-metadata.add_mlmodel_lineage(model=my_mlmodel_entity)
+# Retrieve the ML model entity
+my_mlmodel_entity = MLModels.retrieve_by_name("demo-ml-service.my-model")
+
+# For each dataSource table referenced in the ML model features,
+# add lineage from the source table to the ML model
+source_table = Tables.retrieve_by_name("my-service.my-db.my-schema.my-source-table")
+
+Lineage.add_lineage(
+    from_entity_id=str(source_table.id),
+    from_entity_type="table",
+    to_entity_id=str(my_mlmodel_entity.id),
+    to_entity_type="mlmodel",
+    description="Feature source for ML model"
+)
 ```
 
-This call will register the **Lineage** information between our MlModel instance and the tables referenced in the dataSources. Then, we will be able to explore these relationships either via the API or the UI.
+This registers the **Lineage** information between the source tables referenced in the dataSources and the MlModel instance. The relationships are then visible via the API or the UI.
 
 If we also have ingested the Lineage from the different Tables in our platform as well as how they relate to the data processing Pipelines, we can obtain a global end-to-end view on our ML Model and all its dependencies.
 

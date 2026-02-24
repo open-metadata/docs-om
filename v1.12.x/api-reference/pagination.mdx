@@ -65,29 +65,22 @@ The `paging` object contains:
 
 <CodeGroup dropdown>
 ```python Basic Pagination
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
-
-metadata = OpenMetadata(config)
+from metadata.sdk import Tables
+from metadata.sdk.entities.tables import TableListParams
 
 # Get first page
-first_page = metadata.list_entities(
-    entity=Table,
-    limit=20
-)
+params = TableListParams.builder().limit(20).build()
+first_page = Tables.list(params)
 
 print(f"Total tables: {first_page.paging.total}")
-for table in first_page.entities:
+for table in first_page.data:
     print(table.fullyQualifiedName)
 
 # Get next page using after cursor
 if first_page.paging.after:
-    next_page = metadata.list_entities(
-        entity=Table,
-        limit=20,
-        after=first_page.paging.after
-    )
-    for table in next_page.entities:
+    next_params = TableListParams.builder().limit(20).after(first_page.paging.after).build()
+    next_page = Tables.list(next_params)
+    for table in next_page.data:
         print(table.fullyQualifiedName)
 ```
 
@@ -140,13 +133,10 @@ curl -X GET "https://your-company.open-metadata.org/api/v1/tables?limit=20&after
 
 <CodeGroup dropdown>
 ```python Iterating Results
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk import Tables
 
-metadata = OpenMetadata(config)
-
-# Iterate through all tables
-for table in metadata.list_all_entities(entity=Table, limit=100):
+# Auto-paginate through all tables
+for table in Tables.list().auto_paging_iterable():
     print(table.fullyQualifiedName)
     # Process each table...
 ```
@@ -206,19 +196,17 @@ Combine pagination with filters for efficient data retrieval:
 
 <CodeGroup dropdown>
 ```python Filtering
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk import Tables
+from metadata.sdk.entities.tables import TableListParams
 
-metadata = OpenMetadata(config)
+# List tables from a specific database with fields
+params = TableListParams.builder() \
+    .limit(50) \
+    .fields(["owners", "tags"]) \
+    .build()
+tables = Tables.list(params)
 
-# List tables from a specific database
-tables = metadata.list_entities(
-    entity=Table,
-    params={"database": "prod.analytics"},
-    limit=50
-)
-
-for table in tables.entities:
+for table in tables.data:
     print(table.fullyQualifiedName)
 ```
 

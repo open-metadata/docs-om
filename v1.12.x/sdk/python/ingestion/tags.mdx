@@ -21,24 +21,9 @@ To prepare the necessary ingredients, execute the following steps.
 ### 1. Preparing the Client
 
 ```python
-from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
-    OpenMetadataConnection,
-)
-from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
-    OpenMetadataJWTClientConfig,
-)
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.sdk import configure
 
-server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
-    authProvider="openmetadata",
-    securityConfig=OpenMetadataJWTClientConfig(
-        jwtToken="<token>"
-    ),
-)
-metadata = OpenMetadata(server_config)
-
-assert metadata.health_check()  # Will fail if we cannot reach the server
+configure(host="http://localhost:8585/api", jwt_token="<token>")
 ```
 
 ### 2. Creating the Database Service
@@ -47,6 +32,7 @@ We are mocking a MySQL instance. Note how we need to pass the right configuratio
 parameter for the generic `DatabaseConnection` type.
 
 ```python
+from metadata.sdk import DatabaseServices
 from metadata.generated.schema.api.services.createDatabaseService import (
     CreateDatabaseServiceRequest,
 )
@@ -58,7 +44,6 @@ from metadata.generated.schema.entity.services.connections.database.mysqlConnect
 )
 from metadata.generated.schema.entity.services.databaseService import (
     DatabaseConnection,
-    DatabaseService,
     DatabaseServiceType,
 )
 
@@ -74,7 +59,7 @@ db_service = CreateDatabaseServiceRequest(
     ),
 )
 
-db_service_entity = metadata.create_or_update(data=db_service)
+db_service_entity = DatabaseServices.create(db_service)
 ```
 
 ### 3. Creating the Database
@@ -83,14 +68,15 @@ Any Entity that is created and linked to another Entity, has to hold the `fullyQ
 relates to. In this case, a Database is bound to a specific service.
 
 ```python
+from metadata.sdk import Databases
 from metadata.generated.schema.api.data.createDatabase import CreateDatabaseRequest
 
 create_db = CreateDatabaseRequest(
     name="test-db",
-    service=db_service_entity.EntityName,
+    service=db_service_entity.fullyQualifiedName,
 )
 
-create_db_entity = metadata.create_or_update(data=create_db)
+create_db_entity = Databases.create(create_db)
 ```
 
 ### 4. Creating the Schema
@@ -98,6 +84,7 @@ create_db_entity = metadata.create_or_update(data=create_db)
 The same happens with the Schemas. They are related to a Database.
 
 ```python
+from metadata.sdk import DatabaseSchemas
 from metadata.generated.schema.api.data.createDatabaseSchema import (
     CreateDatabaseSchemaRequest,
 )
@@ -106,7 +93,7 @@ create_schema = CreateDatabaseSchemaRequest(
     name="test-schema", database=create_db_entity.fullyQualifiedName
 )
 
-create_schema_entity = metadata.create_or_update(data=create_schema)
+create_schema_entity = DatabaseSchemas.create(create_schema)
 ```
 
 ### 5. Creating the Table
@@ -114,6 +101,7 @@ create_schema_entity = metadata.create_or_update(data=create_schema)
 We are doing a simple example with a single column.
 
 ```python
+from metadata.sdk import Tables
 from metadata.generated.schema.api.data.createTable import CreateTableRequest
 from metadata.generated.schema.entity.data.table import Column, DataType
 
@@ -123,7 +111,7 @@ table = CreateTableRequest(
     columns=[Column(name="id", dataType=DataType.BIGINT)],
 )
 
-table = metadata.create_or_update(data=table)
+table = Tables.create(table)
 ```
 
 ### 6. Creating the Classification
@@ -131,17 +119,18 @@ table = metadata.create_or_update(data=table)
 Classifications are the entities we use to group tag definitions. Let's create a sample one:
 
 ```python
+from metadata.sdk import Classifications
 from metadata.generated.schema.api.classification.createClassification import (
     CreateClassificationRequest,
 )
 from metadata.generated.schema.api.classification.createTag import CreateTagRequest
 
-classification_request=CreateClassificationRequest(
+classification_request = CreateClassificationRequest(
     name="TestClassification",
     description="Sample classification.",
 )
 
-metadata.create_or_update(classification_request)
+Classifications.create(classification_request)
 ```
 
 ### 7. Creating the Tag
@@ -149,13 +138,15 @@ metadata.create_or_update(classification_request)
 Once there is an existing classification, we create tags within that given classification:
 
 ```python
-tag_request=CreateTagRequest(
+from metadata.sdk import Tags
+
+tag_request = CreateTagRequest(
     classification=classification_request.name,
     name="TestTag",
     description="Sample Tag.",
 )
 
-metadata.create_or_update(tag_request)
+Tags.create(tag_request)
 ```
 
 ### 8. Tagging a Table
@@ -165,29 +156,67 @@ tag the Table we created above. For that, the API uses a PATCH request, but the 
 a helper method that handles most of the work:
 
 ```python
-from metadata.generated.schema.entity.data.table import Table
+import requests
 
-metadata.patch_tag(
-    entity=Table,
-    entity_id=table.id,
-    tag_fqn="TestClassification.TestTag",
+# PATCH the tag directly via the REST API
+headers = {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json-patch+json",
+}
+
+patch = [
+    {
+        "op": "add",
+        "path": "/tags/-",
+        "value": {
+            "tagFQN": "TestClassification.TestTag",
+            "source": "Classification",
+            "labelType": "Manual",
+            "state": "Confirmed",
+        },
+    }
+]
+
+requests.patch(
+    f"http://localhost:8585/api/v1/tables/{table.id}",
+    headers=headers,
+    json=patch,
 )
 ```
 
 If we now check the tags for the Table, the new tag will be appearing in there.
 
-Note that we now used the `patch_tag` method because the Table already existed. If we can
-control the Tag creation process when the Table metadata is generated, we can assign
-the tags in the `tags` property of `CreateTableRequest`.
+Note that if you control the Tag creation process when the Table metadata is generated, you can
+assign tags in the `tags` property of `CreateTableRequest` directly — no PATCH needed.
 
 ### 9. Tagging a Column
 
-The same idea can be replicated to tag a column:
+The same PATCH approach works for column-level tags:
 
 ```python
-metadata.patch_column_tag(
-    entity_id=table.id,
-    tag_fqn="TestClassification.TestTag",
-    column_name="id",
+import requests
+
+headers = {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json-patch+json",
+}
+
+patch = [
+    {
+        "op": "add",
+        "path": "/columns/0/tags/-",   # replace 0 with the column index
+        "value": {
+            "tagFQN": "TestClassification.TestTag",
+            "source": "Classification",
+            "labelType": "Manual",
+            "state": "Confirmed",
+        },
+    }
+]
+
+requests.patch(
+    f"http://localhost:8585/api/v1/tables/{table.id}",
+    headers=headers,
+    json=patch,
 )
 ```
