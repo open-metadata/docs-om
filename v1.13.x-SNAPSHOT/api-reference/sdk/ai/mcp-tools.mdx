@@ -17,12 +17,16 @@ descriptions, owners, lineage, glossary terms, tags, and data quality results.
 | Tool | Description |
 |------|-------------|
 | `search_metadata` | Search across your OpenMetadata instance |
+| `semantic_search` | AI-powered semantic search that understands meaning and context beyond keyword matching |
 | `get_entity_details` | Get detailed information about an entity |
 | `get_entity_lineage` | Get lineage information for an entity |
 | `create_glossary` | Create a new glossary |
 | `create_glossary_term` | Create a new glossary term |
 | `create_lineage` | Create lineage between entities |
 | `patch_entity` | Update an entity's metadata |
+| `get_test_definitions` | List available data quality test definitions |
+| `create_test_case` | Create a data quality test case for an entity |
+| `root_cause_analysis` | Analyze root causes of data quality failures |
 
 ## Tool Call Parameters
 
@@ -136,6 +140,54 @@ descriptions, owners, lineage, glossary terms, tags, and data quality results.
 
     <ParamField body="patch" type="array" required>
       JSON Patch operations (RFC 6902) to apply.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="semantic_search arguments">
+    <ParamField body="query" type="string" required>
+      Natural language query. The search understands meaning and context beyond exact keyword matching.
+    </ParamField>
+
+    <ParamField body="entity_type" type="string">
+      Filter by entity type: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`.
+    </ParamField>
+
+    <ParamField body="limit" type="integer" default="10">
+      Maximum number of results to return.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="get_test_definitions arguments">
+    <ParamField body="entity_type" type="string">
+      Filter test definitions by entity type (e.g., `table`, `column`).
+    </ParamField>
+
+    <ParamField body="limit" type="integer" default="10">
+      Maximum number of definitions to return.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="create_test_case arguments">
+    <ParamField body="entity_fqn" type="string" required>
+      Fully qualified name of the entity to test.
+    </ParamField>
+
+    <ParamField body="test_definition" type="string" required>
+      Name of the test definition to use (from `get_test_definitions`).
+    </ParamField>
+
+    <ParamField body="name" type="string" required>
+      Name for the test case.
+    </ParamField>
+
+    <ParamField body="parameters" type="object">
+      Test-specific parameters (depends on the test definition).
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="root_cause_analysis arguments">
+    <ParamField body="test_case_id" type="string" required>
+      UUID of the failed test case to analyze.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -300,7 +352,13 @@ from ai_sdk.mcp.models import MCPTool
 
 # Only include read-only tools
 tools = client.mcp.as_langchain_tools(
-    include=[MCPTool.SEARCH_METADATA, MCPTool.GET_ENTITY_DETAILS, MCPTool.GET_ENTITY_LINEAGE]
+    include=[
+        MCPTool.SEARCH_METADATA,
+        MCPTool.SEMANTIC_SEARCH,
+        MCPTool.GET_ENTITY_DETAILS,
+        MCPTool.GET_ENTITY_LINEAGE,
+        MCPTool.GET_TEST_DEFINITIONS,
+    ]
 )
 
 # Or exclude mutation tools
