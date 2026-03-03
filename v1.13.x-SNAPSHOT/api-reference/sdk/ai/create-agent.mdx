@@ -1,0 +1,316 @@
+---
+title: Create Agent
+description: Programmatically create an AI Studio Agent with a persona, abilities, and API access.
+sidebarTitle: Create Agent
+api: POST /api/v1/agents/dynamic/
+---
+
+# Create Agent
+
+Programmatically create an AI Studio Agent. Each agent combines a persona, a set of abilities, and full access to OpenMetadata into a ready-to-use assistant you can invoke from any SDK.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Unique name for the agent. Used as the identifier in API calls (e.g., `DataQualityPlannerAgent`). Must be alphanumeric with no spaces.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  A short description of what the agent does. This is displayed in the AI Studio UI and returned in list responses.
+</ParamField>
+
+<ParamField body="persona" type="string" required>
+  Name of the persona to assign to this agent. The persona defines the agent's behavior and personality. Must reference an existing persona.
+</ParamField>
+
+<ParamField body="display_name" type="string">
+  Human-readable display name for the agent. If omitted, defaults to `name`.
+</ParamField>
+
+<ParamField body="api_enabled" type="boolean" default="false">
+  Whether the agent can be invoked via the API. Set to `true` to allow SDK and CLI access.
+</ParamField>
+
+<ParamField body="abilities" type="array">
+  List of ability names to enable for the agent. Abilities determine what tools and actions the agent can use.
+
+  <Expandable title="available abilities">
+    - `search_metadata` -- Search across OpenMetadata
+    - `get_entity_details` -- Retrieve detailed entity information
+    - `get_entity_lineage` -- Explore lineage graphs
+    - `create_glossary` -- Create glossary entries
+    - `create_glossary_term` -- Create glossary terms
+    - `create_lineage` -- Create lineage edges
+    - `patch_entity` -- Update entity metadata
+  </Expandable>
+</ParamField>
+
+<ParamField body="prompt" type="string">
+  Additional system prompt appended to the persona's base prompt. Use this to provide agent-specific instructions without creating a new persona.
+</ParamField>
+
+<ParamField body="provider" type="string" default="openai">
+  LLM provider to use for the agent. Supported values: `openai`, `anthropic`, `azure_openai`.
+</ParamField>
+
+<ParamField body="bot_name" type="string">
+  Name of the OpenMetadata bot whose credentials the agent uses. If omitted, uses the default bot.
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /api/v1/agents/dynamic/
+from ai_sdk import AISdk, AISdkConfig
+from ai_sdk.models import CreateAgentRequest
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+agent = client.create_agent(CreateAgentRequest(
+    name="DataQualityPlannerAgent",
+    description="Analyzes tables and recommends data quality tests",
+    persona="DataAnalyst",
+    display_name="Data Quality Planner",
+    api_enabled=True,
+    abilities=[
+        "search_metadata",
+        "get_entity_details",
+        "get_entity_lineage"
+    ],
+    prompt="Focus on data quality best practices and recommend specific test types."
+))
+print(f"Created agent: {agent.name} (ID: {agent.id})")
+```
+
+```typescript POST /api/v1/agents/dynamic/
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+const agent = await client.createAgent({
+  name: 'DataQualityPlannerAgent',
+  description: 'Analyzes tables and recommends data quality tests',
+  persona: 'DataAnalyst',
+  displayName: 'Data Quality Planner',
+  apiEnabled: true,
+  abilities: [
+    'search_metadata',
+    'get_entity_details',
+    'get_entity_lineage'
+  ],
+  prompt: 'Focus on data quality best practices and recommend specific test types.'
+});
+console.log(`Created agent: ${agent.name} (ID: ${agent.id})`);
+```
+
+```java POST /api/v1/agents/dynamic/
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.CreateAgentRequest;
+import io.openmetadata.ai.model.AgentInfo;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+AgentInfo agent = client.createAgent(new CreateAgentRequest.Builder()
+    .name("DataQualityPlannerAgent")
+    .description("Analyzes tables and recommends data quality tests")
+    .persona("DataAnalyst")
+    .displayName("Data Quality Planner")
+    .apiEnabled(true)
+    .abilities(List.of("search_metadata", "get_entity_details", "get_entity_lineage"))
+    .prompt("Focus on data quality best practices and recommend specific test types.")
+    .build());
+System.out.println("Created agent: " + agent.getName());
+```
+
+```bash POST /api/v1/agents/dynamic/
+curl -X POST "https://your-org.getcollate.io/api/v1/agents/dynamic/" \
+  -H "Authorization: Bearer your-bot-jwt-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "DataQualityPlannerAgent",
+    "description": "Analyzes tables and recommends data quality tests",
+    "persona": "DataAnalyst",
+    "display_name": "Data Quality Planner",
+    "api_enabled": true,
+    "abilities": [
+      "search_metadata",
+      "get_entity_details",
+      "get_entity_lineage"
+    ],
+    "prompt": "Focus on data quality best practices and recommend specific test types."
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "DataQualityPlannerAgent",
+  "display_name": "Data Quality Planner",
+  "description": "Analyzes tables and recommends data quality tests",
+  "persona": "DataAnalyst",
+  "api_enabled": true,
+  "abilities": [
+    "search_metadata",
+    "get_entity_details",
+    "get_entity_lineage"
+  ],
+  "prompt": "Focus on data quality best practices and recommend specific test types.",
+  "provider": "openai",
+  "created_at": "2025-06-15T10:30:00Z",
+  "updated_at": "2025-06-15T10:30:00Z"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created `AgentInfo` object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the agent (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Agent name used in API calls.
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the agent.
+</ResponseField>
+
+<ResponseField name="persona" type="string">
+  Name of the assigned persona.
+</ResponseField>
+
+<ResponseField name="api_enabled" type="boolean">
+  Whether the agent is accessible via the API.
+</ResponseField>
+
+<ResponseField name="abilities" type="array">
+  List of enabled ability names.
+</ResponseField>
+
+<ResponseField name="prompt" type="string">
+  Additional system prompt for the agent.
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  LLM provider used by the agent.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the agent was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 timestamp of when the agent was last updated.
+</ResponseField>
+
+---
+
+## List Agents
+
+Retrieve all API-enabled AI Studio Agents available in your OpenMetadata instance.
+
+<RequestExample dropdown>
+```python GET /api/v1/agents/dynamic/
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+agents = client.list_agents()
+for agent in agents:
+    print(f"{agent.name}: {agent.description} (API: {agent.api_enabled})")
+```
+
+```typescript GET /api/v1/agents/dynamic/
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+const agents = await client.listAgents();
+agents.forEach(agent => {
+  console.log(`${agent.name}: ${agent.description} (API: ${agent.apiEnabled})`);
+});
+```
+
+```java GET /api/v1/agents/dynamic/
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.AgentInfo;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+List<AgentInfo> agents = client.listAgents();
+for (AgentInfo agent : agents) {
+    System.out.println(agent.getName() + ": " + agent.getDescription());
+}
+```
+
+```bash GET /api/v1/agents/dynamic/
+curl "https://your-org.getcollate.io/api/v1/agents/dynamic/" \
+  -H "Authorization: Bearer your-bot-jwt-token"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "DataQualityPlannerAgent",
+      "display_name": "Data Quality Planner",
+      "description": "Analyzes tables and recommends data quality tests",
+      "persona": "DataAnalyst",
+      "api_enabled": true,
+      "abilities": ["search_metadata", "get_entity_details", "get_entity_lineage"],
+      "provider": "openai"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+      "name": "SqlQueryAgent",
+      "display_name": "SQL Query Agent",
+      "description": "Generates and explains SQL queries based on your metadata",
+      "persona": "SqlExpert",
+      "api_enabled": true,
+      "abilities": ["search_metadata", "get_entity_details"],
+      "provider": "openai"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body, missing required fields, or invalid ability names |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create agents |
+| `404` | `PERSONA_NOT_FOUND` | The referenced persona does not exist |
+| `409` | `ENTITY_ALREADY_EXISTS` | An agent with the same name already exists |

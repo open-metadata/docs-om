@@ -1,0 +1,264 @@
+---
+title: Invoke Agent
+description: Send a message to an AI Studio Agent and get a response, with optional streaming and multi-turn conversation support.
+sidebarTitle: Invoke Agent
+api: POST /{agent_name}/invoke
+---
+
+# Invoke Agent
+
+Send a message to an AI Studio Agent and receive a response. Supports both synchronous and streaming modes, as well as multi-turn conversations using a `conversationId`.
+
+## Path Parameters
+
+<ParamField path="agent_name" type="string" required>
+  Name of the AI Studio Agent to invoke (case-sensitive). Must be an API-enabled agent.
+</ParamField>
+
+## Body Parameters
+
+<ParamField body="message" type="string" required>
+  The message to send to the agent.
+</ParamField>
+
+<ParamField body="conversationId" type="string">
+  ID of an existing conversation to continue. Omit to start a new conversation. The agent retains full context from previous turns.
+</ParamField>
+
+<ParamField body="parameters" type="object">
+  Optional key-value parameters to pass to the agent for customization.
+
+  <Expandable title="properties">
+    <ParamField body="temperature" type="number">
+      Override the agent's default temperature (0.0 - 1.0).
+    </ParamField>
+
+    <ParamField body="max_tokens" type="integer">
+      Override the maximum number of tokens in the response.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /{agent_name}/invoke
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()  # reads AI_SDK_HOST and AI_SDK_TOKEN
+client = AISdk.from_config(config)
+
+# Invoke an agent
+response = client.agent("DataQualityPlannerAgent").call(
+    "What data quality tests should I add for the customers table?"
+)
+print(response.response)
+print(f"Conversation ID: {response.conversation_id}")
+```
+
+```typescript POST /{agent_name}/invoke
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+const response = await client.agent('DataQualityPlannerAgent').call(
+  'What data quality tests should I add for the customers table?'
+);
+console.log(response.response);
+console.log(`Conversation ID: ${response.conversationId}`);
+```
+
+```java POST /{agent_name}/invoke
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.InvokeResponse;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+InvokeResponse response = client.agent("DataQualityPlannerAgent")
+    .call("What data quality tests should I add for the customers table?");
+System.out.println(response.getResponse());
+System.out.println("Conversation ID: " + response.getConversationId());
+```
+
+```bash POST /{agent_name}/invoke
+curl -X POST "https://your-org.getcollate.io/api/v1/agents/DataQualityPlannerAgent/invoke" \
+  -H "Authorization: Bearer your-bot-jwt-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What data quality tests should I add for the customers table?"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "response": "Based on my analysis of the customers table, I recommend the following data quality tests:\n\n1. **Not Null** on `customer_id` — primary key should never be null\n2. **Unique** on `email` — email addresses must be unique\n3. **Column Values to Be Between** on `age` — expected range 0-150\n4. **Column Values to Match Regex** on `email` — validate email format\n5. **Table Row Count to Be Between** — expected range 1000-5000000",
+  "conversation_id": "conv-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns an `InvokeResponse` containing the agent's text response and the conversation ID for follow-up messages.
+
+## Response
+
+<ResponseField name="response" type="string">
+  The agent's text response to the message.
+</ResponseField>
+
+<ResponseField name="conversation_id" type="string">
+  Unique identifier for the conversation. Use this in subsequent requests to continue the same conversation thread.
+</ResponseField>
+
+---
+
+## Streaming
+
+Stream responses in real time as the agent generates them. Instead of waiting for the full response, you receive a series of server-sent events (SSE).
+
+<RequestExample dropdown>
+```python POST /{agent_name}/invoke (streaming)
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+for event in client.agent("DataQualityPlannerAgent").stream(
+    "Analyze the orders table"
+):
+    match event.type:
+        case "start":
+            print(f"Started (conversation: {event.conversation_id})")
+        case "content":
+            print(event.content, end="", flush=True)
+        case "tool_use":
+            print(f"\n[Using tool: {event.tool_name}]")
+        case "end":
+            print("\nDone!")
+        case "error":
+            print(f"\nError: {event.error}")
+```
+
+```typescript POST /{agent_name}/invoke (streaming)
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+for await (const event of client.agent('DataQualityPlannerAgent').stream(
+  'Analyze the orders table'
+)) {
+  switch (event.type) {
+    case 'content':
+      process.stdout.write(event.content || '');
+      break;
+    case 'tool_use':
+      console.log(`\n[Using tool: ${event.toolName}]`);
+      break;
+    case 'end':
+      console.log('\nDone!');
+      break;
+  }
+}
+```
+
+```java POST /{agent_name}/invoke (streaming)
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.StreamEvent;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+client.agent("DataQualityPlannerAgent")
+    .stream("Analyze the orders table", event -> {
+        switch (event.getType()) {
+            case "content" -> System.out.print(event.getContent());
+            case "tool_use" -> System.out.println("\n[Using tool: " + event.getToolName() + "]");
+            case "end" -> System.out.println("\nDone!");
+            case "error" -> System.err.println("\nError: " + event.getError());
+        }
+    });
+```
+
+```bash POST /{agent_name}/invoke (streaming)
+curl -N -X POST "https://your-org.getcollate.io/api/v1/agents/DataQualityPlannerAgent/invoke" \
+  -H "Authorization: Bearer your-bot-jwt-token" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Analyze the orders table"
+  }'
+```
+</RequestExample>
+
+### Stream Event Types
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `start` | `conversation_id` | Agent started processing |
+| `content` | `content` | Text chunk from the agent |
+| `tool_use` | `tool_name` | Agent is using a tool |
+| `end` | - | Agent finished |
+| `error` | `error` | Error occurred |
+
+---
+
+## Multi-Turn Conversations
+
+Continue an existing conversation by passing the `conversationId` from a previous response. The agent retains full context from all prior turns in the conversation.
+
+```python
+from ai_sdk import Conversation
+
+conv = Conversation(client.agent("DataQualityPlannerAgent"))
+
+print(conv.send("Analyze the customers table"))
+print(conv.send("Create tests for the issues you found"))
+print(conv.send("Show me the SQL for those tests"))
+
+# Access conversation details
+print(f"Turns: {len(conv)}")
+print(f"Conversation ID: {conv.id}")
+```
+
+Alternatively, manage the conversation ID manually:
+
+```python
+# First turn
+response = client.agent("DataQualityPlannerAgent").call(
+    "Analyze the customers table"
+)
+conv_id = response.conversation_id
+
+# Follow-up turns reuse the conversation ID
+response = client.agent("DataQualityPlannerAgent").call(
+    "Create tests for the issues you found",
+    conversation_id=conv_id
+)
+```
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing `message` field |
+| `401` | `UNAUTHORIZED` | Invalid or expired JWT token |
+| `403` | `AGENT_NOT_ENABLED` | Agent exists but is not enabled for API access |
+| `404` | `AGENT_NOT_FOUND` | No agent found with the given name |
+| `429` | `RATE_LIMITED` | Too many requests. Retry after the duration in the `Retry-After` header |
+| `500` | `AGENT_EXECUTION_ERROR` | Agent encountered an internal error during execution |

@@ -1,0 +1,257 @@
+---
+title: Create Persona
+description: Create and manage personas that define the behavior and personality of AI Studio Agents.
+sidebarTitle: Create Persona
+api: POST /api/v1/agents/personas/
+---
+
+# Create Persona
+
+Create a persona that defines the behavior, personality, and system instructions for AI Studio Agents. A persona acts as the foundation for one or more agents, providing a reusable identity and base prompt.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Unique name for the persona. Used as the identifier when assigning to agents. Must be alphanumeric with no spaces.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  A short description of the persona's role and capabilities. Displayed in the AI Studio UI.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  The system prompt that defines the persona's behavior, tone, and instructions. This is prepended to every agent conversation that uses this persona.
+</ParamField>
+
+<ParamField body="display_name" type="string">
+  Human-readable display name for the persona. If omitted, defaults to `name`.
+</ParamField>
+
+<ParamField body="provider" type="string" default="openai">
+  Default LLM provider for agents using this persona. Supported values: `openai`, `anthropic`, `azure_openai`.
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /api/v1/agents/personas/
+from ai_sdk import AISdk, AISdkConfig
+from ai_sdk.models import CreatePersonaRequest
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+persona = client.create_persona(CreatePersonaRequest(
+    name="DataAnalyst",
+    description="Expert data analyst focused on data quality and governance",
+    display_name="Data Analyst",
+    prompt="""You are an expert data analyst with deep knowledge of data quality,
+data governance, and metadata management. When analyzing tables:
+
+1. Examine column names, types, and descriptions
+2. Identify potential data quality issues
+3. Recommend specific test types with thresholds
+4. Consider relationships with other tables via lineage
+
+Always provide actionable recommendations with concrete examples."""
+))
+print(f"Created persona: {persona.name} (ID: {persona.id})")
+```
+
+```typescript POST /api/v1/agents/personas/
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+const persona = await client.createPersona({
+  name: 'DataAnalyst',
+  description: 'Expert data analyst focused on data quality and governance',
+  displayName: 'Data Analyst',
+  prompt: `You are an expert data analyst with deep knowledge of data quality,
+data governance, and metadata management. When analyzing tables:
+
+1. Examine column names, types, and descriptions
+2. Identify potential data quality issues
+3. Recommend specific test types with thresholds
+4. Consider relationships with other tables via lineage
+
+Always provide actionable recommendations with concrete examples.`
+});
+console.log(`Created persona: ${persona.name} (ID: ${persona.id})`);
+```
+
+```java POST /api/v1/agents/personas/
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.CreatePersonaRequest;
+import io.openmetadata.ai.model.PersonaInfo;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+PersonaInfo persona = client.createPersona(new CreatePersonaRequest.Builder()
+    .name("DataAnalyst")
+    .description("Expert data analyst focused on data quality and governance")
+    .displayName("Data Analyst")
+    .prompt("You are an expert data analyst with deep knowledge of data quality, "
+        + "data governance, and metadata management.")
+    .build());
+System.out.println("Created persona: " + persona.getName());
+```
+
+```bash POST /api/v1/agents/personas/
+curl -X POST "https://your-org.getcollate.io/api/v1/agents/personas/" \
+  -H "Authorization: Bearer your-bot-jwt-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "DataAnalyst",
+    "description": "Expert data analyst focused on data quality and governance",
+    "display_name": "Data Analyst",
+    "prompt": "You are an expert data analyst with deep knowledge of data quality, data governance, and metadata management. When analyzing tables:\n\n1. Examine column names, types, and descriptions\n2. Identify potential data quality issues\n3. Recommend specific test types with thresholds\n4. Consider relationships with other tables via lineage\n\nAlways provide actionable recommendations with concrete examples."
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+  "name": "DataAnalyst",
+  "display_name": "Data Analyst",
+  "description": "Expert data analyst focused on data quality and governance",
+  "prompt": "You are an expert data analyst with deep knowledge of data quality, data governance, and metadata management. When analyzing tables:\n\n1. Examine column names, types, and descriptions\n2. Identify potential data quality issues\n3. Recommend specific test types with thresholds\n4. Consider relationships with other tables via lineage\n\nAlways provide actionable recommendations with concrete examples.",
+  "provider": "openai",
+  "created_at": "2025-06-15T10:30:00Z",
+  "updated_at": "2025-06-15T10:30:00Z"
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created `PersonaInfo` object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the persona (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Persona name used as the identifier when assigning to agents.
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the persona.
+</ResponseField>
+
+<ResponseField name="prompt" type="string">
+  The system prompt that defines the persona's behavior.
+</ResponseField>
+
+<ResponseField name="provider" type="string">
+  Default LLM provider for this persona.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the persona was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 timestamp of when the persona was last updated.
+</ResponseField>
+
+---
+
+## List Personas
+
+Retrieve all personas available in your OpenMetadata instance.
+
+<RequestExample dropdown>
+```python GET /api/v1/agents/personas/
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+personas = client.list_personas()
+for persona in personas:
+    print(f"{persona.name}: {persona.description}")
+```
+
+```typescript GET /api/v1/agents/personas/
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-org.getcollate.io',
+  token: 'your-bot-jwt-token'
+});
+
+const personas = await client.listPersonas();
+personas.forEach(persona => {
+  console.log(`${persona.name}: ${persona.description}`);
+});
+```
+
+```java GET /api/v1/agents/personas/
+import io.openmetadata.ai.AISdk;
+import io.openmetadata.ai.model.PersonaInfo;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-org.getcollate.io")
+    .token("your-bot-jwt-token")
+    .build();
+
+List<PersonaInfo> personas = client.listPersonas();
+for (PersonaInfo persona : personas) {
+    System.out.println(persona.getName() + ": " + persona.getDescription());
+}
+```
+
+```bash GET /api/v1/agents/personas/
+curl "https://your-org.getcollate.io/api/v1/agents/personas/" \
+  -H "Authorization: Bearer your-bot-jwt-token"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "data": [
+    {
+      "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+      "name": "DataAnalyst",
+      "display_name": "Data Analyst",
+      "description": "Expert data analyst focused on data quality and governance",
+      "provider": "openai"
+    },
+    {
+      "id": "d4e5f6a7-b8c9-0123-defa-456789012345",
+      "name": "SqlExpert",
+      "display_name": "SQL Expert",
+      "description": "Specializes in SQL query generation and optimization",
+      "provider": "openai"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body, missing required fields, or invalid provider |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create personas |
+| `409` | `ENTITY_ALREADY_EXISTS` | A persona with the same name already exists |
