@@ -2,200 +2,38 @@
 title: MCP Tools
 description: Use OpenMetadata's MCP tools to give any LLM access to your metadata through search, lineage, glossary, and entity operations.
 sidebarTitle: MCP Tools
-api: POST /mcp
 ---
 
 # MCP Tools
 
-OpenMetadata exposes an [MCP server](https://modelcontextprotocol.io/) at `/mcp` that turns your
-metadata into a set of tools any LLM can use. Unlike generic MCP connectors that only read raw database
-schemas, OpenMetadata's MCP tools give your AI access to the **full context** of your data platform --
-descriptions, owners, lineage, glossary terms, tags, and data quality results.
+OpenMetadata exposes an [MCP server](https://modelcontextprotocol.io/) that turns your metadata
+into a set of tools any LLM can use. Unlike generic MCP connectors that only read raw database schemas,
+OpenMetadata's MCP tools give your AI access to the **full context** of your data platform — descriptions,
+owners, lineage, glossary terms, tags, and data quality results.
+
+The MCP endpoint is available at `POST /mcp` using the [JSON-RPC 2.0](https://www.jsonrpc.org/) protocol.
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `search_metadata` | Search across your OpenMetadata instance |
+| `search_metadata` | Search across all metadata in OpenMetadata (tables, dashboards, pipelines, topics, etc.) |
 | `semantic_search` | AI-powered semantic search that understands meaning and context beyond keyword matching |
-| `get_entity_details` | Get detailed information about an entity |
-| `get_entity_lineage` | Get lineage information for an entity |
-| `create_glossary` | Create a new glossary |
-| `create_glossary_term` | Create a new glossary term |
-| `create_lineage` | Create lineage between entities |
-| `patch_entity` | Update an entity's metadata |
+| `get_entity_details` | Get detailed information about a specific entity by ID or fully qualified name |
+| `get_entity_lineage` | Get upstream and downstream lineage for an entity |
+| `create_glossary` | Create a new glossary in OpenMetadata |
+| `create_glossary_term` | Create a new term within an existing glossary |
+| `create_lineage` | Create a lineage edge between two entities |
+| `patch_entity` | Update an entity's metadata (description, tags, owners, etc.) |
 | `get_test_definitions` | List available data quality test definitions |
 | `create_test_case` | Create a data quality test case for an entity |
 | `root_cause_analysis` | Analyze root causes of data quality failures |
 
-## Tool Call Parameters
+## Using MCP Tools Directly
 
-<ParamField body="tool_name" type="string" required>
-  Name of the MCP tool to invoke. Must be one of the available tools listed above.
-</ParamField>
+You can call MCP tools directly through the SDK client:
 
-<ParamField body="arguments" type="object" required>
-  Tool-specific arguments. Each tool accepts different parameters.
-
-  <Expandable title="search_metadata arguments">
-    <ParamField body="query" type="string" required>
-      Search query string (e.g., `"customers"`, `"revenue pipeline"`).
-    </ParamField>
-
-    <ParamField body="entity_type" type="string">
-      Filter by entity type: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `glossaryTerm`.
-    </ParamField>
-
-    <ParamField body="limit" type="integer" default="10">
-      Maximum number of results to return.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="get_entity_details arguments">
-    <ParamField body="entity_id" type="string" required>
-      UUID or fully qualified name of the entity.
-    </ParamField>
-
-    <ParamField body="entity_type" type="string" required>
-      Type of entity: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`.
-    </ParamField>
-
-    <ParamField body="fields" type="string">
-      Comma-separated list of additional fields to include (e.g., `"columns,tags,owners,lineage"`).
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="get_entity_lineage arguments">
-    <ParamField body="entity_id" type="string" required>
-      UUID or fully qualified name of the entity.
-    </ParamField>
-
-    <ParamField body="entity_type" type="string" required>
-      Type of entity to get lineage for.
-    </ParamField>
-
-    <ParamField body="depth" type="integer" default="1">
-      How many levels of upstream/downstream lineage to retrieve.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="create_glossary arguments">
-    <ParamField body="name" type="string" required>
-      Name of the glossary.
-    </ParamField>
-
-    <ParamField body="description" type="string" required>
-      Description of the glossary in Markdown format.
-    </ParamField>
-
-    <ParamField body="owners" type="array">
-      Array of owner references.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="create_glossary_term arguments">
-    <ParamField body="glossary" type="string" required>
-      Fully qualified name of the parent glossary.
-    </ParamField>
-
-    <ParamField body="name" type="string" required>
-      Name of the glossary term.
-    </ParamField>
-
-    <ParamField body="description" type="string" required>
-      Description of the term in Markdown format.
-    </ParamField>
-
-    <ParamField body="synonyms" type="array">
-      List of synonyms for the term.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="create_lineage arguments">
-    <ParamField body="from_entity" type="string" required>
-      Fully qualified name of the source entity.
-    </ParamField>
-
-    <ParamField body="to_entity" type="string" required>
-      Fully qualified name of the target entity.
-    </ParamField>
-
-    <ParamField body="from_type" type="string" required>
-      Type of the source entity.
-    </ParamField>
-
-    <ParamField body="to_type" type="string" required>
-      Type of the target entity.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="patch_entity arguments">
-    <ParamField body="entity_id" type="string" required>
-      UUID of the entity to update.
-    </ParamField>
-
-    <ParamField body="entity_type" type="string" required>
-      Type of entity to patch.
-    </ParamField>
-
-    <ParamField body="patch" type="array" required>
-      JSON Patch operations (RFC 6902) to apply.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="semantic_search arguments">
-    <ParamField body="query" type="string" required>
-      Natural language query. The search understands meaning and context beyond exact keyword matching.
-    </ParamField>
-
-    <ParamField body="entity_type" type="string">
-      Filter by entity type: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`.
-    </ParamField>
-
-    <ParamField body="limit" type="integer" default="10">
-      Maximum number of results to return.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="get_test_definitions arguments">
-    <ParamField body="entity_type" type="string">
-      Filter test definitions by entity type (e.g., `table`, `column`).
-    </ParamField>
-
-    <ParamField body="limit" type="integer" default="10">
-      Maximum number of definitions to return.
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="create_test_case arguments">
-    <ParamField body="entity_fqn" type="string" required>
-      Fully qualified name of the entity to test.
-    </ParamField>
-
-    <ParamField body="test_definition" type="string" required>
-      Name of the test definition to use (from `get_test_definitions`).
-    </ParamField>
-
-    <ParamField body="name" type="string" required>
-      Name for the test case.
-    </ParamField>
-
-    <ParamField body="parameters" type="object">
-      Test-specific parameters (depends on the test definition).
-    </ParamField>
-  </Expandable>
-
-  <Expandable title="root_cause_analysis arguments">
-    <ParamField body="test_case_id" type="string" required>
-      UUID of the failed test case to analyze.
-    </ParamField>
-  </Expandable>
-</ParamField>
-
-## Calling Tools Directly
-
-<RequestExample dropdown>
-```python POST /mcp (call tool)
+```python
 from ai_sdk import AISdk, AISdkConfig
 
 config = AISdkConfig.from_env()
@@ -210,69 +48,32 @@ for tool in tools:
 result = client.mcp.call_tool("search_metadata", {
     "query": "customers",
     "entity_type": "table",
-    "limit": 5
+    "limit": 5,
 })
+print(result.data)
 
 # Get entity details
 result = client.mcp.call_tool("get_entity_details", {
-    "entity_id": "sample_data.ecommerce_db.shopify.customers",
+    "fqn": "sample_data.ecommerce_db.shopify.customers",
     "entity_type": "table",
-    "fields": "columns,tags,owners"
 })
+print(result.data)
 
 # Get lineage
 result = client.mcp.call_tool("get_entity_lineage", {
-    "entity_id": "sample_data.ecommerce_db.shopify.customers",
-    "entity_type": "table",
-    "depth": 2
+    "entity_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "upstream_depth": 3,
+    "downstream_depth": 2,
 })
+print(result.data)
 ```
-
-```bash POST /mcp (call tool)
-# List available tools
-curl -X POST "https://your-org.getcollate.io/mcp" \
-  -H "Authorization: Bearer your-bot-jwt-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/list"
-  }'
-
-# Call a tool
-curl -X POST "https://your-org.getcollate.io/mcp" \
-  -H "Authorization: Bearer your-bot-jwt-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "search_metadata",
-      "arguments": {
-        "query": "customers",
-        "entity_type": "table",
-        "limit": 5
-      }
-    }
-  }'
-```
-</RequestExample>
-
-<ResponseExample>
-```json Response (search_metadata)
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "[{\"name\": \"customers\", \"fullyQualifiedName\": \"sample_data.ecommerce_db.shopify.customers\", \"entityType\": \"table\", \"description\": \"Customer master data including contact info and account details.\", \"owners\": [\"data-team\"], \"tags\": [\"PII.Sensitive\"]}]"
-    }
-  ]
-}
-```
-</ResponseExample>
 
 ---
 
 ## LangChain Integration
 
-Convert MCP tools to LangChain format with a single method call:
+Convert OpenMetadata's MCP tools to LangChain format with a single method call. This lets you use your
+metadata as tools in any LangChain agent.
 
 ```bash
 pip install data-ai-sdk[langchain]
@@ -290,9 +91,9 @@ client = AISdk.from_config(config)
 # Convert MCP tools to LangChain format
 tools = client.mcp.as_langchain_tools()
 
-llm = ChatOpenAI(model="gpt-4")
+llm = ChatOpenAI(model="gpt-4o")
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an OpenMetadata assistant."),
+    ("system", "You are a metadata assistant powered by OpenMetadata."),
     ("human", "{input}"),
     ("placeholder", "{agent_scratchpad}"),
 ])
@@ -306,46 +107,10 @@ result = executor.invoke({
 print(result["output"])
 ```
 
----
+### Tool Filtering
 
-## OpenAI Integration
-
-Convert MCP tools to OpenAI function calling format:
-
-```python
-import json
-from openai import OpenAI
-from ai_sdk import AISdk, AISdkConfig
-
-config = AISdkConfig.from_env()
-om_client = AISdk.from_config(config)
-openai_client = OpenAI()
-
-tools = om_client.mcp.as_openai_tools()
-executor = om_client.mcp.create_tool_executor()
-
-response = openai_client.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Find customer tables"}],
-    tools=tools,
-)
-
-message = response.choices[0].message
-if message.tool_calls:
-    for tool_call in message.tool_calls:
-        result = executor(
-            tool_call.function.name,
-            json.loads(tool_call.function.arguments)
-        )
-        print(f"Tool: {tool_call.function.name}")
-        print(f"Result: {result}")
-```
-
----
-
-## Tool Filtering
-
-You can filter which tools are exposed to your LLM to restrict its capabilities:
+Control which tools are exposed to your LLM by including or excluding specific tools. This is useful
+for restricting agents to read-only operations or limiting scope.
 
 ```python
 from ai_sdk.mcp.models import MCPTool
@@ -367,23 +132,105 @@ tools = client.mcp.as_langchain_tools(
 )
 ```
 
-The same `include` and `exclude` parameters work with `as_openai_tools()`:
+### Using AI Studio Agents as LangChain Tools
+
+You can wrap AI Studio Agents as LangChain tools, letting you compose them with other tools in a
+LangChain pipeline:
 
 ```python
-tools = client.mcp.as_openai_tools(
-    include=[MCPTool.SEARCH_METADATA, MCPTool.GET_ENTITY_DETAILS]
-)
+from ai_sdk.integrations.langchain import AISdkAgentTool, create_ai_sdk_tools
+
+# Create a tool from a single agent
+tool = AISdkAgentTool.from_client(client, "DataQualityPlannerAgent")
+
+# Create tools for multiple agents
+tools = create_ai_sdk_tools(client, [
+    "DataQualityPlannerAgent",
+    "SqlQueryAgent",
+    "LineageExplorerAgent",
+])
+
+# Or create tools for all API-enabled agents
+tools = create_ai_sdk_tools(client)
+```
+
+### Multi-Agent Orchestrator
+
+Build a multi-agent system where specialist agents each get focused MCP tools:
+
+```python
+from ai_sdk.mcp.models import MCPTool
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+# Discovery specialist — search and read operations
+discovery_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.SEMANTIC_SEARCH,
+    MCPTool.SEARCH_METADATA,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Lineage specialist — lineage exploration
+lineage_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_LINEAGE,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Curator specialist — write operations
+curator_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_DETAILS,
+    MCPTool.PATCH_ENTITY,
+    MCPTool.CREATE_GLOSSARY_TERM,
+])
+
+llm = ChatOpenAI(model="gpt-4o")
+
+def create_specialist(tools, system_prompt):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+discovery = create_specialist(discovery_tools, "You are a data discovery specialist.")
+lineage = create_specialist(lineage_tools, "You are a lineage exploration specialist.")
+curator = create_specialist(curator_tools, "You are a metadata curation specialist.")
 ```
 
 ---
 
-## Error Handling
+## OpenAI Integration
 
-| Code | Error Type | Description |
-|------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid tool name or missing required arguments |
-| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
-| `403` | `FORBIDDEN` | User lacks permission to call the requested tool |
-| `404` | `TOOL_NOT_FOUND` | The requested tool does not exist |
-| `422` | `INVALID_ARGUMENTS` | Tool arguments failed validation |
-| `500` | `TOOL_EXECUTION_ERROR` | Tool encountered an internal error during execution |
+Convert MCP tools to OpenAI function calling format:
+
+```python
+import json
+from openai import OpenAI
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+om_client = AISdk.from_config(config)
+openai_client = OpenAI()
+
+tools = om_client.mcp.as_openai_tools()
+executor = om_client.mcp.create_tool_executor()
+
+response = openai_client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Find customer tables"}],
+    tools=tools,
+)
+
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        result = executor(
+            tool_call.function.name,
+            json.loads(tool_call.function.arguments)
+        )
+        print(f"Tool: {tool_call.function.name}")
+        print(f"Result: {result}")
+```

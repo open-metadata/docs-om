@@ -6,29 +6,16 @@ sidebarTitle: AI SDK
 
 # AI SDK
 
-The AI SDK gives you programmatic access to OpenMetadata through two complementary paths:
-**MCP Tools** for building custom AI applications with any LLM, and **AI Studio Agents** for invoking
-ready-to-use AI assistants directly from your code.
+The AI SDK gives you programmatic access to OpenMetadata's AI Studio — create personas and agents,
+invoke them via the API, and stream responses in real time. Available across Python,
+TypeScript, Java, and a standalone CLI.
 
-<CardGroup cols={2}>
+<Tip>
 
-<Card title="Invoke Agent" icon="message-bot" href="/v1.13.x-SNAPSHOT/api-reference/sdk/ai/invoke">
-  Send a message to an AI Studio Agent and get a response, with optional streaming and multi-turn conversations.
-</Card>
+You can find the source code for the AI SDK in the [GitHub repository](https://github.com/open-metadata/ai-sdk).
+Contributions are always welcome!
 
-<Card title="Create Agent" icon="robot" href="/v1.13.x-SNAPSHOT/api-reference/sdk/ai/create-agent">
-  Programmatically create an AI Studio Agent with a persona, abilities, and API access.
-</Card>
-
-<Card title="Create Persona" icon="user-gear" href="/v1.13.x-SNAPSHOT/api-reference/sdk/ai/create-persona">
-  Create and manage personas that define the behavior and personality of AI Studio Agents.
-</Card>
-
-<Card title="MCP Tools" icon="wrench" href="/v1.13.x-SNAPSHOT/api-reference/sdk/ai/mcp-tools">
-  Use OpenMetadata's MCP tools to give any LLM access to your metadata through search, lineage, glossary, and entity operations.
-</Card>
-
-</CardGroup>
+</Tip>
 
 ## Available SDKs
 
@@ -53,7 +40,7 @@ To get a JWT token, go to **Settings > Bots** in your OpenMetadata instance, sel
 Set the following environment variables:
 
 ```bash
-export AI_SDK_HOST="https://your-org.getcollate.io"
+export AI_SDK_HOST="https://your-openmetadata-instance.com"
 export AI_SDK_TOKEN="your-bot-jwt-token"
 ```
 
@@ -68,9 +55,478 @@ All environment variables:
 | `AI_SDK_MAX_RETRIES` | No | `3` | Number of retry attempts |
 | `AI_SDK_RETRY_DELAY` | No | `1.0` | Base delay between retries (seconds) |
 
-<Tip>
+## Client Initialization
 
-You can find the source code for the AI SDK in the [GitHub repository](https://github.com/open-metadata/ai-sdk).
-Contributions are always welcome!
+<CodeGroup>
 
-</Tip>
+```python Python
+from ai_sdk import AISdk, AISdkConfig
+
+# From environment variables
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# Or directly
+client = AISdk(
+    host="https://your-openmetadata-instance.com",
+    token="your-bot-jwt-token",
+)
+```
+
+```typescript TypeScript
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-openmetadata-instance.com',
+  token: 'your-bot-jwt-token'
+});
+```
+
+```java Java
+import io.openmetadata.ai.AISdk;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-openmetadata-instance.com")
+    .token("your-bot-jwt-token")
+    .build();
+```
+
+</CodeGroup>
+
+---
+
+## Manage Personas
+
+A persona defines the behavioral instructions and personality of an AI Studio Agent. Each persona
+contains a system prompt that shapes how the agent responds. Multiple agents can share the same persona.
+
+### Create a Persona
+
+<CodeGroup>
+
+```python Python
+from ai_sdk.models import CreatePersonaRequest
+
+persona = client.create_persona(CreatePersonaRequest(
+    name="DataAnalyst",
+    description="A meticulous data analyst focused on data quality",
+    prompt=(
+        "You are an expert data analyst working with OpenMetadata. "
+        "You specialize in analyzing table schemas, identifying data quality issues, "
+        "and recommending appropriate tests. Always reference specific columns and "
+        "provide actionable recommendations."
+    ),
+    display_name="Data Analyst",
+))
+print(f"Created persona: {persona.name}")
+```
+
+```typescript TypeScript
+const persona = await client.createPersona({
+  name: 'DataAnalyst',
+  description: 'A meticulous data analyst focused on data quality',
+  prompt: `You are an expert data analyst working with OpenMetadata.
+You specialize in analyzing table schemas, identifying data quality issues,
+and recommending appropriate tests.`,
+  displayName: 'Data Analyst',
+});
+console.log(`Created persona: ${persona.name}`);
+```
+
+```java Java
+import io.openmetadata.ai.models.CreatePersonaRequest;
+import io.openmetadata.ai.models.PersonaInfo;
+
+CreatePersonaRequest request = new CreatePersonaRequest.Builder()
+    .name("DataAnalyst")
+    .description("A meticulous data analyst focused on data quality")
+    .prompt("You are an expert data analyst working with OpenMetadata. "
+        + "You specialize in analyzing table schemas, identifying "
+        + "data quality issues, and recommending appropriate tests.")
+    .displayName("Data Analyst")
+    .build();
+
+PersonaInfo persona = client.createPersona(request);
+System.out.println("Created persona: " + persona.getName());
+```
+
+</CodeGroup>
+
+**Persona fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier (alphanumeric, no spaces) |
+| `description` | string | Yes | Role and behavior description |
+| `prompt` | string | Yes | System prompt prepended to every agent conversation |
+| `display_name` | string | No | Human-readable name (defaults to `name`) |
+| `provider` | string | No | Default LLM provider: `openai`, `anthropic`, `azure_openai` (default: `openai`) |
+
+### List Personas
+
+<CodeGroup>
+
+```python Python
+personas = client.list_personas()
+for persona in personas:
+    print(f"{persona.name}: {persona.description}")
+```
+
+```typescript TypeScript
+const personas = await client.listPersonas();
+for (const persona of personas) {
+  console.log(`${persona.name}: ${persona.description}`);
+}
+```
+
+```java Java
+List<PersonaInfo> personas = client.listPersonas();
+for (PersonaInfo persona : personas) {
+    System.out.println(persona.getName() + ": " + persona.getDescription());
+}
+```
+
+</CodeGroup>
+
+### Get a Persona by Name
+
+```python
+persona = client.get_persona("DataAnalyst")
+print(f"{persona.name}: {persona.prompt[:80]}...")
+```
+
+---
+
+## Manage Agents
+
+An agent combines a persona's behavioral instructions with OpenMetadata's MCP tools to form a
+purpose-built AI assistant. Agents must be API-enabled to be invoked via the SDK.
+
+### Create an Agent
+
+<CodeGroup>
+
+```python Python
+from ai_sdk.models import CreateAgentRequest
+
+agent = client.create_agent(CreateAgentRequest(
+    name="DataQualityPlannerAgent",
+    description="Analyzes tables and recommends data quality tests",
+    persona="DataAnalyst",
+    display_name="Data Quality Planner",
+    api_enabled=True,
+    abilities=[
+        "search_metadata",
+        "get_entity_details",
+        "get_entity_lineage",
+    ],
+))
+print(f"Created agent: {agent.name}")
+```
+
+```typescript TypeScript
+const agent = await client.createAgent({
+  name: 'DataQualityPlannerAgent',
+  description: 'Analyzes tables and recommends data quality tests',
+  persona: 'DataAnalyst',
+  displayName: 'Data Quality Planner',
+  apiEnabled: true,
+  abilities: [
+    'search_metadata',
+    'get_entity_details',
+    'get_entity_lineage',
+  ],
+});
+console.log(`Created agent: ${agent.name}`);
+```
+
+```java Java
+import io.openmetadata.ai.models.CreateAgentRequest;
+import io.openmetadata.ai.models.AgentInfo;
+
+CreateAgentRequest request = new CreateAgentRequest.Builder()
+    .name("DataQualityPlannerAgent")
+    .description("Analyzes tables and recommends data quality tests")
+    .persona("DataAnalyst")
+    .displayName("Data Quality Planner")
+    .apiEnabled(true)
+    .abilities(List.of(
+        "search_metadata",
+        "get_entity_details",
+        "get_entity_lineage"
+    ))
+    .build();
+
+AgentInfo agent = client.createAgent(request);
+System.out.println("Created agent: " + agent.getName());
+```
+
+</CodeGroup>
+
+**Agent fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier (alphanumeric, PascalCase/camelCase) |
+| `description` | string | Yes | Purpose shown in AI Studio |
+| `persona` | string | Yes | Name of an existing persona |
+| `display_name` | string | No | Human-readable name (defaults to `name`) |
+| `api_enabled` | boolean | No | Must be `true` for SDK invocation (default: `false`) |
+| `abilities` | array | No | Allowed MCP tool names (all tools if omitted) |
+| `prompt` | string | No | Additional system prompt appended to persona's base prompt |
+| `provider` | string | No | LLM provider: `openai`, `anthropic`, `azure_openai` (default: `openai`) |
+| `bot_name` | string | No | OpenMetadata bot for metadata operations |
+
+**Available abilities:** `search_metadata`, `get_entity_details`, `get_entity_lineage`,
+`create_glossary`, `create_glossary_term`, `create_lineage`, `patch_entity`
+
+### List Agents
+
+<CodeGroup>
+
+```python Python
+agents = client.list_agents()
+for agent in agents:
+    print(f"{agent.name}: {agent.description}")
+    print(f"  Abilities: {', '.join(agent.abilities)}")
+```
+
+```typescript TypeScript
+const agents = await client.listAgents();
+for (const agent of agents) {
+  console.log(`${agent.name}: ${agent.description}`);
+}
+```
+
+```java Java
+List<AgentInfo> agents = client.listAgents();
+for (AgentInfo agent : agents) {
+    System.out.println(agent.getName() + ": " + agent.getDescription());
+}
+```
+
+</CodeGroup>
+
+---
+
+## Invoke an Agent
+
+Send a message to an API-enabled agent and receive a response.
+
+### Single Invocation
+
+<CodeGroup>
+
+```python Python
+response = client.agent("DataQualityPlannerAgent").call(
+    "What data quality tests should I add for the customers table?"
+)
+print(response.response)
+print(f"Tools used: {response.tools_used}")
+```
+
+```typescript TypeScript
+const response = await client.agent('DataQualityPlannerAgent').call(
+  'What data quality tests should I add for the customers table?'
+);
+console.log(response.response);
+console.log(`Tools used: ${response.toolsUsed}`);
+```
+
+```java Java
+InvokeResponse response = client.agent("DataQualityPlannerAgent")
+    .call("What data quality tests should I add for the customers table?");
+System.out.println(response.getResponse());
+```
+
+</CodeGroup>
+
+The response includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `conversation_id` | string | Use for multi-turn follow-ups |
+| `response` | string | The agent's text response |
+| `tools_used` | array | MCP tools the agent invoked |
+| `usage` | object | Token usage (`prompt_tokens`, `completion_tokens`, `total_tokens`) |
+
+### Streaming
+
+Use streaming to receive real-time output as the agent generates its response.
+
+<CodeGroup>
+
+```python Python
+for event in client.agent("DataQualityPlannerAgent").stream(
+    "Analyze the orders table"
+):
+    match event.type:
+        case "start":
+            print(f"Started conversation: {event.conversation_id}")
+        case "content":
+            print(event.content, end="", flush=True)
+        case "tool_use":
+            print(f"\n[Using tool: {event.tool_name}]")
+        case "end":
+            print("\nDone!")
+```
+
+```typescript TypeScript
+for await (const event of client.agent('DataQualityPlannerAgent').stream(
+  'Analyze the orders table'
+)) {
+  switch (event.type) {
+    case 'content':
+      process.stdout.write(event.content || '');
+      break;
+    case 'tool_use':
+      console.log(`\n[Using tool: ${event.toolName}]`);
+      break;
+    case 'end':
+      console.log('\nDone!');
+      break;
+  }
+}
+```
+
+```java Java
+client.agent("DataQualityPlannerAgent")
+    .stream("Analyze the orders table")
+    .forEach(event -> {
+        switch (event.getType()) {
+            case "content" -> System.out.print(event.getContent());
+            case "tool_use" -> System.out.println("\n[Using: " + event.getToolName() + "]");
+            case "end" -> System.out.println("\nDone!");
+        }
+    });
+```
+
+</CodeGroup>
+
+**Stream event types:**
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `start` | `conversation_id` | Agent started processing |
+| `content` | `content` | Text chunk from the response |
+| `tool_use` | `tool_name` | Agent is invoking an MCP tool |
+| `end` | - | Response complete |
+| `error` | `error` | An error occurred |
+
+### Multi-Turn Conversations
+
+The `Conversation` class automatically manages context across messages.
+
+<CodeGroup>
+
+```python Python
+from ai_sdk import Conversation
+
+conv = Conversation(client.agent("DataQualityPlannerAgent"))
+
+# Each call automatically carries the conversation context
+print(conv.send("Analyze the customers table"))
+print(conv.send("Create tests for the issues you found"))
+print(conv.send("Show me the SQL for those tests"))
+
+# Access conversation details
+print(f"Turns: {len(conv)}")
+print(f"Conversation ID: {conv.id}")
+```
+
+```typescript TypeScript
+const conv = client.agent('DataQualityPlannerAgent').conversation();
+
+const r1 = await conv.send('Analyze the customers table');
+console.log(r1.response);
+
+const r2 = await conv.send('Create tests for the issues you found');
+console.log(r2.response);
+
+console.log(`Turns: ${conv.turns}`);
+console.log(`Conversation ID: ${conv.id}`);
+```
+
+</CodeGroup>
+
+### Async Support (Python)
+
+All sync methods have async counterparts with the `a` prefix:
+
+| Sync | Async |
+|------|-------|
+| `agent.call()` | `await agent.acall()` |
+| `agent.stream()` | `async for event in agent.astream()` |
+| `conv.send()` | `await conv.asend()` |
+
+```python
+import asyncio
+from ai_sdk import AISdk, AISdkConfig
+
+async def main():
+    config = AISdkConfig.from_env(enable_async=True)
+    client = AISdk.from_config(config)
+
+    response = await client.agent("DataQualityPlannerAgent").acall(
+        "Analyze the customers table"
+    )
+    print(response.response)
+
+asyncio.run(main())
+```
+
+---
+
+## Error Handling
+
+| Code | Exception | Description |
+|------|-----------|-------------|
+| `401` | `AuthenticationError` | Invalid or expired JWT token |
+| `403` | `AgentNotEnabledError` | Agent exists but is not API-enabled |
+| `404` | `AgentNotFoundError` | No agent with the given name exists |
+| `409` | `CONFLICT` | Agent or persona with the same name already exists |
+| `429` | `RateLimitError` | Too many requests — retry after the indicated delay |
+| `500` | `AgentExecutionError` | Internal error during agent execution |
+
+```python
+from ai_sdk.exceptions import (
+    AuthenticationError,
+    AgentNotFoundError,
+    AgentNotEnabledError,
+    RateLimitError,
+    AgentExecutionError,
+)
+
+try:
+    response = client.agent("MyAgent").call("Hello")
+
+except AuthenticationError:
+    print("Invalid or expired token. Check your AI_SDK_TOKEN.")
+
+except AgentNotFoundError as e:
+    print(f"Agent not found: {e.agent_name}")
+
+except AgentNotEnabledError as e:
+    print(f"Agent '{e.agent_name}' is not API-enabled. Enable it in AI Studio.")
+
+except RateLimitError as e:
+    print(f"Rate limited. Retry after: {e.retry_after} seconds")
+
+except AgentExecutionError as e:
+    print(f"Agent execution failed: {e.message}")
+```
+
+### CLI
+
+```bash
+# Install
+curl -sSL https://raw.githubusercontent.com/open-metadata/ai-sdk/main/cli/install.sh | sh
+
+# Configure
+ai-sdk configure
+
+# Invoke an agent
+ai-sdk invoke DataQualityPlannerAgent "Analyze the customers table"
+```
+
+The CLI provides an interactive TUI with markdown rendering and syntax highlighting.
