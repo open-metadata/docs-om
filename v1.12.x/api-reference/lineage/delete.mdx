@@ -1,0 +1,100 @@
+---
+title: Delete Lineage
+description: Remove a lineage edge between two entities
+sidebarTitle: Delete Lineage
+api: DELETE /v1/lineage/{fromEntity}/{fromId}/{toEntity}/{toId}
+---
+
+# Delete Lineage
+
+Remove an existing lineage edge between two entities.
+
+## Path Parameters
+
+<ParamField path="fromEntity" type="string" required>
+  Entity type of the source (e.g., `table`, `dashboard`, `pipeline`).
+</ParamField>
+
+<ParamField path="fromId" type="string" required>
+  UUID of the source entity.
+</ParamField>
+
+<ParamField path="toEntity" type="string" required>
+  Entity type of the destination (e.g., `table`, `dashboard`, `pipeline`).
+</ParamField>
+
+<ParamField path="toId" type="string" required>
+  UUID of the destination entity.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/lineage/{fromEntity}/{fromId}/{toEntity}/{toId}
+from metadata.generated.schema.type.entityLineage import EntitiesEdge
+from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="<YOUR-JWT-TOKEN>"
+    ),
+)
+metadata = OpenMetadata(server_config)
+
+# Delete a lineage edge
+edge = EntitiesEdge(
+    fromEntity=EntityReference(id=source_table.id, type="table"),
+    toEntity=EntityReference(id=target_dashboard.id, type="dashboard"),
+)
+
+metadata.delete_lineage_edge(edge=edge)
+```
+
+```java DELETE /v1/lineage/{fromEntity}/{fromId}/{toEntity}/{toId}
+import org.openmetadata.sdk.api.Lineage;
+
+Lineage.disconnect()
+    .from("table", sourceTableId)
+    .to("dashboard", dashboardId)
+    .confirm();
+```
+
+```bash DELETE /v1/lineage/{fromEntity}/{fromId}/{toEntity}/{toId}
+# Delete lineage between a table and a dashboard
+curl -X DELETE "{base_url}/api/v1/lineage/table/{source_table_id}/dashboard/{target_dashboard_id}" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete lineage between two tables
+curl -X DELETE "{base_url}/api/v1/lineage/table/{source_table_id}/table/{target_table_id}" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+200 OK
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns `200 OK` with no body on successful deletion.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete lineage |
+| `404` | `NOT_FOUND` | Lineage edge between the specified entities does not exist |

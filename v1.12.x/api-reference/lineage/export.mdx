@@ -1,0 +1,109 @@
+---
+title: Export Lineage
+description: Export the lineage graph for an entity as CSV
+sidebarTitle: Export Lineage
+api: GET /v1/lineage/export
+---
+
+# Export Lineage
+
+Export the lineage graph for a given entity as a CSV file. Useful for auditing, reporting, and offline analysis of data lineage.
+
+## Query Parameters
+
+<ParamField query="fqn" type="string" required>
+  Fully qualified name of the entity to export lineage for (e.g., `sample_data.ecommerce_db.shopify.dim_customer`).
+</ParamField>
+
+<ParamField query="type" type="string" required>
+  Entity type. Options: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`, `storedProcedure`, `dashboardDataModel`, `apiEndpoint`.
+</ParamField>
+
+<ParamField query="upstreamDepth" type="integer" default="1">
+  Number of hops to traverse upstream (min: 0, max: 3).
+</ParamField>
+
+<ParamField query="downstreamDepth" type="integer" default="1">
+  Number of hops to traverse downstream (min: 0, max: 3).
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/lineage/export
+from metadata.sdk import configure, get_client
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+client = get_client()
+
+# Export lineage as CSV
+response = client.get("/lineage/export", params={
+    "fqn": "sample_data.ecommerce_db.shopify.dim_customer",
+    "type": "table",
+    "upstreamDepth": 3,
+    "downstreamDepth": 2,
+})
+
+print(response.text)
+```
+
+```java GET /v1/lineage/export
+import org.openmetadata.sdk.api.Lineage;
+
+String csv = Lineage.export()
+    .entity("table", "sample_data.ecommerce_db.shopify.dim_customer")
+    .upstream(3)
+    .downstream(2)
+    .execute();
+
+System.out.println(csv);
+```
+
+```bash GET /v1/lineage/export
+# Export lineage as CSV
+curl "{base_url}/api/v1/lineage/export?fqn=sample_data.ecommerce_db.shopify.dim_customer&type=table&upstreamDepth=3&downstreamDepth=2" \
+  -H "Authorization: Bearer {access_token}"
+
+# Export with default depth
+curl "{base_url}/api/v1/lineage/export?fqn=sample_data.ecommerce_db.shopify.dim_customer&type=table" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```csv Response
+fromEntityFQN,fromEntityType,toEntityFQN,toEntityType,sqlQuery
+sample_data.ecommerce_db.shopify.raw_customer,table,sample_data.ecommerce_db.shopify.dim_customer,table,"INSERT INTO dim_customer SELECT * FROM raw_customer"
+sample_data.ecommerce_db.shopify.dim_customer,table,sample_superset.customer_dashboard,dashboard,
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns a CSV string with one row per lineage edge in the graph.
+
+## Response
+
+The CSV includes the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `fromEntityFQN` | Fully qualified name of the source entity |
+| `fromEntityType` | Entity type of the source |
+| `toEntityFQN` | Fully qualified name of the destination entity |
+| `toEntityType` | Entity type of the destination |
+| `sqlQuery` | SQL query driving the transformation (if available) |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Missing required parameters |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to export lineage |
+| `404` | `NOT_FOUND` | Entity with the given FQN does not exist |
