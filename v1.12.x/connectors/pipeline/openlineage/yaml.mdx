@@ -1,0 +1,135 @@
+---
+title: Run the OpenLineage Connector Externally
+description: Use YAML to configure OpenLineage pipeline metadata ingestion from Kafka or AWS Kinesis Data Streams.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v1.12.x/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/openlineage.png'
+name="OpenLineage"
+stage="BETA"
+availableFeatures={["Pipelines", "Lineage", "Usage"]}
+unavailableFeatures={["Pipeline Status", "Owners", "Tags"]} />
+
+In this section, we provide guides and references to use the OpenLineage connector.
+
+Configure and schedule OpenLineage metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+
+<ExternalIngestionDeployment />
+
+## Requirements
+
+### Python Requirements
+
+<PythonRequirements />
+
+To run the OpenLineage ingestion, you will need to install:
+
+```bash
+pip3 install "openmetadata-ingestion[openlineage]"
+```
+
+## Metadata Ingestion
+
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/openLineageConnection.json)
+you can find the structure to create a connection to OpenLineage.
+
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+
+### 1. Define the YAML Config
+
+This is a sample config for OpenLineage:
+
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="brokerConfig" lines="7-22">
+**brokerConfig**: The broker configuration for consuming OpenLineage events. Choose one of:
+
+**1. Kafka Broker Configuration**
+  - **brokersUrl**: Kafka bootstrap servers URL (e.g., `broker1:9092,broker2:9092`)
+  - **topicName**: Topic from where OpenLineage events will be pulled
+  - **consumerGroupName**: Kafka consumer group name (optional)
+  - **consumerOffsets**: Where to start consuming: `earliest` or `latest` (default: `earliest`)
+  - **poolTimeout**: Max wait time for polling in seconds (default: `1.0`)
+  - **sessionTimeout**: Max inactivity timeout in seconds (default: `30`)
+  - **securityProtocol**: Protocol: `PLAINTEXT`, `SASL_PLAINTEXT`, `SSL`, or `SASL_SSL`
+  - **sslConfig**: SSL certificates configuration (when using SSL)
+  - **saslConfig**: SASL authentication configuration (when using SASL)
+
+**2. AWS Kinesis Broker Configuration**
+  - **streamName**: Kinesis Data Stream name
+  - **awsConfig**: AWS credentials configuration (awsRegion, awsAccessKeyId, awsSecretAccessKey, awsSessionToken)
+  - **consumerOffsets**: Where to start: `TRIM_HORIZON` (beginning) or `LATEST` (default: `TRIM_HORIZON`)
+  - **poolTimeout**: Poll interval in seconds (default: `1.0`)
+  - **sessionTimeout**: Max inactivity timeout in seconds (default: `30`)
+</ContentSection>
+<ContentSection id={2} title="SourceConfig" lines="23-42">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: openlineage
+  serviceName: openlineage_source
+  serviceConnection:
+    config:
+      type: OpenLineage
+      # Option 1: Kafka Broker Configuration
+      brokerConfig:
+        brokersUrl: "broker1:9092,broker2:9092"
+        topicName: "openlineage-events"
+        consumerGroupName: "openmetadata-consumer"
+        consumerOffsets: earliest
+        poolTimeout: 1.0
+        sessionTimeout: 30
+        securityProtocol: PLAINTEXT
+        # For SSL configuration:
+        # securityProtocol: SSL
+        # sslConfig:
+        #   sslCertificate: "/path/to/Certificate.pem"
+        #   sslKey: "/path/to/Key.pem"
+        #   caCertificate: "/path/to/RootCA.pem"
+      #
+      # Option 2: AWS Kinesis Broker Configuration
+      # brokerConfig:
+      #   streamName: "openlineage-events"
+      #   consumerOffsets: TRIM_HORIZON  # or LATEST
+      #   poolTimeout: 1.0
+      #   sessionTimeout: 30
+      #   awsConfig:
+      #     awsRegion: "us-east-2"
+      #     # Explicit credentials (optional if using IAM roles)
+      #     # awsAccessKeyId: "<your-access-key>"
+      #     # awsSecretAccessKey: "<your-secret-key>"
+      #     # awsSessionToken: "<session-token>"
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+
+<IngestionCli />
