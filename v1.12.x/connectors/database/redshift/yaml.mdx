@@ -50,6 +50,43 @@ GRANT SELECT ON TABLE svv_table_info to test_user;
 The Redshift connector supports both Amazon Redshift Provisioned (cluster) and Amazon Redshift Serverless starting from release 1.11.5. The connector automatically detects the deployment type during ingestion and uses the appropriate system views for query and lineage extraction. No additional configuration changes are required.
 </Note>
 
+### IAM Authentication Requirements
+To use IAM authentication instead of basic username/password, ensure the IAM role or user has the following permissions:
+
+**For Provisioned Clusters:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": [
+        "arn:aws:redshift:<region>:<account-id>:dbuser:<cluster-id>/<db-user>",
+        "arn:aws:redshift:<region>:<account-id>:dbname:<cluster-id>/<db-name>"
+      ]
+    }
+  ]
+}
+```
+
+**For Serverless Workgroups:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift-serverless:GetCredentials",
+      "Resource": "arn:aws:redshift-serverless:<region>:<account-id>:workgroup/<workgroup-id>"
+    }
+  ]
+}
+```
+<Note>
+The connector automatically detects whether your Redshift endpoint is Provisioned or Serverless based on the hostname pattern and uses the appropriate API for credential retrieval.
+</Note>
+
 ### Python Requirements
 <PythonRequirements />
 To run the Redshift ingestion, you will need to install:
@@ -87,9 +124,12 @@ Configure the source type and service name for your Redshift connector.
 
 </ContentSection>
 
-<ContentSection id={3} title="Password" lines="8">
+<ContentSection id={3} title="Auth Type" lines="8-12">
 
-**password**: Password to connect to Redshift.
+**authType**: Choose the authentication method:
+
+- **Basic Auth** (`password`): Use username and password for authentication.
+- **IAM Auth** (`awsConfig`): Use AWS IAM for authentication. The connector will retrieve temporary credentials using `GetClusterCredentials` (Provisioned) or `GetCredentials` (Serverless) APIs.
 
 </ContentSection>
 
@@ -174,7 +214,19 @@ source:
     config:
       type: Redshift
       username: username  # REQUIRED
-      password: password
+      # Option 1: Basic Auth (username/password)
+      authType:
+        password: password
+      # Option 2: IAM Auth (uncomment below and comment out password above)
+      # authType:
+      #   awsConfig:
+      #     awsRegion: us-east-1  # REQUIRED for IAM auth
+      #     # Optional: Explicit credentials (if not using default credential chain)
+      #     # awsAccessKeyId: your-access-key
+      #     # awsSecretAccessKey: your-secret-key
+      #     # awsSessionToken: session-token  # For temporary credentials
+      #     # assumeRoleArn: arn:aws:iam::123456789012:role/role-name  # For cross-account
+      #     # assumeRoleSessionName: session-name
       database: dev  # REQUIRED - database name
       hostPort: cluster.name.region.redshift.amazonaws.com:5439  # REQUIRED - format: host:port
       # ingestAllDatabases: true

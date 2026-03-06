@@ -54,6 +54,42 @@ GRANT USAGE ON SCHEMA "<schema_name>" TO <ingestion_user>;
 Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v1.12.x/how-to-guides/data-quality-observability/quality).
 ### Usage & Lineage
 For the usage and lineage workflow, the user will need `SELECT` privilege on `STL_QUERY` table. You can find more information on the usage workflow [here](/v1.12.x/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v1.12.x/connectors/ingestion/workflows/lineage).
+### IAM Authentication
+To use IAM authentication instead of basic username/password, ensure the IAM role or user has the following permissions:
+
+**For Provisioned Clusters:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": [
+        "arn:aws:redshift:<region>:<account-id>:dbuser:<cluster-id>/<db-user>",
+        "arn:aws:redshift:<region>:<account-id>:dbname:<cluster-id>/<db-name>"
+      ]
+    }
+  ]
+}
+```
+
+**For Serverless Workgroups:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift-serverless:GetCredentials",
+      "Resource": "arn:aws:redshift-serverless:<region>:<account-id>:workgroup/<workgroup-id>"
+    }
+  ]
+}
+```
+<Note>
+The connector automatically detects whether your Redshift endpoint is Provisioned or Serverless based on the hostname pattern and uses the appropriate API for credential retrieval.
+</Note>
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"Redshift"} selectServicePath={"/public/images/connectors/redshift/select-service.png"} addNewServicePath={"/public/images/connectors/redshift/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/redshift/service-connection.png"} />
 It is recommmended to exclude the schema "information_schema" from the metadata ingestion as it contains system tables and views.
@@ -69,7 +105,16 @@ This applies **only to fields marked as secrets** in the connection form (these 
 For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
 </Tip>
 - **Username**: Specify the User to connect to Redshift. It should have enough privileges to read all the metadata.
-- **Password**: Password to connect to Redshift.
+- **Auth Type**: Choose the authentication method:
+  - **Basic Auth**: Use username and password for authentication.
+    - **Password**: Password to connect to Redshift.
+  - **IAM Auth**: Use AWS IAM for authentication. This retrieves temporary credentials automatically.
+    - **AWS Region**: AWS region where your Redshift cluster/workgroup is located (e.g., `us-east-1`).
+    - **AWS Access Key ID** (Optional): Access key for the IAM user/role. If not provided, the connector uses the default AWS credentials chain (environment variables, instance profile, etc.).
+    - **AWS Secret Access Key** (Optional): Secret key corresponding to the Access Key ID.
+    - **AWS Session Token** (Optional): Session token for temporary credentials.
+    - **Assume Role ARN** (Optional): ARN of a role to assume for cross-account access.
+    - **Assume Role Session Name** (Optional): Session name when assuming a role.
 - **Database**: The database of the data source is an optional parameter, if you would like to restrict the metadata reading to a single database. If left blank, OpenMetadata ingestion attempts to scan all the databases.
 <Tip>
 During the metadata ingestion for redshift, the tables in which the distribution style i.e, `DISTSTYLE` is not `AUTO` will be marked as partitioned tables
