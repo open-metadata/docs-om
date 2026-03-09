@@ -174,11 +174,13 @@ If you're using Claude Code, run the review skill:
 ```
 
 The review skill checks your implementation against the golden standards across 5 categories:
-- Schema and registration
-- Connection and error handling
-- Source and topology
-- Test quality
-- Code quality and style
+- **Schema and registration** — JSON Schema structure, $ref resolution, capability flags
+- **Connection and error handling** — Auth patterns, no swallowed exceptions, meaningful test steps
+- **Source, topology, and performance** — Base class, pagination (missing pagination on paginated APIs is a blocker), O(n*m) lookups, N+1 queries, connection reuse
+- **Test quality** — pytest style, real assertions (not empty stubs), integration tests
+- **Code quality and style** — Copyright headers, type annotations, import ordering
+
+The review also checks for **memory management** issues — unbounded file reads, missing `gc.collect()` after large object processing, and unbounded caches that can cause OOM errors in production.
 
 ## Step 6: Test Locally in Docker
 
@@ -247,7 +249,10 @@ Before submitting a PR, verify:
 [ ] Connection creates client, test_connection passes
 [ ] Source create() validates config type
 [ ] ServiceSpec is discoverable by the framework
-[ ] Unit tests pass
+[ ] Unit tests pass with real assertions (no empty stubs)
+[ ] Every client list method implements pagination (if API paginates)
+[ ] No unbounded .read() on files without size checks
+[ ] Large objects cleaned up after use (del + gc.collect)
 [ ] make py_format produces no changes
 [ ] mvn spotless:apply produces no changes
 ```
