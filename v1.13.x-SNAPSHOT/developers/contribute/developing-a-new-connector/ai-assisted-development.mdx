@@ -1,0 +1,113 @@
+---
+title: "AI-Assisted Connector Development"
+sidebarTitle: "AI-Assisted Development"
+description: "Build OpenMetadata connectors faster using AI skills with Claude Code, Cursor, Codex, and other AI tools"
+---
+
+# AI-Assisted Connector Development
+
+OpenMetadata provides an **AI skills toolkit** that helps you build connectors faster using your preferred AI coding tool. The skills package includes:
+
+- **Scaffold tool** — Generate JSON Schema, Python boilerplate, and an AI implementation brief with a single command
+- **Golden standards** — 17 connector development standards that AI agents load as context
+- **Review skill** — Multi-agent code review against OpenMetadata patterns
+- **Research agent** — Automated API/SDK discovery for the source you're building
+
+<Tip>
+
+The AI-assisted approach complements the [manual development guide](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/define-json-schema). The scaffold tool generates the same files you would create manually, and the standards encode the same patterns described in the manual guide.
+
+</Tip>
+
+## How It Works
+
+OpenMetadata uses a **schema-first** architecture. You define one JSON Schema for your connector's configuration, and that single definition cascades through 6 layers:
+
+```
+JSON Schema (you define this)
+    ├── Python Pydantic models     (make generate)
+    ├── Java models                (mvn install)
+    ├── TypeScript types           (yarn parse-schema)
+    ├── UI config forms            (RJSF auto-renders from schema)
+    ├── API request validation     (server uses Java models)
+    └── Test fixtures              (tests import Pydantic models)
+```
+
+The scaffold tool generates the JSON Schema and all Python boilerplate. For SQLAlchemy database connectors, the generated code is nearly complete. For all other connector types, the tool generates skeleton files and a `CONNECTOR_CONTEXT.md` file that tells the AI agent exactly what to implement.
+
+## Supported AI Tools
+
+| Tool | Features |
+|------|----------|
+| [Claude Code](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills#claude-code) | Full skill support: slash commands, parallel sub-agents, SessionStart hooks |
+| [Cursor](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills#cursor) | Skills as project rules, standards loading |
+| [GitHub Copilot](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills#github-copilot) | Context files, instruction-based |
+| [OpenAI Codex](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills#openai-codex) | AGENTS.md-based, standards as context |
+| [Windsurf](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills#windsurf) | Rules-based, standards loading |
+| Any AI agent | Read `CONNECTOR_CONTEXT.md` + reference connector |
+
+## Quick Start
+
+<Steps>
+<Step title="Install the skills">
+
+Follow the [installation guide](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills) for your AI tool.
+
+</Step>
+<Step title="Scaffold the connector">
+
+```bash
+source env/bin/activate
+metadata scaffold-connector
+```
+
+This generates all boilerplate files and a `CONNECTOR_CONTEXT.md` implementation brief. See the [scaffold guide](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/scaffold-connector) for details.
+
+</Step>
+<Step title="Build with your AI tool">
+
+Point your AI agent at the generated context file:
+
+```
+Read ingestion/src/metadata/ingestion/source/{type}/{name}/CONNECTOR_CONTEXT.md
+and implement all TODO items. Use the reference connector as a pattern.
+```
+
+See the full [build workflow](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/build-with-ai) for each tool.
+
+</Step>
+</Steps>
+
+## What's in the Skills Package
+
+```
+skills/
+├── .claude-plugin/plugin.json       # Plugin manifest
+├── commands/                        # Slash commands (/scaffold-connector, /connector-review, /load-standards)
+├── agents/                          # Sub-agents (researcher, validator, comment-checker)
+├── standards/                       # Golden standards
+│   ├── main.md                      # Architecture overview
+│   ├── patterns.md                  # Error handling, pagination, auth
+│   ├── testing.md                   # pytest patterns
+│   ├── code_style.md               # Python and JSON Schema conventions
+│   ├── schema.md                   # Connection schema patterns
+│   ├── connection.md               # BaseConnection vs function patterns
+│   ├── service_spec.md             # ServiceSpec registration
+│   ├── registration.md             # How to register a connector
+│   ├── performance.md              # Pagination, batching, rate limiting
+│   ├── memory.md                   # Memory management, OOM prevention
+│   ├── lineage.md                  # Lineage extraction methods
+│   ├── sql.md                      # SQLAlchemy patterns, URL building
+│   └── source_types/               # Per-service-type patterns
+│       ├── database.md, sql_databases.md, data_warehouses.md, nosql_databases.md
+│       ├── dashboard.md
+│       ├── pipeline.md
+│       ├── messaging.md
+│       ├── mlmodel.md
+│       ├── storage.md
+│       ├── search.md
+│       └── api.md
+├── connector-building/SKILL.md      # Scaffold skill definition
+├── connector-review/SKILL.md        # Review skill definition
+└── load-standards/SKILL.md          # Standards loading skill
+```

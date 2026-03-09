@@ -1,0 +1,191 @@
+---
+title: "Scaffold a Connector"
+sidebarTitle: "Scaffold"
+description: "Use the scaffold tool to generate JSON Schema, Python boilerplate, and AI implementation context for a new connector"
+---
+
+# Scaffold a Connector
+
+The `metadata scaffold-connector` command generates all the boilerplate files for a new connector: JSON Schema, test connection definition, Python source files, and a `CONNECTOR_CONTEXT.md` that any AI agent can use to implement the connector.
+
+## Prerequisites
+
+Set up the development environment first:
+
+```bash
+cd OpenMetadata
+python3.11 -m venv env
+source env/bin/activate
+make install_dev generate
+```
+
+## Interactive Mode
+
+Run the scaffold tool with no arguments to enter interactive mode:
+
+```bash
+source env/bin/activate
+metadata scaffold-connector
+```
+
+The tool walks you through a series of prompts:
+
+| Prompt | What It Controls |
+|--------|-----------------|
+| Connector name | Directory name, class names, schema file name |
+| Service type | Base class, directory, test patterns |
+| Connection type | Database only: sqlalchemy, rest_api, or sdk_client |
+| Auth types | Which auth `$ref` schemas to include |
+| Capabilities | Which extra files to generate (lineage, usage, profiler) |
+| Docs URL | API/SDK documentation — included in AI context |
+| SDK package | Python package name — included in AI context |
+| API endpoints | Key endpoints — included in AI context |
+| Implementation notes | Auth quirks, pagination, rate limits — included in AI context |
+| Docker image | If available, included in AI context for integration tests |
+| Container port | Port to expose from the Docker container |
+
+## Non-Interactive Mode
+
+Pass all options as flags for scripted or CI use:
+
+```bash
+metadata scaffold-connector \
+    --name clickhouse \
+    --service-type database \
+    --connection-type sqlalchemy \
+    --scheme "clickhousedb+connect" \
+    --auth-types basic \
+    --capabilities metadata lineage usage profiler \
+    --docs-url "https://clickhouse.com/docs/en/interfaces/http" \
+    --sdk-package "clickhouse-connect" \
+    --docker-image "clickhouse/clickhouse-server:latest" \
+    --docker-port 8123
+```
+
+<Tip>
+
+Only `--name` and `--service-type` are required. All other flags have sensible defaults.
+
+</Tip>
+
+## What Gets Generated
+
+### JSON Schema (Single Source of Truth)
+
+```
+openmetadata-spec/src/main/resources/json/schema/entity/services/connections/{service_type}/{name}Connection.json
+```
+
+This file drives code generation for Python Pydantic models, Java models, TypeScript types, and UI forms. The scaffold generates it with correct `$ref` patterns for auth, SSL, filters, and capability flags.
+
+### Test Connection Definition
+
+```
+openmetadata-service/src/main/resources/json/data/testConnections/{service_type}/{name}.json
+```
+
+Defines the steps for testing a connection (e.g., CheckAccess, GetDatabases). Step names must match the `test_fn` dictionary in `connection.py`.
+
+### Python Source Files
+
+For **SQLAlchemy database** connectors, the scaffold generates concrete, nearly-complete templates:
+
+```
+ingestion/src/metadata/ingestion/source/database/{name}/
+├── __init__.py          # Empty module marker
+├── connection.py        # BaseConnection[Config, Engine] subclass
+├── metadata.py          # CommonDbSourceService subclass
+├── service_spec.py      # DefaultDatabaseSpec registration
+├── queries.py           # SQL query templates
+├── lineage.py           # LineageSource mixin (if lineage selected)
+├── usage.py             # UsageSource mixin (if usage selected)
+├── query_parser.py      # QueryParserSource (if lineage or usage)
+└── CONNECTOR_CONTEXT.md # AI implementation brief
+```
+
+For **all other connector types** (dashboard, pipeline, messaging, non-SQLAlchemy database, etc.), the scaffold generates skeleton files:
+
+```
+ingestion/src/metadata/ingestion/source/{service_type}/{name}/
+├── __init__.py          # Empty module marker
+├── connection.py        # Skeleton → points to CONNECTOR_CONTEXT.md
+├── metadata.py          # Skeleton → points to CONNECTOR_CONTEXT.md
+├── service_spec.py      # Skeleton → points to CONNECTOR_CONTEXT.md
+├── client.py            # Skeleton → points to CONNECTOR_CONTEXT.md
+└── CONNECTOR_CONTEXT.md # AI implementation brief
+```
+
+Each skeleton file contains a pointer to the reference connector and `CONNECTOR_CONTEXT.md` for implementation guidance.
+
+### CONNECTOR_CONTEXT.md
+
+This is the key file for AI-assisted development. It contains:
+
+- Connector profile (name, type, capabilities, auth)
+- Source documentation you provided (API docs, SDK package, endpoints, notes)
+- Complete file list with what to implement in each
+- Reference connector path for copying patterns
+- Registration checklist (exact files and changes needed)
+- Validation checklist
+
+## Service Types
+
+| Type | Connection Types | Reference |
+|------|-----------------|-----------|
+| `database` | `sqlalchemy`, `rest_api`, `sdk_client` | `mysql/` (SQLAlchemy), `salesforce/` (REST) |
+| `dashboard` | `rest_api`, `sdk_client` | `metabase/` |
+| `pipeline` | `rest_api`, `sdk_client` | `airflow/` |
+| `messaging` | `rest_api`, `sdk_client` | `kafka/` |
+| `mlmodel` | `rest_api`, `sdk_client` | `mlflow/` |
+| `storage` | `rest_api`, `sdk_client` | `s3/` |
+| `search` | `rest_api`, `sdk_client` | `elasticsearch/` |
+| `api` | `rest_api`, `sdk_client` | `rest/` |
+
+## Examples
+
+### Database with SQLAlchemy
+
+```bash
+metadata scaffold-connector \
+    --name my_olap_db \
+    --service-type database \
+    --connection-type sqlalchemy \
+    --scheme "myolap+pyodbc" \
+    --default-port 10000 \
+    --auth-types basic iam \
+    --capabilities metadata lineage usage profiler data_diff
+```
+
+### Dashboard with REST API
+
+```bash
+metadata scaffold-connector \
+    --name my_bi_tool \
+    --service-type dashboard \
+    --auth-types token \
+    --docs-url "https://docs.example.com/api/v1" \
+    --api-endpoints "GET /dashboards, GET /charts, GET /datasources" \
+    --docs-notes "Uses cursor-based pagination. Rate limit: 100 req/min."
+```
+
+### Pipeline with SDK
+
+```bash
+metadata scaffold-connector \
+    --name my_orchestrator \
+    --service-type pipeline \
+    --connection-type sdk_client \
+    --auth-types token \
+    --sdk-package "my-orchestrator-sdk" \
+    --docker-image "myorch/server:latest" \
+    --docker-port 8080
+```
+
+## Next Steps
+
+After scaffolding, follow the [Build with AI](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/build-with-ai) guide to implement the connector using your preferred AI tool.
+
+Or continue manually with the existing guides:
+1. [Define JSON Schema](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/define-json-schema) (already done by scaffold)
+2. [Develop Ingestion Code](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/develop-ingestion-code)
+3. [Apply UI Changes](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/apply-ui-changes)
