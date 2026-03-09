@@ -180,6 +180,61 @@ The review skill checks your implementation against the golden standards across 
 - Test quality
 - Code quality and style
 
+## Step 6: Test Locally in Docker
+
+Build everything and bring up a full local OpenMetadata stack so you can test your connector in the UI.
+
+**Full build** (first time, or if Java/UI changes were made):
+
+```bash
+./docker/run_local_docker.sh -m ui -d mysql -s false -i true -r true
+```
+
+**Fast rebuild** (ingestion-only changes — skips Maven, ~2-3 minutes):
+
+```bash
+./docker/run_local_docker.sh -m ui -d mysql -s true -i true -r false
+```
+
+Once services are up (~3-5 minutes):
+
+<Steps>
+<Step title="Open the UI">
+Navigate to http://localhost:8585
+</Step>
+<Step title="Create a service">
+Go to **Settings** → **Services** → select your service type (Database, Dashboard, etc.) → **Add New Service**
+</Step>
+<Step title="Select your connector">
+Your connector should appear in the dropdown. If it doesn't, check that you registered it in the service schema and rebuilt without `-s true`.
+</Step>
+<Step title="Test the connection">
+Fill in the connection details and click **Test Connection**. Each step should pass.
+</Step>
+<Step title="Run ingestion">
+If the test passes, run metadata ingestion to verify entities are created correctly.
+</Step>
+</Steps>
+
+| Service | URL |
+|---------|-----|
+| OpenMetadata UI + API | http://localhost:8585 |
+| Airflow | http://localhost:8080 (admin / admin) |
+| MySQL | localhost:3306 |
+| Elasticsearch | http://localhost:9200 |
+
+**Tear down** when done:
+
+```bash
+cd docker/development && docker compose down -v
+```
+
+<Tip>
+
+If you only changed ingestion Python code (no Java or schema changes), use `-s true` to skip the Maven build. This cuts rebuild time from ~5 minutes to ~2 minutes.
+
+</Tip>
+
 ## Validation Checklist
 
 Before submitting a PR, verify:
