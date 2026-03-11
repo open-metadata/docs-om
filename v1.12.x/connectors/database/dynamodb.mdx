@@ -23,8 +23,12 @@ Configure and schedule DynamoDB metadata workflows from the OpenMetadata UI:
 - [Troubleshooting](/v1.12.x/connectors/database/dynamodb/troubleshooting)
 ## Requirements
 The DynamoDB connector ingests metadata using the DynamoDB boto3 client.
-OpenMetadata retrieves information about all tables in the AWS account, the user must have permissions to perform the `dynamodb:ListTables` operation.
-Below defined policy grants the permissions to list all tables in DynamoDB:
+OpenMetadata retrieves information about all tables in the AWS account, describes each table to extract its schema, and scans a sample of records to infer column types. The user must have the following permissions:
+- `dynamodb:ListTables` — to discover all tables in the account.
+- `dynamodb:DescribeTable` — to retrieve table metadata (key schema, attribute definitions, item count, etc.).
+- `dynamodb:Scan` — to sample table data for schema inference and profiling.
+
+Below defined policy grants the necessary permissions:
 ```json
 {
     "Version": "2012-10-17",
@@ -32,7 +36,9 @@ Below defined policy grants the permissions to list all tables in DynamoDB:
         {
             "Effect": "Allow",
             "Action": [
-                "dynamodb:ListTables"
+                "dynamodb:ListTables",
+                "dynamodb:DescribeTable",
+                "dynamodb:Scan"
             ],
             "Resource": "*"
         }
