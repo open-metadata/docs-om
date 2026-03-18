@@ -29,8 +29,8 @@ When a user asks to review, validate, audit, or fix connector documentation — 
 ## Directory References
 
 ```
-DOCS_ROOT     = /Users/apple/Desktop/ulixius/new/docs-om
-OM_ROOT       = /Users/apple/Desktop/ulixius/new/OpenMetadata
+DOCS_ROOT     = .                          # The docs-om repo (current working directory)
+OM_ROOT       = ../OpenMetadata            # Sibling directory to docs-om
 SCHEMA_ROOT   = ${OM_ROOT}/openmetadata-spec/src/main/resources/json/schema/entity/services
 SOURCE_ROOT   = ${OM_ROOT}/ingestion/src/metadata/ingestion/source
 ```
