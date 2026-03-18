@@ -17,12 +17,20 @@ import Related from '/snippets/v1.11.x/connectors/database/related.mdx'
 icon='/public/images/connectors/databrick.webp'
 name="Databricks"
 stage="PROD"
-availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Reverse Metadata (OpenMetadata Only)", "Auto-Classification"]}
-unavailableFeatures={["Stored Procedures", "Tags", "Owners"]} />
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Auto-Classification", "Tags", "Owners"]}
+unavailableFeatures={["Stored Procedures"]} />
 <Tip>
 As per the [documentation](https://docs.databricks.com/en/data-governance/unity-catalog/tags.html#manage-tags-with-sql-commands) here, note that we only support metadata `tag` extraction for Databricks version 13.3 version and higher.
 </Tip>
 In this section, we provide guides and references to use the Databricks connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Personal Access Token** — Token-based workspace authentication generated from User Settings in Databricks
+- **Databricks OAuth** — OAuth2 Machine-to-Machine authentication using Service Principal credentials
+- **Azure AD Setup** — Azure Active Directory authentication using Azure Service Principal (for Azure Databricks workspaces)
+</Info>
+
 Configure and schedule Databricks metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Unity Catalog](#unity-catalog)
@@ -49,10 +57,35 @@ Ensure these grants are applied to all relevant tables for metadata ingestion an
 ### Usage and Lineage
 These permissions enable OpenMetadata to extract query history and construct lineage information.
 ```sql
+-- Query history for usage analytics and SQL-based lineage
 GRANT SELECT ON SYSTEM.QUERY.HISTORY TO `<user>`;
 GRANT USE SCHEMA ON SCHEMA system.query TO `<user>`;
+
+-- System lineage tables for table and column-level lineage
+GRANT SELECT ON system.access.table_lineage TO `<user>`;
+GRANT SELECT ON system.access.column_lineage TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
 ```
-These permissions allow access to Databricks system tables that track query activity, enabling lineage and usage statistics generation.
+These permissions allow access to Databricks system tables that track query activity and lineage relationships, enabling lineage and usage statistics generation.
+
+### View Definitions
+To extract view definitions, the user needs access to the information schema:
+```sql
+GRANT SELECT ON INFORMATION_SCHEMA.VIEWS TO `<user>`;
+```
+
+### Tags (Databricks 13.3+)
+To extract Databricks tags on catalogs, schemas, tables, and columns, the following permissions are required:
+```sql
+GRANT SELECT ON `<catalog_name>`.information_schema.catalog_tags TO `<user>`;
+GRANT SELECT ON `<catalog_name>`.information_schema.schema_tags TO `<user>`;
+GRANT SELECT ON `<catalog_name>`.information_schema.table_tags TO `<user>`;
+GRANT SELECT ON `<catalog_name>`.information_schema.column_tags TO `<user>`;
+```
+<Warning>
+Tag extraction requires Databricks Runtime 13.3 or higher. If your cluster is running an older version, tags will not be extracted.
+</Warning>
+
 <Tip>
 Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
 </Tip>
@@ -72,11 +105,15 @@ This applies **only to fields marked as secrets** in the connection form (these 
 For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
 </Tip>
 - **Host and Port**: Enter the fully qualified hostname and port number for your Databricks deployment in the Host and Port field.
-- **Token**: Generated Token to connect to Databricks.
+- **Authentication Type**: Choose one of the following authentication methods:
+  - **Personal Access Token** — Provide a `token` generated from User Settings → Developer → Access Tokens in your Databricks workspace.
+  - **Databricks OAuth** — Provide a `clientId` and `clientSecret` for a Service Principal created in your Databricks Account Console.
+  - **Azure AD Setup** — Provide `azureClientId`, `azureClientSecret`, and `azureTenantId` for an Azure Service Principal registered in Azure Active Directory (for Azure Databricks workspaces only).
 - **HTTP Path**: Databricks compute resources URL.
-- **connectionTimeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
-- **Catalog**: Catalog of the data source(Example: hive_metastore). This is optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalog.
-- **DatabaseSchema**: databaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.
+- **Connection Timeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
+- **Catalog**: Catalog of the data source (Example: hive_metastore). This is an optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalogs.
+- **DatabaseSchema**: Database schema of the data source. This is an optional parameter, if you would like to restrict the metadata reading to a single database schema. When left blank, OpenMetadata Ingestion attempts to scan all the database schemas.
+- **Query History Table**: Table name to fetch the query history from. Defaults to `system.query.history`.
 </Step>
 <AdvancedConfiguration />
 <TestConnection />

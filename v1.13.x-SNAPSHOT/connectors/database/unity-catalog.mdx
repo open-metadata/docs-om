@@ -17,9 +17,17 @@ import Related from '/snippets/v1.13.x-SNAPSHOT/connectors/database/related.mdx'
 icon='/public/images/connectors/databrick.webp'
 name="Unity Catalog"
 stage="PROD"
-availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "dbt", "Sample Data", "Reverse Metadata (OpenMetadata Only)", "Owners", "Tags", "Auto-Classification"]}
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "dbt", "Sample Data", "Owners", "Tags", "Auto-Classification"]}
 unavailableFeatures={["Stored Procedures"]} />
 In this section, we provide guides and references to use the Unity Catalog connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Personal Access Token** — Generated token from your Databricks workspace (User Settings → Developer → Access Tokens)
+- **Databricks OAuth** — OAuth2 Machine-to-Machine authentication using Service Principal credentials
+- **Azure AD Setup** — Azure Active Directory authentication using Service Principal for Azure Databricks workspaces
+</Info>
+
 Configure and schedule Unity Catalog metadata workflow from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
@@ -40,13 +48,31 @@ GRANT USE SCHEMA ON SCHEMA <schema_name> TO `<user>`;
 GRANT SELECT ON TABLE <table_name> TO `<user>`;
 ```
 Ensure these grants are applied to all relevant tables for metadata ingestion and profiling operations.
-### Usage and Lineage
-These permissions enable OpenMetadata to extract query history and construct lineage information.
+### Usage
+These permissions enable OpenMetadata to extract query history for usage statistics.
 ```sql
 GRANT SELECT ON SYSTEM.QUERY.HISTORY TO `<user>`;
 GRANT USE SCHEMA ON SCHEMA system.query TO `<user>`;
 ```
-These permissions allow access to Databricks system tables that track query activity, enabling lineage and usage statistics generation.
+### Lineage
+These permissions enable OpenMetadata to extract table and column-level lineage from Databricks system tables.
+```sql
+GRANT SELECT ON system.access.table_lineage TO `<user>`;
+GRANT SELECT ON system.access.column_lineage TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
+```
+For external table lineage (linking tables to their storage locations), the following is also required:
+```sql
+GRANT SELECT ON system.information_schema.tables TO `<user>`;
+```
+### Tags
+These permissions enable OpenMetadata to extract Unity Catalog tags from catalogs, schemas, tables, and columns.
+```sql
+GRANT SELECT ON <catalog_name>.information_schema.catalog_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.schema_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.table_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.column_tags TO `<user>`;
+```
 <Tip>
 Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
 </Tip>
@@ -64,7 +90,10 @@ This applies **only to fields marked as secrets** in the connection form (these 
 For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
 </Tip>
 - **Host and Port**: Enter the fully qualified hostname and port number for your Databricks deployment in the Host and Port field.
-- **Token**: Generated Token to connect to Databricks.
+- **Authentication Type**: Choose one of the following authentication methods:
+  - **Personal Access Token**: Provide the token generated from your Databricks workspace (User Settings → Developer → Access Tokens).
+  - **Databricks OAuth**: Provide the Service Principal `Client ID` and `Client Secret` created in your Databricks Account Console.
+  - **Azure AD Setup**: Provide the `Azure Client ID`, `Azure Client Secret`, and `Azure Tenant ID` from your Azure Active Directory Service Principal.
 - **HTTP Path**: Databricks compute resources URL.
 - **connectionTimeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
 - **Catalog**: Catalog of the data source(Example: hive_metastore). This is optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalog.
