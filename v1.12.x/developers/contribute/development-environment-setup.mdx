@@ -1,0 +1,171 @@
+---
+title: Development Environment Setup | Dev Containers for OpenMetadata
+description: Set up your OpenMetadata development environment using Dev Containers in VS Code, IntelliJ IDEA, or GitHub Codespaces.
+sidebarTitle: Development Environment Setup
+---
+
+# Development Environment Setup
+
+OpenMetadata provides [Dev Containers](https://containers.dev/) to streamline contributor onboarding. Instead of manually installing Java, Python, Node.js, Maven, ANTLR, and other dependencies, you can spin up a fully configured environment in minutes.
+
+## Choose Your Dev Container
+
+Two configurations are available under `.devcontainer/` in the repository:
+
+<CardGroup cols={2}>
+  <Card title="Development" icon="code">
+    Lightweight environment for iterative development. Includes all build tools (Java 21, Python 3.11, Node 22, Maven, ANTLR) without running backend services.
+
+    **Best for:** Working on individual components — server code, ingestion framework, or UI.
+
+    **Forwarded ports:**
+    - `3000` — Frontend dev server
+  </Card>
+  <Card title="Full Stack" icon="layer-group">
+    Complete environment with all build tools **plus** OpenMetadata services running in containers (MySQL, Elasticsearch, OpenMetadata Server).
+
+    **Best for:** End-to-end testing, integration work, and verifying changes against a running instance.
+
+    **Forwarded ports:**
+    - `3000` — Frontend dev server
+    - `8585` — OpenMetadata API
+    - `8586` — OpenMetadata Admin
+    - `9200` — Elasticsearch
+    - `3306` — MySQL
+  </Card>
+</CardGroup>
+
+<Info>
+Both configurations automatically install all [prerequisites](/v1.12.x/developers/contribute/build-code-and-run-tests/prerequisites) — no manual dependency setup required.
+</Info>
+
+---
+
+## VS Code
+
+<Steps>
+  <Step title="Install the Dev Containers extension">
+    Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) from the VS Code marketplace.
+  </Step>
+  <Step title="Open the repository">
+    Open the forked OpenMetadata repository in VS Code.
+
+    ```shell
+    git clone https://github.com/<username>/OpenMetadata.git
+    code OpenMetadata
+    ```
+  </Step>
+  <Step title="Reopen in container">
+    Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and select **Dev Containers: Reopen in Container**.
+
+    VS Code will prompt you to choose between the two configurations:
+    - **Development** — lightweight, no backend services
+    - **Full Stack** — includes MySQL, Elasticsearch, and OpenMetadata Server
+  </Step>
+  <Step title="Wait for setup to complete">
+    The container will build and run the post-create setup script automatically. This installs ANTLR, frontend dependencies, creates a Python virtual environment, and runs code generation.
+
+    For the **Full Stack** configuration, the post-start script will additionally build the server, run database migrations, and start OpenMetadata services. This may take several minutes on the first run.
+  </Step>
+  <Step title="Start developing">
+    Once setup completes, the integrated terminal is ready. Common commands:
+
+    ```shell
+    # Backend — build and run the server
+    mvn clean install -DskipTests
+
+    # Frontend — start the UI dev server
+    cd openmetadata-ui/src/main/resources/ui
+    yarn start
+
+    # Ingestion — activate the virtual environment
+    source .venv/bin/activate
+    ```
+  </Step>
+</Steps>
+
+---
+
+## IntelliJ IDEA
+
+<Info>
+Dev Container support in IntelliJ IDEA requires **IntelliJ IDEA Ultimate**. The Community edition does not support Dev Containers.
+</Info>
+
+<Steps>
+  <Step title="Open the repository">
+    Open the cloned OpenMetadata repository in IntelliJ IDEA.
+  </Step>
+  <Step title="Create a Dev Container">
+    Navigate to **File > Remote Development > Dev Containers** and click **New Dev Container**.
+
+    Select the OpenMetadata project directory and choose either the **Development** or **Full Stack** configuration.
+  </Step>
+  <Step title="Wait for setup to complete">
+    IntelliJ will build the container and run the setup scripts. Once complete, IntelliJ will open a remote IDE instance connected to the container.
+  </Step>
+  <Step title="Configure the project SDK">
+    IntelliJ should auto-detect the Java 21 SDK inside the container. If not, go to **File > Project Structure > SDKs** and add the JDK installed in the container.
+  </Step>
+  <Step title="Start developing">
+    Use the IntelliJ terminal or run configurations as usual. The container has all build tools pre-installed.
+  </Step>
+</Steps>
+
+---
+
+## GitHub Codespaces
+
+GitHub Codespaces provides a cloud-hosted Dev Container — no local setup required.
+
+<Steps>
+  <Step title="Open a Codespace">
+    From your forked OpenMetadata repository on GitHub, click the **Code** button and select the **Codespaces** tab. Click **New codespace**.
+
+    <Tip>
+    When creating the codespace, click **Configure and create** to select between the **Development** and **Full Stack** configurations in **Dev container configuration**.
+    </Tip>
+  </Step>
+  <Step title="Wait for the environment to build">
+    GitHub will provision a cloud VM, build the container, and run the setup scripts. You can follow the progress in the **Creation Log**.
+
+    <Warning>
+    For the **Full Stack** configuration, we recommend selecting a machine type with at least **4 cores and 16 GB RAM** to ensure all services run smoothly.
+    </Warning>
+  </Step>
+  <Step title="Start developing">
+    Once the Codespace is ready, you'll have a full VS Code editor in your browser (or you can connect from your local VS Code / IntelliJ via the Codespaces extension).
+
+    All forwarded ports are automatically available. For the **Full Stack** configuration, access the OpenMetadata UI at the forwarded port `8585`.
+  </Step>
+</Steps>
+
+---
+
+## What Gets Installed
+
+The post-create setup script runs automatically in all environments and handles:
+
+1. **ANTLR 4.9.2** — Downloaded and configured for parser generation
+2. **Frontend dependencies** — Installed via `yarn install --frozen-lockfile`
+3. **Python virtual environment** — Created with pip upgraded
+4. **Python dev dependencies** — Installed via `make install_dev`
+5. **Code generation** — ANTLR parsers and other generated artifacts via `make generate`
+6. **Prerequisite validation** — Runs `make prerequisites` to confirm everything is ready
+
+For the **Full Stack** configuration, the post-start script additionally:
+
+1. Builds the OpenMetadata server distribution (`mvn clean package -DskipTests`)
+2. Runs database migrations against MySQL
+3. Starts the OpenMetadata server on ports `8585`/`8586`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Build Code and Run Tests" icon="hammer" href="/v1.12.x/developers/contribute/build-code-and-run-tests">
+    Learn how to build individual components and run the test suite.
+  </Card>
+  <Card title="Develop a New Connector" icon="plug" href="/v1.12.x/developers/contribute/developing-a-new-connector">
+    Step-by-step guide to creating a new metadata connector.
+  </Card>
+</CardGroup>
