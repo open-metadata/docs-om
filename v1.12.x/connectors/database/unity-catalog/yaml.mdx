@@ -17,19 +17,32 @@ import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
 import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
 import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
 import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataProfiler from '/snippets/v1.12.x/connectors/yaml/data-profiler.mdx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/databrick.webp'
 name="Unity Catalog"
 stage="PROD"
-availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "dbt", "Sample Data", "Reverse Metadata (OpenMetadata Only)", "Owners", "Tags", "Auto-Classification"]}
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "dbt", "Sample Data", "Owners", "Tags", "Auto-Classification"]}
 unavailableFeatures={["Stored Procedures"]} />
 In this section, we provide guides and references to use the Unity Catalog connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Personal Access Token** — Generated token from your Databricks workspace (User Settings → Developer → Access Tokens)
+- **Databricks OAuth** — OAuth2 Machine-to-Machine authentication using Service Principal credentials
+- **Azure AD Setup** — Azure Active Directory authentication using Service Principal for Azure Databricks workspaces
+</Info>
+
 Configure and schedule Unity Catalog metadata workflow from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Query Usage](#query-usage)
 - [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
 - [dbt Integration](#dbt-integration)
 
 <ExternalIngestionDeployment />
@@ -50,13 +63,31 @@ GRANT USE SCHEMA ON SCHEMA <schema_name> TO `<user>`;
 GRANT SELECT ON TABLE <table_name> TO `<user>`;
 ```
 Ensure these grants are applied to all relevant tables for metadata ingestion and profiling operations.
-### Usage and Lineage
-These permissions enable OpenMetadata to extract query history and construct lineage information.
+### Usage
+These permissions enable OpenMetadata to extract query history for usage statistics.
 ```sql
 GRANT SELECT ON SYSTEM.QUERY.HISTORY TO `<user>`;
 GRANT USE SCHEMA ON SCHEMA system.query TO `<user>`;
 ```
-These permissions allow access to Databricks system tables that track query activity, enabling lineage and usage statistics generation.
+### Lineage
+These permissions enable OpenMetadata to extract table and column-level lineage from Databricks system tables.
+```sql
+GRANT SELECT ON system.access.table_lineage TO `<user>`;
+GRANT SELECT ON system.access.column_lineage TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
+```
+For external table lineage (linking tables to their storage locations), the following is also required:
+```sql
+GRANT SELECT ON system.information_schema.tables TO `<user>`;
+```
+### Tags
+These permissions enable OpenMetadata to extract Unity Catalog tags from catalogs, schemas, tables, and columns.
+```sql
+GRANT SELECT ON <catalog_name>.information_schema.catalog_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.schema_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.table_tags TO `<user>`;
+GRANT SELECT ON <catalog_name>.information_schema.column_tags TO `<user>`;
+```
 <Tip>
 Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
 </Tip>
@@ -145,15 +176,16 @@ source:
   serviceConnection:
     config:
       type: UnityCatalog
-catalog: hive_metastore
-databaseSchema: default
-token: <databricks token>
-hostPort: <databricks connection host & port>
-httpPath: <http path of databricks cluster>
-connectionTimeout: 120
-# connectionOptions:
+      hostPort: <databricks connection host & port>
+      authType:
+        token: <databricks token>
+      httpPath: <http path of databricks cluster>
+      catalog: hive_metastore
+      databaseSchema: default
+      connectionTimeout: 120
+      # connectionOptions:
       #   key: value
-# connectionArguments:
+      # connectionArguments:
       #   key: value
 ```
 
@@ -170,5 +202,8 @@ connectionTimeout: 120
 <IngestionCli />
 <QueryUsage connector="unitycatalog" />
 <Lineage connector="unitycatalog" />
+<DataProfiler connector="unitycatalog" />
+<AutoClassification connector="unitycatalog" />
+<DataQuality />
 ## dbt Integration
 You can learn more about how to ingest dbt models' definitions and their lineage [here](/v1.12.x/connectors/database/dbt).
