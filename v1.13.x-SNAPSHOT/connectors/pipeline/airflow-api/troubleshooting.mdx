@@ -1,0 +1,44 @@
+---
+title: Airflow API Connector Troubleshooting Guide | OpenMetadata Support
+description: Resolve Airflow API pipeline ingestion issues such as auth failures, version detection, missing lineage, and Cloud Composer configuration.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Airflow API Specific Issues
+
+### Connection Refused or Timeout
+
+- Verify the **Host And Port** URL is correct and reachable from the OpenMetadata server.
+- For GCP Cloud Composer, ensure the Composer environment's web server is accessible (check VPC/firewall rules).
+- For Airflow behind a reverse proxy, ensure the proxy forwards `/api/v1/` and `/api/v2/` paths.
+
+### 401 Unauthorized
+
+- **Bearer Token**: Ensure the token is valid and not expired. For GCP, regenerate with `gcloud auth print-access-token`. For Airflow 3.x, get a fresh JWT from `/auth/token`.
+- **Basic Auth**: Verify the username/password and that the user has API access permissions in Airflow.
+- **AWS MWAA**: Use a session token from the MWAA CLI token endpoint, not IAM credentials directly.
+
+### API Version Detection Fails
+
+If auto-detection picks the wrong version:
+- Set **API Version** explicitly to `v1` (Airflow 2.x) or `v2` (Airflow 3.x).
+- Check that the Airflow API is enabled. For Airflow 2.x, ensure `AIRFLOW__API__AUTH_BACKENDS` is set.
+
+### No DAGs Found
+
+- Verify DAGs are visible in the Airflow UI.
+- Check if the **Pipeline Filter Pattern** is excluding DAGs unintentionally.
+- For Airflow 3.x, DAGs may take a scheduler cycle to appear in the API after deployment.
+
+### Missing Pipeline Status
+
+- Increase **Number Of Status** if you need more historical runs.
+- The connector only fetches completed runs. Running or queued DAGs will appear in the next ingestion cycle.
+
+### Lineage Not Appearing
+
+See the [Lineage Troubleshooting](/v1.13.x-SNAPSHOT/connectors/pipeline/airflow-api#troubleshooting-lineage) section on the main connector page.

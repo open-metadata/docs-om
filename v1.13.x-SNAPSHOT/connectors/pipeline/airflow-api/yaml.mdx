@@ -1,0 +1,204 @@
+---
+title: Run the Airflow API Connector Externally
+description: Use YAML to set up Airflow API pipeline ingestion via REST API. Ideal for GCP Cloud Composer and managed Airflow environments.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v1.13.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/airflow.webp'
+name="Airflow API"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Tags"]}
+unavailableFeatures={["Owners", "Lineage (use OpenLineage)"]} />
+In this section, we provide guides and references to use the Airflow API connector.
+Configure and schedule Airflow API metadata workflows externally:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+
+<ExternalIngestionDeployment />
+
+## Requirements
+
+### Python Requirements
+
+<PythonRequirements />
+
+To run the Airflow API ingestion, you will need to install:
+
+```bash
+pip3 install "openmetadata-ingestion"
+```
+
+No additional extras are required — the connector uses only the base HTTP client.
+
+## Metadata Ingestion
+
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/airflowApiConnection.json)
+you can find the structure to create a connection to Airflow API.
+
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+
+### 1. Define the YAML Config
+
+This is a sample config for Airflow API:
+
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="Host And Port" lines="7">
+- **hostPort**: URL to the Airflow REST API, e.g., `http://localhost:8080` or `https://<composer-id>.composer.googleusercontent.com`.
+</ContentSection>
+<ContentSection id={2} title="Authentication" lines="8-9">
+- **token** (recommended): Bearer token for API authentication. For GCP Cloud Composer, use `gcloud auth print-access-token`. For Airflow 3.x, use a JWT from the `/auth/token` endpoint.
+- Alternatively, use **username** and **password** for Basic authentication (Airflow 2.x).
+</ContentSection>
+<ContentSection id={3} title="API Version" lines="10">
+- **apiVersion**: `auto` (default), `v1` (Airflow 2.x), or `v2` (Airflow 3.x). Auto-detect probes the version endpoint.
+</ContentSection>
+<ContentSection id={4} title="Additional Options" lines="11-12">
+- **numberOfStatus**: Number of historical DAG runs to fetch. Default: `10`.
+- **verifySSL**: Whether to verify SSL certificates. Default: `true`.
+</ContentSection>
+<ContentSection id={5} title="SourceConfig" lines="13-29">
+<SourceConfigDef />
+</ContentSection>
+<IngestionSinkDef />
+<WorkflowConfigDef />
+</ContentPanel>
+<CodePanel fileName="connector_config.yaml">
+```yaml
+source:
+  type: airflowapi
+  serviceName: my_airflow
+  serviceConnection:
+    config:
+      type: AirflowApi
+      hostPort: "http://localhost:8080"  # REQUIRED - Airflow REST API URL
+      token: "<your-airflow-api-token>"
+      apiVersion: auto
+      numberOfStatus: 10
+      verifySSL: true
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+
+### GCP Cloud Composer Example
+
+For GCP Cloud Composer, use the Composer web server URL and a GCP Bearer token:
+
+```yaml
+source:
+  type: airflowapi
+  serviceName: cloud_composer_prod
+  serviceConnection:
+    config:
+      type: AirflowApi
+      hostPort: "https://<composer-id>-dot-<region>.composer.googleusercontent.com"
+      token: "<gcp-access-token>"
+      apiVersion: v2
+      numberOfStatus: 10
+      verifySSL: true
+  sourceConfig:
+    config:
+      type: PipelineMetadata
+      includeTags: true
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "<your-om-jwt-token>"
+```
+
+You can obtain a GCP access token using:
+
+```bash
+gcloud auth print-access-token
+```
+
+Or configure a service account with the `Composer > Composer User` role and generate a token programmatically.
+
+### AWS MWAA Example
+
+For AWS MWAA, use the MWAA web server URL and a web login token:
+
+```yaml
+source:
+  type: airflowapi
+  serviceName: mwaa_prod
+  serviceConnection:
+    config:
+      type: AirflowApi
+      hostPort: "https://<mwaa-web-server-url>"
+      token: "<mwaa-web-login-token>"
+      apiVersion: v1
+      numberOfStatus: 10
+      verifySSL: true
+  sourceConfig:
+    config:
+      type: PipelineMetadata
+      includeTags: true
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "<your-om-jwt-token>"
+```
+
+You can obtain an MWAA web login token using:
+
+```bash
+aws mwaa create-cli-token --name <your-mwaa-environment>
+```
+
+The response contains a `WebToken` and `WebServerHostname`. Use the `WebToken` as the token and `https://<WebServerHostname>` as the hostPort.
+
+<Warning>
+MWAA web tokens expire after **60 seconds**. For scheduled ingestion, use a script or Lambda to refresh the token immediately before running the workflow. Alternatively, set up an IAM role with `airflow:CreateWebLoginToken` permission for programmatic token generation.
+</Warning>
+
+### Lineage Configuration
+
+This connector does **not** extract lineage directly. To get pipeline lineage, configure Airflow's native OpenLineage integration to send events to OpenMetadata.
+
+Add these environment variables to your Airflow / Cloud Composer environment:
+
+```bash
+AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "https://<openmetadata-host>/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-om-jwt-token>"}}'
+AIRFLOW__OPENLINEAGE__NAMESPACE=my_airflow_instance
+```
+
+<Warning>
+The `url` field **must** end with a trailing slash (`/openlineage/`). Without it, the OpenLineage HTTP client will construct an incorrect URL due to `urljoin()` behavior.
+</Warning>
+
+For full lineage setup details and troubleshooting, see the [main connector page](/v1.13.x-SNAPSHOT/connectors/pipeline/airflow-api#lineage-via-openlineage).
+
+<IngestionCli />

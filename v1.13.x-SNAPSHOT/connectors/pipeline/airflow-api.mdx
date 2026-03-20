@@ -1,0 +1,186 @@
+---
+title: Airflow API Connector | OpenMetadata Pipeline Integration
+description: Connect to Airflow via REST API for metadata extraction. Ideal for GCP Cloud Composer and managed Airflow where direct DB access is unavailable. Lineage via OpenLineage.
+sidebarTitle: Overview
+---
+import ConfigureIngestion from '/snippets/connectors/pipeline/configure-ingestion.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/airflow.webp'
+name="Airflow API"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Tags"]}
+unavailableFeatures={["Owners", "Lineage (use OpenLineage)"]} />
+In this section, we provide guides and references to use the Airflow API connector.
+Configure and schedule Airflow API metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+  - [Supported Versions](#supported-versions)
+  - [Airflow API vs Airflow (Database) Connector](#airflow-api-vs-airflow-database-connector)
+- [Metadata Ingestion](#metadata-ingestion)
+    - [Service Name](#service-name)
+    - [Connection Details](#connection-details)
+    - [Metadata Ingestion Options](#metadata-ingestion-options)
+- [Lineage via OpenLineage](#lineage-via-openlineage)
+- [Troubleshooting](/v1.13.x-SNAPSHOT/connectors/pipeline/airflow-api/troubleshooting)
+
+## Requirements
+
+### Supported Versions
+
+| Airflow Version | API Version | Status |
+|---|---|---|
+| 2.x | v1 (`/api/v1`) | Supported |
+| 3.x | v2 (`/api/v2`) | Supported |
+
+The connector auto-detects the API version by default, or you can set it explicitly.
+
+### Authentication
+
+The connector supports two authentication modes:
+
+- **Bearer Token** (recommended): Provide a JWT or API token. Required for Airflow 3.x and GCP Cloud Composer.
+- **Basic Auth**: Username and password. Works with Airflow 2.x default auth backend.
+
+The configured user must have permission to read DAGs, DAG runs, tasks, and task instances via the Airflow REST API.
+
+### Airflow API vs Airflow (Database) Connector
+
+| Feature | Airflow API | Airflow (Database) |
+|---|---|---|
+| Connection method | REST API | Direct DB access |
+| GCP Cloud Composer | **Yes** | No (DB locked down) |
+| AWS MWAA | Yes | Yes |
+| Self-hosted Airflow | Yes | Yes |
+| Lineage extraction | Via OpenLineage | Via inlets/outlets in DB |
+| Requires Airflow DB credentials | No | Yes |
+
+Use **Airflow API** when you cannot access the Airflow backend database (e.g., GCP Cloud Composer). Use the existing **Airflow** connector when you have direct database access and need inlet/outlet-based lineage extraction without configuring OpenLineage.
+
+### GCP Cloud Composer
+
+GCP Cloud Composer locks down the Airflow backend database, making the existing DB-based connector unusable. The Airflow API connector is the recommended approach:
+
+1. Use the Composer web server URL as the **Host And Port** (e.g., `https://<composer-id>-dot-<region>.composer.googleusercontent.com`).
+2. Authenticate using a GCP Bearer token: `gcloud auth print-access-token`.
+3. Set **API Version** to `v2` (Composer 3 uses Airflow 3.x) or `auto`.
+
+### AWS MWAA
+
+AWS MWAA exposes the Airflow REST API through a web server URL. To connect:
+
+1. Get the MWAA web server URL from the AWS Console (Environment details > Airflow UI URL).
+2. Obtain a web login token using the AWS CLI:
+   ```bash
+   aws mwaa create-cli-token --name <your-mwaa-environment>
+   ```
+3. Use the returned `WebToken` as the **Token** field with Bearer authentication.
+4. Set **API Version** to `v1` (MWAA currently runs Airflow 2.x) or `auto`.
+
+<Note>
+MWAA web tokens expire after 60 seconds by default. For recurring ingestion, consider using a Lambda function or script that refreshes the token before each ingestion run. Alternatively, use the MWAA web server URL with IAM-based access and set up an IAM role with `airflow:CreateWebLoginToken` permission.
+</Note>
+
+## Metadata Ingestion
+
+<MetadataIngestionUi connector={"AirflowApi"} selectServicePath={"/public/images/connectors/airflow/select-service.png"} addNewServicePath={"/public/images/connectors/airflow/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/airflow/service-connection.png"} />
+
+# Connection Details
+
+<Steps>
+<Step title="Connection Details">
+
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+token: secret:/my/airflow/token
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+</Tip>
+
+- **Host And Port**: URL to the Airflow REST API, e.g., `http://localhost:8080` or `https://<composer-id>-dot-<region>.composer.googleusercontent.com`.
+- **Token** (Optional): Bearer token for API authentication. For GCP Cloud Composer, use a GCP access token obtained via `gcloud auth print-access-token`. For Airflow 3.x, use a JWT from the `/auth/token` endpoint.
+- **Username** (Optional): Username for Basic authentication to the Airflow API.
+- **Password** (Optional): Password for Basic authentication to the Airflow API.
+- **API Version**: The Airflow REST API version to use:
+  - `auto` (default): Auto-detect by probing `/api/v2/version` then `/api/v1/version`.
+  - `v1`: Force Airflow 2.x API.
+  - `v2`: Force Airflow 3.x API.
+- **Number Of Status**: Number of past DAG runs to fetch for pipeline status history. Default: `10`.
+- **Verify SSL**: Whether to verify SSL certificates when connecting. Default: `true`. Set to `false` for self-signed certificates.
+- **Pipeline Filter Pattern** (Optional): Regex patterns to include or exclude specific DAGs by name.
+
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+
+## Lineage via OpenLineage
+
+This connector extracts **metadata only** (DAGs, tasks, runs, status). Lineage is handled separately via Airflow's native [OpenLineage](https://openlineage.io/) integration, which sends events to OpenMetadata's REST endpoint.
+
+### How It Works
+
+1. **Airflow** runs a DAG. The built-in OpenLineage provider (included in Airflow 2.7+ and 3.x) emits `START` and `COMPLETE` events for each task.
+2. Events are sent via HTTP to OpenMetadata's `POST /api/v1/openlineage/lineage` endpoint.
+3. **OpenMetadata** processes `COMPLETE` events (by default), resolves input/output datasets to existing tables, and creates lineage edges.
+4. The **Airflow API connector** extracts the DAG metadata. Lineage edges from step 3 are automatically associated with the pipeline.
+
+### Configure Airflow to Send OpenLineage Events
+
+Add these environment variables to your Airflow deployment:
+
+```bash
+AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "https://<openmetadata-host>/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-om-jwt-token>"}}'
+AIRFLOW__OPENLINEAGE__NAMESPACE=my_airflow_instance
+```
+
+<Warning>
+The `url` field **must** end with a trailing slash (`/openlineage/`). This is required because the OpenLineage HTTP transport uses `urljoin()` to construct the final URL, which drops the last path segment without a trailing slash.
+</Warning>
+
+#### GCP Cloud Composer
+
+Set these as environment overrides in the Cloud Composer configuration:
+
+1. Go to your Composer environment in the GCP Console.
+2. Click **Environment Overrides**.
+3. Add the `AIRFLOW__OPENLINEAGE__TRANSPORT` and `AIRFLOW__OPENLINEAGE__NAMESPACE` variables.
+
+#### Docker Compose / Helm
+
+Add them to your Airflow environment:
+
+```yaml
+environment:
+  AIRFLOW__OPENLINEAGE__TRANSPORT: >
+    {"type": "http",
+     "url": "https://openmetadata.example.com/api/v1/openlineage/",
+     "endpoint": "lineage",
+     "auth": {"type": "api_key", "api_key": "eyJ..."}}
+  AIRFLOW__OPENLINEAGE__NAMESPACE: production_airflow
+```
+
+### Verifying Lineage
+
+After running a DAG with OpenLineage configured:
+
+1. Go to the pipeline entity in OpenMetadata.
+2. Click the **Lineage** tab.
+3. You should see the input and output tables connected to the pipeline.
+
+### Troubleshooting Lineage
+
+If lineage is not appearing:
+
+| Symptom | Check |
+|---|---|
+| No events sent | Check Airflow scheduler logs for `Successfully emitted OpenLineage` messages |
+| `405 Method Not Allowed` | Ensure the `url` field ends with a trailing slash (`/openlineage/`) |
+| Events sent but no lineage edges | Ensure the tables referenced in events exist in OpenMetadata, or enable `autoCreateEntities` in OpenLineage settings |
+| Only some events processed | The `eventTypeFilter` defaults to `["COMPLETE"]` — `START` events are skipped by design |
+| `401 Unauthorized` | Verify the JWT token in the `api_key` field is valid and has `EDIT_LINEAGE` permission |
