@@ -198,3 +198,57 @@ As a result of the above fixes, anyone who is on OpenMetadata Dependencies Helm 
 4. Install the latest version of [OpenMetadata Dependencies Helm Chart](/v1.11.x/deployment/kubernetes)
 5. Restore the Database using Metadata Restore CLI as mentioned [here](/v1.11.x/deployment/backup-restore-metadata)
 6. Next, Proceed with upgrade for OpenMetadata Helm Chart as mentioned [here](#step-4-upgrade-openmetadata)
+
+### Azure PostgreSQL (Flexible Server) – pg_trgm Extension Requirement
+
+When upgrading OpenMetadata (e.g., to v1.11.0+), the migration process requires the PostgreSQL extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+<Warning>
+
+**Issue**
+
+On Azure Database for PostgreSQL (Flexible Server), this step may fail with:
+
+```
+ERROR: extension "pg_trgm" is not allow-listed for users in Azure Database for PostgreSQL
+```
+
+This occurs because Azure restricts extensions by default, even if they are supported.
+
+</Warning>
+
+**Resolution**
+
+To resolve this, you must explicitly allow and enable the `pg_trgm` extension.
+
+**Step 1: Allow the extension**
+
+Update the server parameter:
+
+1. Go to **Azure Portal** → **PostgreSQL Flexible Server** → **Server Parameters**
+2. Search for: `azure.extensions`
+3. Add: `pg_trgm`
+
+<Note>
+If other extensions are already present, append `pg_trgm` as a comma-separated value.
+</Note>
+
+**Step 2: Restart the server**
+
+After updating the parameter, restart the PostgreSQL server for the changes to take effect.
+
+**Step 3: Create the extension**
+
+Run the following SQL:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+**Step 4: Re-run the migration**
+
+Once the extension is enabled, re-run the OpenMetadata migration workflow.
