@@ -84,6 +84,10 @@ AWS MWAA exposes the Airflow REST API through a web server URL. To connect:
 MWAA web tokens expire after 60 seconds by default. For recurring ingestion, consider using a Lambda function or script that refreshes the token before each ingestion run. Alternatively, use the MWAA web server URL with IAM-based access and set up an IAM role with `airflow:CreateWebLoginToken` permission.
 </Note>
 
+<Warning>
+**MWAA and OpenLineage**: MWAA does **not** allow setting `AIRFLOW__OPENLINEAGE__*` environment variables directly through the console. To configure lineage, you must use a **startup script** or **custom Airflow plugin** that exports these variables at runtime. See the [Lineage via OpenLineage](#lineage-via-openlineage) section below for platform-specific instructions.
+</Warning>
+
 ## Metadata Ingestion
 
 <MetadataIngestionUi connector={"AirflowApi"} selectServicePath={"/public/images/connectors/airflow/select-service.png"} addNewServicePath={"/public/images/connectors/airflow/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/airflow/service-connection.png"} />
@@ -145,15 +149,64 @@ The `url` field **must** end with a trailing slash (`/openlineage/`). This is re
 
 #### GCP Cloud Composer
 
-Set these as environment overrides in the Cloud Composer configuration:
+Cloud Composer has `apache-airflow-providers-openlineage` pre-installed. Set the environment variables as overrides:
 
 1. Go to your Composer environment in the GCP Console.
-2. Click **Environment Overrides**.
-3. Add the `AIRFLOW__OPENLINEAGE__TRANSPORT` and `AIRFLOW__OPENLINEAGE__NAMESPACE` variables.
+2. Navigate to **Environment configuration > Environment variables**.
+3. Add `AIRFLOW__OPENLINEAGE__TRANSPORT` and `AIRFLOW__OPENLINEAGE__NAMESPACE`.
 
-#### Docker Compose / Helm
+This works directly because Composer allows arbitrary `AIRFLOW__*` environment overrides.
 
-Add them to your Airflow environment:
+#### AWS MWAA
+
+MWAA does **not** allow setting `AIRFLOW__OPENLINEAGE__*` variables directly through the console or Airflow configuration options. You need one of these workarounds:
+
+**Option A: Startup Script** (recommended for MWAA 2.8+)
+
+Upload a shell script to S3 and reference it as the startup script:
+
+```bash
+#!/bin/bash
+export AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "https://<openmetadata-host>/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "'"$(aws secretsmanager get-secret-value --secret-id openmetadata/jwt --query SecretString --output text)"'"}}'
+export AIRFLOW__OPENLINEAGE__NAMESPACE=my_mwaa_instance
+```
+
+Set the `startupScriptS3Path` in your MWAA environment configuration.
+
+**Option B: Custom Airflow Plugin**
+
+Create a plugin that sets environment variables at import time, reading secrets from AWS Secrets Manager:
+
+```python
+# plugins/openlineage_env.py
+import os
+import json
+import boto3
+
+client = boto3.client("secretsmanager")
+secret = client.get_secret_value(SecretId="openmetadata/jwt")
+om_token = secret["SecretString"]
+
+os.environ["AIRFLOW__OPENLINEAGE__TRANSPORT"] = json.dumps({
+    "type": "http",
+    "url": "https://<openmetadata-host>/api/v1/openlineage/",
+    "endpoint": "lineage",
+    "auth": {"type": "api_key", "api_key": om_token}
+})
+os.environ["AIRFLOW__OPENLINEAGE__NAMESPACE"] = "my_mwaa_instance"
+```
+
+Package this in `plugins.zip` and upload to S3. See the [AWS blog post on OpenLineage with MWAA](https://aws.amazon.com/blogs/big-data/automate-data-lineage-on-amazon-mwaa-with-openlineage/) for a complete walkthrough.
+
+<Note>
+Both approaches require the MWAA execution role to have `secretsmanager:GetSecretValue` permission for the secret containing the OpenMetadata JWT token.
+</Note>
+
+You also need to add `openmetadata-ingestion` (or at minimum `apache-airflow-providers-openlineage`) to your MWAA `requirements.txt` if it is not already installed.
+
+#### Docker Compose / Helm / Self-Hosted
+
+Set the environment variables directly:
 
 ```yaml
 environment:
