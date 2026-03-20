@@ -18,9 +18,16 @@ import ExternalIngestionDeployment from '/snippets/v1.13.x-SNAPSHOT/connectors/e
 icon='/public/images/connectors/tableau.webp'
 name="Tableau"
 stage="PROD"
-availableFeatures={["Dashboards", "Charts", "Lineage", "Owners", "Datamodels", "Tags", "Projects", "Usage"]}
+availableFeatures={["Dashboards", "Charts", "Lineage", "Owners", "Datamodels", "Tags", "Projects", "Column Lineage", "Usage"]}
 unavailableFeatures={[]} />
 In this section, we provide guides and references to use the Tableau connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth** — Username and password authentication
+- **Access Token Auth** — Personal access token name and secret for token-based authentication
+</Info>
+
 Configure and schedule Tableau metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
@@ -91,21 +98,31 @@ Configure the source type and service name for your Tableau connector.
 
 <ContentSection id={5} title="Pagination Limit" lines="15">
 
-**paginationLimit**: The pagination limit will be used while querying the Tableau Graphql endpoint to get the data source information.
+**paginationLimit**: The pagination limit will be used while querying the Tableau Graphql endpoint to get the data source information. Default is `10`.
 
 </ContentSection>
 
-<ContentSection id={6} title="SSL Configuration" lines="16">
+<ContentSection id={6} title="API Version" lines="16">
+
+**apiVersion**: Tableau API version. If not provided, the version will be used from the Tableau server automatically. A list of versions can be found [here](https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api_concepts_versions.htm).
+
+</ContentSection>
+
+<ContentSection id={7} title="Proxy URL" lines="17">
+
+**proxyURL**: Optional proxy URL for the Tableau server. If not provided, the hostPort will be used. This is used to generate the dashboard and chart URLs.
+
+</ContentSection>
+
+<ContentSection id={8} title="SSL Configuration" lines="18">
 
 **verifySSL**: Client SSL verification. Make sure to configure the SSLConfig if enabled. Supported values `no-ssl`, `ignore`, `validate`.
-
-**sslMode**: Mode of SSL. Default is `disabled`. Supported modes are `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`.
 
 **sslConfig**: Client SSL configuration.
 
 </ContentSection>
 
-<ContentSection id={7} title="Source Config" lines="31-73">
+<ContentSection id={9} title="Source Config" lines="31-73">
 
 The `sourceConfig` is defined [here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/dashboardServiceMetadataPipeline.json):
 
@@ -119,19 +136,19 @@ The `sourceConfig` is defined [here](https://github.com/open-metadata/OpenMetada
 
 </ContentSection>
 
-<ContentSection id={8} title="Source Config" lines="31-73">
+<ContentSection id={10} title="Source Config" lines="31-73">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={9} title="Sink Configuration" lines="74-76">
+<ContentSection id={11} title="Sink Configuration" lines="74-76">
 
 To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
 
 </ContentSection>
 
-<ContentSection id={10} title="Workflow Configuration" lines="77-93">
+<ContentSection id={12} title="Workflow Configuration" lines="77-93">
 
 <WorkflowConfigDef />
 
@@ -156,7 +173,9 @@ source:
       #   personalAccessTokenSecret: personal_access_token_secret
       hostPort: http://localhost  # REQUIRED - Tableau Server URL
       siteName: site_name
-      paginationLimit: pagination_limit
+      # apiVersion: "3.15"  # Optional - auto-detected from server if not provided
+      paginationLimit: 10
+      # proxyURL: http://proxy.example.com  # Optional - used for dashboard/chart URL generation
       # verifySSL: no-ssl
       # sslMode: disable
       # sslConfig:
@@ -186,7 +205,7 @@ source:
 
 ### Example Source Configurations for default and non-default tableau sites
 #### 1. Sample config for default tableau site
-For a default tableau site `siteName` and `siteUrl` fields should be kept as empty strings as shown in the below config.
+For a default tableau site the `siteName` field should be kept empty as shown in the below config.
 ```yaml
 source:
   type: tableau
@@ -247,8 +266,8 @@ workflowConfig:
     authProvider: <OpenMetadata auth provider>
 ```
 #### 2. Sample config for non-default tableau site
-For a non-default tableau site `siteName` and `siteUrl` fields are required.
-**Note**: If `https://xxx.tableau.com/#/site/sitename/home` represents the homepage url for your tableau site, the `sitename` from the url should be entered in the `siteName` and `siteUrl` fields in the config below.
+For a non-default tableau site the `siteName` field is required.
+**Note**: If `https://xxx.tableau.com/#/site/sitename/home` represents the homepage url for your tableau site, the `sitename` from the url should be entered in the `siteName` field in the config below.
 ```yaml
 source:
   type: tableau
@@ -256,13 +275,16 @@ source:
   serviceConnection:
     config:
       type: Tableau
-      username: username
-      password: password
+      # For basic authentication
+      authType:
+        username: username
+        password: password
+      # For access token authentication
+      # authType:
+      #   personalAccessTokenName: personal_access_token_name
+      #   personalAccessTokenSecret: personal_access_token_secret
       hostPort: http://localhost
       siteName: openmetadata
-      # If not setting user and password
-      # personalAccessTokenName: personal_access_token_name
-      # personalAccessTokenSecret: personal_access_token_secret
   sourceConfig:
     config:
       type: DashboardMetadata

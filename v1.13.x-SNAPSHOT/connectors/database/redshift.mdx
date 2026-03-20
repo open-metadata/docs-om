@@ -16,9 +16,16 @@ import Related from '/snippets/v1.13.x-SNAPSHOT/connectors/database/related.mdx'
 icon='/public/images/connectors/redshift.webp'
 name="Redshift"
 stage="PROD"
-availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Reverse Metadata (OpenMetadata Only)", "Auto-Classification"]}
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Auto-Classification"]}
 unavailableFeatures={["Owners", "Tags"]} />
 In this section, we provide guides and references to use the Redshift connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth** — Username and password authentication
+- **IAM Auth** — AWS IAM-based authentication with automatic temporary credential retrieval (supports both Provisioned Clusters and Serverless Workgroups)
+</Info>
+
 Configure and schedule Redshift metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
@@ -51,9 +58,42 @@ GRANT USAGE ON SCHEMA "<schema_name>" TO <ingestion_user>;
 ```
 </Tip>
 ### Profiler & Data Quality
-Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/v1.13.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v1.13.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. For system-level profiling metrics on Provisioned Clusters, the user also needs:
+```sql
+GRANT SELECT ON TABLE pg_catalog.stl_insert TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_delete TO <ingestion_user>;
+```
+More information on the profiler workflow setup can be found [here](/v1.13.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v1.13.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
 ### Usage & Lineage
-For the usage and lineage workflow, the user will need `SELECT` privilege on `STL_QUERY` table. You can find more information on the usage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+For the usage and lineage workflow, the user will need `SELECT` privilege on the following system tables:
+
+**For Provisioned Clusters:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.stl_query TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_querytext TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_scan TO <ingestion_user>;
+```
+
+**For Serverless Workgroups:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.sys_query_history TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.sys_query_text TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.sys_query_detail TO <ingestion_user>;
+```
+
+You can find more information on the usage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+### Stored Procedures
+For stored procedure lineage extraction, the user needs `SELECT` privilege on:
+
+**For Provisioned Clusters:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.svl_stored_proc_call TO <ingestion_user>;
+```
+
+**For Serverless Workgroups:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.sys_procedure_call TO <ingestion_user>;
+```
 ### IAM Authentication
 To use IAM authentication instead of basic username/password, ensure the IAM role or user has the following permissions:
 
@@ -92,7 +132,7 @@ The connector automatically detects whether your Redshift endpoint is Provisione
 </Note>
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"Redshift"} selectServicePath={"/public/images/connectors/redshift/select-service.png"} addNewServicePath={"/public/images/connectors/redshift/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/redshift/service-connection.png"} />
-It is recommmended to exclude the schema "information_schema" from the metadata ingestion as it contains system tables and views.
+It is recommended to exclude the schema "information_schema" from the metadata ingestion as it contains system tables and views.
 # Connection Details
 <Steps>
 <Step title="Connection Details">
