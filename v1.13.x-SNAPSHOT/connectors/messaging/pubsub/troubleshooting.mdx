@@ -1,0 +1,45 @@
+---
+title: Google Pub/Sub Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common Google Pub/Sub connector issues in OpenMetadata — authentication failures, permission errors, schema registry problems, and ingestion issues.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Google Pub/Sub-Specific Issues
+
+### Authentication Fails: "Could not determine project ID"
+
+**Cause**: The project ID cannot be resolved from the provided credentials or connection config.
+
+**Resolution**: Explicitly set the `projectId` field in the connection configuration. This overrides the project ID read from the GCP credentials and is required when the service account belongs to a different project than the Pub/Sub topics.
+
+### Emulator Connection Refused
+
+**Cause**: `useEmulator` is set to `true` but `hostPort` is still set to `pubsub.googleapis.com` (the default).
+
+**Resolution**: When using the Pub/Sub emulator, set `hostPort` to the emulator address (e.g., `localhost:8085`). The connector will raise a validation error if the default production endpoint is used with `useEmulator: true`.
+
+### Schema Registry Topics Not Showing Schema
+
+**Cause**: `schemaRegistryEnabled` is `true` but the Schema Registry client cannot be initialized when `useEmulator` is also `true`.
+
+**Resolution**: Schema Registry is not supported in emulator mode. The schema client is automatically disabled when `useEmulator: true`. To use the Schema Registry, connect to the production Pub/Sub service.
+
+### Topics Missing from Ingestion
+
+**Cause 1**: Topics are being filtered out by dead letter topic detection.
+
+**Resolution**: Set `includeDeadLetterTopics: true` to include dead letter topics in metadata extraction.
+
+**Cause 2**: Topic names are excluded by the `topicFilterPattern`.
+
+**Resolution**: Review your `topicFilterPattern` configuration. To ingest all topics, set `includes: [".*"]` and leave `excludes` empty.
+
+### `pubsub.subscriptions.list` Permission Denied
+
+**Cause**: The service account lacks the `pubsub.subscriptions.list` permission, which is required for dead letter topic detection and subscription metadata.
+
+**Resolution**: Grant the `roles/pubsub.viewer` role to the service account, or add the `pubsub.subscriptions.list` permission individually. Alternatively, set `includeSubscriptions: false` and `includeDeadLetterTopics: false` to skip subscription-related API calls.
