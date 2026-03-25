@@ -23,6 +23,7 @@ unavailableFeatures={["Stored Procedures Lineage"]}
 
 In this section, we provide guides and references to use the TimescaleDB connector.
 Configure and schedule TimescaleDB metadata and profiler workflows from the OpenMetadata UI:
+- [Hypertable-Aware Profiling](#hypertable-aware-profiling)
 - [Requirements](#requirements)
     - [Usage and Lineage considerations](#usage-and-lineage-considerations)
     - [IAM Authentication](#iam-authentication)
@@ -31,6 +32,23 @@ Configure and schedule TimescaleDB metadata and profiler workflows from the Open
 - [Securing TimescaleDB Connection with SSL in OpenMetadata](#securing-timescaledb-connection-with-ssl-in-openmetadata)
 - [Troubleshooting](/v1.12.x/connectors/database/timescale/troubleshooting)
 
+## Hypertable-Aware Profiling
+
+Starting from OpenMetadata **version 1.12**, the **Data Profiler**, **Data Quality**, and **Auto-Classification** workflows are optimized for TimescaleDB hypertables with compression enabled.
+
+### How it works
+
+When a hypertable has both compressed and uncompressed chunks, OpenMetadata automatically restricts all profiling queries to **uncompressed data only**. This avoids the expensive decompression operations that would otherwise be required to scan compressed chunks, significantly reducing CPU usage and memory pressure on the database.
+
+For **table-level metrics**, the profiler uses TimescaleDB-specific functions:
+- `approximate_row_count()` instead of scanning `pg_catalog` for row counts
+- `hypertable_size()` instead of `pg_total_relation_size()` for size metrics
+
+For hypertables without compression or regular PostgreSQL tables, the profiler falls back to standard PostgreSQL behavior.
+
+<Warning>
+**Thread count considerations:** Each profiler thread opens a separate database connection. When querying hypertables, each connection acquires locks on the chunks it accesses. Running multiple threads against a hypertable with many chunks can exhaust PostgreSQL's `max_locks_per_transaction` shared memory, resulting in `out of shared memory` errors. If you encounter this error, reduce the `threadCount` in your profiler configuration or increase `max_locks_per_transaction` on the database side.
+</Warning>
 
 ## Requirements
 

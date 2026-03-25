@@ -1,8 +1,20 @@
 import { BreakingChanges } from '/snippets/components/BreakingChanges/BreakingChanges.jsx'
+import { VersionMatrix } from '/snippets/components/VersionMatrix/VersionMatrix.jsx'
+import { VERSION_MATRIX_DATA_WITH_UPDATES } from '/snippets/components/VersionMatrix/versionMatrixData.mdx'
 
 ## Prerequisites
 
 Everytime that you plan on upgrading OpenMetadata to a newer version, make sure to go over all these steps:
+
+### Version Compatibility Matrix
+
+Before upgrading your OpenMetadata instance, verify that the versions of the external services used in your deployment meet the minimum supported requirements. Upgrading OpenMetadata without compatible versions of these services may cause migration failures or runtime issues.
+
+<VersionMatrix data={VERSION_MATRIX_DATA_WITH_UPDATES} />
+
+**Note:** 
+---
+If your current deployment uses versions lower than the minimum supported versions listed above, upgrade the respective services before proceeding with the OpenMetadata upgrade process.
 
 ### Backup your Metadata
 
@@ -95,6 +107,30 @@ Note that this value would depend on the size of your `query_entity` table. If y
 during the migration after bumping this value, you can increase them further.
 
 After the migration is finished, you can revert this changes.
+
+#### Enable `pg_trgm` Extension (Azure PostgreSQL Flexible Server)
+
+<Warning>
+
+If you are using **Azure Database for PostgreSQL (Flexible Server)**, the migration process requires the `pg_trgm` extension. By default, Azure restricts this extension and you may encounter:
+
+```
+ERROR: extension "pg_trgm" is not allow-listed for users in Azure Database for PostgreSQL
+```
+
+</Warning>
+
+**Resolution Steps:**
+
+1. **Allow the extension** - Go to **Azure Portal** → **PostgreSQL Flexible Server** → **Server Parameters** → Search for `azure.extensions` → Add `pg_trgm` (comma-separated if other extensions exist)
+2. **Restart the PostgreSQL server** for changes to take effect
+3. **Create the extension** by running:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+   ```
+4. **Proceed with the migration**
+
+For detailed troubleshooting, see the [Kubernetes Upgrade Troubleshooting](/v1.11.x/deployment/upgrade/kubernetes#azure-postgresql-flexible-server--pg_trgm-extension-requirement) section.
 
 <BreakingChanges>
 - **Ingestion Framework:** All workflows have integrated the `workflow.print_status()` inside the `workflow.execute()` call. This change was needed to better handle logger lifecycles. If you're using the Ingestion Framework directly to manage workflows via the usual process:
