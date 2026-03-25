@@ -35,11 +35,19 @@ Configure and schedule PostgreSQL metadata and profiler workflows from the OpenM
 Note that we only support officially supported PostgreSQL versions. You can check the version list [here](https://www.postgresql.org/support/versioning/).
 </Tip>
 ### Usage & Lineage
-For the usage and lineage workflow, OpenMetadata relies on the [`pg_stat_statements`](https://www.postgresql.org/docs/current/pgstatstatements.html) extension to read query history. You need to enable the extension and grant your user read access to query statistics:
+For the usage and lineage workflow, OpenMetadata relies on the [`pg_stat_statements`](https://www.postgresql.org/docs/current/pgstatstatements.html) extension to read query history. You need to enable the extension and grant your user read access to query statistics.
+
+**1. Load the extension at server startup** by adding the following to your `postgresql.conf`:
+
+```ini
+shared_preload_libraries = 'pg_stat_statements'
+```
+
+After making this change, restart the PostgreSQL server.
+
+**2. Enable the extension and grant access** by running the following SQL as a superuser:
 
 ```sql
--- Enable the extension (requires superuser). Also add to postgresql.conf:
--- shared_preload_libraries = 'pg_stat_statements'
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- Grant read access to the OpenMetadata user
@@ -63,7 +71,7 @@ To get the most complete lineage and usage data, we recommend:
 - **Schedule frequent ingestion runs** (e.g., every 1–2 hours) to capture queries before they are evicted.
 - **Avoid calling `pg_stat_statements_reset()`** before ingestion. If periodic resets are needed, schedule them after ingestion completes.
 
-If your organization restricts direct access to `pg_stat_statements`, or if you need more control over query retention, you can set the **Query Statement Source** connection property to a custom view or table (e.g., `my_schema.custom_query_history`). The custom source must expose the columns: `userid` (oid), `dbid` (oid), `query` (text), and `total_exec_time` (double precision). If not set, OpenMetadata defaults to `pg_stat_statements`.
+If your organization restricts direct access to `pg_stat_statements`, or if you need more control over query retention, you can set the **Query Statement Source** connection property to a custom view or table (e.g., `my_schema.custom_query_history`). The custom source must expose the same columns that OpenMetadata reads from `pg_stat_statements`: `userid` (oid), `dbid` (oid), `query` (text), and either `total_exec_time` (double precision, PostgreSQL 13+) or `total_time` (double precision, PostgreSQL < 13). If not set, OpenMetadata defaults to `pg_stat_statements`.
 ### IAM Authentication
 In order to be able to connect via IAM, you need to have the following:
 1. Database is configured to use IAM authentication
