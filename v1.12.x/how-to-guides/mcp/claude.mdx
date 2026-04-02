@@ -1,6 +1,6 @@
 ---
 title: Getting Started with Claude Desktop
-description: Set up MCP Server to connect Claude Desktop, generate tokens, and enable seamless AI-powered access to your data.
+description: Set up MCP Server to connect Claude Desktop with OAuth or PAT-based authentication for AI-powered access to your data.
 sidebarTitle: Getting Started with Claude Desktop
 ---
 
@@ -9,20 +9,71 @@ sidebarTitle: Getting Started with Claude Desktop
 Configure OpenMetadata's MCP Server to interact with Anthropic's AI assistant platform.
 
 ## Prerequisites
-For this guide, you will need:
 
-- [nvm](https://github.com/nvm-sh/nvm) and npx/node version 22
-- OpenMetadata v1.8.0 or later - You can upgrade your version of OpenMetadata with [this guide](https://docs.open-metadata.org/latest/deployment/upgrade)
-- [Claude Desktop](https://claude.ai/download)
-- OpenMetadata [MCP Application and Personal Access Token](https://docs.open-metadata.org/v1.9.x/how-to-guides/mcp#installing-mcp-server)
+Before you begin, ensure you have:
 
-## Adding your OpenMetadata MCP Server to Claude Desktop
-This how-to guide uses the free version of Claude Desktop for macOS with Sonnet 4.
+1. **OpenMetadata v1.8.0+** running
+2. **MCP Application** installed in OpenMetadata
+   - Navigate to `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`
+   - Install **McpApplication** if not already installed
+3. **[Claude Desktop](https://claude.ai/download)** installed
 
-- Navigate to Claude Desktop's Settings, then select *Developer* and *Edit Config*. Paste the following into `claude_desktop_config.json`
+## Connect with OAuth 2.0 (Recommended)
+
+OAuth lets you authenticate using your existing OpenMetadata login, with no tokens to manage.
+
+### Step 1: Open Settings
+
+Open Claude Desktop and navigate to **Settings**.
+
+### Step 2: Add a Custom Connector
+
+Go to **Connectors** and click **Add custom connector**.
+
+### Step 3: Configure the Server
+
+- **Name**: Enter a name for your connector (e.g., `OpenMetadata`)
+- **Remote MCP server URL**: Enter your OpenMetadata MCP Server URL:
 
 ```
-{"mcpServers": {
+https://<YOUR-OpenMetadata-SERVER>/mcp
+```
+
+For example: `https://your-openmetadata-instance.com/mcp`
+
+Click **Add** to save.
+
+<img noZoom src="/public/images/how-to-guides/mcp/claude-oauth-add-connector.png" alt="Claude Desktop Add custom connector dialog" />
+
+### Step 4: Authenticate
+
+Claude Desktop will open a browser window prompting you to sign in with your OpenMetadata credentials. Follow the on-screen instructions based on your configured authentication method:
+
+- **SSO (Google, Azure, Okta, etc.)**: You will be redirected to your SSO provider's login page
+- **Basic Auth**: Enter your OpenMetadata username and password
+
+Once authenticated, Claude Desktop connects to your OpenMetadata MCP Server automatically. You will see the server listed with all available MCP tools.
+
+<img noZoom src="/public/images/how-to-guides/mcp/claude-oauth-connected.png" alt="Claude Desktop showing connected OpenMetadata MCP Server with available tools" />
+
+## Connect with Personal Access Token (PAT)
+
+If you prefer token-based authentication or OAuth is not available in your environment, you can use a Personal Access Token with the `mcp-remote` proxy.
+
+### Prerequisites for PAT Method
+
+In addition to the general prerequisites above, you will need:
+
+- [nvm](https://github.com/nvm-sh/nvm) and npx/node version 22
+- OpenMetadata [Personal Access Token](/v1.12.x/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client)
+
+### Configure Claude Desktop
+
+Navigate to Claude Desktop's Settings, then select *Developer* and *Edit Config*. Paste the following into `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
     "OpenMetadata": {
       "command": "npx",
       "args": [
@@ -44,24 +95,31 @@ This how-to guide uses the free version of Claude Desktop for macOS with Sonnet 
 }
 ```
 
-- Restart Claude Desktop. You should see your `OpenMetadata` service running
+Replace `<YOUR-OpenMetadata-SERVER>` with your OpenMetadata instance URL and `<YOUR-OpenMetadata-PAT>` with your Personal Access Token.
 
-<img src="/public/images/how-to-guides/mcp/claude-settings.jpg" alt="Claude Settings" />
+Restart Claude Desktop. You should see your `OpenMetadata` service running.
 
-## Prompt to read from OpenMetadata
-This part of the guide assumes that you have assets in OpenMetadata that Claude can read, and that some of your data assets have references to customers. You can change the prompt accordingly and/or add data sources into OpenMetadata [here](https://docs.open-metadata.org/latest/connectors).
+## Prompt to Read from OpenMetadata
+
+This part of the guide assumes that you have assets in OpenMetadata that Claude can read. You can add data sources into OpenMetadata [here](https://docs.open-metadata.org/latest/connectors).
 
 Paste the following prompt into Claude to have it read from OpenMetadata:
+
 ```
-Imagine you're a data analyst tasked with building a customer retention dashboard. Can you help me identify which tables or datasets in the OpenMetadata database might contain relevant information?
+Imagine you're a data analyst tasked with building a customer retention dashboard.
+Can you help me identify which tables or datasets in the OpenMetadata database might
+contain relevant information?
 ```
 
 Claude will ask if it can use the external integration `OpenMetadata`, select *Allow always*. You may have to do this multiple times, once for each tool. Claude is now reading from OpenMetadata via its MCP Server!
 
-<img src="/public/images/how-to-guides/mcp/claude-allow.jpg" alt="Allow Claude to use OpenMetadata" />
-
 For more sample use cases with MCP please check out [our blog](https://collatedata.medium.com/mcp-sample-uses-in-openmetadata-b7846864f63b)!
+
+## Additional Resources
+
+- [OpenMetadata MCP Documentation](/v1.12.x/how-to-guides/mcp)
+- [OAuth 2.0 Authentication](/v1.12.x/how-to-guides/mcp/oauth)
+- [MCP Tools Reference](/v1.12.x/how-to-guides/mcp/reference)
 
 ### Reach out on Slack!
 With MCP, we are finding new ways to use OpenMetadata all the time! Now that you have Claude and OpenMetadata configured to work together, think you've got a great new use case? Show us what you've got in [Slack](https://slack.open-metadata.org/)!
-

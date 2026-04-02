@@ -32,23 +32,46 @@ Configure and schedule PostgreSQL metadata and profiler workflows from the OpenM
 
 ## Requirements
 <Tip>
-Starting from OpenMetadata **version 1.6.5**, support for **Stored Procedures Lineage** has been introduced. This feature enables tracking the relationships and dependencies between stored procedures and other database objects, enhancing lineage visibility and data traceability.
-</Tip>
-<Tip>
 Note that we only support officially supported PostgreSQL versions. You can check the version list [here](https://www.postgresql.org/support/versioning/).
 </Tip>
-### Usage and Lineage considerations
-When extracting lineage and usage information from PostgreSQL we base our finding on the `pg_stat_statements` table.
-You can find more information about it on the official [docs](https://www.postgresql.org/docs/current/pgstatstatements.html#id-1.11.7.39.6).
-Another interesting consideration here is explained in the following SO [question](https://stackoverflow.com/questions/50803147/what-is-the-timeframe-for-pg-stat-statements).
-As a summary:
-- The `pg_stat_statements` has no time data embedded in it.
-- It will show all queries from the last reset (one can call `pg_stat_statements_reset()`).
-Then, when extracting usage and lineage data, the query log duration will have no impact, only the query limit.
-**Note:** For usage and lineage grant your user `pg_read_all_stats` permission.
+### Usage & Lineage
+For the usage and lineage workflow, OpenMetadata relies on the [`pg_stat_statements`](https://www.postgresql.org/docs/current/pgstatstatements.html) extension to read query history. You need to enable the extension and grant your user read access to query statistics.
+
+**1. Load the extension at server startup** by adding the following to your `postgresql.conf`:
+
+```ini
+shared_preload_libraries = 'pg_stat_statements'
+```
+
+After making this change, restart the PostgreSQL server.
+
+**2. Enable the extension and grant access** by running the following SQL as a superuser:
+
 ```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- Grant read access to the OpenMetadata user
 GRANT pg_read_all_stats TO your_user;
 ```
+
+You can find more information on the usage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v1.13.x-SNAPSHOT/connectors/ingestion/lineage).
+
+<Warning>
+`pg_stat_statements` is **not a query log** — it is a fixed-size, in-memory statistics collector. This has important implications for lineage and usage completeness:
+
+- **Entry eviction**: It stores entries in a hash table controlled by `pg_stat_statements.max` (default: **5000**). When full, the least-executed entries are silently evicted. Queries can disappear before OpenMetadata reads them.
+- **Query normalization**: Queries are deduplicated by shape — literal values are replaced with placeholders (e.g., `SELECT * FROM users WHERE id = $1`). Individual executions are not stored.
+- **No timestamps**: There is no time data. Only cumulative `calls` count and `total_exec_time` since the last reset are tracked. The **query log duration** setting in OpenMetadata will have no impact — only the **query limit** matters.
+- **Resets clear everything**: A server restart or `pg_stat_statements_reset()` wipes all entries.
+</Warning>
+
+To get the most complete lineage and usage data, we recommend:
+- **Increase `pg_stat_statements.max`** to at least `10000` (or higher) in `postgresql.conf` to reduce entry eviction.
+- **Set `pg_stat_statements.track = 'all'`** in `postgresql.conf` to capture queries inside functions and procedures.
+- **Schedule frequent ingestion runs** (e.g., every 1–2 hours) to capture queries before they are evicted.
+- **Avoid calling `pg_stat_statements_reset()`** before ingestion. If periodic resets are needed, schedule them after ingestion completes.
+
+If your organization restricts direct access to `pg_stat_statements`, or if you need more control over query retention, you can set the **Query Statement Source** connection property to a custom view or table (e.g., `my_schema.custom_query_history`). The custom source must expose the same columns that OpenMetadata reads from `pg_stat_statements`: `userid` (oid), `dbid` (oid), `query` (text), and either `total_exec_time` (double precision, PostgreSQL 13+) or `total_time` (double precision, PostgreSQL < 13). If not set, OpenMetadata defaults to `pg_stat_statements`.
 ### IAM Authentication
 In order to be able to connect via IAM, you need to have the following:
 1. Database is configured to use IAM authentication

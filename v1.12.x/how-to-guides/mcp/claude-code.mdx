@@ -1,0 +1,159 @@
+---
+title: Getting Started with Claude Code
+description: Connect your OpenMetadata MCP Server to Claude Code (CLI) for AI-powered metadata exploration from the terminal.
+sidebarTitle: Getting Started with Claude Code
+---
+
+# Getting Started with Claude Code
+
+Connect your OpenMetadata instance to [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), Anthropic's CLI-based AI coding assistant, for AI-powered metadata exploration directly from your terminal.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+1. **OpenMetadata v1.8.0+** running
+2. **MCP Application** installed in OpenMetadata
+   - Navigate to `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`
+   - Install **McpApplication** if not already installed
+3. **Claude Code** installed ([installation guide](https://docs.anthropic.com/en/docs/claude-code/quickstart))
+
+## Connect with OAuth 2.0 (Recommended)
+
+OAuth lets you authenticate using your existing OpenMetadata login, with no tokens to manage.
+
+### Step 1: Add the MCP Server
+
+Open your terminal and run:
+
+```bash
+claude mcp add --transport http openmetadata https://<YOUR-OpenMetadata-SERVER>/mcp
+```
+
+Replace `<YOUR-OpenMetadata-SERVER>` with your OpenMetadata instance URL (e.g., `your-openmetadata-instance.com`).
+
+This registers the OpenMetadata MCP Server as an HTTP remote server in Claude Code.
+
+### Step 2: Authenticate
+
+Start Claude Code and run the `/mcp` command:
+
+```
+/mcp
+```
+
+You will see your `openmetadata` server listed. Select **Authenticate** next to it. A browser window will open prompting you to sign in with your OpenMetadata credentials:
+
+- **SSO (Google, Azure, Okta, etc.)**: You will be redirected to your SSO provider's login page
+- **Basic Auth**: Enter your OpenMetadata username and password
+
+Once authenticated, Claude Code connects to your OpenMetadata MCP Server automatically.
+
+{/* TODO: Add screenshot showing /mcp command output with openmetadata server listed */}
+
+<Note>
+
+Authentication tokens are stored securely by Claude Code and refreshed automatically. Use the `/mcp` command and select **Clear authentication** to revoke access if needed.
+
+</Note>
+
+### Server Scope Options
+
+By default, `claude mcp add` registers the server for the current project only (local scope). You can change the scope:
+
+```bash
+# Available in the current project only (default)
+claude mcp add --transport http openmetadata https://<YOUR-OpenMetadata-SERVER>/mcp
+
+# Available across all your projects
+claude mcp add --transport http --scope user openmetadata https://<YOUR-OpenMetadata-SERVER>/mcp
+
+# Shared with your team via .mcp.json (checked into version control)
+claude mcp add --transport http --scope project openmetadata https://<YOUR-OpenMetadata-SERVER>/mcp
+```
+
+## Connect with Personal Access Token (PAT)
+
+If you prefer token-based authentication or OAuth is not available in your environment, you can use a Personal Access Token.
+
+### Step 1: Generate a PAT
+
+Follow the [Personal Access Token guide](/v1.12.x/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client) to generate your token.
+
+### Step 2: Add the MCP Server with Authentication Header
+
+```bash
+claude mcp add --transport http \
+  --header "Authorization: Bearer <YOUR-OpenMetadata-PAT>" \
+  openmetadata https://<YOUR-OpenMetadata-SERVER>/mcp
+```
+
+Replace `<YOUR-OpenMetadata-SERVER>` with your OpenMetadata instance URL and `<YOUR-OpenMetadata-PAT>` with your Personal Access Token.
+
+### Alternative: JSON Configuration
+
+You can also add the server using a JSON configuration:
+
+```bash
+claude mcp add-json openmetadata '{
+  "type": "http",
+  "url": "https://<YOUR-OpenMetadata-SERVER>/mcp",
+  "headers": {
+    "Authorization": "Bearer <YOUR-OpenMetadata-PAT>"
+  }
+}'
+```
+
+## Managing Your MCP Server
+
+Claude Code provides several commands to manage your MCP servers:
+
+```bash
+# List all configured MCP servers
+claude mcp list
+
+# View details for the OpenMetadata server
+claude mcp get openmetadata
+
+# Remove the OpenMetadata server
+claude mcp remove openmetadata
+```
+
+Within a Claude Code session, use the `/mcp` command to view server status, authenticate, or clear authentication.
+
+## Try It Out
+
+Once connected, start a Claude Code session and ask questions about your metadata:
+
+```bash
+claude
+```
+
+Then try prompts like:
+
+> "What tables do you have access to in OpenMetadata?"
+
+> "Imagine you're a data analyst tasked with building a customer retention dashboard. Find relevant customer and transaction tables in the metadata catalog."
+
+> "Show me the lineage of data feeding the sales dashboard."
+
+You should see Claude Code using the OpenMetadata MCP tools to search and retrieve information from your metadata catalog.
+
+## Troubleshooting
+
+If you encounter connection issues:
+
+1. **Verify OpenMetadata is running**: `curl <YOUR-OpenMetadata-SERVER>/api/health`
+2. **Check MCP endpoint**: `curl <YOUR-OpenMetadata-SERVER>/mcp` (should return 401)
+3. **Verify MCP Application is installed**: Visit `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`
+4. **Check server status**: Run `/mcp` in Claude Code to see if the server is connected
+5. **Re-authenticate**: Run `/mcp` and select **Clear authentication**, then authenticate again
+6. **Verify configuration**: Run `claude mcp get openmetadata` to check the server configuration
+7. **Check Claude Code version**: Ensure you are running an up-to-date version with `claude update`
+
+## Additional Resources
+
+- [OpenMetadata MCP Documentation](/v1.12.x/how-to-guides/mcp)
+- [OAuth 2.0 Authentication](/v1.12.x/how-to-guides/mcp/oauth)
+- [MCP Tools Reference](/v1.12.x/how-to-guides/mcp/reference)
+- [Claude Code MCP Documentation](https://docs.anthropic.com/en/docs/claude-code/mcp)
