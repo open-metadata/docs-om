@@ -41,18 +41,29 @@ Configure and schedule PostgreSQL metadata and profiler workflows from the OpenM
 <ExternalIngestionDeployment />
 ## Requirements
 **Note:** Note that we only support officially supported PostgreSQL versions. You can check the version list [here](https://www.postgresql.org/support/versioning/).
-### Usage and Lineage considerations
-When extracting lineage and usage information from PostgreSQL we base our finding on the `pg_stat_statements` table.
-You can find more information about it on the official [docs](https://www.postgresql.org/docs/current/pgstatstatements.html#id-1.11.7.39.6).
-Another interesting consideration here is explained in the following SO [question](https://stackoverflow.com/questions/50803147/what-is-the-timeframe-for-pg-stat-statements).
-As a summary:
-- The `pg_stat_statements` has no time data embedded in it.
-- It will show all queries from the last reset (one can call `pg_stat_statements_reset()`).
-Then, when extracting usage and lineage data, the query log duration will have no impact, only the query limit.
-**Note:** For usage and lineage grant your user `pg_read_all_stats` permission.
+### Usage & Lineage
+For the usage and lineage workflow, OpenMetadata relies on the [`pg_stat_statements`](https://www.postgresql.org/docs/current/pgstatstatements.html) extension to read query history. You need to enable the extension and grant your user read access to query statistics.
+
+**1. Load the extension at server startup** by adding the following to your `postgresql.conf`:
+
+```ini
+shared_preload_libraries = 'pg_stat_statements'
+```
+
+After making this change, restart the PostgreSQL server.
+
+**2. Enable the extension and grant access** by running the following SQL as a superuser:
+
 ```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- Grant read access to the OpenMetadata user
 GRANT pg_read_all_stats TO your_user;
 ```
+
+<Warning>
+`pg_stat_statements` is a fixed-size, in-memory statistics collector — **not** a persistent query log. Entries can be evicted when the table is full (default: 5000 entries), and server restarts clear all data. This can lead to incomplete lineage and usage results. For best practices on maximizing query retention, see the [Usage & Lineage section](/v1.13.x-SNAPSHOT/connectors/database/postgres#usage--lineage) in the connector overview.
+</Warning>
 ### Python Requirements
 <PythonRequirements />
 To run the PostgreSQL ingestion, you will need to install:
@@ -301,6 +312,7 @@ source:
       hostPort: localhost:5432  # REQUIRED - format: host:port
       database: database  # REQUIRED - database name
       ingestAllDatabases: true
+      # queryStatementSource: pg_stat_statements  # Custom view/table for query history
       # connectionOptions:
       #   key: value
       # connectionArguments:

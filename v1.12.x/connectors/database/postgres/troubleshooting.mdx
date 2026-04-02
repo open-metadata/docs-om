@@ -20,24 +20,38 @@ LINE 9:         pg_stat_statements s
 ```
 
 **Cause**
-This error occurs because the PostgreSQL extension `pg_stat_statements` is not enabled. This extension is required to access query execution statistics, which are used by OpenMetadata for usage and performance insights.
+This error occurs because the PostgreSQL extension `pg_stat_statements` is not enabled. This extension is required to access query execution statistics, which are used by OpenMetadata for usage and lineage extraction.
 
 **Solution**
 Enable the `pg_stat_statements` extension in your PostgreSQL instance. You can do this by executing the following command as a superuser:
 
 ```sql
-CREATE EXTENSION pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
 
 Additionally, ensure the extension is loaded at server startup by setting the following in your `postgresql.conf`:
 
-```sql
+```ini
 shared_preload_libraries = 'pg_stat_statements'
 ```
 
 After making this change, restart the PostgreSQL server.
 
 For more details, refer to the official PostgreSQL documentation: [pg_stat_statements – PostgreSQL](https://www.postgresql.org/docs/current/pgstatstatements.html)
+
+## Incomplete or Missing Lineage/Usage Data
+
+**Issue**
+Lineage or usage data appears incomplete — some queries or tables are missing from the results, or the number of tracked queries seems to decrease over time.
+
+**Cause**
+`pg_stat_statements` is not a persistent query log. It is a fixed-size, in-memory hash table that stores aggregated statistics per unique query shape. When the table is full (default: 5000 entries), the least-executed entries are silently evicted. Server restarts also clear all entries.
+
+**Solution**
+1. **Increase `pg_stat_statements.max`** to at least `10000` (or higher) in `postgresql.conf`.
+2. **Run ingestion more frequently** — schedule usage and lineage pipelines every 1–2 hours instead of daily.
+3. **Avoid resetting stats before ingestion** — do not call `pg_stat_statements_reset()` before an ingestion run.
+4. **Use a custom query source** — if `pg_stat_statements` does not provide sufficient retention, you can periodically snapshot its contents into a persistent table and point OpenMetadata to it using the `queryStatementSource` connection property. See the [Usage & Lineage](/v1.12.x/connectors/database/postgres#usage--lineage) section for details.
 
 Learn how to resolve the most common problems people encounter in the PostgreSQL connector.
 
