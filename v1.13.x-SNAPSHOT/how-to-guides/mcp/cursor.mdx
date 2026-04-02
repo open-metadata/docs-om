@@ -1,6 +1,6 @@
 ---
 title: Getting Started with Cursor
-description: Connect your OpenMetadata MCP Server to Cursor IDE for AI-powered metadata exploration.
+description: Connect your OpenMetadata MCP Server to Cursor IDE with OAuth or PAT-based authentication for AI-powered metadata exploration.
 sidebarTitle: Getting Started with Cursor
 ---
 
@@ -12,14 +12,63 @@ Connect your OpenMetadata instance to Cursor IDE for AI-powered metadata explora
 
 Before you begin, ensure you have:
 
-1. **OpenMetadata v1.8.0+** running (e.g., `http://localhost:8585`)
+1. **OpenMetadata v1.8.0+** running
 2. **MCP Application** installed in OpenMetadata
-   - Navigate to `<YOUR-OpenMetadata-SERVER>/marketplace/apps/`
+   - Navigate to `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`
    - Install **McpApplication** if not already installed
-3. **[MCP Application and Personal Access Token](/v1.13.x-SNAPSHOT/how-to-guides/guide-for-data-users/personal-access-token)** - Follow this guide to generate your PAT
-4. **Cursor IDE** installed with MCP support
+3. **Cursor IDE** installed with MCP support
 
-## Configure Cursor MCP Server
+## Connect with OAuth 2.0 (Recommended)
+
+OAuth lets you authenticate using your existing OpenMetadata login, with no tokens to manage.
+
+### Step 1: Open MCP Settings
+
+In Cursor, navigate to **Settings** and click **Tools & MCP** in the left sidebar.
+
+<img noZoom src="/public/images/how-to-guides/mcp/cursor-oauth-settings.png" alt="Cursor Settings showing Tools and MCP page" />
+
+### Step 2: Add a New MCP Server
+
+Click **New MCP Server**. This will open the `mcp.json` configuration file.
+
+### Step 3: Configure the Server
+
+Add the following configuration to `mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "OpenMetadata": {
+      "url": "https://<YOUR-OpenMetadata-SERVER>/mcp",
+      "protocol": "sse"
+    }
+  }
+}
+```
+
+Replace `<YOUR-OpenMetadata-SERVER>` with your OpenMetadata instance URL (e.g., `your-openmetadata-instance.com`).
+
+<img noZoom src="/public/images/how-to-guides/mcp/cursor-oauth-config.png" alt="Cursor mcp.json with MCP server configuration" />
+
+### Step 4: Authenticate
+
+Save the file and Cursor will attempt to connect. A browser window will open prompting you to sign in with your OpenMetadata credentials. Follow the on-screen instructions based on your configured authentication method:
+
+- **SSO (Google, Azure, Okta, etc.)**: You will be redirected to your SSO provider's login page
+- **Basic Auth**: Enter your OpenMetadata username and password
+
+Once authenticated, Cursor connects to your OpenMetadata MCP Server automatically. You should see your server listed with available tools and prompts.
+
+## Connect with Personal Access Token (PAT)
+
+If you prefer token-based authentication or OAuth is not available in your environment, you can use a Personal Access Token.
+
+### Step 1: Generate a PAT
+
+Follow the [Personal Access Token guide](/v1.13.x-SNAPSHOT/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client) to generate your token.
+
+### Step 2: Configure MCP Server
 
 Cursor locates the MCP configuration file at:
 
@@ -33,13 +82,13 @@ Cursor locates the MCP configuration file at:
 %APPDATA%\Cursor\mcp.json
 ```
 
-Create the `.cursor` directory if it doesn't exist, then create the configuration file:
+Create the `.cursor` directory if it doesn't exist, then create or update the configuration file:
 
 ```json
 {
   "mcpServers": {
     "OpenMetadata": {
-      "url": "<YOUR-OpenMetadata-SERVER>/mcp",
+      "url": "https://<YOUR-OpenMetadata-SERVER>/mcp",
       "protocol": "sse",
       "headers": {
         "Authorization": "Bearer <YOUR-OpenMetadata-PAT>"
@@ -49,23 +98,19 @@ Create the `.cursor` directory if it doesn't exist, then create the configuratio
 }
 ```
 
-Replace `<YOUR-OpenMetadata-SERVER>` with your server URL and `<YOUR-OpenMetadata-PAT>` with your Personal Access Token from the Prerequisites step.
+Replace `<YOUR-OpenMetadata-SERVER>` with your server URL and `<YOUR-OpenMetadata-PAT>` with your Personal Access Token.
 
-<img noZoom src="/public/images/how-to-guides/mcp/cursor-config-file.png" alt="Cursor MCP Configuration File" />
+### Step 3: Restart Cursor
+
+Save the configuration file and restart Cursor completely to load the MCP server:
+- **macOS**: `Cmd+Q` or Cursor > Quit Cursor
+- **Windows/Linux**: Close all Cursor windows and reopen
 
 > **Project-Specific Configuration**: You can also create `.cursor/mcp.json` in your project root directory. Project-specific configuration takes precedence over global configuration.
 
-## Restart Cursor
-
-Save the configuration file and restart Cursor completely to load the MCP server:
-- **macOS**: `Cmd+Q` or Cursor → Quit Cursor
-- **Windows/Linux**: Close all Cursor windows and reopen
-
-<img noZoom src="/public/images/how-to-guides/mcp/cursor-connected.png" alt="Cursor MCP Server Connected" />
-
 ## Try It Out
 
-Once Cursor restarts, test your connection by asking questions in Cursor's chat:
+Once connected, test your setup by asking questions in Cursor's chat:
 
 > "Imagine you're a data analyst tasked with building a customer retention dashboard. You need tables that track customer transactions, engagement metrics, and churn indicators. Find relevant customer and transaction tables in the metadata catalog."
 
@@ -78,12 +123,15 @@ If you encounter connection issues:
 1. **Verify OpenMetadata is running**: `curl <YOUR-OpenMetadata-SERVER>/api/health`
 2. **Check MCP endpoint**: `curl <YOUR-OpenMetadata-SERVER>/mcp` (should return 401)
 3. **Verify MCP Application is installed**: Visit `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`
-4. **Check configuration file syntax**: Ensure JSON is valid and file path is correct
-5. **Token expired**: [Generate a new PAT](/v1.13.x-SNAPSHOT/how-to-guides/guide-for-data-users/personal-access-token) and update your configuration
-6. **Restart Cursor** after making configuration changes
+4. **Re-authenticate**: Remove and re-add the server in Cursor to trigger a fresh OAuth login
+5. **Check configuration file syntax**: Ensure JSON is valid and file path is correct
+6. **Token expired (PAT method)**: [Generate a new PAT](/v1.13.x-SNAPSHOT/how-to-guides/guide-for-data-users/personal-access-token) and update your configuration
+7. **Restart Cursor** after making configuration changes
 
 ## Additional Resources
 
 - [OpenMetadata MCP Documentation](/v1.13.x-SNAPSHOT/how-to-guides/mcp)
+- [OAuth 2.0 Authentication](/v1.13.x-SNAPSHOT/how-to-guides/mcp/oauth)
+- [MCP Tools Reference](/v1.13.x-SNAPSHOT/how-to-guides/mcp/reference)
 - [MCP Protocol Specification](https://modelcontextprotocol.io)
 - [Cursor Documentation](https://docs.cursor.com)
