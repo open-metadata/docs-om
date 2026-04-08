@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.11.x, v1.12.x, v1.13.x-SNAPSHOT). The default/current version is **v1.12.x** — unversioned URLs redirect there.
+OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.11.x, v1.12.x, v1.13.x-SNAPSHOT). The default/current version is **v1.12.x** — unversioned URLs redirect there via `docs.json` redirects (~line 6425).
+
+The sibling directory `../OpenMetadata` contains the main OpenMetadata repo (JSON schemas in `openmetadata-spec/` and ingestion source in `ingestion/`). The `/connector-doc-review` skill uses it to validate connector docs against ground truth.
 
 ## Development Commands
 
 ```bash
 npm i -g mint          # Install Mintlify CLI (requires Node.js >= 19)
-mint dev               # Local preview at http://localhost:3000
+mint dev               # Local preview at http://localhost:3000 (or: npm run dev)
 mint dev --port 3333   # Custom port
-mint broken-links      # Validate links across all pages
+mint broken-links      # Validate links across all pages (or: npm run broken-links)
 mint update            # Update CLI to latest version
 ```
 
@@ -58,7 +60,7 @@ import TestConnection from '/snippets/connectors/test-connection.mdx'
 import DataProfiler from '/snippets/v1.11.x/connectors/yaml/data-profiler.mdx'
 ```
 
-There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v1.11.x/connectors/`). Version-specific snippets override shared ones when content differs between versions.
+There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v1.11.x/`, `/snippets/v1.12.x/`, `/snippets/v1.13.x/`). Version-specific snippets typically contain `connectors-list.mdx` (connector catalog per service type), `related.mdx`, `data-profiler.mdx`, and deployment snippets that differ between versions. Always import the snippet matching the page's version.
 
 ### Connector Docs Pattern
 
@@ -82,10 +84,12 @@ This section covers the infrastructure: navigation, styling, components, and ver
 
 ### Navigation Configuration
 
-All navigation is defined in `docs.json` (very large file, ~6k+ lines). It defines:
-- Version tabs and page hierarchy per version
-- Redirects from unversioned paths to v1.11.x
+All navigation is defined in `docs.json` (very large file, ~6.5k lines). It defines:
+- Version tabs and page hierarchy per version (bulk of the file)
+- Redirects from unversioned paths to v1.12.x (starts at ~line 6425)
 - Footer, navbar, SEO, and theme settings
+
+When editing `docs.json`, use targeted line-range reads rather than loading the whole file. Navigation groups are nested under `navigation.versions[].tabs[].groups[]`.
 
 ### Versioned Content Structure
 
@@ -105,11 +109,13 @@ v1.11.x/
 
 ### Custom React Components
 
-Three JSX components in `snippets/components/`:
+JSX components in `snippets/components/`:
 
-- `ConnectorDetailsHeader.jsx` — Feature support matrix for connectors (stage, available/unavailable features)
+- `ConnectorDetailsHeader/ConnectorDetailsHeader.jsx` — Feature support matrix for connectors (stage, available/unavailable features). Must appear in both the main connector page and its `yaml.mdx` with identical feature arrays.
 - `MetadataIngestionUi.jsx` — UI workflow screenshot sequences
-- `CodePreview.jsx` — Side-by-side code/content panels
+- `CodePreview.jsx` — Side-by-side code/content panels (used in yaml.mdx pages)
+- `BreakingChanges/BreakingChanges.jsx` — Breaking change callouts for release notes
+- `VersionMatrix/VersionMatrix.jsx` — Version compatibility matrix display
 
 ### Styling
 
