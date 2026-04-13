@@ -46,13 +46,17 @@ GRANT SELECT ON world.hello TO '<username>';
 GRANT SHOW VIEW ON world.* to '<username>';
 ```
 ### Lineage & Usage
-To extract lineage & usage you need to enable the query logging in mysql and the user used in the connection needs to have select access to the `mysql.general_log`.
+To extract lineage & usage, enable query logging in MySQL. By default, OpenMetadata reads from `mysql.general_log`, so the connection user needs `SELECT` access on `mysql.general_log`. If you enable `useSlowLogs`, OpenMetadata reads from `mysql.slow_log` instead, so the same user needs `SELECT` access on `mysql.slow_log`.
 ```sql
--- Enable Logging
+-- Enable general logs (default log source)
 SET GLOBAL general_log='ON';
-set GLOBAL log_output='table';
--- Grant SELECT on log table
+SET GLOBAL log_output='table';
 GRANT SELECT ON mysql.general_log TO '<username>'@'<host>';
+
+-- Optional: if using `useSlowLogs: true`
+SET GLOBAL slow_query_log='ON';
+SET GLOBAL log_output='table';
+GRANT SELECT ON mysql.slow_log TO '<username>'@'<host>';
 ```
 #### Log Table Management
 The `mysql.general_log` table grows continuously as it stores query logs. This can consume significant storage space over time and affect the execution time of lineage and usage procedures.
@@ -121,7 +125,7 @@ This applies **only to fields marked as secrets** in the connection form (these 
 For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
 </Tip>
 - **Username**: Specify the User to connect to MySQL. It should have enough privileges to read all the metadata.
-- **Auth Type**: Basic Auth or IAM based auth to connect to instances / cloud rds.
+- **Auth Type**: Basic Auth, IAM based auth, or Azure auth.
   - **Basic Auth**:
     - **Password**: Password to connect to MySQL.
   - **IAM Based Auth**:
@@ -165,6 +169,10 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
     - **Assume Role Source Identity**: The source identity specified by the principal that is calling the `AssumeRole` operation. You can use source identity
       information in AWS CloudTrail logs to determine who took actions with a role.
     Find more information about [Source Identity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=Required%3A%20No-,SourceIdentity,-The%20source%20identity).
+  - **Azure Auth**:
+    - **Scopes**: Required. Provide the scope or comma-separated scopes used to fetch the Azure access token, for example `https://ossrdbms-aad.database.windows.net/.default`.
+    - **Client ID**, **Client Secret**, and **Tenant ID**: Optional when using a service principal. If you do not provide them, OpenMetadata falls back to `DefaultAzureCredential` from the runtime environment.
+    - **Account Name** and **Vault Name**: Part of the shared Azure credentials schema, but not required for MySQL token-based authentication.
 - **Host and Port**: Enter the fully qualified hostname and port number for your MySQL deployment in the Host and Port field.
 - **databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
 - **databaseSchema**: databaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.

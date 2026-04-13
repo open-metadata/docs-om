@@ -59,13 +59,17 @@ GRANT SELECT ON world.* TO '<username>';
 GRANT SELECT ON world.hello TO '<username>';
 ```
 ### Lineage & Usage
-To extract lineage & usage you need to enable the query logging in mysql and the user used in the connection needs to have select access to the `mysql.general_log`.
+To extract lineage & usage, enable query logging in MySQL. By default, OpenMetadata reads from `mysql.general_log`, so the connection user needs `SELECT` access on `mysql.general_log`. If you enable `useSlowLogs`, OpenMetadata reads from `mysql.slow_log` instead, so the same user needs `SELECT` access on `mysql.slow_log`.
 ```sql
--- Enable Logging
+-- Enable general logs (default log source)
 SET GLOBAL general_log='ON';
-set GLOBAL log_output='table';
--- Grant SELECT on log table
+SET GLOBAL log_output='table';
 GRANT SELECT ON mysql.general_log TO '<username>'@'<host>';
+
+-- Optional: if using `useSlowLogs: true`
+SET GLOBAL slow_query_log='ON';
+SET GLOBAL log_output='table';
+GRANT SELECT ON mysql.slow_log TO '<username>'@'<host>';
 ```
 ### 1. Define the YAML Config
 This is a sample config for MySQL Lineage:
@@ -157,7 +161,7 @@ Configure the source type and service name for your MySQL connector.
 
 <ContentSection id={3} title="Basic Auth" lines="8-9">
 
-**authType**: Choose from basic auth and IAM based auth.
+**authType**: Choose from basic auth, IAM based auth, and Azure auth.
 
 #### Basic Auth
 
@@ -165,7 +169,7 @@ Configure the source type and service name for your MySQL connector.
 
 </ContentSection>
 
-<ContentSection id={4} title="IAM Based Auth" lines="12">
+<ContentSection id={4} title="IAM Based Auth" lines="10-14">
 
 #### IAM BASED Auth
 
@@ -227,19 +231,31 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={5} title="Host and Port" lines="13">
+<ContentSection id={5} title="Azure Auth" lines="15-20">
+
+#### Azure Auth
+
+**scopes**: Required. Provide the scope or comma-separated scopes used to fetch the Azure access token, for example `https://ossrdbms-aad.database.windows.net/.default`.
+
+**clientId**, **clientSecret**, and **tenantId**: Optional when using a service principal. If omitted, OpenMetadata falls back to `DefaultAzureCredential` from the runtime environment.
+
+**accountName** and **vaultName**: Part of the shared Azure credentials schema, but not required for MySQL token-based authentication.
+
+</ContentSection>
+
+<ContentSection id={6} title="Host and Port" lines="21">
 
 **Host and Port**: Enter the fully qualified hostname and port number for your MySQL deployment in the Host and Port field.
 
 </ContentSection>
 
-<ContentSection id={6} title="Database Schema" lines="16">
+<ContentSection id={7} title="Database Schema" lines="22-23">
 
 **databaseSchema**: databaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.
 
 </ContentSection>
 
-<ContentSection id={7} title="Connection Options" lines="17">
+<ContentSection id={8} title="Connection Options" lines="25-26">
 
 #### Advanced Configuration
 
@@ -247,7 +263,7 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={8} title="Connection Arguments" lines="18">
+<ContentSection id={9} title="Connection Arguments" lines="27-28">
 
 **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
 
@@ -255,19 +271,19 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={9} title="Source Config" lines="23-66">
+<ContentSection id={10} title="Source Config" lines="29-72">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={10} title="Sink Configuration" lines="67-69">
+<ContentSection id={11} title="Sink Configuration" lines="73-75">
 
 <IngestionSinkDef />
 
 </ContentSection>
 
-<ContentSection id={11} title="Workflow Configuration" lines="70-86">
+<ContentSection id={12} title="Workflow Configuration" lines="76-92">
 
 <WorkflowConfigDef />
 
@@ -287,11 +303,17 @@ source:
       username: <username>  # REQUIRED
       authType:
         password: <password>  # Basic Auth - most common
-      authType:
-        awsConfig:  # IAM Auth for AWS RDS MySQL
-          awsAccessKeyId: access key id
-          awsSecretAccessKey: access secret key
-          awsRegion: aws region name
+      # authType:
+      #   awsConfig:  # IAM Auth for AWS RDS MySQL
+      #     awsAccessKeyId: access key id
+      #     awsSecretAccessKey: access secret key
+      #     awsRegion: aws region name
+      # authType:
+      #   azureConfig:  # Azure AD / Entra auth for Azure Database for MySQL
+      #     scopes: https://ossrdbms-aad.database.windows.net/.default
+      #     clientId: your-client-id
+      #     clientSecret: your-client-secret
+      #     tenantId: your-tenant-id
       hostPort: <hostPort>  # REQUIRED - format: host:port
       databaseSchema: schema  # Optional: restrict to single schema
       databaseName: database_name  # Optional: custom name in OpenMetadata
