@@ -52,7 +52,6 @@ export const Integrations = () => {
                 { name: 'SAP ERP', image: '/public/images/connectors/sap-erp.png', link: '/v1.13.x-SNAPSHOT/connectors/database/sap-erp' },
                 { name: 'SAP HANA', image: '/public/images/connectors/sap-hana.png', link: '/v1.13.x-SNAPSHOT/connectors/database/sap-hana' },
                 { name: 'Snowflake', image: '/public/images/connectors/snowflakes.webp', link: '/v1.13.x-SNAPSHOT/connectors/database/snowflake' },
-                { name: 'ServiceNow', image: '/public/images/connectors/servicenow.png', link: '/v1.13.x-SNAPSHOT/connectors/database/servicenow' },
                 { name: 'SingleStore', image: '/public/images/connectors/singlestore.webp', link: '/v1.13.x-SNAPSHOT/connectors/database/singlestore' },
                 { name: 'Teradata', image: '/public/images/connectors/teradata.webp', link: '/v1.13.x-SNAPSHOT/connectors/database/teradata' },
                 { name: 'TimescaleDB', image: '/public/images/connectors/timescale.webp', link: '/v1.13.x-SNAPSHOT/connectors/database/timescale' },
@@ -83,7 +82,7 @@ export const Integrations = () => {
                 { name: 'MicroStrategy', image: '/public/images/connectors/microstrategy.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/microstrategy' },
                 { name: 'Mode', image: '/public/images/connectors/mode.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/mode' },
                 { name: 'Power BI', image: '/public/images/connectors/power-bi.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/powerbi' },
-                { name: 'PowerBI Report Server', image: '/public/images/connectors/power-bi.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/powerbireportserver' },
+                { name: 'SSRS', image: '/public/images/connectors/ssrs.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/ssrs' },
                 { name: 'Redash', image: '/public/images/connectors/redash.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/redash' },
                 { name: 'Sigma', image: '/public/images/connectors/sigma.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/sigma' },
                 { name: 'Superset', image: '/public/images/connectors/superset.webp', link: '/v1.13.x-SNAPSHOT/connectors/dashboard/superset' },
@@ -105,7 +104,6 @@ export const Integrations = () => {
                 { name: 'Flink', image: '/public/images/connectors/flink.png', link: '/v1.13.x-SNAPSHOT/connectors/pipeline/flink' },
                 { name: 'NiFi', image: '/public/images/connectors/apachenifi.webp', link: '/v1.13.x-SNAPSHOT/connectors/pipeline/nifi' },
                 { name: 'OpenLineage', image: '/public/images/connectors/openlineage.png', link: '/v1.13.x-SNAPSHOT/connectors/pipeline/openlineage' },
-                { name: 'Snowplow', image: '/public/images/connectors/snowplow.png', link: '/v1.13.x-SNAPSHOT/connectors/pipeline/snowplow' },
                 { name: 'Spline', image: '/public/images/connectors/spline.webp', link: '/v1.13.x-SNAPSHOT/connectors/pipeline/spline' },
             ],
         },
@@ -135,13 +133,6 @@ export const Integrations = () => {
             services: [
                 { name: 'AlationSink', image: '/public/images/connectors/alation.webp', link: '/v1.13.x-SNAPSHOT/connectors/metadata/alationsink' },
                 { name: 'Atlas', image: '/public/images/connectors/atlas.webp', link: '/v1.13.x-SNAPSHOT/connectors/metadata/atlas' },
-                { name: 'Collibra', image: '/public/images/connectors/collibra.webp', link: '/v1.13.x-SNAPSHOT/connectors/metadata/collibra' },
-            ],
-        },
-        {
-            connector: 'Security',
-            services: [
-                { name: 'Ranger', image: '/public/images/connectors/ranger.webp', link: '/v1.13.x-SNAPSHOT/connectors/security/ranger' },
             ],
         },
     ];
