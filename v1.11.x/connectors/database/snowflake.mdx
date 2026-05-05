@@ -39,48 +39,59 @@ Configure and schedule Snowflake metadata and profiler workflows from the OpenMe
 - [Troubleshooting](/v1.11.x/connectors/database/snowflake/troubleshooting)
 
 ## Requirements
-To ingest basic metadata snowflake user must have the following privileges:
+To ingest basic metadata, the Snowflake user must have the following privileges:
   - `USAGE` Privilege on Warehouse
   - `USAGE` Privilege on Database
   - `USAGE` Privilege on Schema
   - `SELECT` Privilege on Tables
+  
+Before you grant privileges, replace these placeholders with your own values:
+
+| Placeholder | Description |
+|---|---|
+| `<role_name>` | Name of the new Snowflake role you want to create and assign to the user |
+| `<user_name>` | Username for the new Snowflake user being created |
+| `<password>` | A strong password for the new Snowflake user |
+| `<warehouse_name>` | Name of the Snowflake warehouse the new role needs access to |
+| `<database_name>` | Name of the Snowflake database from which you want to ingest data |
+
 ```sql
--- Create New Role
-CREATE ROLE NEW_ROLE;
--- Create New User
-CREATE USER NEW_USER DEFAULT_ROLE=NEW_ROLE PASSWORD='PASSWORD';
+-- Create new role
+CREATE ROLE <role_name>;
+-- Create new user
+CREATE USER <user_name> DEFAULT_ROLE=<role_name> PASSWORD='<password>';
 -- Grant role to user
-GRANT ROLE NEW_ROLE TO USER NEW_USER;
--- Grant USAGE Privilege on Warehouse to New Role
-GRANT USAGE ON WAREHOUSE WAREHOUSE_NAME TO ROLE NEW_ROLE;
--- Grant USAGE Privilege on Database to New Role
-GRANT USAGE ON DATABASE TEST_DB TO ROLE NEW_ROLE;
--- Grant USAGE Privilege on required Schemas to New Role
-GRANT USAGE on ALL SCHEMAS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT USAGE on FUTURE SCHEMAS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
--- Grant SELECT Privilege on required tables & views to New Role
-GRANT SELECT ON ALL FUTURE TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL EXTERNAL TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL VIEWS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL DYNAMIC TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
--- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to New Role,
--- optional but required for usage, lineage and stored procedure ingestion
-GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE NEW_ROLE;
+GRANT ROLE <role_name> TO USER <user_name>;
+-- Grant USAGE Privilege on Warehouse to new role created above
+GRANT USAGE ON WAREHOUSE <warehouse_name> TO ROLE <role_name>;
+-- Grant USAGE Privilege on Database to new role created above
+GRANT USAGE ON DATABASE <database_name> TO ROLE <role_name>;
+-- Grant USAGE Privilege on required Schemas to new role created above
+GRANT USAGE ON ALL SCHEMAS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT USAGE ON FUTURE SCHEMAS IN DATABASE <database_name> TO ROLE <role_name>;
+-- Grant SELECT Privilege on required tables & views to new role created above
+GRANT SELECT ON ALL FUTURE TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE EXTERNAL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL EXTERNAL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE VIEWS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL VIEWS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE DYNAMIC TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL DYNAMIC TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+-- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to new role created above. 
+-- This is optional but required for usage, lineage and stored procedure ingestion
+GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE <role_name>;
 ```
-<Tip>
-If running any of:
-  - Incremental Extraction
-  - Ingesting Tags
-  - Ingesting Stored Procedures
-  - Lineage & Usage Workflow
-The following Grant is needed
-</Tip>
-- **Incremental Extraction**: Openmetadata fetches the information by querying `snowflake.account_usage.tables`.
-- **Ingesting Tags**: Openmetadata fetches the information by querying `snowflake.account_usage.tag_references`.
-- **Lineage & Usage Workflow**: Openmetadata fetches the query logs by querying `snowflake.account_usage.query_history` table. For this the snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database `SNOWFLAKE`.
-You can find more information about the `account_usage` schema [here](https://docs.snowflake.com/en/sql-reference/account-usage).
-- **Ingesting Stored Procedures**: Openmetadata fetches the information by querying `snowflake.account_usage.procedures` & `snowflake.account_usage.functions`.
+### Additional Privileges
+The following workflows require additional grants:
+
+- **Incremental Extraction**: OpenMetadata fetches the information by querying `snowflake.account_usage.tables`.
+- **Ingesting Tags**: OpenMetadata fetches the information by querying `snowflake.account_usage.tag_references`.
+- **Ingesting Stored Procedures**: OpenMetadata fetches the information by querying `snowflake.account_usage.procedures` & `snowflake.account_usage.functions`.
+- **Lineage & Usage Workflow**: OpenMetadata fetches the query logs by querying `snowflake.account_usage.query_history`. For this, the Snowflake user must be granted the `ACCOUNTADMIN` role or a role with `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database.
+
+  For more information about the `account_usage` schema, see [Account Usage](https://docs.snowflake.com/en/sql-reference/account-usage).
+
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"Snowflake"} selectServicePath={"/public/images/connectors/snowflake/select-service.png"} addNewServicePath={"/public/images/connectors/snowflake/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/snowflake/service-connection.png"} />
 # Connection Details
@@ -104,7 +115,7 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
 
   Ensure your private key is formatted correctly before passing it. The key must be a single line with all line breaks replaced by `\n`.
     
-  For example, if you've the following multi-line key(raw format),
+  For example, if you have the following multi-line key (raw format):
 
   ```
   -----BEGIN ENCRYPTED PRIVATE KEY-----
@@ -121,9 +132,10 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
 
   ```
   -----BEGIN ENCRYPTED PRIVATE KEY-----\nMII..\nMBQ...\nCgU..\n8Lt..\n...\nh+4=\n-----END ENCRYPTED PRIVATE KEY-----\n
+  ```
 
   Replace every newline character in your key with a literal `\n`, including after the final line.
-- **Snowflake Passphrase Key (Optional)**: If you have configured the encrypted key pair authentication for the given user you will have to pass the paraphrase associated with the private key in this field. You can checkout [this](https://docs.snowflake.com/en/user-guide/key-pair-auth) doc to get more details about key-pair authentication.
+- **Snowflake Passphrase Key (Optional)**: If you have configured the encrypted key pair authentication for the given user you will have to pass the passphrase associated with the private key in this field. You can check out [this](https://docs.snowflake.com/en/user-guide/key-pair-auth) doc to get more details about key-pair authentication.
 - **Include Temporary and Transient Tables**:
 Optional configuration for ingestion of `TRANSIENT` and `TEMPORARY` tables, By default, it will skip the `TRANSIENT` and `TEMPORARY` tables.
 - **Include Streams**:
@@ -132,8 +144,8 @@ Optional configuration for ingestion of streams, By default, it will skip the st
 Optional configuration for ingestion of Snowflake stages (internal and external). By default, stages are not ingested.
 - **Query Tag (Optional)**: Session query tag used to monitor usage on Snowflake. To use a query tag, the Snowflake user should have enough privileges to alter the session.
 - **Client Session Keep Alive**: Optional Configuration to keep the session active in case the ingestion job runs for longer duration.
-- **Account Usage Schema Name**: Full name of account usage schema, used in case your used do not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
-When using this field make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
+- **Account Usage Schema Name**: Full name of account usage schema, used in case your user does not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
+When using this field, make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
 </Step>
 <AdvancedConfiguration />
 <TestConnection />
@@ -142,7 +154,7 @@ When using this field make sure you have all these tables available within your 
 </Steps>
 ### Incomplete Column Level for Views
 For views with a tag or policy, you may see incorrect lineage, this can be because user may not have enough access to fetch those policies or tags. You need to grant the following privileges in order to fix it.
-checkout [snowflake docs](https://docs.snowflake.com/en/sql-reference/functions/get_ddl#usage-notes) for further details.
+Check out the [Snowflake docs](https://docs.snowflake.com/en/sql-reference/functions/get_ddl#usage-notes) for further details.
 ```
 GRANT APPLY MASKING POLICY TO ROLE NEW_ROLE;
 GRANT APPLY ROW ACCESS POLICY TO ROLE NEW_ROLE;
@@ -150,6 +162,6 @@ GRANT APPLY AGGREGATION POLICY TO ROLE NEW_ROLE;
 GRANT APPLY PROJECTION POLICY TO ROLE NEW_ROLE;
 GRANT APPLY TAG TO ROLE NEW_ROLE;
 ```
-Depending on your view ddl you can grant the relevant privileged as per above queries.
+Depending on your view ddl you can grant the relevant privileges as per above queries.
 
 <Related />

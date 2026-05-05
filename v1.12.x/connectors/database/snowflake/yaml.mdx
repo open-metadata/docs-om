@@ -63,38 +63,53 @@ To ingest basic metadata snowflake user must have the following privileges:
   - `USAGE` Privilege on Database
   - `USAGE` Privilege on Schema
   - `SELECT` Privilege on Tables
+
+Before you grant privileges, replace these placeholders with your own values:
+
+| Placeholder | Description |
+|---|---|
+| `<role_name>` | Name of the new Snowflake role you want to create and assign to the user |
+| `<user_name>` | Username for the new Snowflake user being created |
+| `<password>` | A strong password for the new Snowflake user |
+| `<warehouse_name>` | Name of the Snowflake warehouse the new role needs access to |
+| `<database_name>` | Name of the Snowflake database from which you want to ingest data |
+
 ```sql
--- Create New Role
-CREATE ROLE NEW_ROLE;
--- Create New User
-CREATE USER NEW_USER DEFAULT_ROLE=NEW_ROLE PASSWORD='PASSWORD';
+-- Create new role
+CREATE ROLE <role_name>;
+-- Create new user
+CREATE USER <user_name> DEFAULT_ROLE=<role_name> PASSWORD='<password>';
 -- Grant role to user
-GRANT ROLE NEW_ROLE TO USER NEW_USER;
--- Grant USAGE Privilege on Warehouse to New Role
-GRANT USAGE ON WAREHOUSE WAREHOUSE_NAME TO ROLE NEW_ROLE;
--- Grant USAGE Privilege on Database to New Role
-GRANT USAGE ON DATABASE TEST_DB TO ROLE NEW_ROLE;
--- Grant USAGE Privilege on required Schemas to New Role
-GRANT USAGE on ALL SCHEMAS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT USAGE on FUTURE SCHEMAS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
--- Grant SELECT Privilege on required tables & views to New Role
-GRANT SELECT ON ALL FUTURE TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL EXTERNAL TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL VIEWS IN DATABASE TEST_DB TO ROLE NEW_ROLE;
-GRANT SELECT ON ALL DYNAMIC TABLES IN DATABASE TEST_DB TO ROLE NEW_ROLE;
+GRANT ROLE <role_name> TO USER <user_name>;
+-- Grant USAGE Privilege on Warehouse to new role created above
+GRANT USAGE ON WAREHOUSE <warehouse_name> TO ROLE <role_name>;
+-- Grant USAGE Privilege on Database to new role created above
+GRANT USAGE ON DATABASE <database_name> TO ROLE <role_name>;
+-- Grant USAGE Privilege on required Schemas to new role created above
+GRANT USAGE ON ALL SCHEMAS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT USAGE ON FUTURE SCHEMAS IN DATABASE <database_name> TO ROLE <role_name>;
+-- Grant SELECT Privilege on required tables & views to new role created above
+GRANT SELECT ON ALL FUTURE TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE EXTERNAL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL EXTERNAL TABLES IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE VIEWS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL VIEWS IN DATABASE <database_name> TO ROLE <role_name>;
+GRANT SELECT ON ALL FUTURE DYNAMIC TABLES IN DATABASE <database_name> TO ROLE <role_name>;
 ```
-While running the usage workflow, Openmetadata fetches the query logs by querying `snowflake.account_usage.query_history` table. For this the snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database `SNOWFLAKE`.
+
+While running the usage workflow, OpenMetadata fetches the query logs by querying `snowflake.account_usage.query_history` table. For this, the Snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database `SNOWFLAKE`.
 ```sql
 -- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to New Role
-GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE NEW_ROLE;
+GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE <role_name>;
 ```
-If ingesting tags, the user should also have permissions to query `snowflake.account_usage.tag_references`.For this the snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the database
+If ingesting tags, the user should also have permissions to query `snowflake.account_usage.tag_references`. For this, the Snowflake user should be granted the `ACCOUNTADMIN` role or a role granted IMPORTED PRIVILEGES on the `SNOWFLAKE` database.
 ```sql
 -- Grant IMPORTED PRIVILEGES on all Schemas of SNOWFLAKE DB to New Role
-GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE NEW_ROLE;
+GRANT IMPORTED PRIVILEGES ON ALL SCHEMAS IN DATABASE SNOWFLAKE TO ROLE <role_name>;
 ```
-You can find more information about the `account_usage` schema [here](https://docs.snowflake.com/en/sql-reference/account-usage).
+For more information about the `account_usage` schema, see [Account Usage](https://docs.snowflake.com/en/sql-reference/account-usage).
+
 ## Metadata Ingestion
 All connectors are defined as JSON Schemas.
 [Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/snowflakeConnection.json)
@@ -150,9 +165,9 @@ Configure the source type and service name for your Snowflake connector.
 
 <ContentSection id={7} title="Account Usage Schema" lines="12">
 
-**accountUsageSchema**: Full name of account usage schema, used in case your used do not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
+**accountUsageSchema**: Full name of account usage schema, used in case your user does not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
 
-When using this field make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
+When using this field, make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
 
 </ContentSection>
 
@@ -192,7 +207,7 @@ When using this field make sure you have all these tables available within your 
 
 Ensure your private key is formatted correctly before passing it. The key must be a single line with all line breaks replaced by `\n`.<br/><br/>
   
-For example, if you've the following multi-line key(raw format):
+For example, if you have the following multi-line key (raw format):
 
 ```
 -----BEGIN ENCRYPTED PRIVATE KEY-----
