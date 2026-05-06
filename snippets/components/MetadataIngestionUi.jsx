@@ -1,53 +1,58 @@
 export const MetadataIngestionUi = ({ connector, selectServicePath, addNewServicePath, serviceConnectionPath }) => {
   return (
-    <Steps>
-      <Step title="Visit the Services Page">
-        Click `Settings` in the side navigation bar and then `Services`.
-
-        The first step is to ingest the metadata from your sources. To do that, you first need to create a Service connection first.
-
-        This Service will be the bridge between OpenMetadata and your source system.
-
-        Once a Service is created, it can be used to configure your ingestion workflows.
-
-        <img src="/public/images/connectors/visit-services-page.png" alt="Visit Services Page" />
+    
+  <>
+    <p>
+      To ingest metadata from your sources, you need to create a service connection.
+      The service connects your source system with Collate. Once you create
+      a service, you can use it to configure your ingestion workflows.<br/>
+      <br/>
+      To create a service connection and ingest your metadata, follow the steps below:
+    </p>
+      <Steps>
+      <Step title="Select the Service">
+        <ol>
+          <li>
+            On the left navigation bar, click <strong>Settings</strong>.
+          </li>
+          <li>
+            On the next page, click <strong>Services</strong>, and then select the service.
+            <img src="/public/images/connectors/visit-services-page.png" alt="Visit Services Page" />
+          </li>
+        </ol>
       </Step>
 
       <Step title="Create a New Service">
-        Click on _Add New Service_ to start the Service creation.
-
+        To add a new service connection, click <strong>Add New Service</strong>.
         <img src="/public/images/connectors/create-new-service.png" alt="Create a new Service" />
       </Step>
 
-      <Step title="Select the Service Type">
-        Select {connector} as the Service type and click _Next_.
+      <Step title="Select the Connector">
+        Select <strong>{connector}</strong> as the service type and click <strong>Next</strong>.
 
         {selectServicePath && <img src={selectServicePath} alt="Select Service" />}
       </Step>
 
       <Step title="Name and Describe your Service">
-        Provide a name and description for your Service.
+        Enter a unique, descriptive <strong>Service Name</strong>, and <strong>Description</strong>.
+        <ul>
+         <li><strong>Service Name</strong>: Collate identifies services by their service name. Enter a name that distinguishes this deployment from other services, including other {connector} services you are ingesting metadata from.</li>
+        </ul>
 
-        <h4>Service Name</h4>
-
-        OpenMetadata uniquely identifies Services by their **Service Name**. Provide
-        a name that distinguishes your deployment from other Services, including
-        the other {connector} Services that you might be ingesting metadata
-        from.
-
-        Note that when the name is set, it cannot be changed.
+        <Note>
+           The service name cannot be changed after it is set.
+       </Note>
 
         {addNewServicePath && <img src={addNewServicePath} alt="Add New Service" />}
       </Step>
 
       <Step title="Configure the Service Connection">
-        In this step, we will configure the connection settings required for {connector}.
-
-        Please follow the instructions below to properly configure the Service to read from your sources. You will also find
-        helper documentation on the right-hand side panel in the UI.
-
+        Set up the connection settings required for {connector}. <br/><br/>
+      
+        Configure the following connection settings to set up the service and start ingesting metadata from your sources. The right-hand panel displays help documentation for the selected connection type in the product UI. <br/><br/>
         {serviceConnectionPath && <img src={serviceConnectionPath} alt="Configure Service connection" />}
       </Step>
     </Steps>
+  </>
   );
 };
