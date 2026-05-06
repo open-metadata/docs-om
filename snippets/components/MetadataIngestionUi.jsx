@@ -36,7 +36,7 @@ export const MetadataIngestionUi = ({ connector, selectServicePath, addNewServic
       <Step title="Name and Describe your Service">
         Enter a unique, descriptive <strong>Service Name</strong>, and <strong>Description</strong>.
         <ul>
-         <li><strong>Service Name</strong>: Collate identifies services by their service name. Enter a name that distinguishes this deployment from other services, including other {connector} services you are ingesting metadata from.</li>
+         <li><strong>Service Name</strong>: OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other services, including other {connector} services you are ingesting metadata from.</li>
         </ul>
 
         <Note>
