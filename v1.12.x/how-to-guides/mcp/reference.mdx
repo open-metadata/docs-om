@@ -5,30 +5,30 @@ sidebarTitle: MCP Tools Reference
 
 # OpenMetadata MCP Tools Reference
 
-All available OpenMetadata MCP tools, with parameters and examples.
+All OpenMetadata MCP tools, with parameters and examples.
 
 ## Available Tools
 
-| # | Tool | Category | Description |
-|---|------|----------|-------------|
-| 1 | `search_metadata` | Discovery | Keyword-based search for data assets and business terms |
-| 2 | `semantic_search` | Discovery | Meaning-based search using vector embeddings |
-| 3 | `get_entity_details` | Discovery | Retrieve full details for a specific entity by FQN |
-| 4 | `get_entity_lineage` | Lineage | Explore upstream/downstream dependencies |
-| 5 | `create_lineage` | Lineage | Create a lineage relationship between two entities |
-| 6 | `get_test_definitions` | Data Quality | List available test definitions for tables or columns |
-| 7 | `create_test_case` | Data Quality | Create a data quality test for a table or column |
-| 8 | `create_glossary` | Governance | Create a new glossary to organize business terms |
-| 9 | `create_glossary_term` | Governance | Add a term to an existing glossary |
-| 10 | `create_metric` | Governance | Create a new metric entity |
-| 11 | `patch_entity` | Governance | Update an existing entity using JSON Patch |
-| 12 | `root_cause_analysis` | Data Quality | Perform root cause analysis via data quality lineage |
+| Tool | Category | Description |
+|------|----------|-------------|
+| [`search_metadata`](#search_metadata) | Discovery | Keyword-based search for data assets and business terms |
+| [`semantic_search`](#semantic_search) | Discovery | Meaning-based search using vector embeddings |
+| [`get_entity_details`](#get_entity_details) | Discovery | Retrieve full details for a specific entity by FQN |
+| [`patch_entity`](#patch_entity) | Governance | Update an existing entity using JSON Patch |
+| [`create_glossary`](#create_glossary) | Governance | Create a new glossary to organize business terms |
+| [`create_glossary_term`](#create_glossary_term) | Governance | Add a term to an existing glossary |
+| [`create_metric`](#create_metric) | Governance | Create a new metric entity |
+| [`get_entity_lineage`](#get_entity_lineage) | Lineage | Explore upstream/downstream dependencies |
+| [`create_lineage`](#create_lineage) | Lineage | Create a lineage relationship between two entities |
+| [`get_test_definitions`](#get_test_definitions) | Data Quality | List available test definitions for tables or columns |
+| [`create_test_case`](#create_test_case) | Data Quality | Create a data quality test for a table or column |
+| [`root_cause_analysis`](#root_cause_analysis) | Data Quality | Perform root cause analysis via data quality lineage |
 
 ---
 
 ## Discovery & Search Tools
 
-### 1. search_metadata
+### search_metadata
 
 **Description**: Find data assets and business terms by keyword. Use when you know specific names, owners, tags, tiers, services, or column names.
 
@@ -133,9 +133,9 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-### 2. semantic_search
+### semantic_search
 
-**Description**: Find data assets by meaning using vector search. Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
+**Description**: Find data assets by meaning using vector search (For more information, see our setup guide [here](/deployment/semantic-search#enable-semantic-search-openmetadata-deployment-guide)). Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
 
 **Use Cases**:
 - Explore data when you don't know exact table names
@@ -194,7 +194,7 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-### 3. get_entity_details
+### get_entity_details
 
 **Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually.
 
@@ -260,152 +260,35 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-## Lineage Tools
-
-### 4. get_entity_lineage
-
-**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `entityType` | string | Yes | Type of entity |
-| `fqn` | string | Yes | Fully qualified name of the entity |
-| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
-| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
-
-#### Examples
-
-**Get Full Lineage**:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "get_entity_lineage",
-    "arguments": {
-      "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
-      "upstreamDepth": 3,
-      "downstreamDepth": 3
-    }
-  }
-}
-```
-
-**Downstream Impact Analysis Only**:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "get_entity_lineage",
-    "arguments": {
-      "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
-      "upstreamDepth": 0,
-      "downstreamDepth": 5
-    }
-  }
-}
-```
-
----
-
-### 5. create_lineage
-
-**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
-| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
-
-#### Example
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "create_lineage",
-    "arguments": {
-      "fromEntity": {
-        "type": "table",
-        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
-      },
-      "toEntity": {
-        "type": "table",
-        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
-      }
-    }
-  }
-}
-```
-
-> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
-
----
-
-## Data Quality Tools
-
-### 6. get_test_definitions
-
-**Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `entityType` | string | Yes | `TABLE` for table-level tests or `COLUMN` for column-level tests |
-| `limit` | integer | No | Max results to return (default: 10) |
-| `after` | string | No | Pagination cursor — use `nextCursor` from the previous response |
-| `testPlatform` | string | No | Filter by platform: `OpenMetadata`, `GreatExpectations`, `DBT`, `Deequ`, `Soda`, `Other` (default: `OpenMetadata`) |
-
-#### Example
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "get_test_definitions",
-    "arguments": {
-      "entityType": "COLUMN",
-      "limit": 20
-    }
-  }
-}
-```
-
----
-
-### 7. create_test_case
-
-**Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
-
-> See the Sandbox/Collate tool schema for the full parameter list, as parameters vary by test definition.
-
----
-
-### 12. root_cause_analysis
-
-**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
-
----
-
 ## Governance Tools
 
-### 8. create_glossary
+### patch_entity
+
+**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "patch_entity",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "patch": [
+        { "op": "replace", "path": "/description", "value": "Updated description for customer orders table." }
+      ]
+    }
+  }
+}
+```
+
+---
+
+### create_glossary
 
 **Description**: Create a new glossary to organize business terms. Set `mutuallyExclusive: true` to restrict entities to a single term from the glossary at a time.
 
@@ -479,7 +362,7 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-### 9. create_glossary_term
+### create_glossary_term
 
 **Description**: Create a new term within an existing glossary. Supports hierarchical parent–child relationships between terms.
 
@@ -536,7 +419,7 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-### 10. create_metric
+### create_metric
 
 **Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
 
@@ -544,9 +427,73 @@ All available OpenMetadata MCP tools, with parameters and examples.
 
 ---
 
-### 11. patch_entity
+## Lineage Tools
 
-**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+### get_entity_lineage
+
+**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity |
+| `fqn` | string | Yes | Fully qualified name of the entity |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+
+#### Examples
+
+**Get Full Lineage**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 3,
+      "downstreamDepth": 3
+    }
+  }
+}
+```
+
+**Downstream Impact Analysis Only**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 0,
+      "downstreamDepth": 5
+    }
+  }
+}
+```
+
+---
+
+### create_lineage
+
+**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
+| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
 
 #### Example
 
@@ -556,15 +503,68 @@ All available OpenMetadata MCP tools, with parameters and examples.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "patch_entity",
+    "name": "create_lineage",
     "arguments": {
-      "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.customer_orders",
-      "patch": [
-        { "op": "replace", "path": "/description", "value": "Updated description for customer orders table." }
-      ]
+      "fromEntity": {
+        "type": "table",
+        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
+      },
+      "toEntity": {
+        "type": "table",
+        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+      }
     }
   }
 }
 ```
+
+> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
+
+---
+
+## Data Quality Tools
+
+### get_test_definitions
+
+**Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | `TABLE` for table-level tests or `COLUMN` for column-level tests |
+| `limit` | integer | No | Max results to return (default: 10) |
+| `after` | string | No | Pagination cursor — use `nextCursor` from the previous response |
+| `testPlatform` | string | No | Filter by platform: `OpenMetadata`, `GreatExpectations`, `DBT`, `Deequ`, `Soda`, `Other` (default: `OpenMetadata`) |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_test_definitions",
+    "arguments": {
+      "entityType": "COLUMN",
+      "limit": 20
+    }
+  }
+}
+```
+
+---
+
+### create_test_case
+
+**Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
+
+> See the Sandbox/Collate tool schema for the full parameter list, as parameters vary by test definition.
+
+---
+
+### root_cause_analysis
+
+**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
 
