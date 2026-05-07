@@ -1,10 +1,9 @@
 export const MetadataIngestionUi = ({ connector, selectServicePath, addNewServicePath, serviceConnectionPath }) => {
   return (
-    
   <>
     <p>
       To ingest metadata from your sources, you need to create a service connection.
-      The service connects your source system with Collate. Once you create
+      The service connects your source system with OpenMetadata. Once you create
       a service, you can use it to configure your ingestion workflows.<br/>
       <br/>
       To create a service connection and ingest your metadata, follow the steps below:
@@ -33,23 +32,21 @@ export const MetadataIngestionUi = ({ connector, selectServicePath, addNewServic
         {selectServicePath && <img src={selectServicePath} alt="Select Service" />}
       </Step>
 
-      <Step title="Name and Describe your Service">
-        Enter a unique, descriptive <strong>Service Name</strong>, and <strong>Description</strong>.
+      <Step title="Name and Describe the Service">
+        Enter a unique <strong>Service Name</strong> and <strong>Description</strong>.
         <ul>
          <li><strong>Service Name</strong>: OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other services, including other {connector} services you are ingesting metadata from.</li>
         </ul>
 
         <Note>
-           The service name cannot be changed after it is set.
+          The service name cannot be changed after it is set.
        </Note>
 
         {addNewServicePath && <img src={addNewServicePath} alt="Add New Service" />}
       </Step>
 
       <Step title="Configure the Service Connection">
-        Set up the connection settings required for {connector}. <br/><br/>
-      
-        Configure the following connection settings to set up the service and start ingesting metadata from your sources. The right-hand panel displays help documentation for the selected connection type in the product UI. <br/><br/>
+        Set up the connection settings required for {connector} to set up the service and start ingesting metadata from your sources. The right-hand panel displays help documentation for the selected connection type in the product UI.
         {serviceConnectionPath && <img src={serviceConnectionPath} alt="Configure Service connection" />}
       </Step>
     </Steps>
