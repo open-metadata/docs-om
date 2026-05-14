@@ -285,10 +285,77 @@ Whether to derive roles from the authentication provider
 List of initial admin users for the system
 
 ## JWT Principal Claims (jwtPrincipalClaims):
-JWT claims used to identify the principal (user)
+**Definition:** The JWT claims OpenMetadata uses to identify the authenticated user.
+
+**Example:**
+
+```yaml
+["preferred_username", "upn", "email", "sub"]
+```
+
+**Why it matters:** OpenMetadata evaluates this list in order and uses the first
+matching claim to identify the user. If none match, authentication fails.
+
+<Note>
+**Note:** If you are using Keycloak or Azure, avoid changing the order of
+claims in `jwtPrincipalClaims` for existing deployments. The system relies
+on claim order to match users in tokens to existing user records — changing
+the order can cause authentication failures.
+</Note>
+
+**Common claim values by provider:**
+
+| Provider | Recommended claims |
+|---|---|
+| Okta | `["preferred_username", "email", "sub"]` |
+| Auth0 | `["preferred_username","email", "sub"]` |
+| Azure | `["preferred_username","email", "sub"]` |
+| Amazon Cognito | `["cognito:username", "email", "sub"]` |
+| Custom OIDC | `["email", "preferred_username", "sub"]` |
+| Keycloak | `["preferred_username","email", "sub"]` |
+| OneLogin | `["preferred_username","email", "sub"]` |
+| SAML | `["preferred_username","email", "sub"]` |
+| LDAP | `["preferred_username","email", "sub"]` |
 
 ## JWT Principal Claims Mapping (jwtPrincipalClaimsMapping):
-Mapping of JWT claims to application-specific claims
+**Definition:** Maps JWT claims to OpenMetadata user profile fields.
+
+**Supported keys:** Only `email` and `username` are valid mapping targets
+in `jwtPrincipalClaimsMapping`.
+
+**Example:**
+
+```yaml
+["email:email", "username:preferred_username"]
+```
+
+**Why it matters:** Controls how SSO login data maps to user profiles in OpenMetadata.
+
+**Format:** `openmetadata_field:jwt_claim` (for example, `"email:email"`).
+
+<Note>
+**Note:** The display name is derived automatically from standard OIDC/JWT
+claims — you don't need to configure it using `jwtPrincipalClaimsMapping`.
+</Note>
+
+If you need richer name handling, make sure your identity provider is configured to include `given_name` and `family_name` as claims in the ID token — OpenMetadata will pick them up automatically. Refer to your identity provider's documentation for instructions:
+
+| Provider | How to enable `given_name` and `family_name` |
+|---|---|
+| Okta | Ensure `profile` scope is requested. See [OpenID Connect & OAuth 2.0 — Scopes and Claims](https://developer.okta.com/docs/api/openapi/okta-oauth/guides/overview) |
+| Auth0 | Included automatically when `profile` scope is requested. See [ID Token Structure](https://auth0.com/docs/secure/tokens/id-tokens/id-token-structure) |
+| Azure | Must be added as optional claims in App Registration → Token configuration. See [Configure optional claims](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims) |
+| Google | Included automatically when `profile` scope is requested. See [OpenID Connect — Sign in with Google](https://developers.google.com/identity/openid-connect/openid-connect) |
+| Amazon Cognito | Must be enabled as standard attributes in the User Pool. See [Working with user attributes](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-attributes.html) |
+| Keycloak | Included automatically when `profile` scope is requested. See [Securing Applications and Services Guide](https://www.keycloak.org/docs/latest/server_admin/index.html#_client_scopes) |
+| OneLogin | Included automatically when `profile` scope is requested. See [Scopes — OpenID Connect](https://developers.onelogin.com/openid-connect/scopes) |
+| SAML | Refer to your IdP's documentation to add `given_name` and `family_name` as assertion attributes |
+| LDAP | Ensure `givenName` and `sn` attributes are populated on user entries in your directory |
+
+<Warning>
+**Important:** Using any other key (for example, `name` or `firstName`) will
+cause the service to fail on startup with a validation error.
+</Warning>
 
 ## Enable Self Signup (enableSelfSignup):
 Allows users to sign up themselves if not already registered
