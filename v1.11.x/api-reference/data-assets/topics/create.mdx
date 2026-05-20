@@ -107,32 +107,34 @@ Create a new topic within a messaging service.
 
 <RequestExample dropdown>
 ```python POST /v1/topics
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
 from metadata.generated.schema.api.data.createTopic import CreateTopicRequest
+from metadata.generated.schema.entity.data.topic import CleanupPolicy
+from metadata.generated.schema.type.schema import Topic as MessageSchema
+from metadata.sdk import configure, client as sdk_client
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+ometa = sdk_client().ometa
 
 request = CreateTopicRequest(
     name="address_book",
     displayName="Address Book",
     service="sample_kafka",
     description="All Protobuf record related events gets captured in this topic",
-    messageSchema={
-        "schemaType": "Protobuf",
-        "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }"
-    },
+    messageSchema=MessageSchema(
+        schemaType="Protobuf",
+        schemaText="syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+    ),
     partitions=1,
-    cleanupPolicies=["delete"],
+    cleanupPolicies=[CleanupPolicy.delete],
     replicationFactor=1,
     maximumMessageSize=1,
     retentionSize=-1
 )
 
-topic = Topics.create(request)
+topic = ometa.create_or_update(data=request)
 print(f"Created: {topic.fullyQualifiedName}")
 ```
 

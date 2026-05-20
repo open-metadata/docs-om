@@ -91,22 +91,25 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 
 <RequestExample dropdown>
 ```python PATCH /v1/topics/{id}
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
+from metadata.generated.schema.entity.data.topic import Topic
+from metadata.sdk import configure, client as sdk_client
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+ometa = sdk_client().ometa
 
-# Retrieve, modify, and update
-topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016")
-topic.description = "Updated: All Protobuf record events captured with enhanced schema"
-topic.messageSchema = {
-    "schemaType": "Protobuf",
-    "schemaText": "syntax = \"proto3\";\npackage tutorial;\nmessage Person { ... }"
-}
-updated = Topics.update(topic)
+# Retrieve, modify a copy, and patch
+topic = ometa.get_by_id(
+    entity=Topic,
+    entity_id="0a021819-982e-4ee4-a5a2-4af30eaa3016",
+)
+updated_topic = topic.model_copy(deep=True)
+updated_topic.description = (
+    "Updated: All Protobuf record events captured with enhanced schema"
+)
+updated = ometa.patch(entity=Topic, source=topic, destination=updated_topic)
 
 print(f"Updated to version {updated.version}")
 ```
