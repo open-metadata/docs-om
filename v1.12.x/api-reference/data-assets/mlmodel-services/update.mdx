@@ -83,28 +83,39 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 
 <RequestExample dropdown>
 ```python PATCH /v1/services/mlmodelServices/{id}
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+import json
+
+from metadata.sdk import configure, client as sdk_client
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+client = sdk_client().ometa.client
 
-# Retrieve, modify, and update
-svc = MlModelServices.retrieve("ca22d46e-81b9-4e48-85b5-0adc44980da9")
-svc.description = "Updated: Production MLflow tracking server with model registry"
-svc.connection = {
-    "config": {
-        "type": "Mlflow",
-        "trackingUri": "http://mlflow-prod:8088",
-        "registryUri": "http://mlflow-prod:8088",
-        "supportsMetadataExtraction": True
-    }
-}
-updated = MlModelServices.update(svc)
+# Update with JSON Patch
+updated = client.patch(
+    "/services/mlmodelServices/ca22d46e-81b9-4e48-85b5-0adc44980da9",
+    data=json.dumps([
+        {
+            "op": "replace",
+            "path": "/description",
+            "value": "Updated: Production MLflow tracking server with model registry",
+        },
+        {
+            "op": "replace",
+            "path": "/connection/config/trackingUri",
+            "value": "http://mlflow-prod:8088",
+        },
+        {
+            "op": "replace",
+            "path": "/connection/config/registryUri",
+            "value": "http://mlflow-prod:8088",
+        },
+    ]),
+)
 
-print(f"Updated to version {updated.version}")
+print(f"Updated to version {updated['version']}")
 ```
 
 ```java PATCH /v1/services/mlmodelServices/{id}

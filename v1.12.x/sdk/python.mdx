@@ -15,10 +15,10 @@ We are now going to present a high-level Python API as a type-safe and gentle wr
 - The Python SDK is part of the `openmetadata-ingestion` base package. You can install it from [PyPI](https://pypi.org/project/openmetadata-ingestion/).
 
 - Make sure to use the same `openmetadata-ingestion` version as your server version. For example, if you have the OpenMetadata
-server at version 1.12.4, you will need to install:
+server at version 1.12.8, you will need to install:
 
 ```python
-pip install "openmetadata-ingestion~=1.12.4.0"
+pip install "openmetadata-ingestion~=1.12.8.0"
 ```
 
 </div>
@@ -160,8 +160,8 @@ DatabaseService -> Database -> Schema -> Table
 
 This will help us showcase how we can reuse the same syntax with the three different Entities.
 
-### 1. Initialize OpenMetadata
-OpenMetadata is the class holding the connection to the API and handling the requests. We can instantiate this by passing the proper configuration to reach the server API:
+### 1. Initialize the SDK
+Configure the shared SDK client once before calling the entity facades:
 
 ```python
 from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, DatabaseServices, Users
@@ -169,14 +169,19 @@ from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, Database
 configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>")
 ```
 
-For local development, we can get a JWT token for the ingestion bot as described [here](/v1.12.x/deployment/security/enable-jwt-tokens#generate-token) and use that when we specify the `jwtToken`. For a real-world deployment, we can also use [different authentication methods](/v1.12.x/deployment/security) and specify other settings of the connection (such as `sslConfig`).
+For local development, we can get a JWT token for the ingestion bot as described [here](/v1.12.x/deployment/security/enable-jwt-tokens#generate-token) and use that when we specify the `jwtToken`. For a real-world deployment, we can also use [different authentication methods](/v1.12.x/deployment/security) and specify other SDK connection settings such as TLS verification.
 
-Below is an example of how the user can configure `sslConfig` using `Python SDK`.
+For TLS verification, pass the SDK configuration fields directly:
 
 ```python
-from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, DatabaseServices, Users
+from metadata.sdk import configure
 
-configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>")
+configure(
+    host="https://your-openmetadata-instance.com/api",
+    jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>",
+    verify_ssl=True,
+    ca_bundle="/path/to/rootCert",
+)
 ```
 
 
@@ -185,9 +190,15 @@ configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-T
 The OpenMetadata SDK configuration is backed by a JSON Schema. You can check the connection definitions [here](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections).
 </Tip>
 
-From this point onwards, we will interact with the API by using `OpenMetadata` methods.
+From this point onwards, we will interact with the API by using entity facades such as `Tables`, `Databases`, `DatabaseSchemas`, and `DatabaseServices`.
 
-An interesting validation we can already make at this point is verifying that the service is reachable and healthy. The `configure()` call performs a health check automatically — if the server is unreachable or the token is invalid, it will raise an error immediately.
+`configure()` initializes the SDK client and validates the server version. If you also need to validate that the service is healthy, call the underlying client's health check explicitly:
+
+```python
+from metadata.sdk import client
+
+assert client().ometa.health_check()
+```
 
 ### 2. Create the DatabaseService
 Following the hierarchy, we need to start by defining a `DatabaseService`. This will be system hosting our `Database`, which will contain the `Table`.
@@ -364,7 +375,7 @@ Let's now update the `Table` by adding an owner. This will require us to create 
 First, make sure that no owner has been set during the creation:
 
 ```python
-print(table_entity.owner)
+print(table_entity.owners)
 # None
 ```
 
@@ -376,16 +387,19 @@ from metadata.generated.schema.api.teams.createUser import CreateUserRequest
 user = Users.create(CreateUserRequest(name="random-user", email="random@user.com"))
 ```
 
-Update our instance of `create_table` to add the `owner` field (we need to use the `Create` class as we'll run a `PUT`), and update the Entity:
+Update the retrieved table entity with the owner reference:
 
 ```python
 from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.generated.schema.type.entityReferenceList import EntityReferenceList
 
-create_table.owner = EntityReference(id=user.id, type="user")
-updated_table_entity = Tables.create(create_table)
+table_entity.owners = EntityReferenceList(
+    root=[EntityReference(id=user.id, type="user")]
+)
+updated_table_entity = Tables.update(table_entity)
 
-print(updated_table_entity.owner)
-# EntityReference(id=Uuid(__root__=UUID('48793f0c-5308-45c1-9bf4-06a82c8d7bf9')), type='user', name='random-user', description=None, displayName=None, href=Href(__root__=AnyUrl('http://localhost:8585/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9', scheme='http', host='localhost', host_type='int_domain', port='8585', path='/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9')))
+print(updated_table_entity.owners)
+# EntityReferenceList(root=[EntityReference(..., type='user', name='random-user', ...)])
 ```
 
 If we did not save the `updated_table_entity` variable, we can retrieve it using `retrieve_by_name` with the proper FQN for `Table`s:

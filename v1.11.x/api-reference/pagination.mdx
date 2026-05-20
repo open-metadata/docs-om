@@ -65,28 +65,18 @@ The `paging` object contains:
 
 <CodeGroup dropdown>
 ```python Basic Pagination
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
-
-metadata = OpenMetadata(config)
+from metadata.sdk import Tables
 
 # Get first page
-first_page = metadata.list_entities(
-    entity=Table,
-    limit=20
-)
+first_page = Tables.list(limit=20)
 
-print(f"Total tables: {first_page.paging.total}")
+print(f"Fetched {len(first_page.entities)} tables")
 for table in first_page.entities:
     print(table.fullyQualifiedName)
 
 # Get next page using after cursor
-if first_page.paging.after:
-    next_page = metadata.list_entities(
-        entity=Table,
-        limit=20,
-        after=first_page.paging.after
-    )
+if first_page.after:
+    next_page = Tables.list(limit=20, after=first_page.after)
     for table in next_page.entities:
         print(table.fullyQualifiedName)
 ```
@@ -140,13 +130,10 @@ curl -X GET "https://your-company.open-metadata.org/api/v1/tables?limit=20&after
 
 <CodeGroup dropdown>
 ```python Iterating Results
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk import Tables
 
-metadata = OpenMetadata(config)
-
-# Iterate through all tables
-for table in metadata.list_all_entities(entity=Table, limit=100):
+# Auto-paginate through all tables
+for table in Tables.list_all(batch_size=100):
     print(table.fullyQualifiedName)
     # Process each table...
 ```
@@ -206,16 +193,13 @@ Combine pagination with filters for efficient data retrieval:
 
 <CodeGroup dropdown>
 ```python Filtering
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk import Tables
 
-metadata = OpenMetadata(config)
-
-# List tables from a specific database
-tables = metadata.list_entities(
-    entity=Table,
-    params={"database": "prod.analytics"},
-    limit=50
+# List tables from a specific database with fields
+tables = Tables.list(
+    limit=50,
+    fields=["owners", "tags"],
+    filters={"database": "prod.analytics"},
 )
 
 for table in tables.entities:

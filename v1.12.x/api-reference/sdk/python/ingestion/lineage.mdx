@@ -36,17 +36,14 @@ A **prerequisite** for this section is to have previously gone through the follo
 
 To prepare the necessary ingredients, execute the following steps.
 
-All functions that we are going to use related to Lineage can be found [here](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/sdk/api/lineage.py).
+All functions that we are going to use related to Lineage can be found in the [SDK Lineage API](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/sdk/api/lineage.py).
 
 ### 1. Preparing the Client
 
 ```python
 from metadata.sdk import configure
 
-configure(
-    host="http://localhost:8585/api",
-    jwt_token="<token>",
-)
+configure(host="http://localhost:8585/api", jwt_token="<token>")
 ```
 
 ### 2. Creating the Database Service
@@ -148,7 +145,8 @@ table_b_entity = Tables.create(table_b)
 
 ### 6. Adding Lineage
 
-With everything prepared, we can now create the lineage between both entities.
+With everything prepared, we can now create the Lineage between both Entities. An `AddLineageRequest` type
+represents the edge between two Entities, typed under `EntitiesEdge`.
 
 ```python
 from metadata.sdk.api import Lineage
@@ -209,8 +207,10 @@ Finally, let's fetch the lineage from the other node involved:
 ```python
 from metadata.sdk.api import Lineage
 
-lineage = Lineage.get_lineage(
-    "test-service-db-lineage.test-db.test-schema.tableB",
+lineage = Lineage.get_entity_lineage(
+    entity_type="table",
+    entity_id=str(table_b_entity.id),
+    # Tune this to control how far in the lineage graph to go
     upstream_depth=1,
     downstream_depth=1,
 )
@@ -269,31 +269,29 @@ In the Lineage Details property we can pass further information specific about T
 - An array of `columnsLineage` as an object with an array of source and destination columns, as well as their own specific transformation function,
 - Optionally, the Entity Reference of a Pipeline powering the transformation from Table A to Table B.
 
-The simple `Lineage.add_lineage(...)` helper covers direct edges. For advanced payloads, construct an `AddLineageRequest`
-and submit it with `Lineage.add_lineage_request(...)`.
-
-Let's see how to do that and play with the possible combinations.
+The API call will be exactly the same as before, but now we will add more ingredients when defining our objects. Let's
+see how to do that and play with the possible combinations:
 
 First, import the required classes and create a new table:
 
 ```python
 from metadata.sdk import Tables
 from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
-from metadata.generated.schema.type.entityReference import EntityReference
 from metadata.generated.schema.type.entityLineage import (
     ColumnLineage,
     EntitiesEdge,
     LineageDetails,
 )
+from metadata.generated.schema.type.entityReference import EntityReference
 
 # Prepare a new table
 table_c = CreateTableRequest(
     name="tableC",
-    databaseSchema=create_schema_entity.ifullyQualifiedName,
+    databaseSchema=create_schema_entity.fullyQualifiedName,
     columns=[Column(name="id", dataType=DataType.BIGINT)],
 )
 
-table_c_entity = metadata.create_or_update(data=table_c)
+table_c_entity = Tables.create(table_c)
 ```
 
 ## Column Level Lineage
@@ -338,40 +336,21 @@ We can as well pass the reference to the pipeline used to create the lineage (e.
 To prepare this example, we need to start by creating the Pipeline Entity. Again, we'll need first
 to prepare the Pipeline Service:
 
+<Info>
+Pipeline service creation is managed through the OpenMetadata UI or the ingestion CLI. Once a pipeline service exists, you can create pipeline entities against it using the SDK as shown below.
+</Info>
+
 ```python
-from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.sdk import Pipelines
 from metadata.generated.schema.api.data.createPipeline import CreatePipelineRequest
-from metadata.generated.schema.api.services.createPipelineService import (
-    CreatePipelineServiceRequest,
-)
-from metadata.generated.schema.entity.services.pipelineService import (
-    PipelineConnection,
-    PipelineService,
-    PipelineServiceType,
-)
-from metadata.generated.schema.entity.services.connections.pipeline.backendConnection import (
-    BackendConnection,
-)
 
-pipeline_service = CreatePipelineServiceRequest(
-    name="test-service-pipeline",
-    serviceType=PipelineServiceType.Airflow,
-    connection=PipelineConnection(
-        config=AirflowConnection(
-            hostPort="http://localhost:8080",
-            connection=BackendConnection(),
-        ),
-    ),
-)
-
-pipeline_service_entity = metadata.create_or_update(data=pipeline_service)
-
+# Assumes "test-service-pipeline" already exists (created via UI or ingestion CLI)
 create_pipeline = CreatePipelineRequest(
     name="test",
-    service=pipeline_service_entity.fullyQualifiedName,
+    service="test-service-pipeline",
 )
 
-pipeline_entity = metadata.create_or_update(data=create_pipeline)
+pipeline_entity = Pipelines.create(create_pipeline)
 ```
 
 With these ingredients ready, we can then follow the code above and add there a `pipeline` argument
@@ -394,10 +373,10 @@ will be surfaced soon. Thanks!
 
 ## Automated SQL lineage
 
-SQL-based lineage parsing is not part of `metadata.sdk.api.Lineage` today. If you need lineage generated from raw SQL,
-use the lineage ingestion workflow or CLI. The older `add_lineage_by_query` helper belongs to the legacy
-`metadata.ingestion.ometa` client surface, not the current `metadata.sdk` API.
-
+<Info>
+SQL-based lineage parsing is handled through the lineage ingestion workflow configuration.
+See the [Lineage Ingestion](/v1.12.x/connectors/pipeline) documentation for details.
+</Info>
 
 ## Automated SQL lineage via CLI
 

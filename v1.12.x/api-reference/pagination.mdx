@@ -66,21 +66,18 @@ The `paging` object contains:
 <CodeGroup dropdown>
 ```python Basic Pagination
 from metadata.sdk import Tables
-from metadata.sdk.entities.tables import TableListParams
 
 # Get first page
-params = TableListParams.builder().limit(20).build()
-first_page = Tables.list(params)
+first_page = Tables.list(limit=20)
 
-print(f"Total tables: {first_page.paging.total}")
-for table in first_page.data:
+print(f"Fetched {len(first_page.entities)} tables")
+for table in first_page.entities:
     print(table.fullyQualifiedName)
 
 # Get next page using after cursor
-if first_page.paging.after:
-    next_params = TableListParams.builder().limit(20).after(first_page.paging.after).build()
-    next_page = Tables.list(next_params)
-    for table in next_page.data:
+if first_page.after:
+    next_page = Tables.list(limit=20, after=first_page.after)
+    for table in next_page.entities:
         print(table.fullyQualifiedName)
 ```
 
@@ -136,7 +133,7 @@ curl -X GET "https://your-company.open-metadata.org/api/v1/tables?limit=20&after
 from metadata.sdk import Tables
 
 # Auto-paginate through all tables
-for table in Tables.list().auto_paging_iterable():
+for table in Tables.list_all(batch_size=100):
     print(table.fullyQualifiedName)
     # Process each table...
 ```
@@ -197,16 +194,15 @@ Combine pagination with filters for efficient data retrieval:
 <CodeGroup dropdown>
 ```python Filtering
 from metadata.sdk import Tables
-from metadata.sdk.entities.tables import TableListParams
 
 # List tables from a specific database with fields
-params = TableListParams.builder() \
-    .limit(50) \
-    .fields(["owners", "tags"]) \
-    .build()
-tables = Tables.list(params)
+tables = Tables.list(
+    limit=50,
+    fields=["owners", "tags"],
+    filters={"database": "prod.analytics"},
+)
 
-for table in tables.data:
+for table in tables.entities:
     print(table.fullyQualifiedName)
 ```
 

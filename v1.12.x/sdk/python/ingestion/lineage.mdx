@@ -36,7 +36,7 @@ A **prerequisite** for this section is to have previously gone through the follo
 
 To prepare the necessary ingredients, execute the following steps.
 
-All functions that we are going to use related to Lineage can be found in [here](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/ingestion/ometa/mixins/lineage_mixin.py)
+All functions that we are going to use related to Lineage can be found in the [SDK Lineage API](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/sdk/api/lineage.py).
 
 ### 1. Preparing the Client
 
@@ -207,8 +207,9 @@ Finally, let's fetch the lineage from the other node involved:
 ```python
 from metadata.sdk.api import Lineage
 
-lineage = Lineage.get_lineage(
-    "test-service-db-lineage.test-db.test-schema.tableB",
+lineage = Lineage.get_entity_lineage(
+    entity_type="table",
+    entity_id=str(table_b_entity.id),
     # Tune this to control how far in the lineage graph to go
     upstream_depth=1,
     downstream_depth=1,
@@ -275,11 +276,13 @@ First, import the required classes and create a new table:
 
 ```python
 from metadata.sdk import Tables
+from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
 from metadata.generated.schema.type.entityLineage import (
     ColumnLineage,
     EntitiesEdge,
     LineageDetails,
 )
+from metadata.generated.schema.type.entityReference import EntityReference
 
 # Prepare a new table
 table_c = CreateTableRequest(
@@ -311,13 +314,15 @@ lineage_details = LineageDetails(
     columnsLineage=[column_lineage],
 )
 
-created_lineage = Lineage.add_lineage(
-    from_entity_id=str(table_a_entity.id),
-    from_entity_type="table",
-    to_entity_id=str(table_c_entity.id),
-    to_entity_type="table",
-    lineage_details=lineage_details,
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        fromEntity=EntityReference(id=table_a_entity.id, type="table"),
+        toEntity=EntityReference(id=table_c_entity.id, type="table"),
+        lineageDetails=lineage_details,
+    ),
 )
+
+created_lineage = Lineage.add_lineage_request(add_lineage_request)
 ```
 
 This information will now be reflected in the UI as well:
@@ -370,7 +375,7 @@ will be surfaced soon. Thanks!
 
 <Info>
 SQL-based lineage parsing is handled through the lineage ingestion workflow configuration.
-See the [Lineage Ingestion](/v1.12.x-SNAPSHOT/connectors/pipeline) documentation for details.
+See the [Lineage Ingestion](/v1.12.x/connectors/pipeline) documentation for details.
 </Info>
 
 ## Automated SQL lineage via CLI

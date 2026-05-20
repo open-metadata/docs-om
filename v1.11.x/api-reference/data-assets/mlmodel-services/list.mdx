@@ -33,33 +33,42 @@ List all ML model services with optional filtering and pagination.
 
 <RequestExample dropdown>
 ```python GET /v1/services/mlmodelServices
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+from metadata.sdk import configure, client as sdk_client
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+client = sdk_client().ometa.client
 
 # List first page
-services = MlModelServices.list(limit=50)
-for svc in services.data:
-    print(f"{svc.fullyQualifiedName} ({svc.serviceType})")
+services = client.get("/services/mlmodelServices", data={"limit": 50})
+for svc in services["data"]:
+    print(f"{svc['fullyQualifiedName']} ({svc['serviceType']})")
 
-# List all with auto-pagination
-for svc in MlModelServices.list_all():
-    print(f"{svc.fullyQualifiedName}")
+# List all with cursor pagination
+after = None
+while True:
+    params = {"limit": 50}
+    if after:
+        params["after"] = after
+    page = client.get("/services/mlmodelServices", data=params)
+    for svc in page["data"]:
+        print(f"{svc['fullyQualifiedName']}")
+    after = page.get("paging", {}).get("after")
+    if not after:
+        break
 
 # List with fields
-services = MlModelServices.list(
-    fields=["owners", "tags", "domains"],
-    limit=50
+services = client.get(
+    "/services/mlmodelServices",
+    data={"fields": "owners,tags,domains", "limit": 50},
 )
 
-for svc in services.data:
-    print(f"{svc.fullyQualifiedName}")
-    if svc.owners:
-        print(f"  Owners: {[o.name for o in svc.owners]}")
+for svc in services["data"]:
+    print(f"{svc['fullyQualifiedName']}")
+    if svc.get("owners"):
+        print(f"  Owners: {[owner['name'] for owner in svc['owners']]}")
 ```
 
 ```java GET /v1/services/mlmodelServices

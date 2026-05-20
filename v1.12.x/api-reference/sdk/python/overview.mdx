@@ -41,11 +41,11 @@ configure()
 ### Working with Entities
 
 ```python
-from metadata.sdk import Tables, DatabaseServices
+from metadata.sdk import Tables
 
-# Get all database services
-services = list(DatabaseServices.list().auto_paging_iterable())
-print(f"Found {len(services)} database services")
+# List a page of tables
+tables_page = Tables.list(limit=10, fields=["owners", "tags"])
+print(f"Found {len(tables_page.entities)} tables on this page")
 
 # Get a specific table by name
 table = Tables.retrieve_by_name("your-service.your-database.your-schema.your-table")
@@ -104,8 +104,8 @@ table = Tables.retrieve_by_name(
 ```python
 from metadata.sdk import Tables
 
-# Auto-paginating iterator for large datasets
-for table in Tables.list().auto_paging_iterable():
+# Auto-paginating helper for large datasets
+for table in Tables.list_all(batch_size=100):
     print(f"Processing table: {table.name}")
 ```
 
@@ -113,11 +113,16 @@ for table in Tables.list().auto_paging_iterable():
 
 ```python
 from metadata.sdk import Tables
-from metadata.sdk.entities.tables import TableListParams
 
 # List with filters and field selection
-params = TableListParams.builder().limit(50).fields(["owners", "tags"]).build()
-tables = Tables.list(params)
+page = Tables.list(
+    limit=50,
+    fields=["owners", "tags"],
+    filters={"database": "prod.analytics"},
+)
+
+for table in page.entities:
+    print(table.fullyQualifiedName)
 ```
 
 #### Update Entities
@@ -127,8 +132,10 @@ from metadata.sdk import Tables
 
 table = Tables.retrieve_by_name("service.database.schema.table")
 table.description = "Updated description"
-updated = Tables.update(str(table.id), table)
+updated = Tables.update(table)
 ```
+
+The entity facade does not expose a separate `patch()` method. `update(entity)` retrieves the current entity and submits a patch using the underlying OpenMetadata client. If you need to send raw JSON Patch operations, call the REST API PATCH endpoint directly.
 
 #### Delete Entities
 
@@ -153,7 +160,7 @@ ref = to_entity_reference(table)
 
 # Use in other entity creation
 if ref:
-    print(f"Table reference ID: {ref.id}")
+    print(f"Table reference ID: {ref['id']}")
 ```
 
 ## Advanced Features
@@ -184,7 +191,7 @@ from metadata.sdk import Tables
 
 # Iterate all tables and filter for a keyword
 matching_tables = [
-    table for table in Tables.list().auto_paging_iterable()
+    table for table in Tables.list_all(batch_size=100)
     if "customer" in table.name.lower()
 ]
 
@@ -198,26 +205,31 @@ for table in matching_tables:
 from metadata.sdk import Tables
 
 # Bulk update table descriptions
-for table in Tables.list().auto_paging_iterable():
+for table in Tables.list_all(batch_size=100):
     if not table.description:
         table.description = f"Production table: {table.name}"
-        Tables.update(str(table.id), table)
+        Tables.update(table)
 ```
 
 ### Lineage Management
 
 ```python
+from metadata.sdk import Tables
 from metadata.sdk.api import Lineage
 
-lineage = Lineage.get_lineage(
-    "service.database.schema.table",
+table = Tables.retrieve_by_name("service.database.schema.table")
+lineage = Lineage.get_entity_lineage(
+    entity_type="table",
+    entity_id=str(table.id),
     upstream_depth=1,
     downstream_depth=1
 )
 
 if lineage:
-    print(f"Upstream entities: {len(lineage.get('upstreamEdges', []))}")
-    print(f"Downstream entities: {len(lineage.get('downstreamEdges', []))}")
+    upstream_edges = lineage.upstreamEdges or []
+    downstream_edges = lineage.downstreamEdges or []
+    print(f"Upstream entities: {len(upstream_edges)}")
+    print(f"Downstream entities: {len(downstream_edges)}")
 ```
 
 ## API Reference
@@ -228,7 +240,7 @@ The Python SDK provides a comprehensive API based on the OpenMetadata data model
 
 - **Entity classes** (`Tables`, `Databases`, `DatabaseSchemas`, `DatabaseServices`, `Users`, etc.): Static-method interfaces for each entity type — no instantiation required
 - **`configure()`**: One-time global setup for host and JWT token
-- **`to_entity_reference(entity)`**: Convert a retrieved entity to an `EntityReference` for use in relationships
+- **`to_entity_reference(entity)`**: Convert a retrieved entity to an `EntityReference`-compatible dictionary for use in relationships
 - **Entity Request Classes**: Pydantic-based typed request objects (e.g., `CreateTableRequest`)
 
 ### Key Methods
@@ -238,9 +250,9 @@ Each entity class exposes the same consistent interface:
 - `EntityClass.create(request)`: Create a new entity
 - `EntityClass.retrieve(entity_id)`: Retrieve entity by UUID
 - `EntityClass.retrieve_by_name(fqn, fields=[])`: Retrieve entity by fully qualified name
-- `EntityClass.list(params=None)`: List entities (returns a pageable result)
-- `EntityClass.list().auto_paging_iterable()`: Auto-paginating generator for all entities
-- `EntityClass.update(entity_id, entity)`: Update an existing entity
+- `EntityClass.list(limit=10, after=None, before=None, fields=None, filters=None)`: List one page of entities; returns an `EntityList` with `entities`, `after`, and `before`
+- `EntityClass.list_all(batch_size=100, fields=None, filters=None)`: Fetch all pages and return a list of entities
+- `EntityClass.update(entity)`: Update an existing entity
 - `EntityClass.delete(entity_id, recursive=False, hard_delete=False)`: Delete an entity
 
 ## Type Safety
@@ -266,5 +278,5 @@ if table:
 
 1. **Configure once**: Call `configure()` once at application startup and reuse globally — no need to pass a client object around
 2. **Error Handling**: Always handle `APIError` exceptions for robust integrations
-3. **Pagination**: Use `.auto_paging_iterable()` for large datasets to avoid loading everything into memory at once
+3. **Pagination**: Use `.list()` for explicit cursor handling or `.list_all()` when you need all pages
 4. **Performance**: Specify only required fields when fetching entities (e.g., `fields=["owners", "tags"]`)
