@@ -1,19 +1,36 @@
 ---
-title: "MCP Tools Reference: Discovery & Search"
-sidebarTitle: "MCP Tools: Discovery & Search"
+title: MCP Tools Reference
+sidebarTitle: MCP Tools Reference
 ---
 
 # OpenMetadata MCP Tools Reference
 
-## Overview
-
-This document provides detailed examples and usage patterns for all available OpenMetadata MCP tools. Each tool includes sample requests, responses, and common use cases.
+All OpenMetadata MCP tools, with parameters and examples.
 
 ## Available Tools
 
-### 1. search_metadata
+| Tool | Category | Description |
+|------|----------|-------------|
+| [`search_metadata`](#search_metadata) | Discovery | Keyword-based search for data assets and business terms |
+| [`semantic_search`](#semantic_search) | Discovery | Meaning-based search using vector embeddings |
+| [`get_entity_details`](#get_entity_details) | Discovery | Retrieve full details for a specific entity by FQN |
+| [`patch_entity`](#patch_entity) | Governance | Update an existing entity using JSON Patch |
+| [`create_glossary`](#create_glossary) | Governance | Create a new glossary to organize business terms |
+| [`create_glossary_term`](#create_glossary_term) | Governance | Add a term to an existing glossary |
+| [`create_metric`](#create_metric) | Governance | Create a new metric entity |
+| [`get_entity_lineage`](#get_entity_lineage) | Lineage | Explore upstream/downstream dependencies |
+| [`create_lineage`](#create_lineage) | Lineage | Create a lineage relationship between two entities |
+| [`get_test_definitions`](#get_test_definitions) | Data Quality | List available test definitions for tables or columns |
+| [`create_test_case`](#create_test_case) | Data Quality | Create a data quality test for a table or column |
+| [`root_cause_analysis`](#root_cause_analysis) | Data Quality | Perform root cause analysis via data quality lineage |
 
-**Description**: Find data assets and business terms in your OpenMetadata catalog.
+---
+
+## Discovery & Search Tools
+
+### search_metadata
+
+**Description**: Find data assets and business terms by keyword. Use when you know specific names, owners, tags, tiers, services, or column names.
 
 **Use Cases**:
 - Discover tables containing specific data
@@ -25,21 +42,28 @@ This document provides detailed examples and usage patterns for all available Op
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | Yes | Keywords to search for |
-| `entity_type` | string | No | Filter by entity type (table, topic, dashboard, etc.) |
-| `limit` | integer | No | Max results to return (default: 10) |
+| `query` | string | No | Keywords to search for |
+| `entityType` | string | No | Filter by entity type (see list below) |
+| `size` | integer | No | Max results to return (default: 10, max: 50) |
+| `from` | integer | No | Offset for pagination (default: 0) |
 | `fields` | string | No | Comma-separated additional fields to include |
+| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query |
+| `includeDeleted` | boolean | No | Include deleted entities (default: false) |
+| `includeAggregations` | boolean | No | Include aggregation/facet data (default: false) |
+| `maxAggregationBuckets` | integer | No | Max buckets per aggregation (default: 10, max: 50) |
 
 #### Entity Types
-- **Service Entities**: databaseService, messagingService, apiService, dashboardService, pipelineService, storageService, mlmodelService, metadataService, searchService
-- **Data Asset Entities**: apiCollection, apiEndpoint, table, storedProcedure, database, databaseSchema, dashboard, dashboardDataModel, pipeline, chart, topic, searchIndex, mlmodel, container
-- **User Entities**: user, team
-- **Domain Entities**: domain, dataProduct
-- **Governance Entities**: metric, glossary, glossaryTerm
+
+- **Service Entities**: `databaseService`, `messagingService`, `apiService`, `dashboardService`, `pipelineService`, `storageService`, `mlmodelService`, `metadataService`, `searchService`
+- **Data Asset Entities**: `apiCollection`, `apiEndpoint`, `table`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `dashboardDataModel`, `pipeline`, `chart`, `topic`, `searchIndex`, `mlmodel`, `container`
+- **User Entities**: `user`, `team`
+- **Domain Entities**: `domain`, `dataProduct`
+- **Governance Entities**: `metric`, `glossary`, `glossaryTerm`
 
 #### Examples
 
 **Basic Search**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -54,7 +78,8 @@ This document provides detailed examples and usage patterns for all available Op
 }
 ```
 
-**Search for Specific Entity Type**:
+**Search for a Specific Entity Type**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -64,14 +89,15 @@ This document provides detailed examples and usage patterns for all available Op
     "name": "search_metadata",
     "arguments": {
       "query": "customer",
-      "entity_type": "table",
-      "limit": 15
+      "entityType": "table",
+      "size": 15
     }
   }
 }
 ```
 
 **Search with Additional Fields**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -81,15 +107,16 @@ This document provides detailed examples and usage patterns for all available Op
     "name": "search_metadata",
     "arguments": {
       "query": "order",
-      "entity_type": "table",
+      "entityType": "table",
       "fields": "columns,queries,upstreamLineage",
-      "limit": 5
+      "size": 5
     }
   }
 }
 ```
 
 **Sample Response**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -98,7 +125,7 @@ This document provides detailed examples and usage patterns for all available Op
     "content": [
       {
         "type": "text",
-        "text": "Found 5 results matching 'sales':\n\n**Tables:**\n1. **sales_transactions** (mysql_prod.ecommerce.public.sales_transactions)\n   - Description: Daily sales transaction records\n   - Service: mysql_prod (MySQL)\n   - Owners: sales-team, john.doe@company.com\n   - Tags: PII, Financial\n   - [View in OpenMetadata](https://your-om.com/table/mysql_prod.ecommerce.public.sales_transactions)\n\n2. **sales_reports** (postgresql_analytics.reporting.main.sales_reports)\n   - Description: Aggregated sales reporting data\n   - Service: postgresql_analytics (PostgreSQL)\n   - Owners: analytics-team\n   - [View in OpenMetadata](https://your-om.com/table/postgresql_analytics.reporting.main.sales_reports)\n\n**Dashboards:**\n3. **Sales Performance Dashboard** (looker_prod.sales.sales_performance)\n   - Description: Real-time sales KPI dashboard\n   - Service: looker_prod (Looker)\n   - Charts: 8 charts\n   - [View in OpenMetadata](https://your-om.com/dashboard/looker_prod.sales.sales_performance)"
+        "text": "Found 5 results matching 'sales':\n\n**Tables:**\n1. **sales_transactions** (mysql_prod.ecommerce.public.sales_transactions)\n   - Description: Daily sales transaction records\n   - Service: mysql_prod (MySQL)\n   - Owners: sales-team, john.doe@company.com\n   - Tags: PII, Financial\n\n2. **sales_reports** (postgresql_analytics.reporting.main.sales_reports)\n   - Description: Aggregated sales reporting data\n   - Service: postgresql_analytics (PostgreSQL)\n\n**Dashboards:**\n3. **Sales Performance Dashboard** (looker_prod.sales.sales_performance)\n   - Description: Real-time sales KPI dashboard\n   - Charts: 8 charts"
       }
     ]
   }
@@ -107,20 +134,82 @@ This document provides detailed examples and usage patterns for all available Op
 
 ---
 
-### 2. get_entity_details
+### semantic_search
 
-**Description**: Retrieve detailed information about a specific entity using its fully qualified name.
+**Description**: Find data assets by meaning using vector search ([setup guide](../../deployment/semantic-search#enable-semantic-search)). Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
+
+**Use Cases**:
+- Explore data when you don't know exact table names
+- Find assets related to a concept (e.g., "customer spending behavior")
+- Discover hidden relationships across services
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `entity_type` | string | Yes | Type of entity (table, topic, dashboard, etc.) |
-| `fqn` | string | Yes | Fully qualified name of the entity |
+| `query` | string | Yes | Natural language description of what you're looking for |
+| `filters` | object | No | Optional filters: `entityType`, `service`, `tags` (each an array of strings) |
+| `size` | integer | No | Number of results to return (default: 10, max: 50) |
+| `k` | integer | No | KNN neighbor count for tuning result quality (default: 100) |
+| `threshold` | number | No | Minimum similarity score 0.0–1.0 (default: 0.0) |
+
+#### Examples
+
+**Conceptual Search**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "semantic_search",
+    "arguments": {
+      "query": "tables tracking customer purchase history and lifetime value"
+    }
+  }
+}
+```
+
+**Search with Filters and Threshold**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "semantic_search",
+    "arguments": {
+      "query": "revenue forecasting and financial reporting",
+      "filters": {
+        "entityType": ["table", "dashboard"],
+        "service": ["BigQuery"]
+      },
+      "threshold": 0.5,
+      "size": 5
+    }
+  }
+}
+```
+
+---
+
+### get_entity_details
+
+**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity (e.g., `table`, `dashboard`, `topic`, `pipeline`) |
+| `fqn` | string | Yes | Fully qualified name — use the exact value from `search_metadata` or `semantic_search` results |
 
 #### Examples
 
 **Get Table Details**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -129,7 +218,7 @@ This document provides detailed examples and usage patterns for all available Op
   "params": {
     "name": "get_entity_details",
     "arguments": {
-      "entity_type": "table",
+      "entityType": "table",
       "fqn": "mysql_prod.ecommerce.public.customer_orders"
     }
   }
@@ -137,6 +226,7 @@ This document provides detailed examples and usage patterns for all available Op
 ```
 
 **Get Dashboard Details**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -145,7 +235,7 @@ This document provides detailed examples and usage patterns for all available Op
   "params": {
     "name": "get_entity_details",
     "arguments": {
-      "entity_type": "dashboard",
+      "entityType": "dashboard",
       "fqn": "superset_prod.sales.quarterly_revenue"
     }
   }
@@ -153,6 +243,7 @@ This document provides detailed examples and usage patterns for all available Op
 ```
 
 **Sample Response**:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -161,9 +252,425 @@ This document provides detailed examples and usage patterns for all available Op
     "content": [
       {
         "type": "text",
-        "text": "## Table: customer_orders\n\n**Fully Qualified Name**: mysql_prod.ecommerce.public.customer_orders\n\n**Basic Information**:\n- **Service**: mysql_prod (MySQL)\n- **Database**: ecommerce\n- **Schema**: public\n- **Type**: Regular Table\n- **Description**: Stores all customer order transactions with order details, timestamps, and status information\n\n**Ownership & Governance**:\n- **Owners**: ecommerce-team, sarah.johnson@company.com\n- **Tags**: PII, Financial, Customer-Data\n- **Tier**: Tier1\n\n**Schema** (5 columns):\n1. **order_id** (BIGINT) - Primary key, unique order identifier\n2. **customer_id** (BIGINT) - Foreign key to customer table\n3. **order_date** (TIMESTAMP) - When the order was placed\n4. **total_amount** (DECIMAL) - Total order value\n5. **status** (VARCHAR) - Order status (pending, completed, cancelled)\n\n**Usage Statistics**:\n- **Row Count**: ~2.5M rows\n- **Size**: 450 MB\n- **Last Updated**: 2024-01-15 09:30:00\n\n[View in OpenMetadata](https://your-om.com/table/mysql_prod.ecommerce.public.customer_orders)"
+        "text": "## Table: customer_orders\n\n**FQN**: mysql_prod.ecommerce.public.customer_orders\n**Service**: mysql_prod (MySQL)\n**Database**: ecommerce | **Schema**: public\n**Description**: Stores all customer order transactions\n\n**Owners**: ecommerce-team, sarah.johnson@company.com\n**Tags**: PII, Financial, Customer-Data | **Tier**: Tier1\n\n**Columns** (5):\n- order_id (BIGINT) - Primary key\n- customer_id (BIGINT) - FK to customer table\n- order_date (TIMESTAMP)\n- total_amount (DECIMAL)\n- status (VARCHAR)"
       }
     ]
+  }
+}
+```
+
+---
+
+## Governance Tools
+
+### patch_entity
+
+**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "patch_entity",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "patch": "[{\"op\":\"replace\",\"path\":\"/description\",\"value\":\"Updated description for customer orders table.\"}]"
+    }
+  }
+}
+```
+
+---
+
+### create_glossary
+
+**Description**: Create a new glossary to organize business terms. Set `mutuallyExclusive: true` to restrict entities to a single term from the glossary at a time.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the glossary |
+| `description` | string | Yes | Description of the glossary's purpose |
+| `mutuallyExclusive` | boolean | Yes | If `true`, only one term from this glossary can tag an entity at a time |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+
+#### Examples
+
+**Create a Business Glossary**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary",
+    "arguments": {
+      "name": "Marketing Terms",
+      "description": "Marketing-related terms used across campaigns, analytics, and reporting",
+      "owners": ["marketing-team", "alice.smith@company.com"],
+      "reviewers": ["data-governance-team"],
+      "mutuallyExclusive": false
+    }
+  }
+}
+```
+
+**Create a Mutually Exclusive Technical Glossary**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary",
+    "arguments": {
+      "name": "Data Quality Metrics",
+      "description": "Standardized definitions for data quality measurements and KPIs",
+      "owners": ["data-quality-team"],
+      "mutuallyExclusive": true
+    }
+  }
+}
+```
+
+**Sample Response**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "✅ Successfully created glossary: **Marketing Terms**\n\n- Owners: marketing-team, alice.smith@company.com\n- Reviewers: data-governance-team\n- Mutually Exclusive: No\n- Status: Active"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### create_glossary_term
+
+**Description**: Create a new term within an existing glossary. Supports hierarchical parent–child relationships between terms.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `glossary` | string | Yes | FQN of the parent glossary |
+| `name` | string | Yes | Name of the term |
+| `description` | string | Yes | Definition of the term |
+| `parentTerm` | string | No | FQN of the parent term (for nested/hierarchical terms) |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+
+#### Examples
+
+**Create a Root-Level Term**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary_term",
+    "arguments": {
+      "glossary": "marketing-terms",
+      "name": "Customer Acquisition Cost",
+      "description": "The total cost of acquiring a new customer, including marketing and sales expenses divided by the number of customers acquired in a specific period",
+      "owners": ["marketing-team", "finance-team"]
+    }
+  }
+}
+```
+
+**Create a Child Term**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary_term",
+    "arguments": {
+      "glossary": "marketing-terms",
+      "parentTerm": "marketing-terms.customer-acquisition-cost",
+      "name": "Organic CAC",
+      "description": "Customer acquisition cost for customers acquired through organic channels (SEO, word of mouth) without paid advertising",
+      "owners": ["marketing-team"]
+    }
+  }
+}
+```
+
+---
+
+### create_metric
+
+**Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the metric |
+| `description` | string | No | Description of the metric in Markdown format |
+| `displayName` | string | No | Human-readable display name for the metric |
+| `metricExpressionLanguage` | string | Yes | Expression language used for the metric (for example, `SQL`) |
+| `metricExpressionCode` | string | Yes | Metric formula/expression in the selected language |
+| `metricType` | string | No | Metric type such as `COUNT`, `SUM`, `AVERAGE`, `RATIO`, or `OTHER` |
+| `granularity` | string | No | Time granularity such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR` |
+| `unitOfMeasurement` | string | No | Unit of measurement such as `COUNT`, `DOLLARS`, `PERCENTAGE`, or `OTHER` |
+| `customUnitOfMeasurement` | string | No | Custom unit string, required when `unitOfMeasurement` is `OTHER` |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+| `relatedMetrics` | array | No | List of related metric FQNs |
+| `tags` | array | No | List of tags to apply |
+| `domains` | array | No | List of domains to associate |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "tools/call",
+  "params": {
+    "name": "create_metric",
+    "arguments": {
+      "name": "monthly_recurring_revenue",
+      "displayName": "Monthly Recurring Revenue",
+      "description": "Monthly recurring revenue from active subscriptions.",
+      "metricExpressionLanguage": "SQL",
+      "metricExpressionCode": "SUM(subscription_amount)",
+      "metricType": "SUM",
+      "granularity": "MONTH",
+      "unitOfMeasurement": "DOLLARS",
+      "owners": ["finance-team"],
+      "reviewers": ["data-governance-team"],
+      "tags": ["Finance", "KPI"],
+      "domains": ["Revenue"]
+    }
+  }
+}
+```
+
+---
+
+## Lineage Tools
+
+### get_entity_lineage
+
+**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity |
+| `fqn` | string | Yes | Fully qualified name of the entity |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+
+#### Examples
+
+**Get Full Lineage**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 3,
+      "downstreamDepth": 3
+    }
+  }
+}
+```
+
+**Downstream-Focused Impact Analysis**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 1,
+      "downstreamDepth": 5
+    }
+  }
+}
+```
+
+---
+
+### create_lineage
+
+**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
+| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_lineage",
+    "arguments": {
+      "fromEntity": {
+        "type": "table",
+        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
+      },
+      "toEntity": {
+        "type": "table",
+        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+      }
+    }
+  }
+}
+```
+
+> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
+
+---
+
+## Data Quality Tools
+
+### get_test_definitions
+
+**Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | `TABLE` for table-level tests or `COLUMN` for column-level tests |
+| `limit` | integer | No | Max results to return (default: 10) |
+| `after` | string | No | Pagination cursor — use `nextCursor` from the previous response |
+| `testPlatform` | string | No | Filter by platform: `OpenMetadata`, `GreatExpectations`, `DBT`, `Deequ`, `Soda`, `Other` (default: `OpenMetadata`) |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_test_definitions",
+    "arguments": {
+      "entityType": "COLUMN",
+      "limit": 20
+    }
+  }
+}
+```
+
+---
+
+### create_test_case
+
+**Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the test case |
+| `fqn` | string | Yes | FQN of the target entity (typically the table FQN) |
+| `testDefinitionName` | string | Yes | Name of the test definition returned by `get_test_definitions` |
+| `parameterValues` | array | Yes | List of test parameter objects (`name` + `value`) required by the test definition |
+| `columnName` | string | No | Column name for column-level test cases |
+| `entityType` | string | No | Target OpenMetadata entity type (default: `table`). For column-level tests, keep `entityType` as `table` and set `columnName`. |
+| `description` | string | No | Optional description of the test case |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "tools/call",
+  "params": {
+    "name": "create_test_case",
+    "arguments": {
+      "name": "customer_id_not_null",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "columnName": "customer_id",
+      "entityType": "table",
+      "testDefinitionName": "columnValuesToBeNotNull",
+      "description": "Ensures customer_id is always populated for downstream joins",
+      "parameterValues": []
+    }
+  }
+}
+```
+
+---
+
+### root_cause_analysis
+
+**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fqn` | string | Yes | FQN of the entity where failure was detected |
+| `entityType` | string | Yes | Entity type to analyze (for example, `table`) |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `queryFilter` | string | No | Optional OpenSearch DSL filter JSON |
+| `includeDeleted` | boolean | No | Include deleted entities in traversal (default: false) |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "tools/call",
+  "params": {
+    "name": "root_cause_analysis",
+    "arguments": {
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "entityType": "table",
+      "upstreamDepth": 4,
+      "downstreamDepth": 1,
+      "includeDeleted": false
+    }
   }
 }
 ```
