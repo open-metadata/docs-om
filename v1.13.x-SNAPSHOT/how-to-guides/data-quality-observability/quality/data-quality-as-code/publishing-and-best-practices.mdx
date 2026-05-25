@@ -41,19 +41,19 @@ from metadata.sdk.data_quality import TestRunner
 
 def run_with_retry(table_fqn, max_retries=3, backoff=2):
     """Run tests with exponential backoff retry"""
-    for attempt in range(max_retries):
+    for attempt in range(max_retries + 1):
         try:
             runner = TestRunner.for_table(table_fqn)
             results = runner.run()
             return results
 
         except ConnectionError as e:
-            if attempt < max_retries - 1:
+            if attempt < max_retries:
                 wait_time = backoff ** attempt
-                print(f"Connection failed, retrying in {wait_time}s...")
+                print(f"Connection failed on attempt {attempt + 1}, retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                print(f"Failed after {max_retries} attempts")
+                print(f"Failed after {max_retries + 1} attempts")
                 raise
 
         except ValueError as e:
