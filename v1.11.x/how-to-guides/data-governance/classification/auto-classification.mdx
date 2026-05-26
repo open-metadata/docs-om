@@ -1,31 +1,54 @@
 ---
 title: Auto-Classification in OpenMetadata
-description: Learn how to set up automatic data classification in OpenMetadata to streamline data governance and ensure consistent tagging across your data assets.
+description: Learn how OpenMetadata automatically detects and tags sensitive data like PII using column name scanning and NLP-based entity recognition.
 sidebarTitle: Overview
 ---
 
-# Auto-Classification Workflow
+# Overview
 
-OpenMetadata identifies PII data and auto tags or suggests the tags. It automatically detects sensitive data and assigns relevant tags such as 'PII Sensitive'. The addition of tags about PII data helps consumers and governance teams identify data that needs to be treated carefully.
+Auto-Classification is an OpenMetadata workflow that automatically detects and tags sensitive data — such as PII — across your database columns. It removes the need for manual tagging by scanning both column names and sample data during ingestion, then applying or suggesting tags like `PII.Sensitive` and `PII.NonSensitive`.
 
-In the example below, the columns ‘last_name’ and ‘social security number’ are auto-tagged as PII-sensitive. This works using NLP as part of the profiler during ingestion.
+## How It Works
 
-<img src="/public/images/how-to-guides/governance/auto1.png" alt="User_name and Social Security Number are Auto-Classified as PII Sensitive" />
+Auto-Classification uses two complementary detection approaches:
 
-In the below example, the column ‘number_of_orders’ is also auto-tagged as Sensitive, even though the column name does not provide much information.
+- **Column Name Scanner**: Validates column names against a set of regex rules that identify common sensitive patterns — email addresses, names, SSNs, bank account numbers, and similar fields.
 
-<img src="/public/images/how-to-guides/governance/auto2.png" alt="Column Name does not provide much information" />
+  For example, columns `email` and `full_name` are auto-tagged as `PII.Sensitive` based on their column names.
 
-When we look at the content of the column ‘number_of_orders’ in the Sample Data tab, it becomes clear that the auto-classification is based on the data in the column.
+  <img src="/public/images/how-to-guides/governance/auto-pii1.png" alt="Columns with recognizable sensitive names auto-tagged as PII Sensitive" />
 
-<img src="/public/images/how-to-guides/governance/auto3.png" alt="Column Data provides information" />
+- **Entity Recognition**: If sample data ingestion is enabled, scans the actual row values using an NLP-based entity recognition engine. This catches sensitive data even when the column name is generic or ambiguous. The `confidence` parameter (0–100, default `80`) controls the minimum score required to tag a column as `PII.Sensitive`.
 
-You can read more about [Auto PII Tagging](/v1.11.x/how-to-guides/data-governance/classification/auto-classification/auto-pii-tagging) here.
+  If a column already has a `PII` tag, it is skipped during execution.
+
+  For example, the column `I_FORMULATION` is also tagged as `PII.Sensitive`, even though its name gives no indication of sensitive content.
+
+  <img src="/public/images/how-to-guides/governance/auto-pii2.png" alt="Column with an ambiguous name tagged as PII Sensitive" />
+
+  Inspecting the **Sample Data** tab reveals that the actual row values contain sensitive information, which the entity recognition engine detected. This shows that auto-classification works beyond column names and relies on the data itself when sample ingestion is enabled.
+
+  <img src="/public/images/how-to-guides/governance/auto-pii3.png" alt="Sample data showing sensitive values that triggered auto-classification" />
 
 ## Tag Mapping
 
-Tag mapping is supported in the backend and not in the OpenMetadata UI. When two related tags are associated with each other, applying one tag, automatically applies the other tag. For example, when the tag `Personal Data.Personal` is applied, it automatically applies another tag `Data Classification.Confidential`. That way, applying the tag `Personal` automatically applies the tag `Confidential`.
+Tag mapping lets you link two tags so that applying one automatically applies the other. When two related tags are associated, any time the first tag is applied to a data asset, the second tag is applied automatically — keeping classifications consistent across taxonomies without extra manual steps.
 
-<Card title="What are Tiers" href="/v1.11.x/how-to-guides/data-governance/classification/tiers" >
-    Tiers helps to define the importance of data to an organization.
+For example, applying `Personal Data.Personal` automatically applies `Data Classification.Confidential`, ensuring that privacy and sensitivity classifications always stay in sync. Tag mappings are configured in the backend and are not available through the OpenMetadata UI.
+
+## Set Up Auto-Classification
+
+<CardGroup cols={2}>
+  <Card title="Workflow" href="/v1.11.x/how-to-guides/data-governance/classification/auto-classification/workflow">
+    Add an Auto Classification Agent to a database service directly from the OpenMetadata UI.
   </Card>
+  <Card title="External Workflow" href="/v1.11.x/how-to-guides/data-governance/classification/auto-classification/external-workflow">
+    Run the Auto Classification Workflow externally using a YAML pipeline configuration.
+  </Card>
+  <Card title="Auto PII Tagging" href="/v1.11.x/how-to-guides/data-governance/classification/auto-classification/auto-pii-tagging">
+    Understand the tagging logic and troubleshoot common issues like SSL certificate errors.
+  </Card>
+  <Card title="Sample Data" href="/v1.11.x/how-to-guides/data-governance/classification/auto-classification/external-sample-data">
+    Store sample data collected during auto-classification to an S3 bucket in Parquet format.
+  </Card>
+</CardGroup>
