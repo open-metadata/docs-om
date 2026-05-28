@@ -1,0 +1,59 @@
+---
+title: Metadata Ingestion - Incremental Extraction - Unity Catalog
+description: Configure incremental metadata extraction for Unity Catalog to sync only changed or deleted tables, reducing ingestion load.
+sidebarTitle: Unity Catalog
+---
+
+# Metadata Ingestion - Incremental Extraction - Unity Catalog
+
+## Approach
+
+To implement Incremental Extraction for Unity Catalog, OpenMetadata queries two system tables after each run:
+
+- **Changed tables**: `information_schema.tables` is filtered by `last_altered` to find tables modified since the last successful run. Each changed table is then fetched individually via the Databricks SDK.
+- **Deleted tables**: `system.access.audit` is queried for `deleteTable` events scoped to the configured catalog. If the `system.access` schema is unavailable, delete detection is skipped with a warning and only changed-table detection runs.
+
+A table that appears in both the changed and deleted sets (dropped and recreated within the window) is kept, not deleted — `information_schema` only lists currently existing tables.
+
+## Requisites
+
+### Changed Table Detection
+
+The ingestion user must have `SELECT` on the catalog's `information_schema.tables`:
+
+```sql
+GRANT SELECT ON `<catalog_name>`.information_schema.tables TO `<user>`;
+```
+
+### Delete Detection (Optional)
+
+To detect dropped tables, the user also needs access to `system.access.audit`. If these grants are absent, delete detection is skipped automatically and a warning is logged.
+
+```sql
+GRANT SELECT ON system.access.audit TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
+```
+
+## Used Queries
+
+### Changed Tables
+
+```sql
+SELECT
+    table_schema,
+    table_name
+FROM `{catalog}`.information_schema.tables
+WHERE last_altered >= timestamp_millis({start_timestamp})
+```
+
+### Deleted Tables
+
+```sql
+SELECT DISTINCT request_params.full_name_arg AS table_full_name
+FROM system.access.audit
+WHERE service_name = 'unityCatalog'
+    AND action_name = 'deleteTable'
+    AND event_date >= date(timestamp_millis({start_timestamp}))
+    AND event_time >= timestamp_millis({start_timestamp})
+    AND substring_index(request_params.full_name_arg, '.', 1) = '{catalog}'
+```
