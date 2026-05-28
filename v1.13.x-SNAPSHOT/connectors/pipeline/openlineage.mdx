@@ -80,6 +80,31 @@ spark = SparkSession.builder\
     .config('spark.openlineage.transport.region', 'us-east-2')\
     .getOrCreate()
 ```
+## How Table Resolution Works
+
+The OpenLineage connector is **read-only** — it resolves lineage edges to entities that already exist in OpenMetadata. It does not create tables, schemas, or databases automatically. This means you must ingest your database sources first before lineage from OpenLineage events will attach correctly.
+
+<Info>
+If a dataset in an OpenLineage event cannot be resolved to an existing OpenMetadata entity, it is skipped with a warning in the ingestion logs. The rest of the event is still processed.
+</Info>
+
+### Resolution Order
+
+When the connector receives an OpenLineage event, it resolves each dataset using the following priority:
+
+1. **Symlink identifiers** — if the event includes a `symlinks` facet, those identities are tried first. This is the shape emitted by Spark for Hive/Glue-cataloged tables backed by object storage (e.g. S3). `LOCATION`-type symlinks (raw physical paths) are skipped.
+2. **Top-level namespace and name** — used as fallback if no symlink resolves.
+
+The first candidate that matches a configured service wins.
+
+### Hive / Iceberg Tables on Object Storage
+
+When Spark writes to a table in a Glue or Hive catalog backed by S3, the OpenLineage event identifies the dataset by its S3 path as the top-level namespace. Prior to 1.12.9, this caused the entity to go unresolved. The connector now reads the `symlinks` facet first, which carries the catalog table identity (`<catalog>.<schema>.<table>`), and resolves it correctly.
+
+<Tip>
+Ensure your Glue or Hive catalog tables are ingested into OpenMetadata before running the OpenLineage pipeline, so the symlink identity can be matched.
+</Tip>
+
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"OpenLineage"} selectServicePath={"/public/images/connectors/openlineage/select-service.png"} addNewServicePath={"/public/images/connectors/openlineage/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/openlineage/service-connection.png"} />
 ## Connection Details
