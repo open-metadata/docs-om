@@ -20,16 +20,27 @@ import ExternalIngestionDeployment from '/snippets/v1.13.x/connectors/external-i
   icon='/public/images/connectors/metabase.webp'
 name="Metabase"
   stage="PROD"
-availableFeatures={["Dashboards", "Charts", "Lineage", "Projects"]}
-  unavailableFeatures={["Owners", "Tags", "Datamodels"]} />
+availableFeatures={["Dashboards", "Charts", "Lineage", "Projects", "Owners"]}
+  unavailableFeatures={["Tags", "Datamodels"]} />
 In this section, we provide guides and references to use the Metabase connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth** — Connect using a Metabase account email and password. The connector obtains a session token automatically.
+- **API Token** — Connect using a Metabase API key. Recommended when basic authentication is disabled (e.g., SSO-enforced environments).
+</Info>
+
 Configure and schedule Metabase metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 <ExternalIngestionDeployment />
 ## Requirements
-The service account must have view access to all dashboards and charts that need to be ingested. Without view access, the connector cannot retrieve those objects.
+The Metabase account or API key used to connect must have view access to all dashboards and charts you want to ingest.
+
+To ingest **owner information**, the account must also have visibility of Metabase user profiles. This is available to admin accounts and accounts in groups with the appropriate permissions.
+
 **Note:** We have tested Metabase with Versions `0.42.4` and `0.43.4`.
+
 ### Python Requirements
 <PythonRequirements />
 To run the Metabase ingestion, you will need to install:
@@ -60,35 +71,41 @@ Configure the source type and service name for your Metabase connector.
 
 <ContentSection id={2} title="Username" lines="7">
 
-**username**: Username to connect to Metabase, for ex. `user@organization.com`. This user should have access to relevant dashboards and charts in Metabase to fetch the metadata.
+**username**: Email address of the Metabase account, for example `user@organization.com`. The account must have view access to the dashboards and charts you want to ingest. Required for Basic Authentication — leave blank if using an API Token.
 
 </ContentSection>
 
 <ContentSection id={3} title="Password" lines="8">
 
-**password**: Password of the user account to connect with Metabase.
+**password**: Password of the user account to connect with Metabase. Required for Basic Authentication — leave blank if using an API Token.
 
 </ContentSection>
 
-<ContentSection id={4} title="Host Port" lines="9">
+<ContentSection id={4} title="API Token" lines="9">
+
+**apiKey**: API key for Metabase. Use this instead of username and password when basic authentication is disabled (e.g., SSO-enforced environments). Generate the key in the Metabase Admin panel under **Settings > Authentication > API Keys**.
+
+</ContentSection>
+
+<ContentSection id={5} title="Host Port" lines="10">
 
 **hostPort**: The hostPort parameter specifies the host and port of the Metabase instance. This should be specified as a string in the format `http://hostname:port` or `https://hostname:port`. For example, you might set the hostPort parameter to `https://org.metabase.com:3000`.
 
 </ContentSection>
 
-<ContentSection id={5} title="Source Config" lines="10-52">
+<ContentSection id={6} title="Source Config" lines="11-53">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={6} title="Sink Configuration" lines="53-55">
+<ContentSection id={7} title="Sink Configuration" lines="54-56">
 
 <IngestionSinkDef />
 
 </ContentSection>
 
-<ContentSection id={7} title="Workflow Configuration" lines="56-72">
+<ContentSection id={8} title="Workflow Configuration" lines="57-73">
 
 <WorkflowConfigDef />
 
@@ -107,6 +124,7 @@ source:
       type: Metabase
       username: <username>
       password: <password>
+      apiKey: <api-token>
       hostPort: <hostPort>
 ```
 
