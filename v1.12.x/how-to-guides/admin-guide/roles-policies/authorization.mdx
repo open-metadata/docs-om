@@ -6,80 +6,102 @@ sidebarTitle: Building Blocks of Authorization - Rules, Policies, and Roles
 
 # Building Blocks of Authorization: Rules, Policies, and Roles
 
-## Building Blocks of Authorization: Rules
+OpenMetadata controls access through three building blocks: rules define what is allowed or denied, policies group rules together and apply them to teams, and roles bundle policies into job-function templates you can assign to users. Every access decision OpenMetadata makes comes down to three questions: who is the user, what are they trying to access, and what do they want to do with it?
 
-A Rule in a Policy is the building block of Authorization. It contains the following:
-1. **Name:** A unique name to define the rule
-2. **Description:** Description of the rule
-3. **Resources:** List of resources this rule applies to. An Admin can select a specific resource, such as Table or All, to apply against all resources.
-4. **Operations:** List of operations this rule applies to. An Admin can select a specific operation such as EditOwner or All to apply against all the operations.
-5. **Condition:** Expressions written using policy functions that evaluate true or false.
-6. **Effect:** Deny or Allow the operation.
+## Rules
+
+A rule in a policy is the building block of authorization. It contains the following:
+1. **Name**: A unique name to define the rule
+2. **Description**: Description of the rule
+3. **Resources**: List of resources this rule applies to. An admin can select a specific resource, such as Table or All, to apply against all resources.
+4. **Operations**: List of operations this rule applies to. An admin can select a specific operation such as EditOwners or All to apply against all the operations.
+5. **Condition**: Expressions written using policy functions that evaluate true or false.
+6. **Effect**: Deny or Allow the operation.
 
 <img src="/public/images/how-to-guides/roles-policies/rules3.png" alt="Building Blocks of Authorization: Rules" />
 
-## Condition
+### Operations
 
-OpenMetadata provides [SpEL](https://docs.spring.io/spring-framework/docs/3.0.x/reference/expressions.html)-based conditions for Admins to select during rule creation.
+When you build a rule, you pick one or more operations to cover. Each operation
+controls a specific action – for example, `ViewAll`, `EditTags`, or `Delete`.
+Operations vary in risk level, from low-risk viewing permissions to critical
+admin-only actions like `Impersonate`, `EditPolicy`, `EditRole`, and `GenerateToken`.
 
-Here are some examples of conditions.
+For a reference for common operations, risk levels, and recommended role assignments, see
+[Resource scope and operations reference](/v1.12.x/how-to-guides/admin-guide/roles-policies/resource-scope).
 
-|  |  |
-|--- | --- |
-| **noOwner()** | Returns true if the resource being accessed has no owner. |
-| **isOwner()** | Returns true if the user accessing the resource is the owner of the resource. |
-| **matchAllTags(tagFqn, [tagFqn…])** | Returns true if the resource has all the tags from the tag list. |
-| **matchAnyTag(tagFqn, [tagFqn…])** | Returns true if the resource has any of the tags from the tag list. |
-| **matchTeam()** | Returns true if the user belongs to the team that owns the resource. |
-| **hasDomain()** | Returns true if the logged in user is the has domain access of the entity being accessed |
+<Warning>
+**Important**: `EditAll` overrides every other edit permission. Only use it when full editing access is intentional – otherwise assign the specific edit operations you need.
+</Warning>
 
-Conditions are used to assess DataAsset like Tables/Topics/Dashboards etc.. for specific attributes.
+### Condition
+
+Conditions let you make a rule apply only when certain things are true about the asset being accessed. For example, you can write a rule that only applies to assets tagged as `PII.Sensitive`, or only to assets that don't have an owner yet.
+
+OpenMetadata uses SpEL-based expressions for conditions. For more information about SpEL expressions, see [Spring Expression Language (SpEL)](https://docs.spring.io/spring-framework/docs/3.0.x/reference/expressions.html).
+
+Following are some examples of conditions:
+
+| Condition | Applies when… |
+|---|---|
+| `noOwner()` | The asset has no assigned owner |
+| `isOwner()` | The person accessing it is the owner |
+| `matchAllTags(tagFqn, ...)` | The asset carries all of the tags listed |
+| `matchAnyTag(tagFqn, ...)` | The asset carries at least one of the tags listed |
+| `matchTeam()` | The user belongs to the team that owns the asset |
+| `hasDomain()` | The user's domain access matches the asset's domain |
+
+Use conditions to assess data assets like Tables, Topics, and Dashboards for specific attributes.
 
 Example: Consider the noOwner() condition when applied to the table **fact_orders**. If this table lacks an assigned owner, then the condition returns **true**. However, if an owner is present, it returns **false**.
 
-Another instance: The ***matchAnyTag(PII.Sensitive)*** condition, when applied to the **dim_address** table that carries the PII.Sensitive tag, will yield **true**. But, without this specific tag, the outcome is **false**.
+Another instance: The ***matchAnyTag('PII.Sensitive')*** condition, when applied to the **dim_address** table that carries the PII.Sensitive tag, will yield **true**. But, without this specific tag, the outcome is **false**.
 
-You can also combine conditions using logical operators like AND (&&) or OR (||).
+You can combine conditions with `&&` (both must be true) or `||` (either can be true). For example:
 
-For instance, the combined condition:
-***noOwner() && matchAllTags('PersonalData.Personal', 'Tier.Tier1', 'Business Glossary.Clothing')***
-will produce a true result if the Data Asset (be it a Table, Topic, etc.) has no assigned owner and concurrently matches all specified tags.
+```
+noOwner() && matchAllTags('PersonalData.Personal', 'Tier.Tier1')
+```
 
-These dynamic conditions empower admins to craft rules that holistically consider the DataAssets and its attributes when dictating access control.
+This condition is true only if the asset has no owner and carries both of the listed tags.
 
-### Default Policy and Rule
+### Default Rules
 
-When navigating to Settings -> Policies -> Organization Policy, you'll discover the default rules set at the organizational level. Here’s a quick breakdown of these rules:
+Go to **Settings** > **Policies** > **Organization Policy** to see the two rules that come built in and apply to everyone in your organization.
 
-<img src="/public/images/how-to-guides/roles-policies/rules4.png" alt="Default Policy and Rule" />
+<img src="/public/images/how-to-guides/roles-policies/rules4.png" alt="Organization Policy showing the two default rules" />
 
-#### OrganizationPolicy-NoOwner-Rule
+-  **OrganizationPolicy-NoOwner-Rule**
 
-<img src="/public/images/how-to-guides/roles-policies/rules5.png" alt="Organization Policy - No Owner - Rule" />
+    <img src="/public/images/how-to-guides/roles-policies/rules5.png" alt="Organization Policy - No Owner - Rule" />
 
-**Purpose:** This rule allows users to assign ownership to resources without an owner.
+    This rule lets any user assign ownership to an asset that doesn't have an owner yet. Once an owner is assigned, the rule no longer applies to that asset.
 
-**Example:** If a user accesses fact_table and finds that it is unowned, then they can modify the ownership field to establish a new owner. However, for a table like dim_address that already has an assigned owner, any attempt to change the ownership will be restricted.
+    For example, if a user accesses fact_table and finds that it is unowned, then they can modify the ownership field to establish a new owner. However, for a table like dim_address that already has an assigned owner, any attempt to change the ownership will be restricted.
 
-#### OrganizationPolicy-Owner-Rule
+- **OrganizationPolicy-Owner-Rule**
 
-<img src="/public/images/how-to-guides/roles-policies/rules6.png" alt="Organization Policy - Owner - Rule" />
+    <img src="/public/images/how-to-guides/roles-policies/rules6.png" alt="Organization Policy - Owner - Rule" />
 
-**Purpose:** This rule grants permissions based on the ownership of a data asset.
+   This rule gives the owner of an asset – or any member of the owning team – full access to edit and view all its details.
 
-**Details:** When a user, who either personally owns a table or is part of the team owning that table logs in, they're granted extensive rights. They can modify all properties of that Data Asset and access complete information about it.
+   When a user, who either personally owns a table or is part of the team owning that table logs in, they're granted extensive rights. They can modify all properties of that data asset and access complete information about it.
 
 By setting up such default rules, the organization ensures clarity in access control based on ownership status and user roles.
 
-## Building Blocks of Authorization: Policies
+## Policies
 
-A policy encompasses multiple rules, as delineated earlier. When a user accesses a resource, the policy evaluates all its associated rules in the context of that user's current session.
+A policy is a named group of rules. When you access a resource in OpenMetadata, it checks all the rules in all the policies that apply to your account and decides whether to allow or deny the action.
 
-**Resolving Conflicts**
-In instances where a policy has contradicting rules - for example, one rule allows "EditDescription" for all resources while another denies the same - the "Deny" action takes precedence.
+### How Policies Work
 
-**Policy Assignments**
-While policies can be associated with a specific team within the organizational hierarchy, they cannot be directly linked to individual users.
+**When rules conflict**
+
+If two rules in the same policy disagree – for example, one allows `EditDescription` and another denies it – the `Deny` always wins.
+
+**How policies are assigned**
+
+Policies are assigned to teams, not to individual users. When you're added to a team, you automatically inherit all the policies assigned to that team.
 
 **Inheritance and Application**
 
@@ -87,51 +109,80 @@ While policies can be associated with a specific team within the organizational 
 
 Any user positioned within a team structure inherently adopts its policies. For instance, if the **"Organization-NoOwner-Policy"** is instituted at the organization's apex, all its internal members will be governed by this policy and the rules therein.
 
-Similarly, if a policy is designated to "Division1" such as “Division Policy”, every member, be it "Department", "Team1", "Team2", or the individual users in these groups, will fall under its purview.
+Similarly, if a policy is assigned to "Division1" such as "Division Policy", every member – whether "Department", "Team1", "Team2", or individual users in these groups – falls under its scope.
 
-However, if you formulate a policy explicitly for "Team1", only the members of "Team1" will be affected.
+However, if you create a policy specifically for "Team1", only its members are affected.
 
-**The Philosophy Behind the Design**
+**Policy Design Principles**
 
-This architecture aims to establish broad, overarching rules at the organizational level, potentially being more lenient in nature. As you move down the hierarchy, teams can sculpt stricter, more tailored policies. For instance, a policy might dictate, "Deny access to everyone outside of Team 1." This ensures a blend of flexibility at the top and precision at the grassroots level.
+This architecture sets broad rules at the organizational level, with more lenient defaults at the top. Teams can then define stricter, more tailored policies as you move down the hierarchy. For example, a policy can say: 'Deny access to everyone outside of Team 1.' This gives you flexibility at the top and precision where it matters most.
 
-## Building Blocks of Authorization: Roles
+When designing policies for sensitive processes, it's also worth thinking
+about who should hold which permissions – not just what the permissions are.
 
-Policies serve as mechanisms to enforce authorization, while Roles offer a more structured hierarchy for the same purpose. Each role is closely aligned with a user's function or job description.
+### Separation of Duties
+
+For teams with compliance or regulatory requirements, it's good practice to make sure no single person can complete a sensitive process from start to finish on their own. Split the steps across two roles so each one requires a different person.
+
+| Process | First role | Second role | Why it's split |
+|---|---|---|---|
+| Pipeline deployment | Data engineer (`Create`, `EditAll`) | Pipeline approver (`Deploy`) | Stops unreviewed pipelines reaching production |
+| PII labelling | Data steward (`EditTags`) | Compliance officer (review via `AuditLogs`) | Makes sure PII labels are independently checked |
+| User provisioning | HR system via SCIM (`CreateScim`) | Admin (`EditRole` assignment) | Prevents someone granting themselves elevated access |
+| Glossary publishing | Business analyst (create term) | Data steward (`EditCertification`) | Requires a steward to sign off before a term goes live |
+
+## Roles
+
+A role is a ready-made bundle of policies that matches a job function. Instead of assigning individual policies to every user, you assign them a role and they get all the right policies in one step.
 
 <img src="/public/images/how-to-guides/roles-policies/role1.png" alt="Building Blocks of Authorization: Roles" />
 
-For instance, in an organization, you might have:
-- **Data Engineers:** Tasked with producing data assets.
-- **Data Scientists:** Responsible for creating dashboards and utilizing assets developed by Data Engineers.
-- **Data Stewards:** Experts in all data-related matters who oversee governance duties within the organization.
+Roles can be assigned to individual users or to entire teams. When a role is assigned to a team, every member of that team gets it automatically – which makes onboarding and offboarding much simpler.
 
-Roles provide the advantage of bundling multiple policies encapsulating a user’s specific function or job. For example, a "Data Consumer" role would encompass a "Data Consumer Policy." Any individual or team assigned this role would automatically be subject to the stipulations outlined in the associated policies.
+Some common examples of how roles map to job functions:
 
-Moreover, roles can be allocated either to individual users or teams within an organizational hierarchy. When a role is assigned to a team, every member of that team inherits the privileges of that role. This design is intentional, aiming to simplify the role assignment process for administrators.
+- **Data engineers** build and maintain data assets – they need `Create`, `Deploy`, and `Trigger`
+- **Analysts** explore and use data – they need `ViewAll`, `ViewUsage`, and `ViewQueries`
+- **Data stewards** manage governance – they need `EditTags`, `EditGlossaryTerms`, and `EditCertification`
+
+A role bundles multiple policies that match a specific job function. For example, a "Data Consumer" role includes a "Data Consumer Policy." Anyone assigned that role – whether an individual or a team – automatically gets all the permissions defined in those policies.
+
+### Common Mistakes to Avoid
+
+| Mistake | Why it's a problem | What to do instead |
+|---|---|---|
+| Assigning `EditAll` when only `EditDescription` is needed | The user ends up with access to change lineage, ownership, and tags – not just descriptions | Assign only `EditDescription` and `EditDisplayName` for documentation roles |
+| Giving `ViewSampleData` to all analysts | Exposes production row-level data broadly across the team | Create a separate role for sample data access and require approval to join it |
+| Using `Delete` outside admin roles | Risks accidental or unauthorised deletion of assets | Keep `Delete` for admins only |
+| Granting `EditPolicy` without regular audit reviews | A user could change their own permissions without anyone noticing | Only admins get `EditPolicy` – review the audit log weekly for policy changes |
+| Using one global role for everyone | Gives people access to assets in domains that have nothing to do with their work | Scope roles to specific domains or resource types where possible |
+| Overlooking Bot and MCP resources | Automated integrations can access or move data if over-permissioned | Treat bot and MCP permissions with the same care as human user permissions |
+| Leaving out `Ingestion Runner` in pipeline roles | Engineers can create pipelines but can't run them | Always pair `Ingestion Pipeline` (`Create`) with `Ingestion Runner` (`Trigger`) |
 
 ## Roles Based Access Controls (RBAC) Search
 
-In OpenMetadata, Role-Based Access Control (RBAC) extends to search functionalities, allowing administrators to enforce granular permissions on metadata assets. By default, the search feature permits all users to access and view available data assets. To restrict search results based on user roles and policies, administrators must enable the Search RBAC setting.​
+By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC search – this ensures users only see assets their role allows them to access.
 
-To enable or disable the **RBAC Search** option, navigate to **Settings > Preferences > Search** in the OpenMetadata UI. This setting controls whether search results are filtered based on the user's assigned roles and permissions.
+To enable or disable this, go to **Settings** > **Preferences** > **Search**.
 
 <img src="/public/images/how-to-guides/roles-policies/rbac-search.png" alt="Roles Based Access Controls (RBAC) Search Option" />
 
-### Implications of Enabling Search RBAC:
+### What Changes When You Turn It On
 
-**Restricted Search Results**: Users will only see search results for data assets they have explicit permissions to access, enhancing data security and compliance.​
+**Search results are filtered by permission** – users only see assets their
+role gives them access to, which helps with data security and compliance.
 
-**Policy Enforcement**: The system will enforce policies at the search level, ensuring that unauthorized users cannot discover or access sensitive metadata.​
+**Permissions apply at the point of discovery** – users can't find or browse
+assets they're not allowed to access, even through search.
 
-### Additional Considerations:
+### Before You Turn It On
 
-**Role and Policy Configuration**: Ensure that roles and policies are appropriately configured to reflect the desired access controls. This includes assigning correct permissions to users and teams for various data assets.​
+**Check your roles and policies are fully configured** – make sure every user and team has the right permissions for the assets they need. Incomplete configuration can cause users to lose visibility of assets they should see.
 
-**Testing**: After enabling Search RBAC, conduct thorough testing to verify that users can access only the data assets permitted by their roles and policies.​
+**Test with real users after enabling** – ask someone from each role to run searches and confirm they're seeing the right results.
 
-For a comprehensive understanding of configuring roles and policies, refer to the [Advanced Guide for Roles and Policies](/v1.12.x/how-to-guides/admin-guide/roles-policies). Implementing Search RBAC ensures that OpenMetadata's search functionality aligns with your organization's data governance and security requirements.​
+For a full guide on setting up roles and policies, see [Roles and Policies](/v1.12.x/how-to-guides/admin-guide/roles-policies). Enabling RBAC search makes sure OpenMetadata's search aligns with your organization's data governance and access requirements.
 
 <Card title="Use Cases: Creating Roles & Policies in OpenMetadata" href="/v1.12.x/how-to-guides/admin-guide/roles-policies/use-cases" >
-    Tailor you policies to meet your organizational and team needs.
+    Tailor your policies to meet your organizational and team needs.
   </Card>
