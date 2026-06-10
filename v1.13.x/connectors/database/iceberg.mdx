@@ -1,0 +1,78 @@
+---
+title: "Apache Iceberg | OpenMetadata Database Connector"
+sidebarTitle: Iceberg
+description: "How OpenMetadata surfaces Apache Iceberg tables through your existing query engine connectors, with full support for metadata ingestion, data quality, profiling, and lineage."
+---
+
+# Apache Iceberg Support in OpenMetadata
+
+[Apache Iceberg](https://iceberg.apache.org/) has become the dominant open table format for data lakes. If you are running analytics at any meaningful scale, Iceberg is likely somewhere in your stack, whether you placed it there intentionally or inherited it through a platform like Snowflake or Databricks.
+
+OpenMetadata's approach to Iceberg is worth explaining, because the design decision is not intuitive at first glance: there is no standalone Iceberg connector. Instead, Iceberg tables are surfaced through the native query engine connectors you are already using.
+
+A companion video walking through this design and a live demo is available here:
+
+<iframe
+  width="100%"
+  style={{ aspectRatio: "16/9" }}
+  src="https://www.youtube.com/embed/aMCpmmywEGs"
+  title="Apache Iceberg Support in OpenMetadata"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+## Background: Early Iceberg Catalog Support
+
+When Iceberg gained traction, early catalog access came through query engines that served as an abstraction layer over the Iceberg catalog. [Trino](https://trino.io/) was one of the first engines to support it in a practical way. [AWS Glue](https://aws.amazon.com/glue/) served as the initial catalog implementation for many teams. The [Iceberg REST Catalog API](https://iceberg.apache.org/rest-catalog-spec/) then arrived, and the ecosystem moved toward that direction, with engines like [Athena](https://docs.aws.amazon.com/athena/), [Dremio](https://www.dremio.com/), [Snowflake](https://www.snowflake.com/en/), and [BigQuery](https://cloud.google.com/bigquery) adding their own integrations on top.
+
+OpenMetadata's initial Iceberg integration followed the same path. It relied on the [PyIceberg](https://py.iceberg.apache.org/) client to fetch metadata and bring it into the platform. That worked when Iceberg was accessed primarily through dedicated tooling. But as adoption broadened and more teams started working with Iceberg tables through their existing query engines, a gap emerged: users could ingest metadata via the Iceberg connector, but they could not run data quality tests or profiling on those tables. The connector brought the metadata in, but it could not delegate computation back to a query engine.
+
+## The Design Shift: Use the Compute Engine, Not the Format
+
+The rethinking that led to the current approach starts with a simple observation: nobody works directly with raw Iceberg. You are not manually traversing manifest files or inspecting the underlying Parquet. You are using Snowflake, Trino, Databricks, Athena, ClickHouse, Doris, StarRocks, or some other compute layer that knows how to talk to your Iceberg catalog.
+
+Those engines already handle the catalog connection, metadata resolution, partition pruning, and all the lower-level mechanics. So rather than building a separate integration path for every Iceberg catalog variant (Polaris, LakeKeeper, Nessie, and whatever comes next), OpenMetadata surfaces Iceberg tables through the native connectors you are already using.
+
+| Your Query Engine | How Iceberg Tables Appear in OpenMetadata |
+|---|---|
+| Snowflake | Via the [Snowflake connector](/connectors/database/snowflake) |
+| Trino | Via the [Trino connector](/connectors/database/trino) |
+| BigQuery | Via the [BigQuery connector](/connectors/database/bigquery) |
+| Athena | Via the [Athena connector](/connectors/database/athena) |
+| Databricks | Via the [Databricks connector](/connectors/database/databricks) |
+| ClickHouse | Via the [ClickHouse connector](/connectors/database/clickhouse) |
+
+The connector you use to bring in your regular tables also brings in the Iceberg-backed ones. Because those connectors have a live query path back to the engine, data quality tests, profiling, lineage, and usage statistics all work the same way they do for any other table.
+
+This matters because it is not just about metadata ingestion. When you run a data quality check against an Iceberg table in OpenMetadata, the actual computation is delegated to your query engine, which is the only component in your stack that knows how to efficiently scan Iceberg data. OpenMetadata does not need to reinvent that.
+
+## What You See After Ingestion
+
+Once your query engine connector is configured and ingestion has run, Iceberg tables appear on the OpenMetadata Explore page alongside all other data assets for that connection. Tables are tagged with their table type, so it is clear which ones are Iceberg-backed.
+
+From there, every standard OpenMetadata feature is available:
+
+- **Data observability** and freshness monitoring
+- **Data profiling** delegated to the query engine
+- **Data quality tests** running against live Iceberg data
+- **Lineage tracking** across schemas and downstream assets
+- **Usage statistics** from query logs
+- **Schema-level ER diagrams** with manually defined relationships
+
+That last point is worth a brief note. ER diagrams for warehouse-style engines often appear empty by default, because systems like Trino do not enforce primary or foreign key constraints the way a relational database does. OpenMetadata handles this by letting you define those relationships manually through the catalog interface. You can link columns, specify foreign key types, and document relationships directly, making the catalog a source of truth for organizational data semantics rather than just a reflection of what the engine enforces.
+
+## What This Means in Practice
+
+If you have Iceberg tables in your environment and you are already using one of OpenMetadata's many connectors, you likely have Iceberg support without any additional configuration. Connect your query engine, run ingestion, and those Iceberg tables show up alongside everything else.
+
+The benefit is consistency. Whether a table lives in a traditional relational database, a columnar warehouse, or an Iceberg-backed data lake, the interaction model inside OpenMetadata is the same. You get the same observability features, the same quality testing interface, and the same lineage tracking. The underlying storage format becomes an implementation detail rather than something data teams need to think about at the catalog level.
+
+For teams managing mixed environments, this is a meaningful simplification. The query engine you are already running handles the heavy lifting. OpenMetadata handles the governance layer on top.
+
+## Next Steps
+
+- [Connect your Trino instance](/connectors/database/trino) to start ingesting Iceberg tables
+- [Set up data quality tests](/how-to-guides/data-quality-observability/quality) on your Iceberg-backed tables
+- [Configure lineage workflows](/how-to-guides/data-lineage/workflow) across your data lake
+- Try the [Product Sandbox](https://sandbox.open-metadata.org/) with demo data
