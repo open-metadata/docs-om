@@ -1,0 +1,325 @@
+---
+title: Add Lineage
+description: Create a lineage edge between two entities
+sidebarTitle: Add Lineage
+api: PUT /v1/lineage
+---
+
+# Add Lineage
+
+Create a lineage edge between two entities. Supports column-level lineage mappings, pipeline references, and SQL query annotations.
+
+## Request Body
+
+<ParamField body="edge" type="object" required>
+  The lineage edge to create.
+
+  <Expandable title="properties">
+    <ParamField body="fromEntity" type="object" required>
+      Entity reference for the lineage source.
+
+      <Expandable title="properties">
+        <ParamField body="id" type="string" required>
+          UUID of the source entity.
+        </ParamField>
+
+        <ParamField body="type" type="string" required>
+          Entity type (e.g., `table`, `dashboard`, `pipeline`, `topic`).
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="toEntity" type="object" required>
+      Entity reference for the lineage destination.
+
+      <Expandable title="properties">
+        <ParamField body="id" type="string" required>
+          UUID of the destination entity.
+        </ParamField>
+
+        <ParamField body="type" type="string" required>
+          Entity type (e.g., `table`, `dashboard`, `pipeline`, `topic`).
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the lineage relationship.
+    </ParamField>
+
+    <ParamField body="lineageDetails" type="object">
+      Optional details for the lineage edge.
+
+      <Expandable title="properties">
+        <ParamField body="sqlQuery" type="string">
+          SQL query driving the transformation.
+        </ParamField>
+
+        <ParamField body="columnsLineage" type="array">
+          Column-level lineage mappings.
+
+          <Expandable title="properties">
+            <ParamField body="fromColumns" type="array">
+              List of source column fully qualified names.
+            </ParamField>
+
+            <ParamField body="toColumn" type="string">
+              Destination column fully qualified name.
+            </ParamField>
+          </Expandable>
+        </ParamField>
+
+        <ParamField body="pipeline" type="object">
+          Entity reference for the pipeline powering the transformation.
+
+          <Expandable title="properties">
+            <ParamField body="id" type="string" required>
+              UUID of the pipeline entity.
+            </ParamField>
+
+            <ParamField body="type" type="string" required>
+              Must be `pipeline`.
+            </ParamField>
+          </Expandable>
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/lineage
+from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
+from metadata.generated.schema.type.entityLineage import (
+    ColumnLineage,
+    EntitiesEdge,
+    LineageDetails,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="<YOUR-JWT-TOKEN>"
+    ),
+)
+metadata = OpenMetadata(server_config)
+
+# Simple lineage between two tables
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        description="ETL transformation",
+        fromEntity=EntityReference(id=source_table.id, type="table"),
+        toEntity=EntityReference(id=target_table.id, type="table"),
+    ),
+)
+created_lineage = metadata.add_lineage(data=add_lineage_request)
+
+# With column-level lineage and SQL query
+column_lineage = ColumnLineage(
+    fromColumns=["service.db.schema.source_table.customer_id"],
+    toColumn="service.db.schema.target_table.cust_id",
+)
+
+lineage_details = LineageDetails(
+    sqlQuery="INSERT INTO target_table SELECT customer_id FROM source_table",
+    columnsLineage=[column_lineage],
+    pipeline=EntityReference(id=pipeline_entity.id, type="pipeline"),
+)
+
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        fromEntity=EntityReference(id=source_table.id, type="table"),
+        toEntity=EntityReference(id=target_table.id, type="table"),
+        lineageDetails=lineage_details,
+    ),
+)
+created_lineage = metadata.add_lineage(data=add_lineage_request)
+
+# Automated SQL lineage (parses SQL to extract lineage)
+from metadata.generated.schema.entity.services.databaseService import DatabaseService
+
+database_service = metadata.get_by_name(entity=DatabaseService, fqn="my_service")
+metadata.add_lineage_by_query(
+    database_service=database_service,
+    sql="INSERT INTO target_table(id) SELECT id FROM source_table",
+    timeout=200,
+)
+```
+
+```java PUT /v1/lineage
+import org.openmetadata.sdk.api.Lineage;
+
+// Simple lineage between two entities
+Lineage.LineageEdge edge = Lineage.connect()
+    .from("table", sourceTableId)
+    .to("dashboard", dashboardId)
+    .withDescription("Dashboard uses data from this table")
+    .execute();
+
+// With column-level lineage, pipeline, and SQL query
+Lineage.LineageEdge edge = Lineage.connect()
+    .from("table", sourceTableId)
+    .fromColumns("customer_id", "order_date")
+    .to("table", targetTableId)
+    .toColumns("cust_id", "date")
+    .withPipeline("pipeline", pipelineId)
+    .withDescription("ETL transformation")
+    .withSqlQuery("SELECT customer_id, order_date FROM source")
+    .execute();
+```
+
+```bash PUT /v1/lineage
+# Simple lineage between two tables
+curl -X PUT "{base_url}/api/v1/lineage" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edge": {
+      "fromEntity": {"id": "source-table-uuid", "type": "table"},
+      "toEntity": {"id": "target-table-uuid", "type": "table"},
+      "description": "ETL transformation"
+    }
+  }'
+
+# With column-level lineage and SQL query
+curl -X PUT "{base_url}/api/v1/lineage" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edge": {
+      "fromEntity": {"id": "source-table-uuid", "type": "table"},
+      "toEntity": {"id": "target-table-uuid", "type": "table"},
+      "lineageDetails": {
+        "sqlQuery": "INSERT INTO target SELECT id, name FROM source",
+        "columnsLineage": [
+          {
+            "fromColumns": ["service.db.schema.source.id"],
+            "toColumn": "service.db.schema.target.id"
+          }
+        ],
+        "pipeline": {"id": "pipeline-uuid", "type": "pipeline"}
+      }
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "entity": {
+    "id": "e7bee99b-5c5e-43ec-805c-8beba04804f5",
+    "type": "table",
+    "name": "source_table",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify.source_table",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/tables/e7bee99b-5c5e-43ec-805c-8beba04804f5"
+  },
+  "nodes": [
+    {
+      "id": "800caa0f-a149-48d2-a0ce-6ca84501767e",
+      "type": "table",
+      "name": "target_table",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.target_table",
+      "deleted": false,
+      "href": "http://localhost:8585/api/v1/tables/800caa0f-a149-48d2-a0ce-6ca84501767e"
+    }
+  ],
+  "upstreamEdges": [],
+  "downstreamEdges": [
+    {
+      "fromEntity": "e7bee99b-5c5e-43ec-805c-8beba04804f5",
+      "toEntity": "800caa0f-a149-48d2-a0ce-6ca84501767e",
+      "lineageDetails": {
+        "sqlQuery": "INSERT INTO target SELECT id, name FROM source",
+        "columnsLineage": [
+          {
+            "fromColumns": [
+              "sample_data.ecommerce_db.shopify.source_table.id"
+            ],
+            "toColumn": "sample_data.ecommerce_db.shopify.target_table.id"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the lineage graph for the `fromEntity` node, including the newly created edge.
+
+## Response
+
+<ResponseField name="entity" type="object">
+  The entity reference for the source node of the created lineage edge.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier (UUID).
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Entity type.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Entity name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="nodes" type="array">
+  List of entity references for all connected nodes.
+</ResponseField>
+
+<ResponseField name="upstreamEdges" type="array">
+  Edges pointing into the source entity.
+</ResponseField>
+
+<ResponseField name="downstreamEdges" type="array">
+  Edges pointing away from the source entity, including the newly created edge.
+
+  <Expandable title="properties">
+    <ResponseField name="fromEntity" type="string">
+      UUID of the source entity.
+    </ResponseField>
+
+    <ResponseField name="toEntity" type="string">
+      UUID of the destination entity.
+    </ResponseField>
+
+    <ResponseField name="lineageDetails" type="object">
+      Details about the lineage edge including `sqlQuery`, `columnsLineage`, and `pipeline` if provided.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create lineage |
+| `404` | `NOT_FOUND` | One of the referenced entities does not exist |

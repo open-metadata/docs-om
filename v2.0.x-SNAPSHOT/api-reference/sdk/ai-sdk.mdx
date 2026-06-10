@@ -1,0 +1,308 @@
+---
+title: AI SDK
+description: Connect any LLM to your metadata catalog with OpenMetadata's MCP tools. Available across Python, TypeScript, and Java.
+sidebarTitle: AI SDK
+---
+
+# AI SDK
+
+The AI SDK gives you programmatic access to OpenMetadata's MCP tools — use them to build custom AI
+applications with any LLM by connecting to your metadata catalog. Available across Python,
+TypeScript, and Java.
+
+<Tip>
+
+**Using [Collate](https://www.getcollate.io)?** You also get access to **AI Studio Agents** — ready-to-use
+AI assistants that you can create, manage, and invoke programmatically.
+See the [Collate AI SDK documentation](https://docs.getcollate.io/sdk/ai-sdk) for the full agent capabilities.
+
+</Tip>
+
+<Tip>
+
+You can find the source code for the AI SDK in the [GitHub repository](https://github.com/open-metadata/ai-sdk).
+Contributions are always welcome!
+
+</Tip>
+
+## Available SDKs
+
+| SDK | Package | Install |
+|-----|---------|---------|
+| Python | [`data-ai-sdk`](https://pypi.org/project/data-ai-sdk/) | `pip install data-ai-sdk` |
+| TypeScript | [`@openmetadata/ai-sdk`](https://www.npmjs.com/package/@openmetadata/ai-sdk) | `npm install @openmetadata/ai-sdk` |
+| Java | [`org.open-metadata:ai-sdk`](https://central.sonatype.com/artifact/org.open-metadata/ai-sdk) | Maven / Gradle |
+
+## Prerequisites
+
+You need:
+
+1. **An OpenMetadata instance** (self-hosted or [Collate](https://www.getcollate.io))
+2. **A Bot JWT token** for API authentication
+
+To get a JWT token, go to **Settings > Bots** in your OpenMetadata instance, select your bot, and copy the token.
+
+## Configuration
+
+Set the following environment variables:
+
+```bash
+export AI_SDK_HOST="https://your-openmetadata-instance.com"
+export AI_SDK_TOKEN="your-bot-jwt-token"
+```
+
+All environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AI_SDK_HOST` | Yes | - | Your OpenMetadata server URL |
+| `AI_SDK_TOKEN` | Yes | - | Bot JWT token |
+| `AI_SDK_TIMEOUT` | No | `120` | Request timeout in seconds |
+| `AI_SDK_VERIFY_SSL` | No | `true` | Verify SSL certificates |
+| `AI_SDK_MAX_RETRIES` | No | `3` | Number of retry attempts |
+| `AI_SDK_RETRY_DELAY` | No | `1.0` | Base delay between retries (seconds) |
+
+## Client Initialization
+
+<CodeGroup>
+
+```python Python
+from ai_sdk import AISdk, AISdkConfig
+
+# From environment variables
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# Or directly
+client = AISdk(
+    host="https://your-openmetadata-instance.com",
+    token="your-bot-jwt-token",
+)
+```
+
+```typescript TypeScript
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-openmetadata-instance.com',
+  token: 'your-bot-jwt-token'
+});
+```
+
+```java Java
+import io.openmetadata.ai.AISdk;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-openmetadata-instance.com")
+    .token("your-bot-jwt-token")
+    .build();
+```
+
+</CodeGroup>
+
+---
+
+## MCP Tools
+
+OpenMetadata exposes an [MCP server](https://modelcontextprotocol.io/) that turns your metadata
+into a set of tools any LLM can use. Unlike generic MCP connectors that only read raw database schemas,
+OpenMetadata's MCP tools give your AI access to the **full context** of your data platform — descriptions,
+owners, lineage, glossary terms, tags, and data quality results.
+
+The MCP endpoint is available at `POST /mcp` using the [JSON-RPC 2.0](https://www.jsonrpc.org/) protocol.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `search_metadata` | Search across all metadata in OpenMetadata (tables, dashboards, pipelines, topics, etc.) |
+| `semantic_search` | AI-powered semantic search that understands meaning and context beyond keyword matching |
+| `get_entity_details` | Get detailed information about a specific entity by ID or fully qualified name |
+| `get_entity_lineage` | Get upstream and downstream lineage for an entity |
+| `create_glossary` | Create a new glossary in OpenMetadata |
+| `create_glossary_term` | Create a new term within an existing glossary |
+| `create_lineage` | Create a lineage edge between two entities |
+| `patch_entity` | Update an entity's metadata (description, tags, owners, etc.) |
+| `get_test_definitions` | List available data quality test definitions |
+| `create_test_case` | Create a data quality test case for an entity |
+| `root_cause_analysis` | Analyze root causes of data quality failures |
+
+### Using MCP Tools Directly
+
+You can call MCP tools directly through the SDK client:
+
+```python
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# List available tools
+tools = client.mcp.list_tools()
+for tool in tools:
+    print(f"{tool.name}: {tool.description}")
+
+# Search for tables
+result = client.mcp.call_tool("search_metadata", {
+    "query": "customers",
+    "entity_type": "table",
+    "limit": 5,
+})
+print(result.data)
+
+# Get entity details
+result = client.mcp.call_tool("get_entity_details", {
+    "fqn": "sample_data.ecommerce_db.shopify.customers",
+    "entity_type": "table",
+})
+print(result.data)
+
+# Get lineage
+result = client.mcp.call_tool("get_entity_lineage", {
+    "entity_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "upstream_depth": 3,
+    "downstream_depth": 2,
+})
+print(result.data)
+```
+
+### LangChain Integration
+
+Convert OpenMetadata's MCP tools to LangChain format with a single method call. This lets you use your
+metadata as tools in any LangChain agent.
+
+```bash
+pip install data-ai-sdk[langchain]
+```
+
+```python
+from ai_sdk import AISdk, AISdkConfig
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# Convert MCP tools to LangChain format
+tools = client.mcp.as_langchain_tools()
+
+llm = ChatOpenAI(model="gpt-4o")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a metadata assistant powered by OpenMetadata."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+result = executor.invoke({
+    "input": "Find tables related to customers and show their lineage"
+})
+print(result["output"])
+```
+
+### Tool Filtering
+
+Control which tools are exposed to your LLM by including or excluding specific tools. This is useful
+for restricting agents to read-only operations or limiting scope.
+
+```python
+from ai_sdk.mcp.models import MCPTool
+
+# Only include read-only tools
+tools = client.mcp.as_langchain_tools(
+    include=[
+        MCPTool.SEARCH_METADATA,
+        MCPTool.SEMANTIC_SEARCH,
+        MCPTool.GET_ENTITY_DETAILS,
+        MCPTool.GET_ENTITY_LINEAGE,
+        MCPTool.GET_TEST_DEFINITIONS,
+    ]
+)
+
+# Or exclude mutation tools
+tools = client.mcp.as_langchain_tools(
+    exclude=[MCPTool.PATCH_ENTITY, MCPTool.CREATE_GLOSSARY, MCPTool.CREATE_GLOSSARY_TERM]
+)
+```
+
+### Multi-Agent Orchestrator
+
+Build a multi-agent system where specialist agents each get focused MCP tools:
+
+```python
+from ai_sdk.mcp.models import MCPTool
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+# Discovery specialist — search and read operations
+discovery_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.SEMANTIC_SEARCH,
+    MCPTool.SEARCH_METADATA,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Lineage specialist — lineage exploration
+lineage_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_LINEAGE,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Curator specialist — write operations
+curator_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_DETAILS,
+    MCPTool.PATCH_ENTITY,
+    MCPTool.CREATE_GLOSSARY_TERM,
+])
+
+llm = ChatOpenAI(model="gpt-4o")
+
+def create_specialist(tools, system_prompt):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+discovery = create_specialist(discovery_tools, "You are a data discovery specialist.")
+lineage = create_specialist(lineage_tools, "You are a lineage exploration specialist.")
+curator = create_specialist(curator_tools, "You are a metadata curation specialist.")
+```
+
+### OpenAI Integration
+
+Convert MCP tools to OpenAI function calling format:
+
+```python
+import json
+from openai import OpenAI
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+om_client = AISdk.from_config(config)
+openai_client = OpenAI()
+
+tools = om_client.mcp.as_openai_tools()
+executor = om_client.mcp.create_tool_executor()
+
+response = openai_client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Find customer tables"}],
+    tools=tools,
+)
+
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        result = executor(
+            tool_call.function.name,
+            json.loads(tool_call.function.arguments)
+        )
+        print(f"Tool: {tool_call.function.name}")
+        print(f"Result: {result}")
+```

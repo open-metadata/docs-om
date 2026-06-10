@@ -1,0 +1,521 @@
+---
+title: Airflow REST API Connection | Authentication & OpenLineage Setup
+description: Complete guide to connecting OpenMetadata to Airflow via the REST API — covers Basic Auth, Astronomer Access Token, GCP Service Account, and Amazon MWAA, plus OpenLineage configuration for each deployment type.
+sidebarTitle: REST API Connection
+---
+
+# Airflow REST API Connection
+
+The REST API connection communicates with the Airflow web server over HTTP/HTTPS. It does not require direct access to Airflow's underlying metadata database, making it the right choice for managed Airflow deployments (Astronomer, Cloud Composer, MWAA) or any setup where direct database access is unavailable or undesirable.
+
+<Info>
+**What the REST API connection captures**
+- DAG topology and task structure
+- Pipeline schedules and run statuses
+- DAG owners and tags
+- Pipeline status history (configurable look-back window)
+</Info>
+
+<Warning>
+**Lineage is not captured through the REST API alone.** Table-level lineage (table → DAG → table edges) requires the **Apache Airflow OpenLineage provider** (`apache-airflow-providers-openlineage`) to push OpenLineage events to OpenMetadata's endpoint:
+
+```
+POST /api/v1/openlineage/lineage
+```
+
+Two configuration values are required:
+- **Namespace** (`AIRFLOW__OPENLINEAGE__NAMESPACE`) — identifies this Airflow instance in OpenMetadata. Should match the pipeline service name.
+- **Transport** (`AIRFLOW__OPENLINEAGE__TRANSPORT`) — JSON pointing the provider at your OpenMetadata server using the HTTP transport type, along with a bot JWT for authentication.
+
+Deployment-specific configuration is shown in each auth section below and summarized in the [OpenLineage Setup Summary](#openlineage-setup-summary).
+</Warning>
+
+## Supported Deployments
+
+| Deployment | Auth Method |
+|---|---|
+| Self-hosted Airflow | Basic Auth |
+| Astronomer | Access Token |
+| Google Cloud Composer | GCP Service Account |
+| Amazon MWAA | MWAA Configuration |
+
+---
+
+## Common Parameters
+
+These parameters apply regardless of which authentication method you select.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `hostPort` | ✅ Yes | — | Base URL of the Airflow web UI. Format: `scheme://hostname:port`. Do not include a trailing slash. |
+| `connection.type` | ✅ Yes | `RestAPI` | Fixed value — auto-set when you select the REST API option in the UI. |
+| `connection.authConfig` | ✅ Yes | — | Authentication method. See sections below. |
+| `connection.apiVersion` | No | `auto` | API version. Leave as `auto` to detect at runtime, or set explicitly to `v2`. |
+| `connection.verifySSL` | No | `true` | Verify the Airflow server's SSL certificate. Set to `false` only in dev environments with self-signed certs. |
+| `numberOfStatus` | No | `10` | Number of past pipeline run statuses to read per ingestion run. |
+| `pipelineFilterPattern` | No | — | Include / exclude DAGs by name using regular expressions. |
+
+### Host and Port — Format by Deployment
+
+| Deployment | Example `hostPort` |
+|---|---|
+| Self-hosted / Docker (ingestion on host) | `http://localhost:8080` |
+| Self-hosted / Docker (ingestion inside Docker) | `http://host.docker.internal:8080` |
+| Google Cloud Composer | `https://<hash>-dot-<region>.composer.googleusercontent.com` |
+| Astronomer | `https://<deployment-id>.ay.astronomer.run/<workspace>/` |
+| Amazon MWAA | `https://<id>.c2.airflow.<region>.on.aws` |
+
+---
+
+## Authentication Methods
+
+### 1. Basic Auth
+
+**Best for:** Self-hosted Airflow.
+
+Basic Auth uses a username and password to authenticate against the Airflow web server. OpenMetadata automatically exchanges the credentials for a short-lived JWT via `POST /auth/token`, which is then sent as `Authorization: Bearer <token>` on all subsequent requests.
+
+#### Required Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `username` | ✅ Yes | Username for an Airflow user with REST API access. |
+| `password` | ✅ Yes | Password for the above user. Stored encrypted. |
+
+#### Connection Configuration (YAML)
+
+```yaml
+source:
+  type: Airflow
+  serviceName: my_airflow
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: http://localhost:8080
+      numberOfStatus: 10
+      connection:
+        type: RestAPI
+        authConfig:
+          username: airflow
+          password: airflow
+        apiVersion: auto
+        verifySSL: true
+```
+
+#### Required Airflow Permissions
+
+Create a dedicated Airflow user with the **Viewer** role. The user needs read access to DAGs, DAG runs, task instances, task logs, event logs, and configuration. No write permissions are required.
+
+#### UI Setup
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/airflow-rest-api-connection-basic-auth.png"
+    alt="OpenMetadata UI — Airflow REST API connection with Basic Auth selected, showing Username, Password, and API Version fields"
+  />
+</Frame>
+
+#### OpenLineage Setup — Basic Auth
+
+Configure the namespace and HTTP transport in `airflow.cfg`:
+
+```ini
+[openlineage]
+namespace = my-airflow-instance
+transport = {"type": "http", "url": "http://your-openmetadata-host:8585/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}
+```
+
+Or via environment variables:
+
+```bash
+AIRFLOW__OPENLINEAGE__NAMESPACE=my-airflow-instance
+AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "http://your-openmetadata-host:8585/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}'
+```
+
+Restart the Airflow web server and scheduler after making changes. OpenLineage events are emitted automatically on task completion for SQL-native operators (PostgreSQL, MySQL, Snowflake, BigQuery, etc.). For Python operators, emit events explicitly using `OpenLineageClient` in the task body.
+
+<Tip>
+Set `namespace` to the Airflow pipeline service name registered in OpenMetadata. OpenMetadata uses this value to associate lineage events with the correct pipeline service.
+</Tip>
+
+
+---
+
+### 2. Access Token
+
+**Best for:** Astronomer, or any Airflow deployment with a pre-generated bearer token.
+
+Access Token auth sends a static bearer token on every request as `Authorization: Bearer <token>`. Use this when you have generated a long-lived deployment API token in Astronomer, or when your Airflow instance exposes token-based authentication.
+
+#### Required Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `token` | ✅ Yes | The bearer token value. Stored encrypted. Sent as `Authorization: Bearer <token>` on every API call. |
+
+#### Connection Configuration (YAML)
+
+```yaml
+source:
+  type: Airflow
+  serviceName: my_astronomer_airflow
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: https://<deployment-id>.ay.astronomer.run/<workspace>/
+      numberOfStatus: 10
+      connection:
+        type: RestAPI
+        authConfig:
+          token: <your-deployment-api-token>
+        apiVersion: auto
+        verifySSL: true
+```
+
+#### UI Setup
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/airflow-rest-api-connection-token-auth.png"
+    alt="OpenMetadata UI — Airflow REST API connection with Access Token selected, showing Token, API Version, and Verify SSL fields"
+  />
+</Frame>
+
+#### Required Permissions
+
+**Astronomer:** The Deployment API token must have at least **Viewer** access to the deployment. In the Astronomer UI, when creating a token, assign it the `Viewer` deployment role. This grants read access to DAGs, runs, and task instances via the Airflow REST API.
+
+#### Generating an Astronomer Deployment API Token
+
+<Steps>
+<Step title="Navigate to Deployments">
+Open the **Astronomer UI** and navigate to **Deployments**.
+</Step>
+<Step title="Select your deployment">
+Select your target deployment.
+</Step>
+<Step title="Open API Keys / Tokens">
+Go to **API Keys** or **Tokens** (label varies by Astronomer version).
+</Step>
+<Step title="Generate Token">
+Click **Add API Key** / **Generate Token**, give it a name such as `openmetadata-ingestion`, assign it the `Viewer` role, and copy the value.
+</Step>
+<Step title="Paste into OpenMetadata">
+Paste it into the **Token** field in OpenMetadata.
+</Step>
+</Steps>
+
+<Info>
+Astronomer deployment API tokens are scoped to a single deployment. If you ingest from multiple Astronomer deployments, create one token per deployment and one OpenMetadata Airflow service per deployment.
+</Info>
+
+#### Generating a Token for Self-Hosted Airflow
+
+Exchange credentials for a JWT via the Airflow REST API:
+
+```bash
+curl -X POST http://localhost:8080/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "openmetadata", "password": "<password>"}'
+# Returns: {"access_token": "<JWT>"}
+```
+
+#### OpenLineage Setup — Astronomer (Access Token)
+
+`apache-airflow-providers-openlineage` is included in Astronomer's base Airflow image — no extra package installation is needed.
+
+Set the namespace and transport via Astronomer environment variables (**Deployments → Environment Variables**). Mark the transport variable as **Secret** since it contains your OpenMetadata JWT:
+
+```
+AIRFLOW__OPENLINEAGE__NAMESPACE = my-astronomer-deployment
+AIRFLOW__OPENLINEAGE__TRANSPORT = {"type": "http", "url": "https://your-openmetadata-host/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}
+```
+
+<Warning>
+The `api_key` here is an OpenMetadata server bot token — not the same Astronomer Deployment API token used for metadata extraction. The ingestion token controls what OpenMetadata reads from Airflow; the lineage JWT controls what Airflow pushes to OpenMetadata.
+</Warning>
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/openlineage-setup-astronomer.png"
+    alt="Astronomer environment variables UI showing OpenLineage namespace and transport configuration"
+  />
+</Frame>
+
+---
+
+### 3. GCP Service Account (Google Cloud Composer)
+
+**Best for:** Google Cloud Composer environments.
+
+This method uses a GCP service account to obtain short-lived OAuth2 tokens for authenticating with the Cloud Composer Airflow web server. Tokens are automatically refreshed at runtime via `google-auth`, so ingestion runs are never interrupted by token expiry.
+
+#### Required Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `credentials` | ✅ Yes | GCP credentials object. Choose one of four sub-types below. |
+
+#### Credential Sub-Types
+
+| Type | When to Use |
+|---|---|
+| **GCP Credentials Values** | Ingestion runs outside GCP (on-prem, local machine). Paste service account JSON fields directly. |
+| **GCP Credentials Path** | Ingestion host already has the service account JSON key file at a known local path. |
+| **GCP ADC (Application Default Credentials)** | Ingestion runs on a GCE VM or GKE pod with an attached service account, or `gcloud auth application-default login` has been run. |
+| **GCP External Account (Workload Identity)** | Ingestion runs on GKE with Workload Identity, or on a non-GCP system using federated identity. |
+
+#### Connection Configuration — GCP Credentials Values (YAML)
+
+```yaml
+source:
+  type: Airflow
+  serviceName: my_composer_airflow
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: https://<hash>-dot-<region>.composer.googleusercontent.com
+      numberOfStatus: 10
+      connection:
+        type: RestAPI
+        authConfig:
+          credentials:
+            gcpConfig:
+              type: service_account
+              projectId: my-gcp-project
+              privateKeyId: <key-id>
+              privateKey: |
+                -----BEGIN RSA PRIVATE KEY-----
+                ...
+                -----END RSA PRIVATE KEY-----
+              clientEmail: openmetadata-sa@my-gcp-project.iam.gserviceaccount.com
+              clientId: "123456789"
+              authUri: https://accounts.google.com/o/oauth2/auth
+              tokenUri: https://oauth2.googleapis.com/token
+        apiVersion: auto
+        verifySSL: true
+```
+
+#### Connection Configuration — GCP Credentials Path (YAML)
+
+```yaml
+connection:
+  type: RestAPI
+  authConfig:
+    credentials:
+      gcpConfig: /path/to/service-account-key.json
+  apiVersion: auto
+  verifySSL: true
+```
+
+#### Connection Configuration — Application Default Credentials (YAML)
+
+```yaml
+connection:
+  type: RestAPI
+  authConfig:
+    credentials:
+      gcpConfig: {}   # empty object triggers ADC lookup
+  apiVersion: auto
+  verifySSL: true
+```
+
+#### UI Setup
+
+The screenshot below shows **GCP Credentials Values** selected. The same form is used for all four credential sub-types — switching the **GCP Credentials Configuration** dropdown reveals the relevant fields for each type.
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/airflow-rest-api-connection-gcp-auth.png"
+    alt="OpenMetadata UI — Airflow REST API connection with GCP Service Account selected, showing GCP Credentials Configuration dropdown set to GCP Credentials Values"
+  />
+</Frame>
+
+#### Finding Your Cloud Composer Airflow URL
+
+In GCP Console: **Composer → Environments** → select your environment → click **Open Airflow UI**. Copy the base URL:
+
+```
+https://ko82752sdo9f7zjf811c682mw1e5uuc9-dot-us-east1.composer.googleusercontent.com
+```
+
+Do not include any trailing path segment.
+
+#### Required Permissions
+
+The service account must have read access to DAGs, DAG runs, task instances, and task logs in the Composer environment.
+
+#### OpenLineage Setup — GCP / Cloud Composer
+
+`apache-airflow-providers-openlineage` ships with Cloud Composer — no additional PyPI packages are needed.
+
+In GCP Console, go to **Composer → Environments → Edit → Airflow configuration overrides** and add the following entries:
+
+| Section | Key | Value |
+|---|---|---|
+| `openlineage` | `transport` | `{"type": "http", "url": "https://your-openmetadata-host/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}` |
+| `openlineage` | `namespace` | `<your-pipeline-service-name>` |
+| `lineage` | `backend` | `dataplex` |
+
+<Info>
+The `lineage.backend = dataplex` entry routes Airflow's native lineage through GCP Data Lineage (Dataplex), while the `openlineage.*` entries send OpenLineage events to OpenMetadata. Both can be active simultaneously.
+</Info>
+
+Cloud Composer environment updates take several minutes to complete. Once applied, DAG task completions automatically push OpenLineage events to OpenMetadata.
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/openlineage-setup-composer.png"
+    alt="GCP Console — Composer Airflow configuration overrides panel showing openlineage namespace and transport settings"
+  />
+</Frame>
+
+---
+
+### 4. MWAA Configuration (Amazon Managed Workflows for Apache Airflow)
+
+**Best for:** Amazon MWAA environments.
+
+MWAA does not expose the Airflow web server with simple username/password authentication. Instead, AWS generates a short-lived web login token via the MWAA control plane API. OpenMetadata uses your AWS credentials to call `mwaa:CreateWebLoginToken`, then uses that token to call the Airflow REST API.
+
+#### Required Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `mwaaConfig.mwaaEnvironmentName` | ✅ Yes | The exact name of your MWAA environment as shown in the AWS Console. |
+| `mwaaConfig.awsConfig.awsRegion` | ✅ Yes | AWS region where the MWAA environment is deployed (e.g., `us-east-1`). |
+| `mwaaConfig.awsConfig.awsAccessKeyId` | Conditional | AWS Access Key ID. Not required when using IAM roles or instance profiles. |
+| `mwaaConfig.awsConfig.awsSecretAccessKey` | Conditional | AWS Secret Access Key. Not required when using IAM roles or instance profiles. |
+| `mwaaConfig.awsConfig.awsSessionToken` | No | Required when using temporary (STS) credentials. |
+| `mwaaConfig.awsConfig.assumeRoleArn` | No | ARN of an IAM role to assume before calling the MWAA API. Useful for cross-account access. |
+| `mwaaConfig.awsConfig.assumeRoleSessionName` | No | Session name for the assumed role. Defaults to `OpenMetadataSession`. |
+| `mwaaConfig.awsConfig.endPointURL` | No | Custom endpoint URL for AWS-compatible services (PrivateLink, LocalStack). |
+
+#### Connection Configuration — Static Credentials (YAML)
+
+```yaml
+source:
+  type: Airflow
+  serviceName: my_mwaa_airflow
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: https://<id>.c2.airflow.us-east-1.on.aws
+      numberOfStatus: 10
+      connection:
+        type: RestAPI
+        authConfig:
+          mwaaConfig:
+            mwaaEnvironmentName: my-mwaa-env
+            awsConfig:
+              awsRegion: us-east-1
+              awsAccessKeyId: AKIEIOSFODNN7EXAMPLE
+              awsSecretAccessKey: wJalrXWtkFEMI/RANDOM/bPxRfiCYEXAMPLEKEY
+              awsSessionToken: session-token-value
+        apiVersion: auto
+        verifySSL: true
+```
+
+#### Connection Configuration — IAM Role / Instance Profile (YAML)
+
+If ingestion runs on an EC2 instance, ECS task, or Lambda with an attached IAM role, omit the access key and secret:
+
+```yaml
+authConfig:
+  mwaaConfig:
+    mwaaEnvironmentName: my-mwaa-env
+    awsConfig:
+      awsRegion: us-east-1
+```
+
+#### UI Setup
+
+<Frame>
+  <img
+    src="/public/images/connectors/airflow/airflow-rest-api-connection-aws-auth.png"
+    alt="OpenMetadata UI — Airflow REST API connection with MWAA Authentication selected, showing MWAA Environment Name and AWS Configuration fields"
+  />
+</Frame>
+
+#### Finding Your MWAA Airflow URL
+
+In AWS Console: **Amazon MWAA → Environments** → select your environment → copy the **Airflow UI** URL shown in the environment details panel. Use only the base URL — do not include any trailing path.
+
+#### Required Permissions
+
+The IAM user or role must have access to DAGs, DAG runs, task instances, and task logs in the MWAA environment.
+
+---
+
+## API Version
+
+The `apiVersion` field controls which Airflow REST API version OpenMetadata targets:
+
+| Value | Behaviour |
+|---|---|
+| `auto` (default) | OpenMetadata auto-detects the API version at runtime. Recommended for all new connections. |
+| `v2` | Always use the Airflow API path (`/api/v2/...`). |
+
+Use `auto` for new connections. Pin to `v2` only if the auto-detection probe causes issues in your environment (e.g., strict WAF rules that reject the probe request).
+
+---
+
+## SSL Verification
+
+The `verifySSL` flag (default `true`) controls whether OpenMetadata validates the Airflow server's TLS certificate chain.
+
+- Set to `true` for all production environments.
+- Set to `false` only in local development when using self-signed certificates. Never disable SSL verification in production.
+
+---
+
+## Pipeline Filter Pattern
+
+Use `pipelineFilterPattern` to control which DAGs are ingested:
+
+```yaml
+pipelineFilterPattern:
+  includes:
+    - "^data_quality_.*"
+    - "^etl_.*"
+  excludes:
+    - ".*_test$"
+    - "^tmp_.*"
+```
+
+Patterns are evaluated as Python regular expressions against DAG IDs. If both `includes` and `excludes` match a DAG ID, the DAG is included.
+
+---
+
+## OpenLineage Setup Summary
+
+Lineage configuration is independent of the REST API auth method. The OpenLineage provider sends events to OpenMetadata using a separate HTTP transport — the configuration is the same regardless of how OpenMetadata authenticates to Airflow for metadata extraction.
+
+**OpenMetadata OpenLineage endpoint:** `POST /api/v1/openlineage/lineage`
+
+```ini
+# airflow.cfg
+[openlineage]
+namespace = <your-airflow-instance-name>
+transport = {"type": "http", "url": "https://your-openmetadata-host:8585/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}
+```
+
+Or as environment variables:
+
+```bash
+AIRFLOW__OPENLINEAGE__NAMESPACE=<your-airflow-instance-name>
+AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "https://your-openmetadata-host:8585/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}'
+```
+
+| Step | Action |
+|---|---|
+| 1. Confirm provider | `apache-airflow-providers-openlineage` ships with Airflow, Cloud Composer, and Astronomer. For self-hosted, install via `pip install apache-airflow-providers-openlineage`. |
+| 2. Set namespace | `AIRFLOW__OPENLINEAGE__NAMESPACE` — identifies this Airflow instance in OpenMetadata. Should match the pipeline service name. |
+| 3. Set transport | `AIRFLOW__OPENLINEAGE__TRANSPORT` — JSON with HTTP type, OpenMetadata base URL including `/api/v1/openlineage/`, endpoint `lineage`, and bot JWT as `api_key`. |
+| 4. Restart Airflow | Web server and scheduler must restart to pick up the new configuration. |
+
+Once configured, every DAG task completion automatically emits an OpenLineage event to OpenMetadata, populating lineage edges between pipeline tasks and the data assets they read from and write to.
+
+<Info>
+OpenLineage auto-instruments SQL-native operators (PostgreSQL, MySQL, Snowflake, BigQuery, etc.). For Python `@task` operators, emit events explicitly using `OpenLineageClient.from_environment()` in the task body with the input and output datasets.
+</Info>

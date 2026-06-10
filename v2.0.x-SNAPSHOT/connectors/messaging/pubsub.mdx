@@ -1,0 +1,108 @@
+---
+title: Google Pub/Sub Connector | OpenMetadata Messaging Integration
+description: Connect Google Cloud Pub/Sub to OpenMetadata with our comprehensive connector guide. Set up topic metadata ingestion, schema registry, and subscription configuration in minutes.
+sidebarTitle: Overview
+---
+
+import ConfigureIngestion from '/snippets/connectors/messaging/configure-ingestion.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/pubsub.svg'
+name="Google Pub/Sub"
+stage="BETA"
+availableFeatures={["Topics"]}
+unavailableFeatures={["Sample Data"]} />
+
+In this section, we provide guides and references to use the Google Pub/Sub connector.
+
+<Info>
+**Supported Authentication Types:**
+- **GCP Credentials** — Google Cloud service account authentication using a service account key file or Application Default Credentials.
+</Info>
+
+Configure and schedule Google Pub/Sub metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v1.13.x-SNAPSHOT/connectors/messaging/pubsub/troubleshooting)
+
+## Requirements
+
+The Google Cloud service account used for ingestion needs the following IAM permissions:
+
+### Metadata Ingestion
+
+| Permission | Purpose |
+|---|---|
+| `pubsub.topics.list` | List topics in the project |
+| `pubsub.subscriptions.list` | List subscriptions (for dead letter detection and subscription metadata) |
+| `pubsub.subscriptions.get` | Read individual subscription details |
+
+### Schema Registry (when `schemaRegistryEnabled` is `true`)
+
+| Permission | Purpose |
+|---|---|
+| `pubsub.schemas.list` | List schemas in the Schema Registry |
+| `pubsub.schemas.get` | Read schema definitions (Avro, Protocol Buffer) |
+
+The built-in GCP role **`roles/pubsub.viewer`** grants all of the above permissions and is the recommended role for OpenMetadata ingestion.
+
+```json
+{
+  "bindings": [
+    {
+      "role": "roles/pubsub.viewer",
+      "members": [
+        "serviceAccount:<your-service-account>@<project-id>.iam.gserviceaccount.com"
+      ]
+    }
+  ]
+}
+```
+
+## Metadata Ingestion
+
+<MetadataIngestionUi connector={"Google Pub/Sub"} selectServicePath={"/public/images/connectors/pubsub/select-service.png"} addNewServicePath={"/public/images/connectors/pubsub/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/pubsub/service-connection.png"} />
+
+# Connection Details
+
+<Steps>
+<Step title="Connection Details">
+
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+password: secret:/my/database/password
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+</Tip>
+
+- **GCP Credentials**: GCP service account credentials for authenticating with Pub/Sub. Provide a service account key in JSON format, or use Application Default Credentials when running on GCP infrastructure (GCE, GKE, Cloud Run). See [Creating a GCP Service Account](https://cloud.google.com/iam/docs/creating-managing-service-accounts) for details.
+
+- **Project ID** (optional): GCP Project ID where Pub/Sub topics are located. If not specified, the project ID is read from the service account credentials.
+
+- **Host and Port** (optional): Pub/Sub API endpoint URL. Defaults to `pubsub.googleapis.com`. When connecting to a local **Pub/Sub emulator**, set this to the emulator address (e.g., `localhost:8085`) and enable **Use Emulator**.
+
+- **Use Emulator** (optional): Connect to a local Pub/Sub emulator instead of the production service. Useful for development and testing. When enabled, `hostPort` must be set to the emulator address (not the default `pubsub.googleapis.com`).
+
+- **Enable Schema Registry** (optional, default: `true`): Fetch topic schemas from the Pub/Sub Schema Registry. Supports Avro and Protocol Buffer schema types. Disable if your project does not use the Schema Registry.
+
+- **Include Subscriptions** (optional, default: `true`): Include subscription metadata for each topic. When enabled, subscription names, acknowledgment deadlines, retention durations, push endpoints, dead letter policies, and BigQuery export configurations are captured.
+
+<Tip>
+When a subscription has a **BigQuery export configuration**, OpenMetadata automatically extracts lineage from the Pub/Sub topic to the target BigQuery table. Enable `includeSubscriptions` to capture this lineage.
+</Tip>
+
+- **Include Dead Letter Topics** (optional, default: `false`): Include dead letter topics in metadata extraction. By default, dead letter topics are detected via subscription policies and excluded to keep the topic list focused on primary business topics.
+
+- **Topic Filter Pattern** (optional): Regex pattern to selectively include or exclude topics by name. Use `includes` for an allow-list and `excludes` for a deny-list. Example: exclude internal topics with `excludes: ["^_.*"]`.
+
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>

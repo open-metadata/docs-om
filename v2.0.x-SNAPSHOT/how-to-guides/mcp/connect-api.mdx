@@ -1,0 +1,153 @@
+---
+title: MCP Server - API Usage & Reference
+sidebarTitle: API Usage & Reference
+---
+
+# MCP Server - API Usage & Reference
+
+## API Endpoints
+
+### Call a Tool
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request** (Search Metadata):
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "customer",
+      "entityType": "table",
+      "size": 5
+    }
+  }
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Found 3 results matching your search:\n\n1. **customer_orders** (Table)\n   - Description: Table containing customer order information\n   - Service: mysql_prod\n   - Database: ecommerce\n   - Schema: public\n   - [View in OpenMetadata](https://your-openmetadata.com/table/mysql_prod.ecommerce.public.customer_orders)\n\n2. **customer_profiles** (Table)\n   - Description: Customer profile and demographic data\n   - Service: postgresql_analytics\n   - Database: crm\n   - Schema: main\n   - [View in OpenMetadata](https://your-openmetadata.com/table/postgresql_analytics.crm.main.customer_profiles)\n\n3. **customer_events** (Table)\n   - Description: Customer interaction and event tracking\n   - Service: clickhouse_events\n   - Database: analytics\n   - Schema: events\n   - [View in OpenMetadata](https://your-openmetadata.com/table/clickhouse_events.analytics.events.customer_events)"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Get a Prompt
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "prompts/get",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "customer tables",
+      "entityType": "table",
+      "limit": 10
+    }
+  }
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "result": {
+    "description": "Creates a prompt for Searching metadata in OpenMetadata.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "Search for tables related to 'customer tables' in the OpenMetadata catalog. Filter results to show only 'table' entities and limit to 10 results. Look for tables that contain customer information, customer data, or are related to customer operations."
+        }
+      }
+    ]
+  }
+}
+```
+
+## Error Handling
+
+### Authentication Error
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32002,
+    "message": "Authentication required",
+    "data": {
+      "type": "authentication_error"
+    }
+  }
+}
+```
+
+### Invalid Tool Error
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "error": {
+    "code": -32601,
+    "message": "Tool not found: invalid_tool_name",
+    "data": {
+      "type": "tool_error"
+    }
+  }
+}
+```
+
+### Validation Error
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "error": {
+    "code": -32602,
+    "message": "Invalid parameters: missing required field 'query'",
+    "data": {
+      "type": "validation_error",
+      "field": "query"
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. **Always authenticate**: Include the JWT token in every request
+2. **Handle errors gracefully**: Check for error responses and handle them appropriately
+3. **Use appropriate limits**: Don't request too many results at once to avoid performance issues
+4. **Cache server capabilities**: Store the results of the initialize call to avoid repeated requests
+5. **Use specific entity types**: When possible, specify entityType to get more relevant results
+
+## Security Considerations
+
+- JWT tokens should be kept secure and not logged
+- Use HTTPS for all communications
+- Implement token refresh logic for long-running connections
+- Follow your organization's security policies for API access
+
+For more sample use cases with MCP please check out [our blog](https://collatedata.medium.com/mcp-sample-uses-in-openmetadata-b7846864f63b)!
+
+### Reach out on Slack!
+With MCP, we are finding new ways to use OpenMetadata all the time! Think you've got a great new use case? Show us what you've got in [Slack](https://slack.open-metadata.org/)!
