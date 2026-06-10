@@ -1,0 +1,765 @@
+---
+title: AI SDK
+description: Bring AI to your metadata. Programmatic access to OpenMetadata through MCP tools and AI Studio Agents across Python, TypeScript, Java, and CLI.
+slug: /sdk/ai
+sidebarTitle: AI SDK
+---
+
+# AI SDK
+
+<iframe width="800" height="450" src="https://www.youtube.com/embed/DK4AKb-xPzo?si=SAROumAhQA1htS97" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+The AI SDK gives you programmatic access to Collate's AI Studio — create personas and agents,
+invoke them via the API, and stream responses in real time. Available across Python,
+TypeScript, Java, and a standalone CLI.
+
+<Tip>
+
+You can find the source code for the AI SDK in the [GitHub repository](https://github.com/open-metadata/ai-sdk).
+Contributions are always welcome!
+
+</Tip>
+
+## Available SDKs
+
+| SDK | Package | Install |
+|-----|---------|---------|
+| Python | [`data-ai-sdk`](https://pypi.org/project/data-ai-sdk/) | `pip install data-ai-sdk` |
+| TypeScript | [`@openmetadata/ai-sdk`](https://www.npmjs.com/package/@openmetadata/ai-sdk) | `npm install @openmetadata/ai-sdk` |
+| Java | [`org.open-metadata:ai-sdk`](https://central.sonatype.com/artifact/org.open-metadata/ai-sdk) | Maven / Gradle |
+| CLI | [`ai-sdk`](https://github.com/open-metadata/ai-sdk/releases) | [Install script](#cli) |
+
+## Prerequisites
+
+You need:
+
+1. **A OpenMetadata instance** with AI Studio Agents enabled
+2. **A Bot JWT token** for API authentication
+
+To get a JWT token, go to **Settings > Bots** in your OpenMetadata instance, select your bot, and copy the token.
+See [How to get the JWT Token](/v1.13.x-SNAPSHOT/sdk#how-to-get-the-jwt-token) for detailed instructions.
+
+## Configuration
+
+Set the following environment variables:
+
+```bash
+export AI_SDK_HOST="https://your-openmetadata-instance.com"
+export AI_SDK_TOKEN="your-bot-jwt-token"
+```
+
+All environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AI_SDK_HOST` | Yes | - | Your OpenMetadata server URL |
+| `AI_SDK_TOKEN` | Yes | - | Bot JWT token |
+| `AI_SDK_TIMEOUT` | No | `120` | Request timeout in seconds |
+| `AI_SDK_VERIFY_SSL` | No | `true` | Verify SSL certificates |
+| `AI_SDK_MAX_RETRIES` | No | `3` | Number of retry attempts |
+| `AI_SDK_RETRY_DELAY` | No | `1.0` | Base delay between retries (seconds) |
+
+## Client Initialization
+
+<CodeGroup>
+
+```python Python
+from ai_sdk import AISdk, AISdkConfig
+
+# From environment variables
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# Or directly
+client = AISdk(
+    host="https://your-openmetadata-instance.com",
+    token="your-bot-jwt-token",
+)
+```
+
+```typescript TypeScript
+import { AISdk } from '@openmetadata/ai-sdk';
+
+const client = new AISdk({
+  host: 'https://your-openmetadata-instance.com',
+  token: 'your-bot-jwt-token'
+});
+```
+
+```java Java
+import io.openmetadata.ai.AISdk;
+
+AISdk client = new AISdk.Builder()
+    .host("https://your-openmetadata-instance.com")
+    .token("your-bot-jwt-token")
+    .build();
+```
+
+</CodeGroup>
+
+---
+
+## Manage Personas
+
+A persona defines the behavioral instructions and personality of an AI Studio Agent. Each persona
+contains a system prompt that shapes how the agent responds. Multiple agents can share the same persona.
+
+### Create a Persona
+
+<CodeGroup>
+
+```python Python
+from ai_sdk.models import CreatePersonaRequest
+
+persona = client.create_persona(CreatePersonaRequest(
+    name="DataAnalyst",
+    description="A meticulous data analyst focused on data quality",
+    prompt=(
+        "You are an expert data analyst working with OpenMetadata. "
+        "You specialize in analyzing table schemas, identifying data quality issues, "
+        "and recommending appropriate tests. Always reference specific columns and "
+        "provide actionable recommendations."
+    ),
+    display_name="Data Analyst",
+))
+print(f"Created persona: {persona.name}")
+```
+
+```typescript TypeScript
+const persona = await client.createPersona({
+  name: 'DataAnalyst',
+  description: 'A meticulous data analyst focused on data quality',
+  prompt: `You are an expert data analyst working with OpenMetadata.
+You specialize in analyzing table schemas, identifying data quality issues,
+and recommending appropriate tests.`,
+  displayName: 'Data Analyst',
+});
+console.log(`Created persona: ${persona.name}`);
+```
+
+```java Java
+import io.openmetadata.ai.models.CreatePersonaRequest;
+import io.openmetadata.ai.models.PersonaInfo;
+
+CreatePersonaRequest request = new CreatePersonaRequest.Builder()
+    .name("DataAnalyst")
+    .description("A meticulous data analyst focused on data quality")
+    .prompt("You are an expert data analyst working with OpenMetadata. "
+        + "You specialize in analyzing table schemas, identifying "
+        + "data quality issues, and recommending appropriate tests.")
+    .displayName("Data Analyst")
+    .build();
+
+PersonaInfo persona = client.createPersona(request);
+System.out.println("Created persona: " + persona.getName());
+```
+
+</CodeGroup>
+
+**Persona fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier (alphanumeric, no spaces) |
+| `description` | string | Yes | Role and behavior description |
+| `prompt` | string | Yes | System prompt prepended to every agent conversation |
+| `display_name` | string | No | Human-readable name (defaults to `name`) |
+| `provider` | string | No | Default LLM provider: `openai`, `anthropic`, `azure_openai` (default: `openai`) |
+
+### List Personas
+
+<CodeGroup>
+
+```python Python
+personas = client.list_personas()
+for persona in personas:
+    print(f"{persona.name}: {persona.description}")
+```
+
+```typescript TypeScript
+const personas = await client.listPersonas();
+for (const persona of personas) {
+  console.log(`${persona.name}: ${persona.description}`);
+}
+```
+
+```java Java
+List<PersonaInfo> personas = client.listPersonas();
+for (PersonaInfo persona : personas) {
+    System.out.println(persona.getName() + ": " + persona.getDescription());
+}
+```
+
+</CodeGroup>
+
+### Get a Persona by Name
+
+```python
+persona = client.get_persona("DataAnalyst")
+print(f"{persona.name}: {persona.prompt[:80]}...")
+```
+
+---
+
+## Manage Agents
+
+An agent combines a persona's behavioral instructions with OpenMetadata's MCP tools to form a
+purpose-built AI assistant. Agents must be API-enabled to be invoked via the SDK.
+
+### Create an Agent
+
+<CodeGroup>
+
+```python Python
+from ai_sdk.models import CreateAgentRequest
+
+agent = client.create_agent(CreateAgentRequest(
+    name="DataQualityPlannerAgent",
+    description="Analyzes tables and recommends data quality tests",
+    persona="DataAnalyst",
+    display_name="Data Quality Planner",
+    api_enabled=True,
+    abilities=[
+        "search_metadata",
+        "get_entity_details",
+        "get_entity_lineage",
+    ],
+))
+print(f"Created agent: {agent.name}")
+```
+
+```typescript TypeScript
+const agent = await client.createAgent({
+  name: 'DataQualityPlannerAgent',
+  description: 'Analyzes tables and recommends data quality tests',
+  persona: 'DataAnalyst',
+  displayName: 'Data Quality Planner',
+  apiEnabled: true,
+  abilities: [
+    'search_metadata',
+    'get_entity_details',
+    'get_entity_lineage',
+  ],
+});
+console.log(`Created agent: ${agent.name}`);
+```
+
+```java Java
+import io.openmetadata.ai.models.CreateAgentRequest;
+import io.openmetadata.ai.models.AgentInfo;
+
+CreateAgentRequest request = new CreateAgentRequest.Builder()
+    .name("DataQualityPlannerAgent")
+    .description("Analyzes tables and recommends data quality tests")
+    .persona("DataAnalyst")
+    .displayName("Data Quality Planner")
+    .apiEnabled(true)
+    .abilities(List.of(
+        "search_metadata",
+        "get_entity_details",
+        "get_entity_lineage"
+    ))
+    .build();
+
+AgentInfo agent = client.createAgent(request);
+System.out.println("Created agent: " + agent.getName());
+```
+
+</CodeGroup>
+
+**Agent fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier (alphanumeric, PascalCase/camelCase) |
+| `description` | string | Yes | Purpose shown in AI Studio |
+| `persona` | string | Yes | Name of an existing persona |
+| `display_name` | string | No | Human-readable name (defaults to `name`) |
+| `api_enabled` | boolean | No | Must be `true` for SDK invocation (default: `false`) |
+| `abilities` | array | No | Allowed MCP tool names (all tools if omitted) |
+| `prompt` | string | No | Additional system prompt appended to persona's base prompt |
+| `provider` | string | No | LLM provider: `openai`, `anthropic`, `azure_openai` (default: `openai`) |
+| `bot_name` | string | No | OpenMetadata bot for metadata operations |
+
+**Available abilities:** `search_metadata`, `get_entity_details`, `get_entity_lineage`,
+`create_glossary`, `create_glossary_term`, `create_lineage`, `patch_entity`
+
+### List Agents
+
+<CodeGroup>
+
+```python Python
+agents = client.list_agents()
+for agent in agents:
+    print(f"{agent.name}: {agent.description}")
+    print(f"  Abilities: {', '.join(agent.abilities)}")
+```
+
+```typescript TypeScript
+const agents = await client.listAgents();
+for (const agent of agents) {
+  console.log(`${agent.name}: ${agent.description}`);
+}
+```
+
+```java Java
+List<AgentInfo> agents = client.listAgents();
+for (AgentInfo agent : agents) {
+    System.out.println(agent.getName() + ": " + agent.getDescription());
+}
+```
+
+</CodeGroup>
+
+---
+
+## Invoke an Agent
+
+Send a message to an API-enabled agent and receive a response.
+
+### Single Invocation
+
+<CodeGroup>
+
+```python Python
+response = client.agent("DataQualityPlannerAgent").call(
+    "What data quality tests should I add for the customers table?"
+)
+print(response.response)
+print(f"Tools used: {response.tools_used}")
+```
+
+```typescript TypeScript
+const response = await client.agent('DataQualityPlannerAgent').call(
+  'What data quality tests should I add for the customers table?'
+);
+console.log(response.response);
+console.log(`Tools used: ${response.toolsUsed}`);
+```
+
+```java Java
+InvokeResponse response = client.agent("DataQualityPlannerAgent")
+    .call("What data quality tests should I add for the customers table?");
+System.out.println(response.getResponse());
+```
+
+</CodeGroup>
+
+The response includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `conversation_id` | string | Use for multi-turn follow-ups |
+| `response` | string | The agent's text response |
+| `tools_used` | array | MCP tools the agent invoked |
+| `usage` | object | Token usage (`prompt_tokens`, `completion_tokens`, `total_tokens`) |
+
+### Streaming
+
+Use streaming to receive real-time output as the agent generates its response.
+
+<CodeGroup>
+
+```python Python
+for event in client.agent("DataQualityPlannerAgent").stream(
+    "Analyze the orders table"
+):
+    match event.type:
+        case "start":
+            print(f"Started conversation: {event.conversation_id}")
+        case "content":
+            print(event.content, end="", flush=True)
+        case "tool_use":
+            print(f"\n[Using tool: {event.tool_name}]")
+        case "end":
+            print("\nDone!")
+```
+
+```typescript TypeScript
+for await (const event of client.agent('DataQualityPlannerAgent').stream(
+  'Analyze the orders table'
+)) {
+  switch (event.type) {
+    case 'content':
+      process.stdout.write(event.content || '');
+      break;
+    case 'tool_use':
+      console.log(`\n[Using tool: ${event.toolName}]`);
+      break;
+    case 'end':
+      console.log('\nDone!');
+      break;
+  }
+}
+```
+
+```java Java
+client.agent("DataQualityPlannerAgent")
+    .stream("Analyze the orders table")
+    .forEach(event -> {
+        switch (event.getType()) {
+            case "content" -> System.out.print(event.getContent());
+            case "tool_use" -> System.out.println("\n[Using: " + event.getToolName() + "]");
+            case "end" -> System.out.println("\nDone!");
+        }
+    });
+```
+
+</CodeGroup>
+
+**Stream event types:**
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `start` | `conversation_id` | Agent started processing |
+| `content` | `content` | Text chunk from the response |
+| `tool_use` | `tool_name` | Agent is invoking an MCP tool |
+| `end` | - | Response complete |
+| `error` | `error` | An error occurred |
+
+### Multi-Turn Conversations
+
+The `Conversation` class automatically manages context across messages.
+
+<CodeGroup>
+
+```python Python
+from ai_sdk import Conversation
+
+conv = Conversation(client.agent("DataQualityPlannerAgent"))
+
+# Each call automatically carries the conversation context
+print(conv.send("Analyze the customers table"))
+print(conv.send("Create tests for the issues you found"))
+print(conv.send("Show me the SQL for those tests"))
+
+# Access conversation details
+print(f"Turns: {len(conv)}")
+print(f"Conversation ID: {conv.id}")
+```
+
+```typescript TypeScript
+const conv = client.agent('DataQualityPlannerAgent').conversation();
+
+const r1 = await conv.send('Analyze the customers table');
+console.log(r1.response);
+
+const r2 = await conv.send('Create tests for the issues you found');
+console.log(r2.response);
+
+console.log(`Turns: ${conv.turns}`);
+console.log(`Conversation ID: ${conv.id}`);
+```
+
+</CodeGroup>
+
+### Async Support (Python)
+
+All sync methods have async counterparts with the `a` prefix:
+
+| Sync | Async |
+|------|-------|
+| `agent.call()` | `await agent.acall()` |
+| `agent.stream()` | `async for event in agent.astream()` |
+| `conv.send()` | `await conv.asend()` |
+
+```python
+import asyncio
+from ai_sdk import AISdk, AISdkConfig
+
+async def main():
+    config = AISdkConfig.from_env(enable_async=True)
+    client = AISdk.from_config(config)
+
+    response = await client.agent("DataQualityPlannerAgent").acall(
+        "Analyze the customers table"
+    )
+    print(response.response)
+
+asyncio.run(main())
+```
+
+---
+
+## Error Handling
+
+| Code | Exception | Description |
+|------|-----------|-------------|
+| `401` | `AuthenticationError` | Invalid or expired JWT token |
+| `403` | `AgentNotEnabledError` | Agent exists but is not API-enabled |
+| `404` | `AgentNotFoundError` | No agent with the given name exists |
+| `409` | `CONFLICT` | Agent or persona with the same name already exists |
+| `429` | `RateLimitError` | Too many requests — retry after the indicated delay |
+| `500` | `AgentExecutionError` | Internal error during agent execution |
+
+```python
+from ai_sdk.exceptions import (
+    AuthenticationError,
+    AgentNotFoundError,
+    AgentNotEnabledError,
+    RateLimitError,
+    AgentExecutionError,
+)
+
+try:
+    response = client.agent("MyAgent").call("Hello")
+
+except AuthenticationError:
+    print("Invalid or expired token. Check your AI_SDK_TOKEN.")
+
+except AgentNotFoundError as e:
+    print(f"Agent not found: {e.agent_name}")
+
+except AgentNotEnabledError as e:
+    print(f"Agent '{e.agent_name}' is not API-enabled. Enable it in AI Studio.")
+
+except RateLimitError as e:
+    print(f"Rate limited. Retry after: {e.retry_after} seconds")
+
+except AgentExecutionError as e:
+    print(f"Agent execution failed: {e.message}")
+```
+
+### CLI
+
+```bash
+# Install
+curl -sSL https://raw.githubusercontent.com/open-metadata/ai-sdk/main/cli/install.sh | sh
+
+# Configure
+ai-sdk configure
+
+# Invoke an agent
+ai-sdk invoke DataQualityPlannerAgent "Analyze the customers table"
+```
+
+The CLI provides an interactive TUI with markdown rendering and syntax highlighting.
+
+---
+
+## MCP Tools
+
+OpenMetadata exposes an [MCP server](https://modelcontextprotocol.io/) that turns your metadata
+into a set of tools any LLM can use. Unlike generic MCP connectors that only read raw database schemas,
+OpenMetadata's MCP tools give your AI access to the **full context** of your data platform — descriptions,
+owners, lineage, glossary terms, tags, and data quality results.
+
+The MCP endpoint is available at `POST /mcp` using the [JSON-RPC 2.0](https://www.jsonrpc.org/) protocol.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `search_metadata` | Search across all metadata in OpenMetadata (tables, dashboards, pipelines, topics, etc.) |
+| `semantic_search` | AI-powered semantic search that understands meaning and context beyond keyword matching |
+| `get_entity_details` | Get detailed information about a specific entity by ID or fully qualified name |
+| `get_entity_lineage` | Get upstream and downstream lineage for an entity |
+| `create_glossary` | Create a new glossary in OpenMetadata |
+| `create_glossary_term` | Create a new term within an existing glossary |
+| `create_lineage` | Create a lineage edge between two entities |
+| `patch_entity` | Update an entity's metadata (description, tags, owners, etc.) |
+| `get_test_definitions` | List available data quality test definitions |
+| `create_test_case` | Create a data quality test case for an entity |
+| `root_cause_analysis` | Analyze root causes of data quality failures |
+
+### Using MCP Tools Directly
+
+You can call MCP tools directly through the SDK client:
+
+```python
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# List available tools
+tools = client.mcp.list_tools()
+for tool in tools:
+    print(f"{tool.name}: {tool.description}")
+
+# Search for tables
+result = client.mcp.call_tool("search_metadata", {
+    "query": "customers",
+    "entity_type": "table",
+    "limit": 5,
+})
+print(result.data)
+
+# Get entity details
+result = client.mcp.call_tool("get_entity_details", {
+    "fqn": "warehouse.production.public.customers",
+    "entity_type": "table",
+})
+print(result.data)
+
+# Get lineage
+result = client.mcp.call_tool("get_entity_lineage", {
+    "entity_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "upstream_depth": 3,
+    "downstream_depth": 2,
+})
+print(result.data)
+```
+
+### LangChain Integration
+
+Convert OpenMetadata's MCP tools to LangChain format with a single method call. This lets you use your
+metadata as tools in any LangChain agent.
+
+```bash
+pip install data-ai-sdk[langchain]
+```
+
+```python
+from ai_sdk import AISdk, AISdkConfig
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+config = AISdkConfig.from_env()
+client = AISdk.from_config(config)
+
+# Convert MCP tools to LangChain format
+tools = client.mcp.as_langchain_tools()
+
+llm = ChatOpenAI(model="gpt-4o")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a metadata assistant powered by OpenMetadata."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+result = executor.invoke({
+    "input": "Find tables related to customers and show their lineage"
+})
+print(result["output"])
+```
+
+### Tool Filtering
+
+Control which tools are exposed to your LLM by including or excluding specific tools. This is useful
+for restricting agents to read-only operations or limiting scope.
+
+```python
+from ai_sdk.mcp.models import MCPTool
+
+# Only include read-only tools
+tools = client.mcp.as_langchain_tools(
+    include=[
+        MCPTool.SEARCH_METADATA,
+        MCPTool.SEMANTIC_SEARCH,
+        MCPTool.GET_ENTITY_DETAILS,
+        MCPTool.GET_ENTITY_LINEAGE,
+        MCPTool.GET_TEST_DEFINITIONS,
+    ]
+)
+
+# Or exclude mutation tools
+tools = client.mcp.as_langchain_tools(
+    exclude=[MCPTool.PATCH_ENTITY, MCPTool.CREATE_GLOSSARY, MCPTool.CREATE_GLOSSARY_TERM]
+)
+```
+
+### Using AI Studio Agents as LangChain Tools
+
+You can wrap AI Studio Agents as LangChain tools, letting you compose them with other tools in a
+LangChain pipeline:
+
+```python
+from ai_sdk.integrations.langchain import AISdkAgentTool, create_ai_sdk_tools
+
+# Create a tool from a single agent
+tool = AISdkAgentTool.from_client(client, "DataQualityPlannerAgent")
+
+# Create tools for multiple agents
+tools = create_ai_sdk_tools(client, [
+    "DataQualityPlannerAgent",
+    "SqlQueryAgent",
+    "LineageExplorerAgent",
+])
+
+# Or create tools for all API-enabled agents
+tools = create_ai_sdk_tools(client)
+```
+
+### Multi-Agent Orchestrator
+
+Build a multi-agent system where specialist agents each get focused MCP tools:
+
+```python
+from ai_sdk.mcp.models import MCPTool
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+# Discovery specialist — search and read operations
+discovery_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.SEMANTIC_SEARCH,
+    MCPTool.SEARCH_METADATA,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Lineage specialist — lineage exploration
+lineage_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_LINEAGE,
+    MCPTool.GET_ENTITY_DETAILS,
+])
+
+# Curator specialist — write operations
+curator_tools = client.mcp.as_langchain_tools(include=[
+    MCPTool.GET_ENTITY_DETAILS,
+    MCPTool.PATCH_ENTITY,
+    MCPTool.CREATE_GLOSSARY_TERM,
+])
+
+llm = ChatOpenAI(model="gpt-4o")
+
+def create_specialist(tools, system_prompt):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+discovery = create_specialist(discovery_tools, "You are a data discovery specialist.")
+lineage = create_specialist(lineage_tools, "You are a lineage exploration specialist.")
+curator = create_specialist(curator_tools, "You are a metadata curation specialist.")
+```
+
+### OpenAI Integration
+
+Convert MCP tools to OpenAI function calling format:
+
+```python
+import json
+from openai import OpenAI
+from ai_sdk import AISdk, AISdkConfig
+
+config = AISdkConfig.from_env()
+om_client = AISdk.from_config(config)
+openai_client = OpenAI()
+
+tools = om_client.mcp.as_openai_tools()
+executor = om_client.mcp.create_tool_executor()
+
+response = openai_client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Find customer tables"}],
+    tools=tools,
+)
+
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        result = executor(
+            tool_call.function.name,
+            json.loads(tool_call.function.arguments)
+        )
+        print(f"Tool: {tool_call.function.name}")
+        print(f"Result: {result}")
+```

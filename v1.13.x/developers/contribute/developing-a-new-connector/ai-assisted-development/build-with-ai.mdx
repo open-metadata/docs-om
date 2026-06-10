@@ -1,0 +1,288 @@
+---
+title: "Build a Connector with AI"
+sidebarTitle: "Build with AI"
+description: "End-to-end workflow for implementing an OpenMetadata connector using AI tools"
+---
+
+# Build a Connector with AI
+
+This guide walks through the complete workflow for building a connector after scaffolding, using AI tools to implement the code.
+
+## Prerequisites
+
+- [Skills installed](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/install-skills) for your AI tool
+- Connector [scaffolded](/v1.13.x-SNAPSHOT/developers/contribute/developing-a-new-connector/ai-assisted-development/scaffold-connector) with `metadata scaffold-connector`
+- Development environment set up: `source env/bin/activate`
+
+## Workflow Overview
+
+<Steps>
+<Step title="Scaffold">
+Generate boilerplate with `metadata scaffold-connector`.
+</Step>
+<Step title="Implement">
+Use your AI tool to fill in the TODO items in generated files.
+</Step>
+<Step title="Register">
+Add the connector to the service schema, UI, and i18n.
+</Step>
+<Step title="Generate">
+Run code generation: `make generate`, `mvn install`, `yarn parse-schema`.
+</Step>
+<Step title="Validate">
+Run formatting, linting, and tests.
+</Step>
+</Steps>
+
+## Step 1: Implement with AI
+
+### Claude Code
+
+The most streamlined experience. After scaffolding:
+
+```bash
+claude "Read ingestion/src/metadata/ingestion/source/dashboard/my_dash/CONNECTOR_CONTEXT.md
+and implement all the TODO items. Use the reference connector as a pattern.
+Load the connector standards first with /load-standards."
+```
+
+Claude Code will:
+1. Load the golden standards automatically (via SessionStart hook)
+2. Read the `CONNECTOR_CONTEXT.md` for context
+3. Study the reference connector (e.g., `metabase/` for dashboards)
+4. Implement each file, following the patterns from the standards
+
+For research-heavy connectors, Claude Code can dispatch the researcher sub-agent:
+
+```
+Research the Grafana API for building an OpenMetadata dashboard connector.
+Then implement the scaffolded connector at
+ingestion/src/metadata/ingestion/source/dashboard/grafana/
+```
+
+### Cursor
+
+Open the `CONNECTOR_CONTEXT.md` file and the reference connector files in your editor. With Cursor's Composer:
+
+```
+@CONNECTOR_CONTEXT.md Implement all the TODO items in the scaffolded connector files.
+Use the metabase connector as a reference pattern.
+Follow the standards in .cursor/skills/
+```
+
+Work file-by-file:
+1. Start with `client.py` — implement the REST/SDK client
+2. Then `connection.py` — wire up `get_connection()` and `test_connection()`
+3. Then `metadata.py` — implement the abstract methods
+4. Finally `service_spec.py` — usually just needs the correct import
+
+### Codex / Copilot / Windsurf
+
+After scaffolding, open `CONNECTOR_CONTEXT.md` and ask your AI tool:
+
+```
+Read these files:
+1. ingestion/src/metadata/ingestion/source/{type}/{name}/CONNECTOR_CONTEXT.md
+2. ingestion/src/metadata/ingestion/source/{type}/{reference}/metadata.py
+3. ingestion/src/metadata/ingestion/source/{type}/{reference}/connection.py
+
+Then implement all TODO items in the generated files, following the same patterns.
+```
+
+## Step 2: Register the Connector
+
+The `CONNECTOR_CONTEXT.md` includes a registration checklist. Ask your AI tool to do it:
+
+```
+Now register the connector. Follow the registration checklist in CONNECTOR_CONTEXT.md.
+```
+
+Or do it manually. Three files need changes:
+
+### 2a. Service Schema
+
+Add the connector type to `openmetadata-spec/.../entity/services/{serviceType}Service.json`:
+
+```json
+// In the serviceType enum:
+"enum": [..., "MyDash"]
+
+// In the connection oneOf:
+"oneOf": [
+    ...,
+    { "$ref": "../../connections/dashboard/myDashConnection.json" }
+]
+```
+
+### 2b. UI Service Utils
+
+Update `openmetadata-ui/.../utils/{ServiceType}ServiceUtils.tsx`:
+
+```typescript
+import myDashConnection from '...connections.Dashboard.myDashConnection.json';
+
+// In the switch statement:
+case DashboardServiceType.MyDash:
+    schema = myDashConnection;
+    break;
+```
+
+### 2c. Localization
+
+Add to `openmetadata-ui/.../locale/languages/en-us.json`:
+
+```json
+"service-entity": {
+    "my-dash": "MyDash"
+}
+```
+
+## Step 3: Run Code Generation
+
+```bash
+source env/bin/activate
+
+# Generate Python Pydantic models from JSON Schema
+make generate
+
+# Generate Java models
+mvn clean install -pl openmetadata-spec
+
+# Generate resolved JSON for UI forms
+cd openmetadata-ui/src/main/resources/ui && yarn parse-schema
+```
+
+## Step 4: Format and Validate
+
+```bash
+# Format Python code
+make py_format
+
+# Format Java code
+mvn spotless:apply
+
+# Run unit tests (if you've written them)
+python -m pytest ingestion/tests/unit/topology/{service_type}/test_{name}.py -v
+```
+
+## Step 5: Review with AI (Optional)
+
+If you're using Claude Code, run the review skill:
+
+```
+/connector-review ingestion/src/metadata/ingestion/source/dashboard/my_dash/
+```
+
+The review skill checks your implementation against the golden standards across 5 categories:
+- **Schema and registration** — JSON Schema structure, $ref resolution, capability flags
+- **Connection and error handling** — Auth patterns, no swallowed exceptions, meaningful test steps
+- **Source, topology, and performance** — Base class, pagination (missing pagination on paginated APIs is a blocker), O(n*m) lookups, N+1 queries, connection reuse
+- **Test quality** — pytest style, real assertions (not empty stubs), integration tests
+- **Code quality and style** — Copyright headers, type annotations, import ordering
+
+The review also checks for **memory management** issues — unbounded file reads, missing `gc.collect()` after large object processing, and unbounded caches that can cause OOM errors in production.
+
+## Step 6: Test Locally in Docker
+
+Build everything and bring up a full local OpenMetadata stack so you can test your connector in the UI.
+
+**Full build** (first time, or if Java/UI changes were made):
+
+```bash
+./docker/run_local_docker.sh -m ui -d mysql -s false -i true -r true
+```
+
+**Fast rebuild** (ingestion-only changes — skips Maven, ~2-3 minutes):
+
+```bash
+./docker/run_local_docker.sh -m ui -d mysql -s true -i true -r false
+```
+
+Once services are up (~3-5 minutes):
+
+<Steps>
+<Step title="Open the UI">
+Navigate to http://localhost:8585
+</Step>
+<Step title="Create a service">
+Go to **Settings** → **Services** → select your service type (Database, Dashboard, etc.) → **Add New Service**
+</Step>
+<Step title="Select your connector">
+Your connector should appear in the dropdown. If it doesn't, check that you registered it in the service schema and rebuilt without `-s true`.
+</Step>
+<Step title="Test the connection">
+Fill in the connection details and click **Test Connection**. Each step should pass.
+</Step>
+<Step title="Run ingestion">
+If the test passes, run metadata ingestion to verify entities are created correctly.
+</Step>
+</Steps>
+
+| Service | URL |
+|---------|-----|
+| OpenMetadata UI + API | http://localhost:8585 |
+| Airflow | http://localhost:8080 (admin / admin) |
+| MySQL | localhost:3306 |
+| Elasticsearch | http://localhost:9200 |
+
+**Tear down** when done:
+
+```bash
+cd docker/development && docker compose down -v
+```
+
+<Tip>
+
+If you only changed ingestion Python code (no Java or schema changes), use `-s true` to skip the Maven build. This cuts rebuild time from ~5 minutes to ~2 minutes.
+
+</Tip>
+
+## Validation Checklist
+
+Before submitting a PR, verify:
+
+```
+[ ] JSON Schema validates, all $ref paths resolve
+[ ] make generate succeeds
+[ ] mvn clean install -pl openmetadata-spec succeeds
+[ ] yarn parse-schema succeeds
+[ ] Connection creates client, test_connection passes
+[ ] Source create() validates config type
+[ ] ServiceSpec is discoverable by the framework
+[ ] Unit tests pass with real assertions (no empty stubs)
+[ ] Every client list method implements pagination (if API paginates)
+[ ] No unbounded .read() on files without size checks
+[ ] Large objects cleaned up after use (del + gc.collect)
+[ ] make py_format produces no changes
+[ ] mvn spotless:apply produces no changes
+```
+
+## Example: Building a Dashboard Connector End-to-End
+
+Here's a complete example building a Grafana dashboard connector with Claude Code:
+
+```bash
+# 1. Scaffold
+source env/bin/activate
+metadata scaffold-connector \
+    --name grafana \
+    --service-type dashboard \
+    --auth-types token \
+    --docs-url "https://grafana.com/docs/grafana/latest/developers/http_api/" \
+    --api-endpoints "GET /api/search, GET /api/dashboards/uid/:uid, GET /api/datasources" \
+    --docs-notes "Token auth via X-GRAFANA-AUTH header. Pagination via page/limit params." \
+    --docker-image "grafana/grafana:latest" \
+    --docker-port 3000
+
+# 2. Implement with Claude Code
+claude "Read ingestion/src/metadata/ingestion/source/dashboard/grafana/CONNECTOR_CONTEXT.md
+and implement all TODO items. Use metabase as the reference connector.
+Then register the connector and run code generation."
+
+# 3. Review
+claude "/connector-review ingestion/src/metadata/ingestion/source/dashboard/grafana/"
+
+# 4. Final validation
+make py_format
+python -m pytest ingestion/tests/unit/topology/dashboard/test_grafana.py -v
+```
