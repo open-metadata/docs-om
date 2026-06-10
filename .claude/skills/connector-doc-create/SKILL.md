@@ -2,7 +2,7 @@
 name: connector-doc-create
 description: Create full documentation for a new OpenMetadata connector from scratch — generates main page, yaml.mdx, troubleshooting page, and registers in docs.json navigation. Derives features, permissions, and YAML config from JSON schema and source code.
 user-invocable: true
-argument-hint: "<connector-name> [--display-name='Display Name'] [--service-type=database|pipeline|dashboard|messaging|storage|search|ml-model] [--stage=PROD|BETA] [--version=v1.12.x|v1.11.x|v1.13.x-SNAPSHOT|all] [--icon=/path/to/icon.svg] [--dry-run]"
+argument-hint: "<connector-name> [--display-name='Display Name'] [--service-type=database|pipeline|dashboard|messaging|storage|search|ml-model] [--stage=PROD|BETA] [--version=v1.12.x|v2.0.x-SNAPSHOT|v1.13.x|all] [--icon=/path/to/icon.svg] [--dry-run]"
 allowed-tools:
   - Bash
   - Read
@@ -25,7 +25,7 @@ When a user asks to create, generate, scaffold, or add documentation for a **new
 - **--display-name** (optional): Human-readable name shown in docs (e.g., `"Amazon Redshift"`, `"Google BigQuery"`). Defaults to title-cased connector-name.
 - **--service-type** (optional): One of `database`, `pipeline`, `dashboard`, `messaging`, `storage`, `search`, `ml-model`. Note: use `ml-model` (with hyphen) — this matches the actual directory name. Other types (`api`, `drive`, `metadata`) exist in the repo but are rare; treat them like `pipeline` if encountered. Default: auto-detect from connector name and schema.
 - **--stage** (optional): `PROD` or `BETA`. Default: `BETA` for new connectors.
-- **--version** (optional): Which version(s) to create docs for. Default: `all` (creates in v1.11.x, v1.12.x, v1.13.x-SNAPSHOT).
+- **--version** (optional): Which version(s) to create docs for. Default: `all` (creates in v1.11.x, v1.12.x, v1.13.x).
 - **--icon** (optional): Path to icon file under `/public/images/connectors/`. If not given, uses `/public/images/connectors/{connector-name}.svg` as a placeholder.
 - **--dry-run** (optional): Only show the plan and generated content — don't write any files.
 
@@ -216,7 +216,7 @@ If files exist, **stop and warn the user** — use the `connector-doc-review` sk
 
 ### Phase 3: Generate Documentation Files
 
-For each target version (v1.11.x, v1.12.x, v1.13.x-SNAPSHOT):
+For each target version (v1.11.x, v1.12.x, v1.13.x):
 
 #### Step 3.1: Generate the Main Page (`{connector_name}.mdx`)
 
@@ -628,7 +628,7 @@ After writing all files:
 2. Grep `docs.json` to confirm the new pages are registered
 3. Check that `availableFeatures` and `unavailableFeatures` are identical between main page and yaml.mdx
 4. Check that YAML ContentSection line references are plausible given the YAML length
-5. Verify all snippet imports resolve — **known exception**: `/snippets/v1.13.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx` does not exist on disk. This is intentional — all existing v1.13.x-SNAPSHOT connectors use this same path as a placeholder for the snippet that will be created when the version is finalized. Do NOT flag this as an error.
+5. Verify all snippet imports resolve — **known exception**: `/snippets/v1.13.x/connectors/external-ingestion-deployment.mdx` does not exist on disk. This is intentional — all existing v1.13.x connectors use this same path as a placeholder for the snippet that will be created when the version is finalized. Do NOT flag this as an error.
 
 Present a final summary:
 
@@ -642,9 +642,9 @@ Present a final summary:
 - ✓ v1.12.x/connectors/{service_type}/{connector_name}.mdx
 - ✓ v1.12.x/connectors/{service_type}/{connector_name}/yaml.mdx
 - ✓ v1.12.x/connectors/{service_type}/{connector_name}/troubleshooting.mdx
-- ✓ v1.13.x-SNAPSHOT/connectors/{service_type}/{connector_name}.mdx
-- ✓ v1.13.x-SNAPSHOT/connectors/{service_type}/{connector_name}/yaml.mdx
-- ✓ v1.13.x-SNAPSHOT/connectors/{service_type}/{connector_name}/troubleshooting.mdx
+- ✓ v1.13.x/connectors/{service_type}/{connector_name}.mdx
+- ✓ v1.13.x/connectors/{service_type}/{connector_name}/yaml.mdx
+- ✓ v1.13.x/connectors/{service_type}/{connector_name}/troubleshooting.mdx
 - ✓ docs.json (navigation registered in 3 version sections)
 
 ### Feature Matrix
@@ -837,7 +837,7 @@ All possible: "ML Features", "Hyperparameters", "ML Store"
 connector-doc-create clickhouse --service-type database --display-name "ClickHouse"
 
 # Create docs for a new pipeline connector, BETA stage, only latest version
-connector-doc-create airflow --service-type pipeline --stage BETA --version v1.13.x-SNAPSHOT
+connector-doc-create airflow --service-type pipeline --stage BETA --version v1.13.x
 
 # Preview what would be created without writing files
 connector-doc-create snowflake --dry-run
