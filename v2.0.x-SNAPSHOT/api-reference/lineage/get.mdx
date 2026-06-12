@@ -1,0 +1,286 @@
+---
+title: Get Lineage
+description: Retrieve the lineage graph for an entity by ID or fully qualified name
+sidebarTitle: Get Lineage
+api: GET /v1/lineage/{entityType}/{id}
+---
+
+# Get Lineage
+
+Retrieve the lineage graph for an entity, including upstream and downstream edges. You can query by entity ID or fully qualified name.
+
+## Get by Entity Type and ID
+
+<ParamField path="entityType" type="string" required>
+  Type of the entity. Options: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`, `storedProcedure`, `dashboardDataModel`, `apiEndpoint`.
+</ParamField>
+
+<ParamField path="id" type="string" required>
+  UUID of the entity to retrieve lineage for.
+</ParamField>
+
+<ParamField query="upstreamDepth" type="integer" default="1">
+  Number of hops to traverse upstream (min: 0, max: 3).
+</ParamField>
+
+<ParamField query="downstreamDepth" type="integer" default="1">
+  Number of hops to traverse downstream (min: 0, max: 3).
+</ParamField>
+
+<ParamField query="includeDeleted" type="boolean" default="false">
+  Include soft-deleted entities in the lineage graph.
+</ParamField>
+
+## Get by Entity Type and FQN
+
+Use `GET /v1/lineage/{entityType}/name/{fqn}` to retrieve lineage by fully qualified name.
+
+<ParamField path="entityType" type="string" required>
+  Type of the entity. Options: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`, `storedProcedure`, `dashboardDataModel`, `apiEndpoint`.
+</ParamField>
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the entity (e.g., `sample_data.ecommerce_db.shopify.dim_customer`).
+</ParamField>
+
+<ParamField query="upstreamDepth" type="integer" default="1">
+  Number of hops to traverse upstream (min: 0, max: 3).
+</ParamField>
+
+<ParamField query="downstreamDepth" type="integer" default="1">
+  Number of hops to traverse downstream (min: 0, max: 3).
+</ParamField>
+
+<ParamField query="includeDeleted" type="boolean" default="false">
+  Include soft-deleted entities in the lineage graph.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/lineage/{entityType}/{id}
+from metadata.generated.schema.entity.data.table import Table
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="<YOUR-JWT-TOKEN>"
+    ),
+)
+metadata = OpenMetadata(server_config)
+
+# Get lineage by fully qualified name
+lineage = metadata.get_lineage_by_name(
+    entity=Table,
+    fqn="sample_data.ecommerce_db.shopify.dim_customer",
+    up_depth=1,
+    down_depth=1,
+)
+
+print(f"Entity: {lineage['entity']['fullyQualifiedName']}")
+print(f"Upstream edges: {len(lineage.get('upstreamEdges', []))}")
+print(f"Downstream edges: {len(lineage.get('downstreamEdges', []))}")
+
+# Get lineage by ID
+lineage = metadata.get_lineage_by_id(
+    entity=Table,
+    entity_id="455e3d9d-dbbf-455e-b3be-7191daa825f3",
+    up_depth=3,
+    down_depth=2,
+)
+```
+
+```java GET /v1/lineage/{entityType}/{id}
+import org.openmetadata.sdk.api.Lineage;
+
+// Get lineage by entity type and ID
+Lineage.LineageGraph graph = Lineage.of("table", tableId)
+    .upstream(3)
+    .downstream(2)
+    .fetch();
+
+String raw = graph.getRaw();
+
+// Get lineage with default depth (1 upstream, 1 downstream)
+Lineage.LineageGraph graph = Lineage.of("table", tableId).fetch();
+
+// Include deleted entities
+Lineage.LineageGraph graph = Lineage.of("table", tableId)
+    .includeDeleted(true)
+    .fetch();
+```
+
+```bash GET /v1/lineage/{entityType}/{id}
+# Get lineage by entity type and ID
+curl "{base_url}/api/v1/lineage/table/455e3d9d-dbbf-455e-b3be-7191daa825f3" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get lineage with custom depth
+curl "{base_url}/api/v1/lineage/table/455e3d9d-dbbf-455e-b3be-7191daa825f3?upstreamDepth=3&downstreamDepth=2" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get lineage by fully qualified name
+curl "{base_url}/api/v1/lineage/table/name/sample_data.ecommerce_db.shopify.dim_customer" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get lineage including deleted entities
+curl "{base_url}/api/v1/lineage/table/name/sample_data.ecommerce_db.shopify.dim_customer?includeDeleted=true&upstreamDepth=2&downstreamDepth=2" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "entity": {
+    "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+    "type": "table",
+    "name": "dim_customer",
+    "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_customer",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3"
+  },
+  "nodes": [
+    {
+      "id": "800caa0f-a149-48d2-a0ce-6ca84501767e",
+      "type": "table",
+      "name": "raw_customer",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.raw_customer",
+      "deleted": false,
+      "href": "http://localhost:8585/api/v1/tables/800caa0f-a149-48d2-a0ce-6ca84501767e"
+    },
+    {
+      "id": "c3d4e5f6-a1b2-7890-abcd-ef1234567890",
+      "type": "dashboard",
+      "name": "customer_dashboard",
+      "fullyQualifiedName": "sample_superset.customer_dashboard",
+      "deleted": false,
+      "href": "http://localhost:8585/api/v1/dashboards/c3d4e5f6-a1b2-7890-abcd-ef1234567890"
+    }
+  ],
+  "upstreamEdges": [
+    {
+      "fromEntity": "800caa0f-a149-48d2-a0ce-6ca84501767e",
+      "toEntity": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+      "lineageDetails": {
+        "sqlQuery": "INSERT INTO dim_customer SELECT id, name FROM raw_customer",
+        "columnsLineage": [
+          {
+            "fromColumns": [
+              "sample_data.ecommerce_db.shopify.raw_customer.id"
+            ],
+            "toColumn": "sample_data.ecommerce_db.shopify.dim_customer.customer_id"
+          }
+        ]
+      }
+    }
+  ],
+  "downstreamEdges": [
+    {
+      "fromEntity": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+      "toEntity": "c3d4e5f6-a1b2-7890-abcd-ef1234567890"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the lineage graph centered on the requested entity, including upstream and downstream edges up to the specified depth.
+
+## Response
+
+<ResponseField name="entity" type="object">
+  The entity reference for the node at the center of the lineage graph.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier (UUID).
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Entity type (e.g., `table`, `dashboard`, `pipeline`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Entity name.
+    </ResponseField>
+
+    <ResponseField name="fullyQualifiedName" type="string">
+      Fully qualified name of the entity.
+    </ResponseField>
+
+    <ResponseField name="deleted" type="boolean">
+      Whether the entity has been soft-deleted.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="nodes" type="array">
+  List of entity references for all nodes in the lineage graph (excluding the center entity).
+</ResponseField>
+
+<ResponseField name="upstreamEdges" type="array">
+  Edges pointing into the center entity (data sources).
+
+  <Expandable title="properties">
+    <ResponseField name="fromEntity" type="string">
+      UUID of the source entity.
+    </ResponseField>
+
+    <ResponseField name="toEntity" type="string">
+      UUID of the destination entity.
+    </ResponseField>
+
+    <ResponseField name="lineageDetails" type="object">
+      Optional details about the lineage edge.
+
+      <Expandable title="properties">
+        <ResponseField name="sqlQuery" type="string">
+          SQL query driving the transformation.
+        </ResponseField>
+
+        <ResponseField name="columnsLineage" type="array">
+          Column-level lineage mappings.
+
+          <Expandable title="properties">
+            <ResponseField name="fromColumns" type="array">
+              List of source column FQNs.
+            </ResponseField>
+
+            <ResponseField name="toColumn" type="string">
+              Destination column FQN.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+
+        <ResponseField name="pipeline" type="object">
+          Entity reference for the pipeline powering the transformation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="downstreamEdges" type="array">
+  Edges pointing away from the center entity (data destinations). Same structure as `upstreamEdges`.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view lineage |
+| `404` | `NOT_FOUND` | Entity with given ID or FQN does not exist |

@@ -1,0 +1,84 @@
+---
+title: Redpanda Connector | OpenMetadata Messaging Services
+description: Connect OpenMetadata to Redpanda with our official messaging connector. Stream metadata, automate discovery, and integrate your Kafka-compatible platform seamlessly.
+sidebarTitle: Overview
+---
+import ConfigureIngestion from '/snippets/connectors/messaging/configure-ingestion.mdx'
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/redpanda.webp'
+name="Redpanda"
+stage="PROD"
+availableFeatures={["Topics", "Sample Data", "Consumer Groups", "Data Transform Lineage"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Redpanda connector.
+Configure and schedule Redpanda metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v1.13.x/connectors/messaging/redpanda/troubleshooting)
+## Requirements
+Connecting to Redpanda does not require any previous configuration.
+The ingestion of the Kafka topics' schema is done separately by configuring the **Schema Registry URL**. However, only the **Bootstrap Servers** information is mandatory.
+## Metadata Ingestion
+<MetadataIngestionUi connector={"Redpanda"} selectServicePath={"/public/images/connectors/redpanda/select-service.png"} addNewServicePath={"/public/images/connectors/redpanda/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/redpanda/service-connection.png"} />
+# Connection Details
+<Steps>
+<Step title="Connection Details">
+<Tip>
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+```
+password: secret:/my/database/password
+```
+This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
+For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+</Tip>
+- **Bootstrap Servers**: List of brokers as comma separated values of broker `host` or `host:port`. Example: `host1:9092,host2:9092`
+- **Schema Registry URL**: URL of the Schema Registry used to ingest the schemas of the topics.
+- **SASL Username**: SASL username for use with the PLAIN and SASL-SCRAM mechanisms.
+- **SASL Password**: SASL password for use with the PLAIN and SASL-SCRAM mechanisms.
+- **SASL Mechanism**: SASL mechanism to use for authentication.
+- **Basic Auth User Info**: Schema Registry Client HTTP credentials in the form of `username:password`. By default, user info is extracted from the URL if present.
+- **Consumer Config**: The accepted additional values for the consumer configuration can be found in the following [link](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.mdx).
+- **Schema Registry Config**: The accepted additional values for the Schema Registry configuration can be found in the following [link](https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html#schemaregistryclient).
+- **Redpanda Admin API URL** *(Optional)*: URL of the Redpanda Admin API, typically running on port `9644`. When configured, OpenMetadata will extract data transform metadata to create topic-to-topic lineage. Example: `http://localhost:9644`
+<Tip>
+To ingest the topic schema `Schema Registry URL` must be passed
+</Tip>
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+
+## Securing Redpanda Connection with SSL
+
+To establish secure connections between OpenMetadata and Redpanda, navigate to the `Advanced Config` section. Here, you can provide the CA certificate used for SSL validation by specifying the `caCertificate`. Alternatively, if both client and server require mutual authentication, you'll need to use all three parameters: `ssl key`, `ssl cert`, and `caCertificate`. In this case, `ssl_cert` is used for the client's SSL certificate, `ssl_key` for the private key associated with the SSL certificate, and `caCertificate` for the CA certificate to validate the server's certificate.
+
+You can configure SSL separately for the **Consumer Config** (broker connection) and the **Schema Registry** connection.
+
+## Consumer Groups
+
+Redpanda and Kafka connectors support extracting consumer group metadata for topics. When enabled, each topic will display the active consumer groups consuming from it, including:
+
+- Group ID and current state (Stable, Empty, PreparingRebalance, etc.)
+- Member details (client IDs, hosts, assigned partitions)
+- Partition assignment strategy
+
+To enable consumer group extraction, toggle the **Extract Consumer Groups** option in the metadata ingestion configuration.
+
+## Data Transform Lineage
+
+Redpanda supports native [WebAssembly data transforms](https://docs.redpanda.com/current/develop/data-transforms/) that process data between topics. When you configure the **Redpanda Admin API URL**, OpenMetadata automatically extracts transform metadata and creates topic-to-topic lineage showing how data flows through your transforms.
+
+## Kafka Connect Lineage
+
+Redpanda is wire-compatible with Apache Kafka, so the existing **Kafka Connect** pipeline connector works with Redpanda out of the box. If you have Kafka Connect sink connectors running against Redpanda (e.g., JDBC Sink, BigQuery Sink, S3 Sink), you can set up a [Kafka Connect pipeline](/v1.13.x/connectors/pipeline/kafkaconnect) in OpenMetadata to automatically extract topic-to-table lineage.
+
+To configure this:
+1. Set up a Redpanda messaging service in OpenMetadata (this connector)
+2. Set up a **Kafka Connect** pipeline service, pointing to your Kafka Connect REST API
+3. The pipeline connector will automatically detect sink connectors and create lineage from Redpanda topics to destination tables

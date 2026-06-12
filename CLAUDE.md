@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.11.x, v1.12.x, v1.13.x-SNAPSHOT). The default/current version is **v1.12.x** — unversioned URLs redirect there via `docs.json` redirects (~line 6425).
+OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.12.x, v1.13.x, v2.0.x-SNAPSHOT). The default/current version is **v1.12.x** — unversioned URLs redirect there via `docs.json` redirects (~line 6425).
 
 The sibling directory `../OpenMetadata` contains the main OpenMetadata repo (JSON schemas in `openmetadata-spec/` and ingestion source in `ingestion/`). The `/connector-doc-review` skill uses it to validate connector docs against ground truth.
 

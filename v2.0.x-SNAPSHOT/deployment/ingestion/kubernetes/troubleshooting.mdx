@@ -1,0 +1,130 @@
+---
+title: Kubernetes Orchestrator Operations & Troubleshooting
+description: Validate, monitor, and troubleshoot the Kubernetes native orchestrator for OpenMetadata ingestion pipelines.
+sidebarTitle: Operations & Troubleshooting
+collate: false
+---
+
+# Kubernetes Orchestrator Operations & Troubleshooting
+
+This guide covers validating your Kubernetes orchestrator setup, viewing pipeline logs, troubleshooting common issues, and migrating from Airflow. For initial setup, see the [Kubernetes Native Orchestrator](/v2.0.x-SNAPSHOT/deployment/ingestion/kubernetes) guide.
+
+## Validating the Setup
+
+### 1. Check Service Health
+
+Navigate to **Settings → Preferences → Health** in the OpenMetadata UI to verify the Kubernetes pipeline client is properly configured and can connect to the Kubernetes API.
+
+### 2. Deploy a Test Pipeline
+
+Create a simple metadata ingestion pipeline from the OpenMetadata UI. The pipeline should:
+- Show "Deployed" status
+- Display the Kubernetes Job/CronJob name
+
+### 3. Check Kubernetes Resources
+
+```bash
+# List ingestion ConfigMaps
+kubectl get configmaps -l app.kubernetes.io/managed-by=openmetadata
+
+# List ingestion Jobs
+kubectl get jobs -l app.kubernetes.io/managed-by=openmetadata
+
+# List ingestion CronJobs (native mode)
+kubectl get cronjobs -l app.kubernetes.io/managed-by=openmetadata
+
+# List CronOMJobs (operator mode)
+kubectl get cronomjobs -l app.kubernetes.io/managed-by=openmetadata
+
+# View pod logs
+kubectl logs -l app.kubernetes.io/component=ingestion -f
+```
+
+## Pipeline Logs
+
+Pipeline logs are retrieved directly from Kubernetes pod logs. OpenMetadata implements log pagination for large log files, splitting them into ~1MB chunks for efficient retrieval.
+
+To view logs:
+1. Navigate to **Settings → Services → Agents**
+2. Select your pipeline
+3. Click on Logs to view them directly on OpenMetadata UI
+
+Alternatively, view logs directly with kubectl:
+
+```bash
+kubectl logs job/<pipeline-name> -c main
+```
+
+## Troubleshooting
+
+### Pipeline stuck in "Queued" state
+
+If the pipeline cannot start and remains in "Queued" state, check if the pod can be scheduled:
+```bash
+kubectl get pods -l app.kubernetes.io/pipeline=<pipeline-name>
+kubectl describe pod <pod-name>
+```
+
+Common causes:
+- Image pull errors (check `imagePullSecrets`)
+- Insufficient cluster resources (increase CPU/memory limits or add nodes)
+- Node selector constraints
+
+### Permission Denied Errors
+
+If you see RBAC-related errors:
+```bash
+kubectl auth can-i create jobs --as=system:serviceaccount:<namespace>:openmetadata
+```
+
+Ensure the service account has the required permissions.
+
+### Ingestion Pod Crashes (OOMKilled)
+
+Increase memory limits in the Helm values:
+```yaml
+k8s:
+  resources:
+    limits:
+      memory: "8Gi"
+    requests:
+      memory: "2Gi"
+```
+
+### CronJob Not Triggering
+
+Check CronJob status and events:
+```bash
+kubectl get cronjob <cronjob-name> -o yaml
+kubectl describe cronjob <cronjob-name>
+```
+
+Common issues:
+- Invalid cron expression
+- `startingDeadlineSeconds` too short
+- Concurrency policy blocking execution
+
+## Migrating from Airflow
+
+If you're migrating from Airflow to the Kubernetes orchestrator:
+
+1. **Stop existing Airflow-managed pipelines** - Disable or delete pipelines managed by Airflow
+2. **Update Helm values** - Switch `type: "airflow"` to `type: "k8s"`
+3. **Redeploy OpenMetadata** - Apply the new Helm configuration
+4. **Re-deploy pipelines** - Navigate to each pipeline and click "Deploy" to create the Kubernetes resources
+
+<Warning>
+The migration does not automatically transfer pipeline schedules. You'll need to re-configure and deploy each pipeline after switching to the Kubernetes orchestrator.
+</Warning>
+
+## Comparison: Airflow vs Kubernetes Orchestrator
+
+| Feature | Airflow | K8s Native | K8s with OMJob Operator |
+|---------|---------|------------|-------------------------|
+| **Infrastructure** | Requires Airflow deployment | Uses existing K8s cluster | Uses existing K8s cluster |
+| **CRD Installation** | N/A | Not required | Required |
+| **Exit Handler Guarantee** | ✅ Airflow handles | ❌ Best effort | ✅ Guaranteed |
+| **Failure Diagnostics** | ❌ | ❌ | ✅ |
+| **UI for DAGs** | ✅ Airflow UI | OpenMetadata UI | OpenMetadata UI |
+| **Resource efficiency** | Always running | Jobs on-demand | Jobs on-demand |
+| **K8s-native monitoring** | Extra setup | ✅ Native | ✅ Native |
