@@ -40,7 +40,7 @@ While we can already extract certain pieces of information automatically via our
 ## Properties
 Now that we have a clearer view of what we are trying to achieve, let's jump into a deeper view on the `MlModel` Entity [definition](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json):
 
-- The `name` and `algorithm` are the only required properties when [creating](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/api/data/createMlModel.json) an `MlModel`. We can just bring the top shell to the catalogue automatically and then choose which models we want to enrich.
+- The `name` and `service` are required when [creating](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/api/data/createMlModel.json) an `MlModel`. The `algorithm` defaults to `mlmodel`, but we normally set it explicitly to make the model easier to discover and compare.
 - The `dashboard` is a reference to a Dashboard Entity present in OpenMetadata (what we call an `EntityReference`). This should be a dashboard we have built that shows the evolution of our performance metrics. The **transparency** on ML services is integral, and that is why we have added it to the `MlModel` properties.
 - A server with the URL on where to reach the model **endpoint**, to `POST` input data or retrieve a prediction.
 - The mlStore specifies the **location** containing the model. Here we support both passing a URI with the object (e.g. `pkl`) location and/or a Docker image in its repository.
@@ -71,6 +71,8 @@ To fully understand what we are going to show now, it would be interesting for t
 Let's create an example of an MlFeature:
 
 ```python
+from metadata.generated.schema.entity.data.mlmodel import FeatureType, MlFeature
+
 MlFeature(
     name="persona",
     dataType=FeatureType.categorical,
@@ -82,9 +84,18 @@ Some properties that we can define when instantiating an `MlFeature` are the nam
 
 Here we want to give more **depth**. In order to do so, we can inform another property of the `MlFeature`, which are the `MlFeatureSource`s. The idea is that any feature can be based on an arbitrary number of real/physical sources (e.g., the columns of a Table), and informing this field will allow us to obtain this **relationship**.
 
-If we add this extra information, our feature will look like this:
+If we add this extra information, our feature will look like this, assuming `table1_entity` and `table2_entity`
+are existing Table entities:
 
 ```python
+from metadata.generated.schema.entity.data.mlmodel import (
+    FeatureSource,
+    FeatureSourceDataType,
+    FeatureType,
+    MlFeature,
+)
+from metadata.generated.schema.type.entityReference import EntityReference
+
 MlFeature(
     name="persona",
     dataType=FeatureType.categorical,
@@ -113,19 +124,112 @@ MlFeature(
 
 Note how we added a list of `FeatureSource`, with values such as `name`, `dataType` (regarding the source type, not the categorical/numerical distinction of the `MlFeature`) and an `EntityReference` as the `dataSource`.
 
-Thanks to this extra piece of information, we now can run the following method on our `MlModel` instance:
+With the current Python SDK, the ML model lifecycle goes through the plural `MLModels` facade. The generated
+`MlModel` entity is the Pydantic shape returned by the API, while `MLModels` exposes the CRUD helpers.
 
 ```python
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.ingestion.ometa.openmetadata_rest import MetadataServerConfig
+from metadata.sdk import MLModels, Tables, configure
+from metadata.generated.schema.api.data.createMlModel import CreateMlModelRequest
+from metadata.generated.schema.entity.data.mlmodel import (
+    FeatureSource,
+    FeatureSourceDataType,
+    FeatureType,
+    MlFeature,
+)
+from metadata.generated.schema.type.entityReference import EntityReference
 
-server_config = MetadataServerConfig(api_endpoint="http://localhost:8585/api")
-metadata = OpenMetadata(server_config)
+configure(
+    host="http://localhost:8585/api",
+    jwt_token="<token>",
+)
 
-metadata.add_mlmodel_lineage(model=my_mlmodel_entity)
+table1_entity = Tables.retrieve_by_name("sample_service.sample_db.sample_schema.customer_profile")
+table2_entity = Tables.retrieve_by_name("sample_service.sample_db.sample_schema.education_profile")
+
+persona_feature = MlFeature(
+    name="persona",
+    dataType=FeatureType.categorical,
+    featureSources=[
+        FeatureSource(
+            name="age",
+            dataType=FeatureSourceDataType.integer,
+            dataSource=EntityReference(id=table1_entity.id, type="table"),
+        ),
+        FeatureSource(
+            name="education",
+            dataType=FeatureSourceDataType.string,
+            dataSource=EntityReference(id=table2_entity.id, type="table"),
+        ),
+    ],
+    featureAlgorithm="PCA",
+)
+
+create_model = CreateMlModelRequest(
+    name="persona-classifier",
+    service="mlflow_service",
+    algorithm="random_forest",
+    mlFeatures=[persona_feature],
+)
+
+my_mlmodel_entity = MLModels.create(create_model)
 ```
 
-This call will register the **Lineage** information between our MlModel instance and the tables referenced in the dataSources. Then, we will be able to explore these relationships either via the API or the UI.
+To change model metadata later, retrieve the model, update a copy, and submit it back through the same facade:
+
+```python
+from metadata.generated.schema.type.basic import Markdown
+
+model = MLModels.retrieve_by_name("mlflow_service.persona-classifier")
+updated_model = model.model_copy(deep=True)
+updated_model.description = Markdown("Predicts the user persona segment.")
+
+my_mlmodel_entity = MLModels.update(updated_model)
+```
+
+Lineage is explicit in the new SDK. The SDK does not expose the legacy `metadata.add_mlmodel_lineage(model=...)`
+helper through `metadata.sdk`; instead, add edges from each feature-source table to the ML model with
+`Lineage.add_lineage(...)`:
+
+```python
+from metadata.sdk.api import Lineage
+
+Lineage.add_lineage(
+    from_entity_id=str(table1_entity.id.root),
+    from_entity_type="table",
+    to_entity_id=str(my_mlmodel_entity.id.root),
+    to_entity_type="mlmodel",
+    description="Feature source for persona.age",
+)
+
+Lineage.add_lineage(
+    from_entity_id=str(table2_entity.id.root),
+    from_entity_type="table",
+    to_entity_id=str(my_mlmodel_entity.id.root),
+    to_entity_type="mlmodel",
+    description="Feature source for persona.education",
+)
+```
+
+If you need to send a full lineage payload, build an `AddLineageRequest` and submit it with
+`Lineage.add_lineage_request(...)`:
+
+```python
+from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
+from metadata.generated.schema.type.entityLineage import EntitiesEdge
+from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.sdk.api import Lineage
+
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        fromEntity=EntityReference(id=table1_entity.id, type="table"),
+        toEntity=EntityReference(id=my_mlmodel_entity.id, type="mlmodel"),
+    ),
+)
+
+Lineage.add_lineage_request(add_lineage_request)
+```
+
+These calls register the **Lineage** information between the feature-source tables and our MlModel instance. Then, we will be able to explore these relationships either via the API or the UI.
 
 If we also have ingested the Lineage from the different Tables in our platform as well as how they relate to the data processing Pipelines, we can obtain a global end-to-end view on our ML Model and all its dependencies.
 
@@ -144,4 +248,4 @@ In this doc, we have seen the role that OpenMetadata serves from a Machine Learn
 
 We have shown how to use the Python API to enrich the models' metadata and add the lineage information with its related Entities and how the versioning will respond to changes.
 
-For further information on the properties, do not hesitate to review the [JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json) and for examples and usages with the Python API, you can take a look at our [integration tests](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/tests/integration/ometa/test_ometa_mlmodel_api.py).
+For further information on the properties, do not hesitate to review the [JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/mlmodel.json) and for examples and usages with the Python SDK, you can take a look at our [SDK integration tests](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/tests/integration/sdk/test_sdk_integration.py).

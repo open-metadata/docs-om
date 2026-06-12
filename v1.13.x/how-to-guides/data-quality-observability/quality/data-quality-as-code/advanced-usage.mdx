@@ -1,0 +1,162 @@
+---
+title: Advanced Usage
+description: Advanced patterns and configurations for Data Quality as Code
+sidebarTitle: Advanced Usage
+---
+
+# Advanced Usage
+
+This guide covers advanced patterns and configurations for Data Quality as Code, including loading tests from YAML files, customizing workflow configurations, and integrating with production systems.
+
+## Loading Tests from YAML
+
+You can load test definitions from YAML workflow files, enabling version-controlled test configurations:
+
+### Basic YAML Loading
+
+```python
+from metadata.sdk.data_quality import TestRunner
+
+# Load from YAML file
+runner = TestRunner.from_yaml(file_path="tests/customer_quality.yaml")
+
+# Or from YAML string
+yaml_config = """
+source:
+  type: TestSuite
+  serviceName: local_postgres
+  sourceConfig:
+    config:
+      type: TestSuite
+      entityFullyQualifiedName: Postgres.warehouse.public.customers
+
+processor:
+  type: orm-test-runner
+  config:
+    testCases:
+      - name: customer_email_not_null
+        testDefinitionName: columnValuesToBeNotNull
+        columnName: email
+      - name: customer_id_unique
+        testDefinitionName: columnValuesToBeUnique
+        columnName: customer_id
+
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: your-token-here
+"""
+
+runner = TestRunner.from_yaml(yaml_string=yaml_config)
+
+# Run the loaded tests
+results = runner.run()
+```
+
+### Using OpenMetadata Connection from YAML
+
+By default, `from_yaml()` uses the connection configured via `configure()`. To use the connection from the YAML file:
+
+```python
+runner = TestRunner.from_yaml(
+    file_path="tests/config.yaml",
+    use_connection_from_yaml=True
+)
+```
+
+### YAML File Structure
+
+A complete YAML configuration includes:
+
+```yaml
+source:
+  type: TestSuite
+  serviceName: postgres_production
+  sourceConfig:
+    config:
+      type: TestSuite
+      entityFullyQualifiedName: Postgres.analytics.public.user_events
+
+processor:
+  type: orm-test-runner
+  config:
+    forceUpdate: false
+    testCases:
+      # Table-level tests
+      - name: table_row_count_validation
+        testDefinitionName: tableRowCountToBeBetween
+        parameterValues:
+          - name: minValue
+            value: "10000"
+          - name: maxValue
+            value: "1000000"
+
+      # Column-level tests
+      - name: user_id_not_null
+        testDefinitionName: columnValuesToBeNotNull
+        columnName: user_id
+
+      - name: event_timestamp_format
+        testDefinitionName: columnValuesToMatchRegex
+        columnName: event_timestamp
+        parameterValues:
+          - name: regex
+            value: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OPENMETADATA_JWT_TOKEN}
+```
+
+## Advanced TestRunner Configuration
+
+### Customizing Workflow Behavior
+
+```python
+from metadata.sdk.data_quality import TestRunner
+from metadata.generated.schema.metadataIngestion.workflow import LogLevels
+
+runner = TestRunner.for_table("BigQuery.analytics.events.user_sessions")
+
+# Configure detailed settings
+runner.setup(
+    force_test_update=True,           # Update existing test definitions
+    log_level=LogLevels.DEBUG,        # Enable debug logging
+    raise_on_error=False,             # Continue on errors
+    success_threshold=95,             # Require 95% success rate
+    enable_streamable_logs=True       # Stream logs in real-time
+)
+
+# Add tests and run
+runner.add_test(TableRowCountToBeBetween(min_count=1000))
+results = runner.run()
+```
+
+### Accessing Test Definitions
+
+Inspect configured tests before running:
+
+```python
+runner = TestRunner.for_table("MySQL.ecommerce.public.orders")
+runner.add_tests(
+    TableRowCountToBeBetween(min_count=100),
+    ColumnValuesToBeNotNull(column="order_id")
+)
+
+# Access test definitions
+for test_def in runner.test_definitions:
+    print(f"Test: {test_def.testDefinitionName}")
+    print(f"Parameters: {test_def.parameterValues}")
+```
+
+## Next Steps
+
+<Card title="Publishing Results & Best Practices" href="/v1.13.x/how-to-guides/data-quality-observability/quality/data-quality-as-code/publishing-and-best-practices">
+  Publish results to OpenMetadata, implement error handling, generate tests dynamically, and apply production best practices.
+</Card>

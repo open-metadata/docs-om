@@ -1,6 +1,6 @@
 ---
 title: Python SDK | OpenMetadata Python SDK Documentation
-description: Master OpenMetadata'sPython SDK with comprehensive documentation, code examples, and API guides. Build powerful data discovery and governance solutions.
+description: Master OpenMetadata's Python SDK with comprehensive documentation, code examples, and API guides. Build powerful data discovery and governance solutions.
 sidebarTitle: Overview
 ---
 
@@ -160,8 +160,8 @@ DatabaseService -> Database -> Schema -> Table
 
 This will help us showcase how we can reuse the same syntax with the three different Entities.
 
-### 1. Initialize OpenMetadata
-OpenMetadata is the class holding the connection to the API and handling the requests. We can instantiate this by passing the proper configuration to reach the server API:
+### 1. Configure the SDK
+The SDK facades use a shared connection to the API. We can configure it by passing the proper settings to reach the server API:
 
 ```python
 from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, DatabaseServices, Users
@@ -169,14 +169,19 @@ from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, Database
 configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>")
 ```
 
-For local development, we can get a JWT token for the ingestion bot as described [here](/v1.12.x/deployment/security/enable-jwt-tokens#generate-token) and use that when we specify the `jwtToken`. For a real-world deployment, we can also use [different authentication methods](/v1.12.x/deployment/security) and specify other settings of the connection (such as `sslConfig`).
+For local development, we can get a JWT token for the ingestion bot as described [here](/v1.12.x/deployment/security/enable-jwt-tokens#generate-token) and use that when we specify the `jwt_token`. For a real-world deployment, we can also use [different authentication methods](/v1.12.x/deployment/security) and specify other settings of the connection.
 
-Below is an example of how the user can configure `sslConfig` using `Python SDK`.
+Below is an example of how the user can enable SSL verification and provide a CA bundle using the Python SDK.
 
 ```python
 from metadata.sdk import configure, Tables, Databases, DatabaseSchemas, DatabaseServices, Users
 
-configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>")
+configure(
+    host="https://localhost:8585/api",
+    jwt_token="<YOUR-INGESTION-BOT-JWT-TOKEN>",
+    verify_ssl=True,
+    ca_bundle="/path/to/ca-bundle.pem",
+)
 ```
 
 
@@ -185,9 +190,9 @@ configure(host="http://localhost:8585/api", jwt_token="<YOUR-INGESTION-BOT-JWT-T
 The OpenMetadata SDK configuration is backed by a JSON Schema. You can check the connection definitions [here](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections).
 </Tip>
 
-From this point onwards, we will interact with the API by using `OpenMetadata` methods.
+From this point onwards, we will interact with the API by using facade methods such as `Tables.create`, `Databases.retrieve_by_name`, or `DatabaseServices.delete`.
 
-An interesting validation we can already make at this point is verifying that the service is reachable and healthy. The `configure()` call performs a health check automatically — if the server is unreachable or the token is invalid, it will raise an error immediately.
+The `configure()` call initializes the SDK client and can validate that the client and server versions are compatible. To verify that the service is reachable and healthy, call `health_check()` separately.
 
 ### 2. Create the DatabaseService
 Following the hierarchy, we need to start by defining a `DatabaseService`. This will be system hosting our `Database`, which will contain the `Table`.
@@ -237,7 +242,7 @@ Another important point here is that the connection definitions are centralized 
 We can review the information that will be passed to the API by visiting the JSON definition of the class we just instantiated. As all these models are powered by `pydantic`, this conversion is transparent to us:
 
 ```python
-create_service.json()
+create_service.model_dump_json()
 # '{"name": "test-service-table", "description": null, "serviceType": "Mysql", "connection": {"config": {"type": "Mysql", "scheme": "mysql+pymysql", "username": "username", "password": "**********", "hostPort": "http://localhost:1234", "database": null, "connectionOptions": null, "connectionArguments": null, "supportsMetadataExtraction": null, "supportsProfiler": null}}, "owner": null}'
 ```
 
@@ -261,7 +266,7 @@ Moreover, running `.create()` will return the Entity type, so we can explore its
 type(service_entity)
 # metadata.generated.schema.entity.services.databaseService.DatabaseService
 
-service_entity.json()
+service_entity.model_dump_json()
 # '{"id": "a823952a-1fc1-46d4-bd0e-27f9812871f4", "name": "test-service-table", "displayName": null, "serviceType": "Mysql", "description": null, "connection": {"config": {"type": "Mysql", "scheme": "mysql+pymysql", "username": "username", "password": "**********", "hostPort": "http://localhost:1234", "database": null, "connectionOptions": null, "connectionArguments": null, "supportsMetadataExtraction": null, "supportsProfiler": null}}, "pipelines": null, "version": 0.1, "updatedAt": 1651237632058, "updatedBy": "anonymous", "owner": null, "href": "http://localhost:8585/api/v1/services/databaseServices/a823952a-1fc1-46d4-bd0e-27f9812871f4", "changeDescription": null, "deleted": false}'
 ```
 
@@ -307,7 +312,7 @@ To retrieve the `id`, we can look it up by FQN:
 service_query = DatabaseServices.retrieve_by_name("test-service-table")
 ```
 
-We have just used the `retrieve_by_name` method. This method is the same that we will use for any Entity — no need to specify an entity type argument, as each entity class already knows its type.
+We have just used the `retrieve_by_name` method. This method is the same that we will use for any Entity; no need to specify an entity type argument, as each entity class already knows its type.
 
 ```python
 from metadata.generated.schema.api.data.createDatabase import (
@@ -346,7 +351,6 @@ from metadata.generated.schema.api.data.createTable import CreateTableRequest
 from metadata.generated.schema.entity.data.table import (
     Column,
     DataType,
-    Table,
 )
 
 create_table = CreateTableRequest(
@@ -364,7 +368,7 @@ Let's now update the `Table` by adding an owner. This will require us to create 
 First, make sure that no owner has been set during the creation:
 
 ```python
-print(table_entity.owner)
+print(table_entity.owners)
 # None
 ```
 
@@ -376,16 +380,21 @@ from metadata.generated.schema.api.teams.createUser import CreateUserRequest
 user = Users.create(CreateUserRequest(name="random-user", email="random@user.com"))
 ```
 
-Update our instance of `create_table` to add the `owner` field (we need to use the `Create` class as we'll run a `PUT`), and update the Entity:
+Retrieve the `Table` with its owners, mutate the returned Entity, and update it:
 
 ```python
 from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.generated.schema.type.entityReferenceList import EntityReferenceList
 
-create_table.owner = EntityReference(id=user.id, type="user")
-updated_table_entity = Tables.create(create_table)
+table_to_update = Tables.retrieve(str(table_entity.id.root), fields=["owners"])
+table_to_update.owners = EntityReferenceList(
+    root=[EntityReference(id=user.id, type="user")]
+)
 
-print(updated_table_entity.owner)
-# EntityReference(id=Uuid(__root__=UUID('48793f0c-5308-45c1-9bf4-06a82c8d7bf9')), type='user', name='random-user', description=None, displayName=None, href=Href(__root__=AnyUrl('http://localhost:8585/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9', scheme='http', host='localhost', host_type='int_domain', port='8585', path='/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9')))
+updated_table_entity = Tables.update(table_to_update)
+
+print(updated_table_entity.owners.root)
+# [EntityReference(id=Uuid(root=UUID('48793f0c-5308-45c1-9bf4-06a82c8d7bf9')), type='user', name='random-user', description=None, displayName=None, href=Href(root=AnyUrl('http://localhost:8585/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9')))]
 ```
 
 If we did not save the `updated_table_entity` variable, we can retrieve it using `retrieve_by_name` with the proper FQN for `Table`s:
@@ -398,14 +407,14 @@ my_table = Tables.retrieve_by_name("test-service-table.test-db.test-schema.test"
 
 When querying an Entity we might not find it! The Entity could not exist, or there might be an error in the `id` or `fullyQualifiedName`.
 
-In those cases, the `get` method won't fail, but instead will return None. Note that the signature of the `get` methods is `Optional[T]`, so make sure to validate that there is data coming back!
+In those cases, call `retrieve` or `retrieve_by_name` with `nullable=True` if you want a missing Entity to return `None`. Make sure to validate that there is data coming back before using the result.
 </Tip>
 
 ### 7. Cleanup
 Finally, we can clean up the Table by running the `delete` method:
 
 ```python
-Tables.delete(str(my_table.id))
+Tables.delete(str(my_table.id.root))
 ```
 
 We could directly clean up the service itself with a Hard and Recursive delete. Note that this is ok for this test, but beware when working with production data!
@@ -413,5 +422,5 @@ We could directly clean up the service itself with a Hard and Recursive delete. 
 ```python
 service_id = DatabaseServices.retrieve_by_name("test-service-table").id
 
-DatabaseServices.delete(str(service_id), recursive=True, hard_delete=True)
+DatabaseServices.delete(str(service_id.root), recursive=True, hard_delete=True)
 ```

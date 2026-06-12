@@ -1,0 +1,76 @@
+---
+title: "SSRS Connector | OpenMetadata Dashboard Integration"
+description: "Connect SQL Server Reporting Services (SSRS) to OpenMetadata with our comprehensive dashboard connector guide. Step-by-step setup, configuration examples, and metadata extraction tips."
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import TestConnection from '/snippets/connectors/test-connection.mdx'
+import ConfigureIngestion from '/snippets/connectors/dashboard/configure-ingestion.mdx'
+import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/ssrs.webp'
+name="SSRS"
+stage="BETA"
+availableFeatures={["Dashboards", "Charts", "Projects"]}
+unavailableFeatures={["Owners", "Tags", "Datamodels", "Lineage", "Column Lineage", "Usage"]} />
+
+In this section, we provide guides and references to use the SSRS connector.
+
+Configure and schedule SSRS metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/dashboard/ssrs/troubleshooting)
+
+## Requirements
+
+The SSRS connector uses the [SSRS REST API](https://docs.microsoft.com/en-us/sql/reporting-services/developer/rest-api) (v2.0) and authenticates via **Windows Authentication (NTLM)**. The account used must have at minimum **Browser** role on the SSRS Report Server to list folders and reports.
+
+<Info>
+The SSRS REST API (v2.0) requires **SQL Server Reporting Services 2017 or later**. Older SSRS versions using SOAP-based web services are not supported.
+</Info>
+
+To grant the required role:
+1. Open the **SSRS Web Portal**.
+2. Navigate to **Site Settings** → **Security** → **New Role Assignment**.
+3. Add the service account and assign the **Browser** role.
+
+## Metadata Ingestion
+
+<MetadataIngestionUi connector={"SSRS"} selectServicePath="/public/images/connectors/ssrs/select-service.png" addNewServicePath="/public/images/connectors/ssrs/add-new-service.png" serviceConnectionPath="/public/images/connectors/ssrs/service-connection.png" />
+
+# Connection Details
+
+<Steps>
+<Step title="Connection Details">
+
+- **Host and Port**: The base URL of your SSRS Report Server, e.g., `https://your-ssrs-server/reportserver`. The connector appends `/api/v2.0` to this URL when calling the REST API.
+
+- **Username**: The Windows account username for NTLM authentication. Use `DOMAIN\username` format for domain accounts.
+
+- **Password**: Password for the Windows account used for NTLM authentication.
+
+- **Verify SSL** *(optional)*: Controls SSL certificate verification. Options:
+  - `no-ssl` (default) — No SSL
+  - `ignore` — SSL without certificate validation
+  - `validate` — Full SSL certificate validation
+
+- **SSL Configuration** *(optional)*: Required when `verifySSL` is set to `validate`. Provide the CA certificate to verify the SSRS server's SSL certificate.
+
+- **Dashboard Filter Pattern** *(optional)*: Regex to include or exclude specific SSRS reports by name.
+
+- **Chart Filter Pattern** *(optional)*: Regex to include or exclude charts by name.
+
+- **Project Filter Pattern** *(optional)*: Regex to include or exclude SSRS folders (which map to OpenMetadata projects) by name.
+
+</Step>
+<TestConnection />
+<ConfigureIngestion />
+<IngestionScheduleAndDeploy />
+</Steps>
+
+## Securing SSRS Connection with SSL in OpenMetadata
+
+To establish secure connections between OpenMetadata and your SSRS server, set `verifySSL` to `validate` and provide the CA certificate in the SSL Configuration section. This ensures the connector validates the server's certificate during ingestion.

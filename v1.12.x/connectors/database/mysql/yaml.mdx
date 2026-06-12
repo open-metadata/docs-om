@@ -70,6 +70,9 @@ GRANT SELECT ON mysql.general_log TO '<username>'@'<host>';
 SET GLOBAL slow_query_log='ON';
 SET GLOBAL log_output='table';
 GRANT SELECT ON mysql.slow_log TO '<username>'@'<host>';
+
+-- Optional: if using a custom `queryHistoryTable` (e.g. audit_db.my_query_log)
+GRANT SELECT ON <custom_db>.<custom_table> TO '<username>'@'<host>';
 ```
 ### 1. Define the YAML Config
 This is a sample config for MySQL Lineage:
@@ -233,13 +236,11 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 <ContentSection id={5} title="Azure Auth" lines="15-20">
 
-#### Azure Auth
+- **scopes**: Required. Provide the scope or comma-separated scopes used to fetch the Azure access token, for example `https://ossrdbms-aad.database.windows.net/.default`.
 
-**scopes**: Required. Provide the scope or comma-separated scopes used to fetch the Azure access token, for example `https://ossrdbms-aad.database.windows.net/.default`.
+- **clientId**, **clientSecret**, and **tenantId**: Optional when using a service principal. If omitted, OpenMetadata falls back to `DefaultAzureCredential` from the runtime environment.
 
-**clientId**, **clientSecret**, and **tenantId**: Optional when using a service principal. If omitted, OpenMetadata falls back to `DefaultAzureCredential` from the runtime environment.
-
-**accountName** and **vaultName**: Part of the shared Azure credentials schema, but not required for MySQL token-based authentication.
+- **accountName** and **vaultName**: Part of the shared Azure credentials schema, but not required for MySQL token-based authentication.
 
 </ContentSection>
 
@@ -255,7 +256,26 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={8} title="Connection Options" lines="25-26">
+<ContentSection id={7.1} title="useSlowLogs" lines="24">
+
+**useSlowLogs**: When set to `true`, OpenMetadata reads query history from `mysql.slow_log` instead of the default `mysql.general_log`. Requires slow query logging to be enabled on the MySQL server (`SET GLOBAL slow_query_log='ON'`).
+
+</ContentSection>
+
+<ContentSection id={7.2} title="queryHistoryTable" lines="25">
+
+**queryHistoryTable**: Optional. Specify a fully qualified custom table (`<db>.<table>`) to use as the query history source for usage and lineage extraction. If set, this replaces the default `mysql.general_log` (or `mysql.slow_log` when `useSlowLogs: true`).<br/><br/>
+
+The custom table must expose columns compatible with the selected log format:
+
+- **General log**: `argument`, `event_time`, `command_type`
+- **Slow log**: `sql_text`, `start_time`
+
+The connection user requires `SELECT` on this table.
+
+</ContentSection>
+
+<ContentSection id={8} title="Connection Options" lines="26-27">
 
 #### Advanced Configuration
 
@@ -263,7 +283,7 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={9} title="Connection Arguments" lines="27-28">
+<ContentSection id={9} title="Connection Arguments" lines="28-29">
 
 **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
 
@@ -271,19 +291,19 @@ Find more information about [Source Identity](https://docs.aws.amazon.com/STS/la
 
 </ContentSection>
 
-<ContentSection id={10} title="Source Config" lines="29-72">
+<ContentSection id={10} title="Source Config" lines="30-73">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={11} title="Sink Configuration" lines="73-75">
+<ContentSection id={11} title="Sink Configuration" lines="74-76">
 
 <IngestionSinkDef />
 
 </ContentSection>
 
-<ContentSection id={12} title="Workflow Configuration" lines="76-92">
+<ContentSection id={12} title="Workflow Configuration" lines="77-93">
 
 <WorkflowConfigDef />
 
@@ -318,6 +338,7 @@ source:
       databaseSchema: schema  # Optional: restrict to single schema
       databaseName: database_name  # Optional: custom name in OpenMetadata
       useSlowLogs: false  # Optional: use slow logs for lineage (default: false)
+      # queryHistoryTable: audit_db.my_query_log  # Optional: custom query history table
       # connectionOptions:
       #   key: value
       # connectionArguments:

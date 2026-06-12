@@ -2,7 +2,7 @@
 name: connector-doc-review
 description: Review and fix OpenMetadata connector documentation against JSON schema and source code. Validates availableFeatures, permissions, yaml.mdx configuration, and overall completeness. Automatically fixes gaps.
 user-invocable: true
-argument-hint: "<connector-name> [--service-type=database|pipeline|dashboard|messaging|storage|search|mlmodel] [--version=v1.12.x|v1.11.x|v1.13.x-SNAPSHOT|all] [--dry-run]"
+argument-hint: "<connector-name> [--service-type=database|pipeline|dashboard|messaging|storage|search|mlmodel] [--version=v1.12.x|v1.13.x|v2.0.x-SNAPSHOT|all] [--dry-run]"
 allowed-tools:
   - Bash
   - Read
@@ -23,7 +23,7 @@ When a user asks to review, validate, audit, or fix connector documentation — 
 
 - **connector-name** (required): Name of the connector (e.g., `redshift`, `dynamodb`, `bigquery`, `airflow`, `looker`, `kafka`)
 - **--service-type** (optional): One of `database`, `pipeline`, `dashboard`, `messaging`, `storage`, `search`, `mlmodel`. Default: auto-detect from connector name.
-- **--version** (optional): Which version to review. Default: `all` (reviews v1.11.x, v1.12.x, v1.13.x-SNAPSHOT).
+- **--version** (optional): Which version to review. Default: `all` (reviews v1.11.x, v1.12.x, v1.13.x).
 - **--dry-run** (optional): Only report issues, don't fix them.
 
 ## Directory References
@@ -161,7 +161,7 @@ Using the schema and code, build a definitive feature map:
 
 ### Phase 2: Read Current Documentation
 
-For each version being reviewed (v1.11.x, v1.12.x, v1.13.x-SNAPSHOT):
+For each version being reviewed (v1.11.x, v1.12.x, v1.13.x):
 
 #### Step 2.1: Read the Main Connector Page
 

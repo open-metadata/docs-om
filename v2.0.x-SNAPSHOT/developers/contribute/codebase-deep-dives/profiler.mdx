@@ -1,0 +1,168 @@
+---
+title: Profiler Module | Architecture & Metrics System
+description: Technical deep dive into the OpenMetadata profiler — metrics system, computation engine, and workflow architecture.
+sidebarTitle: Profiler
+---
+
+# Profiler Module
+
+The profiler module lives at `ingestion/src/metadata/profiler/`. It computes **statistical metrics** on database tables (row counts, null ratios, histograms, etc.) and publishes the results back to the OpenMetadata server.
+
+This guide walks through the architecture top-down: from the workflow trigger, through the metrics system, down to how individual metrics are computed and published.
+
+## Directory Layout
+
+```
+profiler/
+├── api/
+│   └── models.py                    # DTOs: ProfilerResponse, ProfilerProcessorConfig
+├── config.py                        # Config helpers for schema/database profiler settings
+├── factory.py                       # Abstract factory for profiler interfaces
+├── registry.py                      # MetricRegistry, TypeRegistry enums
+├── metrics/                         # All metric definitions
+│   ├── core.py                      # Base classes: Metric, StaticMetric, QueryMetric, etc.
+│   ├── registry.py                  # Metrics enum — the central metric catalog
+│   ├── static/                      # SQL aggregate metrics (COUNT, SUM, MIN, MAX, ...)
+│   ├── composed/                    # Derived metrics (NullRatio, DuplicateCount, IQR, ...)
+│   ├── window/                      # Percentile metrics (Median, Quartiles)
+│   ├── hybrid/                      # Metrics combining queries + prior results (Histogram)
+│   ├── system/                      # Database system metrics (DML ops, freshness)
+│   └── pandas_metric_protocol.py    # Accumulator pattern for DataFrame metrics
+├── interface/                       # Database abstraction layer
+│   ├── profiler_interface.py        # Abstract base
+│   └── sqlalchemy/                  # SQL implementations (+ dialect overrides)
+├── processor/                       # Core profiling logic
+│   ├── core.py                      # Profiler class — orchestrates metric computation
+│   ├── processor.py                 # ProfilerProcessor — ingestion framework step
+│   ├── runner.py                    # QueryRunner / PandasRunner
+│   ├── metric_filter.py             # Selects metrics by config + column type
+│   └── models.py                    # Internal processor models
+├── source/                          # Profiler data sources
+│   ├── metadata.py                  # OpenMetadataSource — fetches tables from OM API
+│   ├── fetcher/                     # Entity fetching strategies
+│   └── database/                    # Database-specific profiler sources
+│       └── base/
+│           ├── profiler_source.py   # Creates the profiler runner
+│           └── profiler_resolver.py # Resolves sampler + interface by engine
+├── orm/                             # ORM utilities
+│   ├── registry.py                  # Type registries, dialect maps, type classifiers
+│   ├── converter/                   # DB-specific type converters
+│   └── functions/                   # Custom SQL functions (SumFn, LenFn, etc.)
+└── adaptors/                        # Adaptors for non-SQL sources (NoSQL, etc.)
+```
+
+## Workflow Pipeline
+
+The profiler follows the standard **Source → Processor → Sink** pattern defined in `workflow/profiler.py`:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  OpenMetadataSource                                      │
+│  profiler/source/metadata.py                             │
+│                                                          │
+│  Fetches from OM API:                                    │
+│  • Tables matching service/database/schema filters       │
+│  • Global profiler configuration                         │
+│  • Database service connection                           │
+│                                                          │
+│  Yields: ProfilerSourceAndEntity                         │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│  ProfilerProcessor                                       │
+│  profiler/processor/processor.py                         │
+│                                                          │
+│  For each table:                                         │
+│  1. Create profiler runner (Profiler instance)           │
+│  2. Execute all metrics                                  │
+│  3. Build CreateTableProfileRequest                      │
+│                                                          │
+│  Yields: ProfilerResponse                                │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│  MetadataRestSink                                        │
+│  ingestion/sink/metadata_rest.py                         │
+│                                                          │
+│  POST /api/v1/tables/{id}/tableProfile                   │
+└──────────────────────────────────────────────────────────┘
+```
+
+## Metrics System
+
+The metrics system is the heart of the profiler. Every metric is a class that knows how to compute itself against a data source.
+
+### Metric Type Hierarchy
+
+```
+Metric (ABC)                                # metrics/core.py
+│
+├── StaticMetric                            # SQL aggregate functions
+│   fn(col, ...) → SQLAlchemy expression    # e.g., func.count(), func.avg()
+│   Examples: Count, NullCount, Min, Max, Mean, Sum, StdDev,
+│             DistinctCount, UniqueCount, MinLength, MaxLength
+│
+├── QueryMetric                             # Full query execution
+│   query(col, ...) → SQLAlchemy Select     # Returns multiple rows
+│   Examples: LikeCount, RegexCount
+│
+├── ComposedMetric                          # Derived from other metrics
+│   fn(results) → value                     # Pure computation, no DB query
+│   Examples: NullRatio, DistinctRatio, UniqueRatio,
+│             DuplicateCount, InterQuartileRange
+│
+├── HybridMetric                            # Query + prior results
+│   query(col, ...) → Select               # Needs results from earlier metrics
+│   fn(results) → value
+│   Examples: Histogram, CardinalityDistribution
+│
+├── WindowMetric                            # Percentile-based (window functions)
+│   fn(col, ...) → SQLAlchemy expression
+│   Examples: Median, FirstQuartile, ThirdQuartile
+│
+├── CustomMetric                            # User-defined SQL
+│   sql(col, ...) → raw SQL string
+│
+└── SystemMetric                            # Database system-level
+│   sql(col, ...) → dialect-specific query
+│   Examples: DML operation counts, freshness
+```
+
+### Metric Registry
+
+All built-in metrics are registered in the `Metrics` enum (`metrics/registry.py`):
+
+```python
+class Metrics(MetricRegistry):
+    ROW_COUNT = RowCount           # Table-level
+    COLUMN_COUNT = ColumnCount
+    COUNT = Count                  # Column-level
+    NULL_COUNT = NullCount
+    DISTINCT_COUNT = DistinctCount
+    MEAN = Mean
+    # ... 40+ metrics
+```
+
+The `MetricRegistry` base class makes each enum member **callable** — `Metrics.ROW_COUNT()` instantiates a `RowCount` metric.
+
+### Metric Computation Order
+
+Metrics are computed in a strict dependency order:
+
+```
+1. Static Metrics    (SQL aggregates — independent)
+2. Query Metrics     (full queries — independent)
+3. Window Metrics    (percentiles — independent)
+4. System Metrics    (database system queries — independent)
+5. Custom Metrics    (user SQL — independent)
+        │
+        ▼ results available
+6. Composed Metrics  (derived from 1-5, e.g., NullRatio = NullCount / Count)
+        │
+        ▼ composed results available
+7. Hybrid Metrics    (need both query + prior results, e.g., Histogram)
+```
+
+Steps 1–5 run in parallel via a thread pool. Steps 6–7 run sequentially per column after the parallel phase completes.
