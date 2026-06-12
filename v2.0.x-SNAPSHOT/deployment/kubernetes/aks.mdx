@@ -1,0 +1,201 @@
+---
+title: "AKS Deployment: Prerequisites & Kubernetes Orchestrator"
+description: Configure OpenMetadata on Azure Kubernetes Service using the recommended Kubernetes-native orchestrator with Helm charts and scalable configuration templates.
+sidebarTitle: AKS
+collate: false
+---
+
+# OpenMetadata Deployment on Azure Kubernetes Service Cluster
+
+OpenMetadata can be deployed on Azure Kubernetes Service. This guide covers both the recommended Kubernetes orchestrator (new in 1.12) and the alternative Airflow-based orchestrator.
+
+## Prerequisites
+
+### Azure Services for Database and Search Engine as Elastic Cloud
+
+It is recommended to use [Azure SQL](https://azure.microsoft.com/en-in/products/azure-sql/database) and [Elastic Cloud on Azure](https://www.elastic.co/partners/microsoft-azure) for Production Deployments.
+
+We support:
+- Azure SQL (MySQL) engine version 8 or higher
+- Azure SQL (PostgreSQL) engine version 12 or higher
+- Elastic Cloud (ElasticSearch version 9.x, minimum 9.0.0, recommended 9.3.0)
+
+We recommend:
+- Azure SQL to be Multi Zone Available and Production Workload Environment
+- Elastic Cloud Environment with multiple zones and minimum 2 nodes
+
+### Step 1 - Create an AKS Cluster
+
+If you are deploying on a new cluster set the `EnableAzureDiskFileCSIDriver=true` to enable container storage interface storage drivers.
+
+```azure-cli
+az aks create   --resource-group  MyResourceGroup    \
+                --name MyAKSClusterName              \
+                --nodepool-name agentpool            \
+                --outbound-type loadbalancer         \
+                --location YourPreferredLocation     \
+                --generate-ssh-keys                  \
+                --enable-addons monitoring           \
+                EnableAzureDiskFileCSIDriver=true
+```
+
+For existing cluster it is important to enable the CSI storage drivers:
+
+```azure-cli
+az aks update -n MyAKSCluster -g MyResourceGroup --enable-disk-driver --enable-file-driver
+```
+
+### Step 2 - Create a Namespace (optional)
+
+```azure-cli
+kubectl create namespace openmetadata
+```
+
+### Step 3 - Add the Helm OpenMetadata Repo
+
+```azure-cli
+helm repo add open-metadata https://helm.open-metadata.org/
+helm repo update
+```
+
+---
+
+## Kubernetes Orchestrator Configuration (Recommended)
+
+Starting with OpenMetadata 1.12, we recommend using the **Kubernetes native orchestrator** for running ingestion pipelines. This eliminates the need for Apache Airflow and simplifies your deployment.
+
+<Tip>
+The Kubernetes orchestrator runs ingestion pipelines as native K8s Jobs and CronJobs. For full documentation on features, configuration options, and troubleshooting, see the [Kubernetes Orchestrator Guide](/v2.0.x-SNAPSHOT/deployment/ingestion/kubernetes).
+</Tip>
+
+<Warning>
+The recommended OMJob Operator approach requires installing Custom Resource Definitions (CRDs), which needs elevated cluster permissions. If your cluster policies don't allow CRDs, you can disable the operator by setting `useOMJobOperator: false` and `omjobOperator.enabled: false` in your values file to use native K8s Jobs instead.
+</Warning>
+
+### Create Kubernetes Secrets
+
+Create the required secrets for your database and search engine:
+
+```azure-cli
+# Database secret (for MySQL)
+kubectl create secret generic mysql-secrets \
+  --namespace openmetadata \
+  --from-literal=openmetadata-mysql-password=<YOUR_AZURE_SQL_PASSWORD>
+
+# ElasticSearch secret
+kubectl create secret generic elasticsearch-secrets \
+  --namespace openmetadata \
+  --from-literal=openmetadata-elasticsearch-password=<YOUR_ELASTIC_CLOUD_PASSWORD>
+```
+
+### OpenMetadata Values Configuration
+
+Create your `openmetadata-values.yaml` with the following configuration:
+
+```yaml
+# openmetadata-values.yaml
+openmetadata:
+  config:
+    # Database configuration
+    elasticsearch:
+      host: <ELASTIC_CLOUD_ENDPOINT_WITHOUT_HTTPS>
+      searchType: elasticsearch
+      port: 443
+      scheme: https
+      connectionTimeoutSecs: 5
+      socketTimeoutSecs: 60
+      keepAliveTimeoutSecs: 600
+      batchSize: 10
+      auth:
+        enabled: true
+        username: <ELASTIC_CLOUD_USERNAME>
+        password:
+          secretRef: elasticsearch-secrets
+          secretKey: openmetadata-elasticsearch-password
+    database:
+      host: <AZURE_SQL_ENDPOINT>
+      port: 3306
+      driverClass: com.mysql.cj.jdbc.Driver
+      dbScheme: mysql
+      dbUseSSL: true
+      databaseName: <AZURE_SQL_DATABASE_NAME>
+      auth:
+        username: <AZURE_SQL_DATABASE_USERNAME>
+        password:
+          secretRef: mysql-secrets
+          secretKey: openmetadata-mysql-password
+
+    # Kubernetes Orchestrator configuration
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata.openmetadata.svc.cluster.local:8585/api
+
+      k8s:
+        ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.0"
+        useOMJobOperator: true
+
+# Enable the OMJob Operator (recommended for production)
+omjobOperator:
+  enabled: true
+  image:
+    repository: docker.getcollate.io/openmetadata/omjob-operator
+    tag: "1.12.0"
+
+image:
+  tag: "1.12.0"
+```
+
+<Info>
+For advanced configuration options such as resource limits, job lifecycle settings, failure diagnostics, RBAC, and security contexts, see the [Kubernetes Orchestrator Guide](/v2.0.x-SNAPSHOT/deployment/ingestion/kubernetes).
+</Info>
+
+<Tip>
+
+For Database as PostgreSQL, use the below config for database values:
+
+```yaml
+database:
+  host: <AZURE_SQL_ENDPOINT>
+  port: 5432
+  driverClass: org.postgresql.Driver
+  dbScheme: postgresql
+  dbUseSSL: true
+  databaseName: <AZURE_SQL_DATABASE_NAME>
+  auth:
+    username: <AZURE_SQL_DATABASE_USERNAME>
+    password:
+      secretRef: postgresql-secret
+      secretKey: postgresql-password
+```
+
+</Tip>
+
+### Deploy OpenMetadata
+
+```bash
+# Install OpenMetadata (no dependencies chart needed with K8s orchestrator)
+helm install openmetadata open-metadata/openmetadata \
+  --namespace openmetadata \
+  --values openmetadata-values.yaml
+```
+
+<Tip>
+With the Kubernetes orchestrator, you don't need to deploy the `openmetadata-dependencies` chart that includes Airflow. This significantly simplifies your deployment.
+</Tip>
+
+### Verify the Deployment
+
+```bash
+# Check pods are running
+kubectl get pods -n openmetadata
+
+# Check the K8s orchestrator health in OpenMetadata UI
+# Navigate to Settings → Preferences → Health
+```
+
+### Access OpenMetadata
+
+```azure-cli
+kubectl port-forward service/openmetadata 8585:8585 -n openmetadata
+```

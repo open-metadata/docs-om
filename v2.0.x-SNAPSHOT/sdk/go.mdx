@@ -1,0 +1,291 @@
+---
+title: Go SDK
+sidebarTitle: Go SDK
+---
+
+# Go SDK
+
+The open-source OpenMetadata SDK for Go provides a fully type-safe client to interact with the OpenMetadata API.
+The SDK is auto-generated from the OpenMetadata OpenAPI specification, ensuring complete API coverage with strongly typed
+request and response models.
+
+You can find the source code in the [GitHub repository](https://github.com/open-metadata/openmetadata-sdk/tree/main/openmetadata-go-client). As an open-source project, contributions are always welcome!
+
+## Requirements
+
+- Go 1.24 or later
+
+## Installation
+
+Add the module to your application:
+
+```sh
+go get github.com/open-metadata/openmetadata-sdk/openmetadata-go-client
+```
+
+## Create a Client
+
+To interact with the OpenMetadata API, create a `Client` by providing the server URL and a JWT token for authentication:
+
+```go
+package main
+
+import (
+	"github.com/open-metadata/openmetadata-sdk/openmetadata-go-client/pkg/ometa"
+)
+
+func main() {
+	client := ometa.NewClient(
+		"http://localhost:8585",
+		ometa.WithToken("<your-jwt-token>"),
+	)
+}
+```
+
+### Client Options
+
+You can customize the client behavior using functional options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithToken(token)` | Set the JWT Bearer authentication token | `""` |
+| `WithAPIVersion(v)` | Override the API version | `"v1"` |
+| `WithRetry(count, wait)` | Configure retry count and wait duration | `3` retries, `30s` wait |
+| `WithHTTPClient(c)` | Use a custom `*http.Client` (e.g. for proxies or TLS) | Default `http.Client` |
+
+Requests that return HTTP `429` (Too Many Requests) or `504` (Gateway Timeout) are automatically retried.
+
+```go
+client := ometa.NewClient(
+	"http://localhost:8585",
+	ometa.WithToken("<your-jwt-token>"),
+	ometa.WithRetry(5, 10*time.Second),
+	ometa.WithAPIVersion("v1"),
+)
+```
+
+## Using the Client
+
+The client exposes **56+ typed services** — one for each entity type in OpenMetadata (Tables, Databases, Users, Glossaries, Pipelines, etc.).
+All services follow a unified interface with the same set of methods.
+
+### Available Methods
+
+Every service provides the following methods:
+
+| Method | Description |
+|--------|-------------|
+| `List(ctx, params)` | List entities with automatic pagination |
+| `GetByID(ctx, id, params)` | Get a single entity by UUID |
+| `GetByName(ctx, fqn, params)` | Get a single entity by Fully Qualified Name |
+| `Create(ctx, body)` | Create a new entity |
+| `CreateOrUpdate(ctx, body)` | Create or update an entity (upsert) |
+| `Patch(ctx, id, ops)` | Apply JSON Patch operations to an entity |
+| `Delete(ctx, id, params)` | Delete an entity by UUID |
+| `DeleteByName(ctx, fqn, params)` | Delete an entity by Fully Qualified Name |
+| `ListVersions(ctx, id)` | Get the version history of an entity |
+| `GetVersion(ctx, id, version)` | Get a specific version of an entity |
+| `Restore(ctx, body)` | Restore a soft-deleted entity |
+
+### List Entities
+
+The `List` method returns a Go iterator that handles pagination automatically:
+
+```go
+for table, err := range client.Tables.List(ctx, nil) {
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(table.Name)
+}
+```
+
+### Get an Entity
+
+Retrieve a single entity by UUID or by Fully Qualified Name:
+
+```go
+// By ID
+table, err := client.Tables.GetByID(ctx, "<table-uuid>", nil)
+
+// By Fully Qualified Name
+table, err := client.Tables.GetByName(ctx, "sample_data.ecommerce_db.shopify.dim_customer", nil)
+```
+
+### Create an Entity
+
+Create a new entity using a typed request struct:
+
+```go
+table, err := client.Tables.Create(ctx, &ometa.CreateTable{
+	Name:           "my_table",
+	DatabaseSchema: "sample_data.ecommerce_db.shopify",
+	Columns: []ometa.Column{
+		{Name: "id", DataType: ometa.ColumnDataTypeINT},
+		{Name: "name", DataType: ometa.ColumnDataTypeSTRING},
+	},
+})
+```
+
+### Create or Update an Entity
+
+Upsert an entity — creates it if it does not exist, or updates it if it does:
+
+```go
+table, err := client.Tables.CreateOrUpdate(ctx, &ometa.CreateTable{
+	Name:           "my_table",
+	DatabaseSchema: "sample_data.ecommerce_db.shopify",
+	Columns: []ometa.Column{
+		{Name: "id", DataType: ometa.ColumnDataTypeINT},
+		{Name: "name", DataType: ometa.ColumnDataTypeSTRING},
+	},
+})
+```
+
+### Patch an Entity
+
+Apply partial updates using [JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations:
+
+```go
+table, err := client.Tables.Patch(ctx, "<table-uuid>", []ometa.JSONPatchOp{
+	{Op: "add", Path: "/description", Value: "Updated description"},
+})
+```
+
+### Delete an Entity
+
+Delete by UUID or by Fully Qualified Name:
+
+```go
+// By ID
+err := client.Tables.Delete(ctx, "<table-uuid>", nil)
+
+// By Fully Qualified Name with hard delete
+err := client.Tables.DeleteByName(ctx, "sample_data.ecommerce_db.shopify.my_table",
+	&ometa.DeleteTable1Params{HardDelete: ometa.Bool(true)},
+)
+```
+
+### Version History
+
+Track entity changes over time:
+
+```go
+// List all versions
+history, err := client.Tables.ListVersions(ctx, "<table-uuid>")
+
+// Get a specific version
+table, err := client.Tables.GetVersion(ctx, "<table-uuid>", "0.2")
+```
+
+### Restore a Soft-Deleted Entity
+
+```go
+table, err := client.Tables.Restore(ctx, &ometa.RestoreEntity{
+	Id: ometa.Str("<table-uuid>"),
+})
+```
+
+## Available Services
+
+The client provides typed services for all OpenMetadata entity types, organized by category:
+
+<AccordionGroup>
+<Accordion title="Data Assets">
+| Service | Description |
+|---------|-------------|
+| `Tables` | Database tables |
+| `Topics` | Messaging topics |
+| `Dashboards` | Dashboard entities |
+| `Pipelines` | Data pipelines |
+| `Charts` | Dashboard charts |
+| `Containers` | File/blob storage containers |
+| `SearchIndexes` | Search engine indexes |
+| `StoredProcedures` | Database stored procedures |
+| `Metrics` | Metric entities |
+</Accordion>
+
+<Accordion title="Data Organization">
+| Service | Description |
+|---------|-------------|
+| `Databases` | Database entities |
+| `DatabaseSchemas` | Database schemas |
+| `APICollections` | API collections |
+| `APIEndpoints` | API endpoints |
+</Accordion>
+
+<Accordion title="Governance & Metadata">
+| Service | Description |
+|---------|-------------|
+| `Glossaries` | Glossary entities |
+| `GlossaryTerms` | Glossary terms |
+| `Classifications` | Data classifications |
+| `Tags` | Tag entities |
+| `DataProducts` | Data products |
+| `Domains` | Business domains |
+| `Policies` | Governance policies |
+| `Queries` | Saved queries |
+</Accordion>
+
+<Accordion title="Quality & Testing">
+| Service | Description |
+|---------|-------------|
+| `TestCases` | Data quality test cases |
+| `TestSuites` | Test suites |
+| `TestDefinitions` | Test definitions |
+</Accordion>
+
+<Accordion title="Connector Services">
+| Service | Description |
+|---------|-------------|
+| `DatabaseServices` | Database service connections |
+| `DashboardServices` | Dashboard service connections |
+| `PipelineServices` | Pipeline service connections |
+| `MessagingServices` | Messaging service connections |
+| `SearchServices` | Search service connections |
+| `StorageServices` | Storage service connections |
+| `MlModelServices` | ML model service connections |
+| `ApiServices` | API service connections |
+| `MetadataServices` | Metadata service connections |
+</Accordion>
+
+<Accordion title="People & Teams">
+| Service | Description |
+|---------|-------------|
+| `Users` | User entities |
+| `Teams` | Team entities |
+| `Roles` | Role-based access control |
+| `Bots` | Bot entities |
+</Accordion>
+</AccordionGroup>
+
+## Helper Functions
+
+The SDK provides pointer helper functions for working with optional fields in request structs:
+
+```go
+ometa.Str("value")      // returns *string
+ometa.Bool(true)         // returns *bool
+ometa.Int32(42)          // returns *int32
+ometa.Int64(42)          // returns *int64
+ometa.Float32(3.14)      // returns *float32
+ometa.Float64(3.14)      // returns *float64
+ometa.Ptr(myValue)       // returns *T (generic)
+```
+
+## Error Handling
+
+API errors are returned as `*ometa.APIError` with the HTTP status code and message:
+
+```go
+table, err := client.Tables.GetByID(ctx, "<id>", nil)
+if err != nil {
+	if ometa.IsNotFound(err) {
+		fmt.Println("Table not found")
+	} else if ometa.IsConflict(err) {
+		fmt.Println("Conflict")
+	} else {
+		log.Fatal(err)
+	}
+}
+```
