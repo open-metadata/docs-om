@@ -1,0 +1,177 @@
+---
+title: Kubernetes GKE Deployment | Official Documentation
+description: Run your deployment on Google Kubernetes Engine (GKE) for a reliable, managed Kubernetes experience with secure configurations.
+sidebarTitle: Overview
+collate: false
+---
+
+import Faqs from '/snippets/deployment/faqs.mdx'
+
+# GKE on Google Cloud Platform Deployment
+
+OpenMetadata supports the Installation and Running of Application on Google Kubernetes Engine through Helm Charts.
+However, there are some additional configurations which needs to be done as prerequisites for the same.
+
+<Tip>
+
+Google Kubernetes Engine (GKE) Auto Pilot Mode is not compatible with one of OpenMetadata Dependencies - ElasticSearch.
+The reason being that ElasticSearch Pods require Elevated permissions to run initContainers for changing configurations which is not allowed by GKE AutoPilot PodSecurityPolicy.
+
+</Tip>
+
+<Warning>
+
+All the code snippets in this section assume the `default` namespace for kubernetes.
+
+</Warning>
+
+## Prerequisites
+
+### Cloud Database with CloudSQL and ElasticCloud for GCP as Search Engine
+
+It is recommended to use GCP [Cloud SQL](https://cloud.google.com/sql/) services for Database and [Elastic Cloud GCP](https://www.elastic.co/partners/google-cloud) for Search Engine for Production.
+
+We support -
+- Cloud SQL (MySQL) engine version 8 or higher
+- Cloud SQL (postgreSQL) engine version 12 or higher
+- ElasticSearch Engine version 8.X (upto 8.10.X)
+
+We recommend -
+- CloudSQL to be Multi Zone Available
+- Elastic Cloud Environment with multiple zones and minimum 2 nodes
+
+<Warning>
+Make sure to increase `sort_buffer_size` ([for MySQL](https://cloud.google.com/sql/docs/mysql/flags)) or `work_mem` ([for PostgreSQL](https://cloud.google.com/sql/docs/postgres/flags)) to the recommended value of **20MB** or more using flags. This is especially important when running migrations to prevent **Out of Sort Memory Error**. You can revert the setting once the migrations are complete.
+</Warning>
+
+## Kubernetes Orchestrator Configuration (Recommended)
+
+Starting with OpenMetadata 1.12, we recommend using the **Kubernetes native orchestrator** for running ingestion pipelines. This eliminates the need for Apache Airflow and simplifies your deployment.
+
+<Tip>
+The Kubernetes orchestrator runs ingestion pipelines as native K8s Jobs and CronJobs. For full documentation on features, configuration options, and troubleshooting, see the [Kubernetes Orchestrator Guide](/v1.13.x/deployment/ingestion/kubernetes).
+</Tip>
+
+<Warning>
+The recommended OMJob Operator approach requires installing Custom Resource Definitions (CRDs), which needs elevated cluster permissions. If your cluster policies don't allow CRDs, you can disable the operator by setting `useOMJobOperator: false` and `omjobOperator.enabled: false` in your values file to use native K8s Jobs instead.
+</Warning>
+
+### OpenMetadata Values Configuration
+
+Create your `openmetadata-values.yaml` with the following configuration:
+
+```yaml
+# openmetadata-values.yaml
+openmetadata:
+  config:
+    # Database configuration
+    elasticsearch:
+      host: <ELASTIC_CLOUD_SERVICE_ENDPOINT_WITHOUT_HTTPS>
+      searchType: elasticsearch
+      port: 443
+      scheme: https
+      connectionTimeoutSecs: 5
+      socketTimeoutSecs: 60
+      keepAliveTimeoutSecs: 600
+      batchSize: 10
+      auth:
+        enabled: true
+        username: <ELASTIC_CLOUD_USERNAME>
+        password:
+          secretRef: elasticsearch-secrets
+          secretKey: openmetadata-elasticsearch-password
+    database:
+      host: <GCP_CLOUD_SQL_ENDPOINT_IP>
+      port: 3306
+      driverClass: com.mysql.cj.jdbc.Driver
+      dbScheme: mysql
+      dbUseSSL: true
+      databaseName: <GCP_CLOUD_SQL_DATABASE_NAME>
+      auth:
+        username: <GCP_CLOUD_SQL_DATABASE_USERNAME>
+        password:
+          secretRef: mysql-secrets
+          secretKey: openmetadata-mysql-password
+
+    # Kubernetes Orchestrator configuration
+    pipelineServiceClientConfig:
+      enabled: true
+      type: "k8s"
+      metadataApiEndpoint: http://openmetadata:8585/api
+
+      k8s:
+        useOMJobOperator: true
+
+# Enable the OMJob Operator (recommended for production)
+omjobOperator:
+  enabled: true
+```
+
+<Info>
+For advanced configuration options such as resource limits, job lifecycle settings, failure diagnostics, RBAC, and security contexts, see the [Kubernetes Orchestrator Guide](/v1.13.x/deployment/ingestion/kubernetes).
+</Info>
+
+<Tip>
+
+For Database as PostgreSQL, use the below config for database values:
+
+```yaml
+database:
+  host: <GCP_CLOUD_SQL_ENDPOINT_IP>
+  port: 5432
+  driverClass: org.postgresql.Driver
+  dbScheme: postgresql
+  dbUseSSL: true
+  databaseName: <GCP_CLOUD_SQL_DATABASE_NAME>
+  auth:
+    username: <GCP_CLOUD_SQL_DATABASE_USERNAME>
+    password:
+      secretRef: sql-secrets
+      secretKey: openmetadata-sql-password
+```
+
+</Tip>
+
+### Create Kubernetes Secrets
+
+Create the required secrets for CloudSQL and ElasticSearch:
+
+```bash
+# Database secret
+kubectl create secret generic mysql-secrets \
+  --from-literal=openmetadata-mysql-password=<YOUR_CLOUDSQL_PASSWORD>
+
+# ElasticSearch secret
+kubectl create secret generic elasticsearch-secrets \
+  --from-literal=openmetadata-elasticsearch-password=<YOUR_ELASTIC_CLOUD_PASSWORD>
+```
+
+### Deploy OpenMetadata
+
+```bash
+# Add the OpenMetadata Helm repository
+helm repo add open-metadata https://helm.open-metadata.org/
+helm repo update
+
+# Install OpenMetadata (no dependencies chart needed with K8s orchestrator)
+helm install openmetadata open-metadata/openmetadata \
+  --values openmetadata-values.yaml
+```
+
+<Tip>
+With the Kubernetes orchestrator, you don't need to deploy the `openmetadata-dependencies` chart that includes Airflow. This significantly simplifies your deployment.
+</Tip>
+
+### Verify the Deployment
+
+```bash
+# Check pods are running
+kubectl get pods
+
+# Check the K8s orchestrator health in OpenMetadata UI
+# Navigate to Settings → Preferences → Health
+```
+
+<Info>
+For deployments using Apache Airflow as the orchestrator, see the [GKE Airflow Orchestrator](/v1.13.x/deployment/kubernetes/gke/airflow) guide.
+</Info>

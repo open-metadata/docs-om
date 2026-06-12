@@ -1,0 +1,217 @@
+---
+title: OpenMetadata MCP Server Connection Guide
+sidebarTitle: Overview
+---
+
+# MCP Server Connection Guide
+
+OpenMetadata provides a Model Context Protocol (MCP) server that allows AI assistants and other clients to interact with your metadata catalog. The MCP server exposes tools for searching metadata, managing glossaries, and working with lineage data. Please check out our guides for [Claude](/v1.13.x/how-to-guides/mcp/claude) and [Goose](/v1.13.x/how-to-guides/mcp/goose) if you are using them as AI assistants.
+
+## Server Information
+
+- **Server Name**: `openmetadata-mcp-stateless`
+- **Version**: `0.11.2`
+- **Endpoint**: `{OMURL}/mcp`
+- **Protocol**: Server-Sent Events (SSE) over HTTP
+- **Authentication**: JWT Bearer Token
+
+## Connection Setup
+
+### 1. Server URL
+Your MCP server is available at:
+```
+{OMURL}/mcp
+```
+
+Replace `{OMURL}` with your OpenMetadata instance URL (e.g., `https://your-openmetadata.com/mcp`)
+
+### 2. Authentication
+The MCP server requires [JWT authentication](/v1.13.x/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client). Include your token in the Authorization header:
+```http
+Authorization: Bearer <your-jwt-token>
+```
+
+### 3. Content Type
+All requests should use:
+```http
+Content-Type: application/json
+```
+
+## API Endpoints
+
+### Initialize Connection
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {},
+      "prompts": {},
+      "resources": {
+        "subscribe": true,
+        "listChanged": true
+      }
+    },
+    "clientInfo": {
+      "name": "your-client",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": true,
+      "prompts": true,
+      "resources": {
+        "subscribe": true,
+        "listChanged": true
+      },
+      "logging": {}
+    },
+    "serverInfo": {
+      "name": "openmetadata-mcp-stateless",
+      "version": "0.11.2"
+    }
+  }
+}
+```
+
+### List Available Tools
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "search_metadata",
+        "description": "Find your data and business terms in OpenMetadata. For example if the user asks to 'find tables that contain customers information', then 'customers' should be the query, and the entity_type should be 'table'. Here make sure to use 'Href' is available in result to create a hyperlink to the entity in OpenMetadata.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Keywords to use for searching."
+            },
+            "entity_type": {
+              "type": "string",
+              "description": "Optional entity type to filter results..."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return. Default is 10."
+            },
+            "fields": {
+              "type": "string",
+              "description": "Comma-separated list of additional fields to include..."
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "get_entity_details",
+        "description": "Get detailed information about a specific entity",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "entity_type": {
+              "type": "string",
+              "description": "Type of entity"
+            },
+            "fqn": {
+              "type": "string",
+              "description": "Fully qualified name of the entity"
+            }
+          },
+          "required": ["entity_type", "fqn"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### List Available Prompts
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "prompts/list"
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "prompts": [
+      {
+        "name": "create-greeting",
+        "description": "Generate a customized greeting message",
+        "arguments": [
+          {
+            "name": "name",
+            "description": "Name of the person to greet",
+            "required": true
+          },
+          {
+            "name": "style",
+            "description": "The style of greeting, such as formal, excited, or casual. If not specified casual will be used"
+          }
+        ]
+      },
+      {
+        "name": "search_metadata",
+        "description": "Creates a prompt for Searching metadata in OpenMetadata.",
+        "arguments": [
+          {
+            "name": "query",
+            "description": "Keywords to use for searching.",
+            "required": true
+          },
+          {
+            "name": "entity_type",
+            "description": "Entity Type to Filter Report."
+          },
+          {
+            "name": "limit",
+            "description": "Maximum number of results to return. Default is 10."
+          }
+        ]
+      }
+    ]
+  }
+}
+```

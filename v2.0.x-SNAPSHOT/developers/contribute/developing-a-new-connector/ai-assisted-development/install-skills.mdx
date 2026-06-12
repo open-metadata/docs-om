@@ -1,0 +1,268 @@
+---
+title: "Install AI Skills"
+sidebarTitle: "Install Skills"
+description: "Set up OpenMetadata connector skills in Claude Code, Cursor, Codex, Copilot, and other AI tools"
+---
+
+# Install AI Skills
+
+The OpenMetadata skills package follows the [Agent Skills](https://agentskills.io) open standard, which is supported by 30+ AI coding tools. Below are setup instructions for the most popular ones.
+
+## Prerequisites
+
+All tools require the OpenMetadata repository cloned locally:
+
+```bash
+git clone https://github.com/open-metadata/OpenMetadata.git
+cd OpenMetadata
+```
+
+Set up the Python development environment:
+
+```bash
+python3.11 -m venv env
+source env/bin/activate
+make install_dev generate
+```
+
+## Claude Code
+
+Claude Code has the richest integration: slash commands, parallel sub-agents, and SessionStart hooks.
+
+<Steps>
+<Step title="Install the skills plugin">
+
+From the OpenMetadata repo root:
+
+```bash
+claude plugin install skills/
+```
+
+This registers the skills as a Claude Code plugin. The three slash commands become available immediately.
+
+</Step>
+<Step title="Verify installation">
+
+Start Claude Code and check that the commands are available:
+
+```bash
+claude
+# Then type:
+/scaffold-connector
+```
+
+You should see the scaffold skill activate.
+
+</Step>
+<Step title="Use the skills">
+
+Three slash commands are available:
+
+| Command | Purpose |
+|---------|---------|
+| `/scaffold-connector` | Scaffold a new connector with JSON Schema and Python boilerplate |
+| `/connector-review` | Review connector code against golden standards |
+| `/load-standards` | Load all connector development standards into context |
+
+You can also invoke skills directly in conversation:
+
+```
+Load the connector standards and then scaffold a new Pinot database connector
+with SQLAlchemy support.
+```
+
+</Step>
+</Steps>
+
+### Claude Code Features
+
+- **Parallel sub-agents**: The review skill launches 5 specialized agents simultaneously for faster reviews
+- **Research agent**: The scaffold skill can dispatch a researcher agent to gather API documentation
+- **SessionStart hooks**: Standards are automatically loaded when you start a connector session
+- **Full tool access**: Skills can read files, run commands, search code, and edit files
+
+## Cursor
+
+Cursor discovers skills from the `.cursor/skills/` directory or project rules.
+
+<Steps>
+<Step title="Create the skills directory">
+
+From the OpenMetadata repo root:
+
+```bash
+mkdir -p .cursor/skills
+cp -r skills/standards .cursor/skills/
+cp skills/connector-building/SKILL.md .cursor/skills/connector-building.md
+cp skills/connector-review/SKILL.md .cursor/skills/connector-review.md
+cp skills/load-standards/SKILL.md .cursor/skills/load-standards.md
+```
+
+</Step>
+<Step title="Add as a project rule (alternative)">
+
+In Cursor: **Settings** → **Rules** → **Add Rule** → **Project Rule**
+
+Paste the contents of `skills/standards/main.md` as the rule content. This ensures the connector standards are always available in Cursor's context.
+
+</Step>
+<Step title="Use the skills">
+
+When working on a connector, tell Cursor:
+
+```
+Read .cursor/skills/connector-building.md and follow the workflow
+to scaffold a new Metabase dashboard connector.
+```
+
+Or after scaffolding, point Cursor at the context file:
+
+```
+Read ingestion/src/metadata/ingestion/source/dashboard/my_dash/CONNECTOR_CONTEXT.md
+and implement all TODO items.
+```
+
+</Step>
+</Steps>
+
+<Tip>
+
+Cursor does not support parallel sub-agents. The review skill will run all checks sequentially, which takes longer but produces the same results.
+
+</Tip>
+
+## OpenAI Codex
+
+Codex uses `AGENTS.md` files to understand project conventions.
+
+<Steps>
+<Step title="Create AGENTS.md">
+
+From the OpenMetadata repo root, create an `AGENTS.md` file that references the skills:
+
+```bash
+cat skills/standards/main.md skills/standards/patterns.md skills/standards/code_style.md > AGENTS.md
+```
+
+This gives Codex the core connector development standards as context.
+
+</Step>
+<Step title="Run the scaffold manually">
+
+Codex cannot run the interactive scaffold tool, so run it yourself first:
+
+```bash
+source env/bin/activate
+metadata scaffold-connector
+```
+
+</Step>
+<Step title="Point Codex at the context">
+
+After scaffolding, tell Codex:
+
+```
+Read ingestion/src/metadata/ingestion/source/{type}/{name}/CONNECTOR_CONTEXT.md
+and implement all TODO items. Use the reference connector as a pattern.
+```
+
+</Step>
+</Steps>
+
+## GitHub Copilot
+
+Copilot works best with context files in the workspace.
+
+<Steps>
+<Step title="Create a GitHub Copilot instructions file">
+
+Create `.github/copilot-instructions.md` at the repo root:
+
+```markdown
+When working on OpenMetadata connectors, follow these conventions:
+
+## Architecture
+- Schema-first: JSON Schema at openmetadata-spec/.../{service_type}/{name}Connection.json
+  drives Python, Java, TypeScript, and UI forms
+- Use BaseConnection for SQLAlchemy database connectors
+- Use get_connection()/test_connection() for all other connector types
+
+## Key Patterns
+- Error handling: use Either[StackTraceError, CreateEntityRequest] for yield methods
+- Logging: use ingestion_logger(), not logging.getLogger()
+- Testing: use pytest style, no unittest.TestCase
+- Secrets: use format: "password" in JSON Schema, SecretStr in Python
+
+## Reference
+See skills/standards/ for detailed connector development standards.
+See CONNECTOR_CONTEXT.md in any connector directory for implementation instructions.
+```
+
+</Step>
+<Step title="Use Copilot with context">
+
+Open `CONNECTOR_CONTEXT.md` and the reference connector files side-by-side. Copilot will use them as context when generating code in the connector files.
+
+</Step>
+</Steps>
+
+## Windsurf
+
+Windsurf uses rules files for project context.
+
+<Steps>
+<Step title="Create rules">
+
+Create `.windsurf/rules.md` at the repo root:
+
+```bash
+mkdir -p .windsurf
+cat skills/standards/main.md skills/standards/patterns.md > .windsurf/rules.md
+```
+
+</Step>
+<Step title="Use with scaffold output">
+
+After running the scaffold tool, open `CONNECTOR_CONTEXT.md` in Windsurf and ask the AI to implement the connector:
+
+```
+Read this CONNECTOR_CONTEXT.md and implement all TODO items
+in the generated skeleton files.
+```
+
+</Step>
+</Steps>
+
+## Any AI Agent
+
+The `CONNECTOR_CONTEXT.md` file generated by the scaffold tool is designed to work with any AI agent. It contains everything the agent needs:
+
+- Connector profile (name, type, capabilities, auth)
+- Source documentation (API docs URL, SDK package, endpoints, notes)
+- File list with what to implement in each
+- Reference connector to copy patterns from
+- Registration checklist
+- Validation checklist
+
+Point any agent at the context file and the reference connector:
+
+```
+Read these files:
+1. ingestion/src/metadata/ingestion/source/{type}/{name}/CONNECTOR_CONTEXT.md
+2. ingestion/src/metadata/ingestion/source/{type}/{reference}/metadata.py
+3. ingestion/src/metadata/ingestion/source/{type}/{reference}/connection.py
+
+Then implement all TODO items in the generated files.
+```
+
+## Feature Comparison
+
+| Feature | Claude Code | Cursor | Codex | Copilot | Windsurf |
+|---------|:-----------:|:------:|:-----:|:-------:|:--------:|
+| Slash commands | Yes | No | No | No | No |
+| Parallel review agents | Yes | No | No | No | No |
+| Research agent delegation | Yes | No | No | No | No |
+| Standards auto-loading | Yes | Via rules | Via AGENTS.md | Via instructions | Via rules |
+| Scaffold tool | Yes | Manual | Manual | Manual | Manual |
+| CONNECTOR_CONTEXT.md | Yes | Yes | Yes | Yes | Yes |
+| Code implementation | Yes | Yes | Yes | Yes | Yes |

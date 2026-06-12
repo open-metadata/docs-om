@@ -1,6 +1,6 @@
 ---
 title: Python SDK for Lineage
-description: Learn to implement data lineage tracking with OpenMetadata'sPython SDK. Complete guide with code examples, API usage, and best practices for data flow ...
+description: Learn to implement data lineage tracking with OpenMetadata's Python SDK. Complete guide with code examples, API usage, and best practices for data flow ...
 sidebarTitle: Lineage
 ---
 
@@ -154,9 +154,9 @@ With everything prepared, we can now create the lineage between both entities.
 from metadata.sdk.api import Lineage
 
 created_lineage = Lineage.add_lineage(
-    from_entity_id=str(table_a_entity.id),
+    from_entity_id=str(table_a_entity.id.root),
     from_entity_type="table",
-    to_entity_id=str(table_b_entity.id),
+    to_entity_id=str(table_b_entity.id.root),
     to_entity_type="table",
     description="test lineage",
 )
@@ -289,11 +289,11 @@ from metadata.generated.schema.type.entityLineage import (
 # Prepare a new table
 table_c = CreateTableRequest(
     name="tableC",
-    databaseSchema=create_schema_entity.ifullyQualifiedName,
+    databaseSchema=create_schema_entity.fullyQualifiedName,
     columns=[Column(name="id", dataType=DataType.BIGINT)],
 )
 
-table_c_entity = metadata.create_or_update(data=table_c)
+table_c_entity = Tables.create(table_c)
 ```
 
 ## Column Level Lineage
@@ -318,8 +318,8 @@ lineage_details = LineageDetails(
 
 add_lineage_request = AddLineageRequest(
     edge=EntitiesEdge(
-        fromEntity=EntityReference(id=table_a_entity.id, type="table"),
-        toEntity=EntityReference(id=table_c_entity.id, type="table"),
+        fromEntity=EntityReference(id=str(table_a_entity.id.root), type="table"),
+        toEntity=EntityReference(id=str(table_c_entity.id.root), type="table"),
         lineageDetails=lineage_details,
     ),
 )
@@ -336,21 +336,24 @@ This information will now be reflected in the UI as well:
 We can as well pass the reference to the pipeline used to create the lineage (e.g., the ETL feeding the tables).
 
 To prepare this example, we need to start by creating the Pipeline Entity. Again, we'll need first
-to prepare the Pipeline Service:
+to prepare the Pipeline Service. The SDK does not currently expose a `PipelineServices` facade, so
+this example uses `metadata.sdk.client()` for the service creation only:
 
 ```python
-from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.sdk import Pipelines, client
 from metadata.generated.schema.api.data.createPipeline import CreatePipelineRequest
 from metadata.generated.schema.api.services.createPipelineService import (
     CreatePipelineServiceRequest,
 )
-from metadata.generated.schema.entity.services.pipelineService import (
-    PipelineConnection,
-    PipelineService,
-    PipelineServiceType,
+from metadata.generated.schema.entity.services.connections.pipeline.airflowConnection import (
+    AirflowConnection,
 )
 from metadata.generated.schema.entity.services.connections.pipeline.backendConnection import (
     BackendConnection,
+)
+from metadata.generated.schema.entity.services.pipelineService import (
+    PipelineConnection,
+    PipelineServiceType,
 )
 
 pipeline_service = CreatePipelineServiceRequest(
@@ -364,14 +367,14 @@ pipeline_service = CreatePipelineServiceRequest(
     ),
 )
 
-pipeline_service_entity = metadata.create_or_update(data=pipeline_service)
+pipeline_service_entity = client().ometa.create_or_update(pipeline_service)
 
 create_pipeline = CreatePipelineRequest(
     name="test",
     service=pipeline_service_entity.fullyQualifiedName,
 )
 
-pipeline_entity = metadata.create_or_update(data=create_pipeline)
+pipeline_entity = Pipelines.create(create_pipeline)
 ```
 
 With these ingredients ready, we can then follow the code above and add there a `pipeline` argument
@@ -381,7 +384,7 @@ as an Entity Reference:
 lineage_details = LineageDetails(
     sqlQuery="SELECT * FROM AWESOME",
     columnsLineage=[column_lineage],
-    pipeline=EntityReference(id=pipeline_entity.id, type="pipeline"),
+    pipeline=EntityReference(id=str(pipeline_entity.id.root), type="pipeline"),
 )
 ```
 

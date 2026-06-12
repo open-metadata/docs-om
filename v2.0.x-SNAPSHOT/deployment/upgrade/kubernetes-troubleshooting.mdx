@@ -1,0 +1,158 @@
+---
+title: Kubernetes Upgrade Troubleshooting
+description: Resolve common issues when upgrading OpenMetadata on Kubernetes, including Helm failures, MySQL pod errors, and PostgreSQL extension requirements.
+sidebarTitle: Troubleshooting
+collate: false
+---
+
+# Kubernetes Upgrade Troubleshooting
+
+## Helm Upgrade fails with additional property airflow not allowed
+
+With Release 1.0.0, if you see your helm charts failing to deploy with the below issue -
+
+```
+Error: INSTALLATION FAILED: values don't meet the specifications of the schema(s) in the following chart(s):
+openmetadata:
+- global: Additional property airflow is not allowed
+```
+
+This means the values passed to the helm charts has a section `global.airflow`. Airflow configs are replaced with pipelineServiceClient for Helm Charts.
+
+The Helm Chart Values JSON Schema helps to catch the above breaking changes and this section will help you resolve and update your configurations for the same. You can read more about JSON Schema with Helm Charts [here](https://helm.sh/docs/topics/charts/#schema-files).
+
+You will need to update the existing section of `global.airflow` values to match the new configurations.
+
+⛔ Before 1.0.0 Helm Chart Release, the `global.airflow` section would be like -
+
+```yaml
+global:
+  ...
+  airflow:
+    enabled: true
+    # endpoint url for airflow
+    host: http://openmetadata-dependencies-web.default.svc.cluster.local:8080
+    # possible values are "no-ssl", "ignore", "validate"
+    verifySsl: "no-ssl"
+    # Local path in Airflow Pod
+    sslCertificatePath: "/no/path"
+    auth:
+      username: admin
+      password:
+        secretRef: airflow-secrets
+        secretKey: openmetadata-airflow-password
+    openmetadata:
+      # this will be the api endpoint url of OpenMetadata Server
+      serverHostApiUrl: "http://openmetadata.default.svc.cluster.local:8585/api"
+...
+```
+
+✅ After 1.0.0 Helm Chart Release, the `global.pipelineServiceClient` section will replace the above `airflow` section -
+
+```yaml
+openmetadata:
+  config:
+    ...
+    pipelineServiceClientConfig:
+      enabled: true
+      className: "org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient"
+      # endpoint url for airflow
+      apiEndpoint: http://openmetadata-dependencies-web.default.svc.cluster.local:8080
+      # this will be the api endpoint url of OpenMetadata Server
+      metadataApiEndpoint: http://openmetadata.default.svc.cluster.local:8585/api
+      # possible values are "no-ssl", "ignore", "validate"
+      verifySsl: "no-ssl"
+      ingestionIpInfoEnabled: false
+      # local path in Airflow Pod
+      sslCertificatePath: "/no/path"
+      auth:
+        username: admin
+        password:
+          secretRef: airflow-secrets
+          secretKey: openmetadata-airflow-password
+  ...
+...
+```
+
+Run the [helm lint](https://helm.sh/docs/helm/helm_lint/) command on your custom values after making the changes to validate with the JSON Schema.
+
+## MySQL Pod fails on Upgrade
+
+<Tip>
+
+This issue will only occur if you are using openmetadata-dependencies helm chart version `0.0.49` and `0.0.50` and upgrading to latest helm chart release.
+
+</Tip>
+
+If your helm dependencies upgrade fails with the below command result -
+
+```
+Startup probe failed: mysqladmin: [Warning] Using a password on the command line interface can be insecure. mysqladmin:
+connect to server at 'localhost' failed error: 'Can't connect to local MySQL server through socket '/opt/bitnami/mysql/tmp/mysql.sock' (2)'
+Check that mysqld is running and that the socket: '/opt/bitnami/mysql/tmp/mysql.sock' exists!
+```
+
+This issue is related to a minor change that affected the MySQL Database Engine version upgrade from `8.0.28` to `8.0.29` for the Helm Chart Release `0.0.49` and `0.0.50`. Then the registry url was updated as we found a work around to fetch previous versions of [bitnami/mysql](https://github.com/bitnami/charts/issues/10833) Helm Releases.
+
+As a result of the above fixes, anyone who is on OpenMetadata Dependencies Helm Chart Version `0.0.49` and `0.0.50` is affected with the above issue when upgrading for mysql. In order to fix this issue, make sure to follow the below steps -
+
+1. Backup the Database using Metadata Backup CLI as mentioned [here](/v2.0.x-SNAPSHOT/deployment/backup-restore-metadata)
+2. Uninstall OpenMetadata Dependencies Helm Chart (`helm uninstall openmetadata-dependencies`)
+3. Remove the unmanaged volume for MySQL Stateful Set Kubernetes Object (`kubectl delete pvc data-mysql-0`)
+4. Install the latest version of [OpenMetadata Dependencies Helm Chart](/v2.0.x-SNAPSHOT/deployment/kubernetes)
+5. Restore the Database using Metadata Restore CLI as mentioned [here](/v2.0.x-SNAPSHOT/deployment/backup-restore-metadata)
+6. Next, Proceed with upgrade for OpenMetadata Helm Chart as mentioned [here](/v2.0.x-SNAPSHOT/deployment/upgrade/kubernetes#step-4-upgrade-openmetadata)
+
+## Azure PostgreSQL pg_trgm Extension Requirement
+
+When upgrading OpenMetadata (e.g., to v1.11.0+), the migration process requires the PostgreSQL extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+<Warning>
+
+**Issue**
+
+On Azure Database for PostgreSQL (Flexible Server), this step may fail with:
+
+```
+ERROR: extension "pg_trgm" is not allow-listed for users in Azure Database for PostgreSQL
+```
+
+This occurs because Azure restricts extensions by default, even if they are supported.
+
+</Warning>
+
+**Resolution**
+
+To resolve this, you must explicitly allow and enable the `pg_trgm` extension.
+
+**Step 1: Allow the extension**
+
+Update the server parameter:
+
+1. Go to **Azure Portal** → **PostgreSQL Flexible Server** → **Server Parameters**
+2. Search for: `azure.extensions`
+3. Add: `pg_trgm`
+
+<Note>
+If other extensions are already present, append `pg_trgm` as a comma-separated value.
+</Note>
+
+**Step 2: Restart the server**
+
+After updating the parameter, restart the PostgreSQL server for the changes to take effect.
+
+**Step 3: Create the extension**
+
+Run the following SQL:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+**Step 4: Re-run the migration**
+
+Once the extension is enabled, re-run the OpenMetadata migration workflow.

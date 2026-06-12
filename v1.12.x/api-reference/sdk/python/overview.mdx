@@ -1,11 +1,11 @@
 ---
 title: Python SDK Overview
-description: 'Full-featured Python client library for OpenMetadata integration'
+description: 'Python client library for OpenMetadata integration'
 ---
 
 # Python SDK
 
-The OpenMetadata Python SDK provides a comprehensive interface for interacting with the OpenMetadata API. It offers type-safe operations for managing metadata entities and seamless integration with your Python applications.
+The OpenMetadata Python SDK provides typed helpers for common OpenMetadata API operations. SDK operations live on plural facade classes such as `Tables`, `Databases`, and `Users`. The singular generated entity classes, such as `metadata.generated.schema.entity.data.table.Table`, are Pydantic models and do not expose SDK CRUD methods.
 
 ## Installation
 
@@ -29,23 +29,23 @@ configure(
 )
 ```
 
-You can also configure from environment variables (`OPENMETADATA_HOST` and `OPENMETADATA_JWT_TOKEN`):
+You can also configure from environment variables (`OPENMETADATA_HOST` or `OPENMETADATA_SERVER_URL`, and `OPENMETADATA_JWT_TOKEN` or `OPENMETADATA_API_KEY`):
 
 ```python
 from metadata.sdk import configure
 
-# Reads OPENMETADATA_HOST and OPENMETADATA_JWT_TOKEN automatically
+# Reads OpenMetadata host and token environment variables automatically
 configure()
 ```
 
 ### Working with Entities
 
 ```python
-from metadata.sdk import Tables, DatabaseServices
+from metadata.sdk import Tables
 
-# Get all database services
-services = list(DatabaseServices.list().auto_paging_iterable())
-print(f"Found {len(services)} database services")
+# Get one page of tables
+tables = Tables.list(limit=10, fields=["columns"])
+print(f"Found {len(tables.entities)} tables")
 
 # Get a specific table by name
 table = Tables.retrieve_by_name("your-service.your-database.your-schema.your-table")
@@ -59,20 +59,22 @@ if table:
 
 ### Entity Management
 
-The Python SDK provides full CRUD operations for all OpenMetadata entities:
+The Python SDK facade classes provide common CRUD operations for supported OpenMetadata entities:
 
 #### Create or Update Entities
 
 ```python
 from metadata.sdk import Tables
 from metadata.generated.schema.api.data.createTable import CreateTableRequest
+from metadata.generated.schema.entity.data.table import Column, DataType
 
 # Create table request
 create_table = CreateTableRequest(
     name="sample_table",
-    databaseSchema="your_database.your_schema",
+    databaseSchema="service.database.schema",
     columns=[
-        # Define your columns here
+        Column(name="id", dataType=DataType.BIGINT),
+        Column(name="status", dataType=DataType.VARCHAR, dataLength=255),
     ],
     description="Sample table created via Python SDK"
 )
@@ -104,8 +106,8 @@ table = Tables.retrieve_by_name(
 ```python
 from metadata.sdk import Tables
 
-# Auto-paginating iterator for large datasets
-for table in Tables.list().auto_paging_iterable():
+# Auto-pagination for large datasets
+for table in Tables.list_all(batch_size=100):
     print(f"Processing table: {table.name}")
 ```
 
@@ -113,21 +115,31 @@ for table in Tables.list().auto_paging_iterable():
 
 ```python
 from metadata.sdk import Tables
-from metadata.sdk.entities.tables import TableListParams
 
 # List with filters and field selection
-params = TableListParams.builder().limit(50).fields(["owners", "tags"]).build()
-tables = Tables.list(params)
+page = Tables.list(
+    limit=50,
+    fields=["owners", "tags"],
+    filters={"databaseSchema": "service.database.schema"},
+)
+
+for table in page.entities:
+    print(table.fullyQualifiedName)
+
+if page.after:
+    next_page = Tables.list(limit=50, after=page.after)
 ```
 
 #### Update Entities
 
 ```python
 from metadata.sdk import Tables
+from metadata.generated.schema.type.basic import Markdown
 
 table = Tables.retrieve_by_name("service.database.schema.table")
-table.description = "Updated description"
-updated = Tables.update(str(table.id), table)
+updated_table = table.model_copy(deep=True)
+updated_table.description = Markdown("Updated description")
+updated = Tables.update(updated_table)
 ```
 
 #### Delete Entities
@@ -153,7 +165,7 @@ ref = to_entity_reference(table)
 
 # Use in other entity creation
 if ref:
-    print(f"Table reference ID: {ref.id}")
+    print(f"Table reference ID: {ref['id']}")
 ```
 
 ## Advanced Features
@@ -184,7 +196,7 @@ from metadata.sdk import Tables
 
 # Iterate all tables and filter for a keyword
 matching_tables = [
-    table for table in Tables.list().auto_paging_iterable()
+    table for table in Tables.list_all(batch_size=100)
     if "customer" in table.name.lower()
 ]
 
@@ -196,12 +208,14 @@ for table in matching_tables:
 
 ```python
 from metadata.sdk import Tables
+from metadata.generated.schema.type.basic import Markdown
 
 # Bulk update table descriptions
-for table in Tables.list().auto_paging_iterable():
+for table in Tables.list_all(batch_size=100):
     if not table.description:
-        table.description = f"Production table: {table.name}"
-        Tables.update(str(table.id), table)
+        updated_table = table.model_copy(deep=True)
+        updated_table.description = Markdown(f"Production table: {table.name}")
+        Tables.update(updated_table)
 ```
 
 ### Lineage Management
@@ -216,8 +230,8 @@ lineage = Lineage.get_lineage(
 )
 
 if lineage:
-    print(f"Upstream entities: {len(lineage.get('upstreamEdges', []))}")
-    print(f"Downstream entities: {len(lineage.get('downstreamEdges', []))}")
+    print(f"Upstream entities: {len(lineage.upstreamEdges or [])}")
+    print(f"Downstream entities: {len(lineage.downstreamEdges or [])}")
 ```
 
 ## API Reference
@@ -226,7 +240,7 @@ The Python SDK provides a comprehensive API based on the OpenMetadata data model
 
 ### Core Classes
 
-- **Entity classes** (`Tables`, `Databases`, `DatabaseSchemas`, `DatabaseServices`, `Users`, etc.): Static-method interfaces for each entity type — no instantiation required
+- **Entity facade classes** (`Tables`, `Databases`, `DatabaseSchemas`, `DatabaseServices`, `Users`, etc.): plural static-method interfaces, no instantiation required
 - **`configure()`**: One-time global setup for host and JWT token
 - **`to_entity_reference(entity)`**: Convert a retrieved entity to an `EntityReference` for use in relationships
 - **Entity Request Classes**: Pydantic-based typed request objects (e.g., `CreateTableRequest`)
@@ -238,10 +252,18 @@ Each entity class exposes the same consistent interface:
 - `EntityClass.create(request)`: Create a new entity
 - `EntityClass.retrieve(entity_id)`: Retrieve entity by UUID
 - `EntityClass.retrieve_by_name(fqn, fields=[])`: Retrieve entity by fully qualified name
-- `EntityClass.list(params=None)`: List entities (returns a pageable result)
-- `EntityClass.list().auto_paging_iterable()`: Auto-paginating generator for all entities
-- `EntityClass.update(entity_id, entity)`: Update an existing entity
+- `EntityClass.list(limit=10, after=None, before=None, fields=None, filters=None)`: List one page of entities as an `EntityList`
+- `EntityClass.list_all(batch_size=100, fields=None, filters=None)`: Fetch all pages
+- `EntityClass.update(entity)`: Update an existing entity by reading `entity.id`
 - `EntityClass.delete(entity_id, recursive=False, hard_delete=False)`: Delete an entity
+
+The facade classes do not expose `patch(entity_id, json_patch)` helpers. For ordinary partial updates, retrieve the entity, mutate a copy, and call `update(entity)`. For lower-level patch flows, use the OpenMetadata client returned by `metadata.sdk.client()`.
+
+### Current Facade Coverage
+
+The SDK currently exports facade classes for common data assets, services, governance, team/user, and data quality entities, including `Tables`, `Databases`, `DatabaseSchemas`, `DatabaseServices`, `Dashboards`, `Pipelines`, `MLModels`, `Glossaries`, `GlossaryTerms`, `Classifications`, `Tags`, `Teams`, `Users`, `TestCases`, `TestDefinitions`, and `TestSuites`.
+
+If a facade does not exist for an entity yet, use the underlying OpenMetadata client returned by `metadata.sdk.client()` or the ingestion client APIs directly.
 
 ## Type Safety
 
@@ -256,7 +278,7 @@ The Python SDK is built on generated Pydantic models, providing:
 from metadata.sdk import Tables
 from metadata.generated.schema.entity.data.table import Table
 
-# Type-safe retrieval — IDE provides auto-completion and type checking
+# Type-safe retrieval with IDE auto-completion and type checking
 table: Table = Tables.retrieve_by_name("service.database.schema.table")
 if table:
     columns_count: int = len(table.columns) if table.columns else 0
@@ -264,7 +286,7 @@ if table:
 
 ## Best Practices
 
-1. **Configure once**: Call `configure()` once at application startup and reuse globally — no need to pass a client object around
+1. **Configure once**: Call `configure()` once at application startup and reuse globally; no need to pass a client object around
 2. **Error Handling**: Always handle `APIError` exceptions for robust integrations
-3. **Pagination**: Use `.auto_paging_iterable()` for large datasets to avoid loading everything into memory at once
+3. **Pagination**: Use `list_all()` for full auto-pagination or `list()` with `after`/`before` cursors for page-by-page control
 4. **Performance**: Specify only required fields when fetching entities (e.g., `fields=["owners", "tags"]`)
