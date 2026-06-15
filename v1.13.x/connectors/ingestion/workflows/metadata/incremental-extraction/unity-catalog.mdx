@@ -13,7 +13,8 @@ changed and deleted tables.
 ## Approach
 
 To implement incremental extraction for Unity Catalog, OpenMetadata queries two
-system tables after each run:
+system tables at the start of incremental processing for each catalog, using a
+watermark derived from the previous successful run timestamp:
 
 - **Changed tables**: `information_schema.tables` is filtered by `last_altered`
   to find tables modified since the last successful run. Each changed table is
@@ -60,10 +61,10 @@ GRANT SELECT ON system.access.audit TO `<user>`;
 
 ## Queries
 
-The following queries run at the end of each ingestion to identify tables that
-have changed or been deleted since the last successful run. OpenMetadata
-replaces `{start_timestamp}` with the timestamp of the previous run as a
-millisecond integer epoch (for example, `1718000000000`).
+The following queries run when OpenMetadata prepares the changed and deleted
+table maps for incremental processing. OpenMetadata replaces
+`{start_timestamp}` with the millisecond epoch watermark derived from the
+previous successful run timestamp (for example, `1718000000000`).
 
 ### Changed tables
 
