@@ -1,0 +1,95 @@
+---
+title: Resource Scope and Operations Reference
+description: A quick-reference guide to resource categories and common operations in OpenMetadata. Use this when designing rules and policies.
+sidebarTitle: Resource Scope and Operations Reference
+---
+
+# Resource Scope and Operations Reference
+
+A curated quick-reference guide for the key resource types and operations in OpenMetadata. Use this when designing rules and policies — look up which resources cover the access you want to control, then pick the operations that match what the user needs to do.
+
+## Resource Categories
+
+Every object in OpenMetadata belongs to a resource category. When you build a rule, the resource you select determines which objects that rule applies to. The table below maps every category to the real-world access it controls and flags how sensitive broad permissions in that category are.
+
+| Category | Resources included | What this access controls | Risk level |
+|---|---|---|---|
+| AI / Agent | AI Application, Agent Execution, Agent Strategy, AI Governance Policy, AI Persona, Dynamic Agent | Who can build, run, and govern AI workflows and personas. Over-permissioning here can cause automated processes to run without oversight. | High |
+| APIs and apps | API Collection, API Endpoint, API Service, App, App Marketplace Definition, Bot | Who can register and call external APIs and install marketplace apps or bots. Controls your third-party integration surface. | Medium |
+| Analytics and dashboards | Chart, Dashboard, Dashboard Data Model, Dashboard Service, Data Insight Chart | Who can view or modify BI visualizations. Dashboard Services (Tableau, Power BI) govern the source connection itself. | Medium |
+| Data assets | Database, Database Schema, Table, Stored Procedure, Query, Saved Query, Query Cost Record | The broadest data access category. Controlling Table access effectively gates most downstream use – queries, dashboards, and pipelines all depend on it. | High |
+| Data platform services | Database Service, Pipeline Service, Messaging Service, Search Service, Storage Service, Drive Service, Metadata Service, Security Service | Controls connection credentials and pipeline execution authority. Over-permissioning here can affect your entire data infrastructure. | Critical |
+| Data governance | Glossary, Glossary Term, Tag / Classification, Domain, Data Product, Data Contract, KPI / Metric | Who can define business vocabulary, apply sensitive labels like PII or Confidential, and manage data products and contracts. | Medium–High |
+| Files and documents | File, Directory, Container, Page, Learning Resource | Access to file-level metadata and documentation. Lower risk unless the files themselves contain sensitive data. | Low–Medium |
+| Ingestion and pipelines | Ingestion Pipeline, Ingestion Runner | Who can create or trigger metadata ingestion jobs. Controls what metadata flows into OpenMetadata. | High |
+| ML and LLM | ML Model, ML Model Service, LLM Model, LLM Service | Governs AI and ML model usage and the platforms hosting them. Controls your AI inference surface. | High |
+| Workflow and automation | Workflow, Workflow Definition, Workflow Instance, Event Subscription | Who can design, deploy, and trigger automation flows and event-driven processes. | High |
+| Data quality and testing | Test Case, Test Definition, Test Suite, Test Case Result, Test Connection Definition | Who can create, edit, or view test results – including failed row samples, which may contain production data. | Medium–High |
+| Collaboration | Feed, Notification Template, Web Analytic Event | Activity feeds and user interaction tracking. | Low |
+| User and access control | User, Team, Role, Policy, SCIM | The most sensitive category – controls who exists in the system and what they're allowed to do. | Critical |
+| Reporting and monitoring | Report, Entity Profile, Entity Report Data, Audit Log | Access to usage reports and audit history. Audit Logs are particularly sensitive – they reveal all system activity. | Medium–High |
+| Misc | Topic (Kafka), Worksheet, Context Memory, Prompt Template, MCP Execution, MCP Server, MCP Service | Messaging topics, AI prompt templates, and the MCP orchestration layer. Prompt Templates and MCP Services carry elevated AI risk. | Medium–High |
+
+### Key Principles
+
+- **Service resources** (Database Service, Pipeline Service, and so on) control the connection itself – granting Edit on a service gives access to every asset in that service.
+- **User and access control resources** are the most sensitive category. Changes to `EditPolicy` and `EditRole` affect the entire permission model.
+- **AI and Agent resources** govern automated execution paths. Restrict Agent Execution and Dynamic Agent to roles that actively need to run workflows.
+- **Data governance resources** (Tags, Glossary Terms, Domain) may seem low risk, but incorrect PII labelling can have compliance consequences.
+
+## Operations Reference
+
+Operations define what action a user can take on a resource. The table below covers the most commonly used operations — what they allow, how sensitive they are, and who should have them.
+
+<Warning>
+**Important**: `EditAll` overrides every other edit permission. Only assign it when full editing access is intentional – otherwise use the specific edit operations you need.
+</Warning>
+
+| Operation | What it lets a user do | Risk level | Who should have it |
+|---|---|---|---|
+| `ViewBasic` | See limited metadata – name, type, owner | Low | All roles |
+| `ViewAll` | See full details – schema, lineage, tags, all metadata | Low–Medium | Analysts and above |
+| `ViewUsage` | See who queried an asset and how often | Medium | Analysts, data engineers |
+| `ViewSampleData` | See actual row-level data | High | Senior analysts, admins |
+| `ViewTests` | See data quality test results | Low | Analysts and above |
+| `ViewQueries` | See the SQL text of executed queries | Medium | Data engineers, admins |
+| `ViewDataProfile` | See column stats – null %, value distributions | Medium | Analysts and above |
+| `ViewTestCaseFailedRowsSample` | See the rows that failed a quality test | High | Data engineers, admins |
+| `Create` | Create a new asset | Medium | Data engineers, admins |
+| `BulkCreate` | Create many assets at once | Medium | Data engineers, admins |
+| `Delete` | Permanently delete an asset | Critical | Admins only |
+| `EditAll` | Full edit access – overrides all other edit operations | High | Data engineers, admins |
+| `EditDescription` / `EditDisplayName` | Edit descriptions and display names | Low | Data stewards and above |
+| `EditTags` / `EditGlossaryTerms` | Apply labels like PII or Sensitive; assign glossary terms | Medium–High | Data stewards, admins |
+| `EditLineage` / `EditEntityRelationship` | Change lineage and relationships between assets | Medium | Data engineers |
+| `EditOwners` / `EditTeams` / `EditUsers` | Change who owns or manages an asset | High | Admins |
+| `EditPolicy` / `EditRole` | Change access control rules and roles | Critical | Admins only |
+| `CreateTests` / `EditTests` | Create and update data quality tests | Medium | Data engineers |
+| `Deploy` / `Trigger` / `Kill` | Deploy, run, or stop a pipeline or workflow | High | Data engineers, admins |
+| `GenerateToken` | Create API access tokens | Critical | Admins only |
+| `Impersonate` | Act as another user | Critical | Admins only |
+| `AuditLogs` | Access the system activity log | High | Admins, compliance officers |
+| `CreateScim` / `EditScim` / `DeleteScim` / `ViewScim` | Manage identity provisioning through Okta or Azure AD | Critical | Admins only |
+
+## Viewing Permissions Hierarchy
+
+Viewing permissions follow a hierarchy – each level adds more detail than the one below it. Grant only the lowest level the user genuinely needs.
+
+| Permission | What it adds |
+|---|---|
+| `ViewBasic` | Baseline – see asset name, type, and owner. Safe for all authenticated users. |
+| `ViewAll` | Adds full schema, lineage, tags, glossary terms, and all metadata fields. |
+| `ViewDataProfile` | Adds column-level profiling statistics – null %, value distributions. |
+| `ViewUsage` | Adds query frequency and who accessed the asset and when. |
+| `ViewQueries` | Adds the actual SQL text of executed queries. |
+| `ViewSampleData` | Adds actual row-level data. Treat this as data access, not just metadata access. |
+| `ViewTestCaseFailedRowsSample` | Adds rows that failed quality tests – these often contain production data. |
+
+<Tip>
+**`ViewSampleData` and `ViewTestCaseFailedRowsSample`** expose real data. Treat them with the same care as direct database access – require approval before assigning and review usage regularly via Audit Logs.
+</Tip>
+
+## Related Pages
+
+- [Building Blocks of Authorization – Rules, Policies, and Roles](/v1.12.x/how-to-guides/admin-guide/roles-policies/authorization) – how to build rules and policies using these resources and operations.
+- [Use Cases](/v1.12.x/how-to-guides/admin-guide/roles-policies/use-cases) – practical examples of role and policy configurations.

@@ -1,6 +1,6 @@
 ---
 title: Pagination
-description: Navigate through large result sets using cursor-based pagination
+description: Navigate through large result sets using cursor-based and offset-based pagination
 sidebarTitle: Pagination
 mode: "wide"
 ---
@@ -9,13 +9,13 @@ import { CodeLayout } from '/snippets/components/CodeLayout/CodeLayout.jsx'
 
 # Pagination
 
-The OpenMetadata API uses cursor-based pagination for list endpoints. This ensures consistent results even when data changes between requests.
+OpenMetadata uses both cursor-based and offset-based pagination, depending on the endpoint. Most top-level entity list endpoints use cursor-based pagination for stable traversal, while many sub-resource and specialized endpoints use `limit` plus `offset`.
 
 <CodeLayout
 title="How It Works"
 description={
   <>
-    When you request a list of resources, the response includes:
+    When you request a cursor-paginated entity list, the response typically includes:
     <ul>
       <li>A <code>data</code> array containing resources (up to the <code>limit</code>)</li>
       <li>A <code>paging</code> object with cursors for navigation</li>
@@ -45,19 +45,22 @@ description={
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `limit` | integer | 10 | Number of results per page (max 1000) |
-| `before` | string | - | Cursor for previous page |
-| `after` | string | - | Cursor for next page |
+| `limit` | integer | Varies by endpoint | Page size. Many top-level entity list endpoints default to `10` and allow up to `1,000,000`, while offset-based sub-resource endpoints often use lower defaults and caps, such as `1,000` for table columns. |
+| `before` | string | - | Cursor for the previous page on cursor-paginated endpoints |
+| `after` | string | - | Cursor for the next page on cursor-paginated endpoints |
+| `offset` | integer | When supported | Row offset on offset-paginated endpoints. If omitted, the endpoint starts from the first page. |
 
 ## Response Fields
 
-The `paging` object contains:
+The `paging` object varies by endpoint. Cursor-paginated responses usually include:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `total` | integer | Total count of matching resources |
 | `before` | string | Cursor for the previous page (if available) |
 | `after` | string | Cursor for the next page (if available) |
+
+Offset-paginated endpoints also return `total`, and may include `offset`, `limit`, or cursor-style `before`/`after` fields depending on the resource. Check the endpoint schema for the exact response shape.
 
 ## Examples
 
@@ -133,6 +136,22 @@ curl -X GET "https://your-company.open-metadata.org/api/v1/tables?limit=20" \
 # Get next page using after cursor
 curl -X GET "https://your-company.open-metadata.org/api/v1/tables?limit=20&after=eyJsYXN0SWQiOiIxMjM0NTY3ODkwIn0=" \
   -H "Authorization: Bearer $TOKEN"
+```
+</CodeGroup>
+
+### Offset-Based Pagination
+
+Use `offset` on endpoints that document it, such as `/v1/tables/{id}/columns`:
+
+<CodeGroup>
+```bash Offset Pagination
+# Get first 20 columns
+curl "{base_url}/api/v1/tables/{id}/columns?limit=20&offset=0" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get next 20 columns
+curl "{base_url}/api/v1/tables/{id}/columns?limit=20&offset=20" \
+  -H "Authorization: Bearer {access_token}"
 ```
 </CodeGroup>
 
@@ -255,11 +274,14 @@ Common field options for tables:
   <Step title="Use reasonable page sizes">
     Start with `limit=50-100`. Larger pages reduce API calls but increase memory usage.
   </Step>
-  <Step title="Don't skip pages">
-    Always use cursors sequentially. Don't try to construct cursor values manually.
+  <Step title="Follow cursor pages sequentially">
+    On cursor-paginated endpoints, always use the returned `before` and `after` cursors. Don't try to construct cursor values manually.
+  </Step>
+  <Step title="Keep offset paging stable">
+    On offset-paginated endpoints, keep filters and sort order fixed while incrementing `offset` predictably from one page to the next.
   </Step>
   <Step title="Handle empty results">
-    Check if `data` array is empty or `after` cursor is null to detect end of results.
+    Use the endpoint's pagination signal to detect the end of results, such as a missing `after` cursor or an empty page.
   </Step>
   <Step title="Request only needed fields">
     Use the `fields` parameter to reduce response size and improve performance.
@@ -281,6 +303,8 @@ curl -X GET "https://your-company.open-metadata.org/api/v1/search/query?q=custom
 ```
 </CodeGroup>
 
-<Card title="Search API" icon="magnifying-glass" href="/v2.0.x-SNAPSHOT/api-reference/data-assets/search-indexes">
-  Learn about searching and filtering metadata
-</Card>
+<CardGroup cols={2}>
+  <Card title="Search API" icon="magnifying-glass" href="/v2.0.x-SNAPSHOT/api-reference/data-assets/search-indexes" horizontal>
+    Learn about searching and filtering metadata
+  </Card>
+</CardGroup>
