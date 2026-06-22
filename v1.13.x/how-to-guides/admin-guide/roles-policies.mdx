@@ -20,11 +20,13 @@ OpenMetadata introduces a versatile hierarchical team structure that aligns with
 
 **Division** is positioned below Business Unit and can include Divisions, Departments, and Groups. For example, a Division named 'Product Development' under the Engineering Business Unit. It can have teams like 'Software Division,' 'Hardware Division,' and 'QA Division.'
 
-**Department** is positioned below Division and can include other Departments and Groups. For example, a 'Data Engineering Department could include specialized teams like 'Infrastructure,' 'Data Science,' and 'Platform.'
+**Department** is positioned below Division and can include other Departments and Groups. For example, a 'Data Engineering Department' could include specialized teams like 'Infrastructure,' 'Data Science,' and 'Platform.'
 
 **Group** represents the final tier in this hierarchy. It contains a group of users that reflect finite teams within your organization.
 
-***Notably, only Groups have the privilege of owning Data Assets within the OpenMetadata platform.***
+<Note>
+**Note**: Only Groups have the privilege of owning data assets within the OpenMetadata platform.
+</Note>
 
 This structured hierarchy enhances your control over team management and resource ownership. By creating a dynamic model mirroring your organization's functions, OpenMetadata empowers you to effortlessly manage permissions, access controls, and data ownership at different levels of granularity.
 
@@ -32,24 +34,25 @@ This structured hierarchy enhances your control over team management and resourc
 
 <img src="/public/images/how-to-guides/roles-policies/evaluation.png" alt="Policy Evaluation" />
 
-OpenMetadata incorporates a robust Access Control framework that merges Role-Based Access Control (RBAC) with Attribute-Based Access Control (ABAC) in a powerful hybrid model. This security design is reinforced by
+OpenMetadata incorporates a robust Access Control framework that merges Role-Based Access Control (RBAC) with Attribute-Based Access Control (ABAC) in a powerful hybrid model. This security design is reinforced by:
 
-**Authentication with SSO Integration:** OpenMetadata seamlessly integrates with various Single Sign-On (SSO) providers, including Azure AD, Google, Okta, Auth0, OneLogin, and more. This ensures a unified and secure authentication experience for users.
+**Authentication with SSO Integration**: OpenMetadata seamlessly integrates with various Single Sign-On (SSO) providers, including Azure AD, Google, Okta, Auth0, OneLogin, and more. This ensures a unified and secure authentication experience for users.
 
-**Team Hierarchy:** OpenMetadata offers a structured team hierarchy that mirrors your organization's structure, enhancing manageability and granularity in access control.
+**Team Hierarchy**: OpenMetadata offers a structured team hierarchy that mirrors your organization's structure, enhancing manageability and granularity in access control.
 
-**Roles and Policies:** Policies and Roles are pivotal in determining who can access what resources and perform what actions. These policies are based on a combination of user attributes, roles, and resource attributes.
+**Roles and Policies**: Policies and Roles are pivotal in determining who can access what resources and perform what actions. These policies are based on a combination of user attributes, roles, and resource attributes.
 
-**User and Bots Authentication:** OpenMetadata accommodates human users and automated applications (bots). For human users, logging into the OpenMetadata UI mandates SSO authentication. Upon successful authentication, a JWT token is issued.
+**User and Bots Authentication**: OpenMetadata accommodates human users and automated applications (bots). For human users, logging into the OpenMetadata UI mandates SSO authentication. Upon successful authentication, a JSON Web Token (JWT) is issued.
+
 Bots, on the other hand, are equipped with a JWT token generated based on SSL certificates. This token serves as their identity and authorization mechanism when interacting with the OpenMetadata server APIs.
 
 ## Authentication Flow
 
 <img src="/public/images/how-to-guides/roles-policies/auth.png" alt="Authentication Flow" />
 
-**User Authentication:** When users access the OpenMetadata UI, they authenticate with their SSO provider. Upon successful authentication, a JWT token is generated. This token validates the user's session and permits them to authenticate requests to the OpenMetadata server.
+**User Authentication**: When users access the OpenMetadata UI, they authenticate with their SSO provider. Upon successful authentication, a JWT token is generated. This token validates the user's session and permits them to authenticate requests to the OpenMetadata server.
 
-**Bot Authentication:** Automated applications like the ingestion connector are equipped with a pre-generated JWT Token. OpenMetadata, with its configured SSL Certificates, authenticates the JWT token, establishing the bot's identity. This token authorizes the bot to interact with OpenMetadata server APIs.
+**Bot Authentication**: Automated applications like the ingestion connector are equipped with a pre-generated JWT Token. OpenMetadata, with its configured SSL Certificates, authenticates the JWT token, establishing the bot's identity. This token authorizes the bot to interact with OpenMetadata server APIs.
 
 ## Authorization Framework
 
@@ -57,21 +60,47 @@ OpenMetadata's authorization is a result of evaluating three crucial factors:
 
 <img src="/public/images/how-to-guides/roles-policies/access.png" alt="Authorization Framework" />
 
-**Who is the User (Authentication):** This aspect is determined by the authentication process – whether it a user or a bot – ensuring that only authorized entities access the system.
+**Who is the User (Authentication)**: The authentication process determines this – whether it is a user or a bot – ensuring that only authorized entities access the system.
 
-**What Resource (Resource Attributes):** Based on the API calls being made, OpenMetadata identifies the target resource and its associated attributes.
+**What Resource (Resource Attributes)**: Based on the API calls being made, OpenMetadata identifies the target resource and its associated attributes.
 
-Below is a list of resources that correspond to Entities such as Table, Topic, Pipeline, etc.
+The following resources correspond to entities such as Table, Topic, and Pipeline:
 
 <img src="/public/images/how-to-guides/roles-policies/rules1.png" alt="Resources Correspond to Entities" />
 
-**What Operation (API Call):** Each API call is linked to a specific operation, such as editing descriptions, deleting tags, changing ownership, etc.
+**What Operation (API Call)**: Each API call maps to a specific operation, such as editing descriptions, deleting tags, and changing ownership.
 
-There are common operations such as Create, Delete, and ViewAll that apply to all the resources. Each resource can also have its specific operation, such as ViewTests, ViewQueries for Table.
+Common operations – Create, Delete, and ViewAll – apply to all resources. Each resource can also have its own specific operations, such as ViewTests and ViewQueries for Table.
+
+## Resource Scope Reference
+
+The table below maps every resource category to the real-world
+access it controls. Use this when designing policies – start by
+identifying which categories are relevant to the role, then add
+only the operations needed.
+
+<Note>
+**Note**: Tables are the most critical data asset resource. Over-permissioning here has the widest blast radius, as many downstream queries, dashboards, and pipelines depend on them.
+</Note>
+
+Every object in OpenMetadata belongs to a resource category — from core data assets like Tables and Databases, to governance resources like Glossary Terms and Tags, to admin resources like Users, Roles, and Policies. For a reference overview of resource categories, the resources each includes, and risk levels, see [Resource scope and operations reference](/v1.13.x/how-to-guides/admin-guide/roles-policies/resource-scope).
+
+### Key Scope Principles
+
+- **Service resources** (Database Service, Pipeline Service, and so on) control
+  the connection itself – granting Edit on a service gives access to all
+  assets in that service.
+- **User & Access Control resources** are the most sensitive category.
+  EditPolicy and EditRole changes affect the entire permission model.
+- **AI/Agent resources** govern automated execution paths. Restrict Agent
+  Execution and Dynamic Agent to roles that actively need to run workflows.
+- **Data Governance resources** (Tags, Glossary Terms, Domain) may seem
+  low-risk but misuse can cause incorrect PII labelling with compliance
+  consequences.
 
 ## Difference Between ViewBasic and ViewAll in OpenMetadata
 
-The operations **ViewBasic** and **ViewAll** in OpenMetadata differ in the level of detail they provide access to. Below is a detailed explanation of each operation:
+The operations **ViewBasic** and **ViewAll** in OpenMetadata differ in the level of detail they provide access to. The following explains each in detail:
 
 ### ViewBasic
 - Provides access to the **basic details** of an asset.
@@ -87,7 +116,7 @@ The operations **ViewBasic** and **ViewAll** in OpenMetadata differ in the level
   - Tests
   - Queries
 
-### Key Points:
+### ViewBasic: Key Points
 - Suitable for viewing foundational asset metadata.
 - Limited access for users who do not require in-depth technical details.
 
@@ -100,11 +129,11 @@ The operations **ViewBasic** and **ViewAll** in OpenMetadata differ in the level
   - Tests
   - Queries
 
-### Key Points:
+### ViewAll: Key Points
 - Designed for users who need a complete view of the asset.
 - Offers comprehensive insights and detailed metadata.
 
-## Summary Table
+### Summary Table
 
 | Feature            | **ViewBasic**                          | **ViewAll**                          |
 |--------------------|----------------------------------------|--------------------------------------|
@@ -114,20 +143,46 @@ The operations **ViewBasic** and **ViewAll** in OpenMetadata differ in the level
 | Data Profile       | ❌ Not Included                        | ✅ Included                          |
 | Tests & Queries    | ❌ Not Included                        | ✅ Included                          |
 
-### Overview:
+### Overview
 - **ViewBasic**: Focused on essential metadata.
 - **ViewAll**: Provides a complete view, including advanced details.
 
 Choose the appropriate operation based on the level of access required.
 
+| Permission | What it adds over the level below |
+|---|---|
+| ViewBasic | Baseline – see entity name, type, and owner. Safe for all authenticated users. |
+| ViewAll | Adds full schema, lineage, tags, glossary terms, and metadata fields. |
+| ViewDataProfile | Adds column-level profiling statistics (null %, value distributions). |
+| ViewUsage | Adds query frequency and who accessed the asset and when. |
+| ViewQueries | Adds the actual SQL text of executed queries. |
+| ViewSampleData | Adds actual row-level data – treat as data access, not just metadata access. |
+| ViewTestCaseFailedRowsSample | Adds data rows that failed quality tests – often contains production data. |
+
+For a curated reference of common operations and resource types, see [Resource scope and operations reference](/v1.13.x/how-to-guides/admin-guide/roles-policies/resource-scope).
+
 <img src="/public/images/how-to-guides/roles-policies/rules2.png" alt="Each Resource has its Own Set of Granular Operations" />
 
-By synthesizing these components, OpenMetadata dynamically ascertains whether a user or bot can perform a particular action on a specific resource. This **fusion of RBAC and ABAC** in the hybrid model contributes to a robust and flexible access control mechanism, bolstering the security and control of your OpenMetadata environment.
+By synthesizing these components, OpenMetadata dynamically determines whether a user or bot can perform a particular action on a specific resource. This **fusion of RBAC and ABAC** in the hybrid model contributes to a robust and flexible access control mechanism, bolstering the security and control of your OpenMetadata environment.
+
+## Quick Guide: Which Role Should I Start With?
+
+Use this table when onboarding a new user to determine which base role to assign first.
+
+| User's primary job | Start with this base role | Common additions |
+|---|---|---|
+| Browse the catalog, understand data landscape | Read-Only Viewer | `ViewDataProfile` if they need column stats |
+| Run analyses, build reports, write SQL | Data Analyst | `ViewSampleData` if formally approved |
+| Define business terms, enforce data quality standards | Data Steward | `EditCertification` if they certify assets |
+| Build pipelines, ingest metadata, deploy workflows | Data Engineer | `EditAll` on specific service types they own |
+| Build AI agents and prompt-driven applications | AI / ML Engineer | `EditAll` on AI Governance Policy if they author policies |
+| Monitor compliance, tag PII, review audit trails | Compliance Officer | `AuditLogs` is essential for this role |
+| Administer the platform, manage users and services | Platform Administrator | Minimize use of `Impersonate` and `GenerateToken` |
 
 <Card title="Building Blocks of Authorization: Rules, Policies, and Roles" href="/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization" >
     Learn all the details of Rules, Policies, and Roles
   </Card>
 
 <Card title="Use Cases: Creating Roles & Policies in OpenMetadata" href="/v1.13.x/how-to-guides/admin-guide/roles-policies/use-cases" >
-    Tailor you policies to meet your organizational and team needs.
+    Tailor your policies to meet your organizational and team needs.
   </Card>
