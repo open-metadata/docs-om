@@ -95,19 +95,21 @@ If a dataset in an OpenLineage event cannot be resolved to an existing OpenMetad
 
 ### Resolution Order
 
-Each dataset in an OpenLineage event is resolved using the following priority:
+Each dataset in an OpenLineage event is resolved as follows:
 
-1. **Symlink identifiers** — if the event includes a `symlinks` facet, those identities are tried first. `LOCATION`-type symlinks (raw physical paths) are skipped. This is the shape Spark emits for Hive/Glue-cataloged tables backed by object storage (e.g. S3).
-2. **Top-level namespace and name** — used as fallback if no symlink resolves.
+1. **First symlink identifier** — if the event includes a `symlinks` facet with at least one identifier, the connector uses the **name from the first symlink** to look up the table. All symlink types (including `LOCATION`) are considered; there is no type-based filtering in this version.
+2. **Top-level namespace and name** — used when no symlinks are present in the event.
 
-The first candidate that matches a configured OpenMetadata service wins.
+<Info>
+If the first symlink identifier cannot be matched to an existing OpenMetadata entity, no further candidates are tried and the dataset is skipped. Ensure the symlink name in the event matches an ingested table.
+</Info>
 
 ### Hive / Glue Tables on Object Storage
 
-When Spark writes to a table in a Glue or Hive catalog backed by S3, the OpenLineage event identifies the dataset by its S3 path as the top-level namespace. The connector reads the `symlinks` facet first — which carries the catalog table identity — and resolves it correctly against the ingested service.
+When Spark writes to a table in a Glue or Hive catalog backed by S3, the OpenLineage event carries both an S3 path as the top-level namespace and a `symlinks` facet with catalog table identifiers. The connector uses the name from the **first symlink identifier** in the event to resolve the table.
 
 <Tip>
-Ensure your Glue or Hive catalog tables are ingested into OpenMetadata before running the OpenLineage pipeline, so the symlink identity can be matched.
+Ensure your Glue or Hive catalog tables are ingested into OpenMetadata before running the OpenLineage pipeline. The first symlink name in the event must match the ingested table name exactly.
 </Tip>
 
 ## Metadata Ingestion
