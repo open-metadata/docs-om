@@ -18,6 +18,10 @@ All OpenMetadata MCP tools, with parameters and examples.
 | [`create_glossary`](#create_glossary) | Governance | Create a new glossary to organize business terms |
 | [`create_glossary_term`](#create_glossary_term) | Governance | Add a term to an existing glossary |
 | [`create_metric`](#create_metric) | Governance | Create a new metric entity |
+| [`create_classification`](#create_classification) | Governance | Create a new tag classification (top-level tag container) |
+| [`create_tag`](#create_tag) | Governance | Create a new tag within an existing classification |
+| [`create_domain`](#create_domain) | Governance | Create a new domain for grouping data assets |
+| [`create_data_product`](#create_data_product) | Governance | Create a new data product within one or more domains |
 | [`get_entity_lineage`](#get_entity_lineage) | Lineage | Explore upstream/downstream dependencies |
 | [`create_lineage`](#create_lineage) | Lineage | Create a lineage relationship between two entities |
 | [`get_test_definitions`](#get_test_definitions) | Data Quality | List available test definitions for tables or columns |
@@ -464,6 +468,203 @@ All OpenMetadata MCP tools, with parameters and examples.
       "reviewers": ["data-governance-team"],
       "tags": ["Finance", "KPI"],
       "domains": ["Revenue"]
+    }
+  }
+}
+```
+
+---
+
+### create_classification
+
+**Description**: Create a new Classification in OpenMetadata. A Classification is a top-level container that groups related Tags (e.g., `PII`, `Tier`). The `name` becomes the root segment of every tag FQN under it. The `mutuallyExclusive` flag is immutable once the classification exists.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the classification. Becomes the root segment of tag FQNs (e.g., `PII` → `PII.Sensitive`). Must be unique. |
+| `description` | string | Yes | Description of the classification in Markdown format. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, an entity can only carry one tag from this classification at a time. Immutable after creation. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this classification belongs to. Each domain must already exist. |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_classification",
+    "arguments": {
+      "name": "PII",
+      "description": "Tags for classifying Personally Identifiable Information across data assets.",
+      "mutuallyExclusive": false,
+      "owners": ["data-governance-team"],
+      "reviewers": ["privacy-team"]
+    }
+  }
+}
+```
+
+---
+
+### create_tag
+
+**Description**: Create a new Tag inside a Classification in OpenMetadata. The tag FQN is `Classification.TagName` (e.g., `PII.Sensitive`). At least one of `classification` or `parent` must be provided.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the tag (the leaf segment, e.g., `Sensitive`). Must be unique within its parent. |
+| `description` | string | Yes | Description of the tag in Markdown format. |
+| `classification` | string | No | Name of the classification this tag belongs to (e.g., `PII`). Must already exist. Optional if `parent` is provided. |
+| `parent` | string | No | FQN of the parent tag for a nested tag (e.g., `PII.PersonalData`). Must already exist. Omit for a top-level tag. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, child tags under this tag are mutually exclusive on an entity. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this tag belongs to. Each domain must already exist. |
+
+#### Examples
+
+**Create a top-level tag**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_tag",
+    "arguments": {
+      "name": "Sensitive",
+      "description": "Data that contains sensitive personal information requiring strict access controls.",
+      "classification": "PII"
+    }
+  }
+}
+```
+
+**Create a nested tag**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_tag",
+    "arguments": {
+      "name": "Email",
+      "description": "Email addresses — a subset of sensitive personal data.",
+      "parent": "PII.Sensitive"
+    }
+  }
+}
+```
+
+---
+
+### create_domain
+
+**Description**: Create a new Domain in OpenMetadata. A Domain is a top-level governance grouping of data assets. To create a child domain, set `parent` to the FQN of an existing parent domain. `domainType` defaults to `Aggregate` if omitted.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the domain. Must be unique. |
+| `description` | string | Yes | Description of the domain in Markdown format. |
+| `domainType` | string | No | Type of domain: `Source-aligned`, `Consumer-aligned`, or `Aggregate` (default). |
+| `parent` | string | No | FQN of an existing parent domain when creating a child domain. Omit for a top-level domain. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of domain experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this domain (e.g., `Tier.Tier1`). |
+
+#### Examples
+
+**Create a top-level domain**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_domain",
+    "arguments": {
+      "name": "Finance",
+      "description": "Domain for all finance and accounting data assets.",
+      "domainType": "Consumer-aligned",
+      "experts": ["jane.doe"],
+      "owners": ["finance-team"]
+    }
+  }
+}
+```
+
+**Create a child domain**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_domain",
+    "arguments": {
+      "name": "Revenue",
+      "description": "Sub-domain covering revenue tracking and forecasting.",
+      "domainType": "Aggregate",
+      "parent": "Finance"
+    }
+  }
+}
+```
+
+---
+
+### create_data_product
+
+**Description**: Create a new Data Product in OpenMetadata. A Data Product groups data assets that deliver business value and must belong to at least one Domain. All referenced domain FQNs must already exist.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the data product. Must be unique. |
+| `description` | string | Yes | Description of the data product in Markdown format. |
+| `domains` | array | Yes | FQNs of the domains this data product belongs to (e.g., `Finance`). At least one required; each must already exist. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of data product experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this data product (e.g., `Tier.Tier1`, `PII.Sensitive`). |
+
+#### Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_data_product",
+    "arguments": {
+      "name": "customer_360",
+      "displayName": "Customer 360",
+      "description": "Unified view of customer data including orders, support history, and lifetime value.",
+      "domains": ["Finance", "Marketing"],
+      "experts": ["alice.smith"],
+      "owners": ["data-platform-team"],
+      "tags": ["Tier.Tier1"]
     }
   }
 }
