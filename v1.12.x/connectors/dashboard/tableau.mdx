@@ -8,7 +8,6 @@ import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHea
 import TestConnection from '/snippets/connectors/test-connection.mdx'
 import ConfigureIngestion from '/snippets/connectors/dashboard/configure-ingestion.mdx'
 import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import DashboardLineage from '/snippets/connectors/dashboard/dashboard-lineage.mdx'
 import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
 
 <ConnectorDetailsHeader
@@ -124,5 +123,37 @@ For more information to get a Personal Access Token please visit this [link](htt
 ## Securing Tableau Connection with SSL in OpenMetadata
 To establish secure connections between OpenMetadata and Tableau, navigate to the `Advanced Config` section. Here, you can provide the CA certificate used for SSL validation by specifying the `caCertificate`. Alternatively, if both client and server require mutual authentication, you'll need to use all three parameters: `ssl key`, `ssl cert`, and `caCertificate`. In this case, `ssl_cert` is used for the client’s SSL certificate, `ssl_key` for the private key associated with the SSL certificate, and `caCertificate` for the CA certificate to validate the server’s certificate.
   <img src="/public/images/connectors/ssl_tableau.png" alt="SSL Configuration" height="450px" />
-<DashboardLineage />
+
+## Lineage
+
+Lineage in OpenMetadata shows you which database tables power each Tableau dashboard. When lineage is set up, you can click on a dashboard and trace it back to the exact source tables in your database.
+
+There is **no separate lineage agent** for Tableau. Lineage is collected automatically as part of the standard metadata ingestion workflow — no extra steps or pipelines needed.
+
+### Before You Start
+
+Make sure the **Tableau Metadata API** is enabled on your Tableau server. OpenMetadata uses this API to find out which database tables each dashboard is built on. Without it, lineage will not be collected.
+
+- Follow the official Tableau guide to [enable the Tableau Metadata API](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html#enable-the-tableau-metadata-api-for-tableau-server).
+
+### How to Set Up Lineage
+
+In **Step 3 — Configure Ingestion** of the [Connection Details](#connection-details) section above:
+
+1. Scroll down to the **Lineage Information** section.
+2. In the **Database Service Prefixes** field, enter the name of the database service in OpenMetadata that your Tableau dashboards connect to.
+
+This tells OpenMetadata where to look for the source tables so it can draw the lineage path from table → dashboard.
+
+**Examples of valid entries:**
+
+| What you enter | What it matches |
+|---|---|
+| `SnowflakeProd` | All tables in the Snowflake service named `SnowflakeProd` |
+| `SnowflakeProd.sales_db` | Tables in the `sales_db` database within `SnowflakeProd` |
+| `SnowflakeProd.sales_db.public` | Tables in the `public` schema within `sales_db` |
+
+<Tip>
+If your Tableau dashboards pull data from multiple database services, add each service as a separate entry in the **Database Service Prefixes** field.
+</Tip>
 
