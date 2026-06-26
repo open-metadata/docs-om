@@ -8,66 +8,138 @@ sidebarTitle: System & Governance Notifications
 
 Stay informed about metadata changes, governance events, and collaboration activities across your data catalog.
 
-## Open the Notifications Page
-
-Navigate to **Settings > Notifications > System**.
-
 ## Create a new Alert
 
-Click the **Add Notification** button.
+1. Navigate to **Settings** > **Notifications** > **System**.
 
-<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-add-alert.webp" alt="Add Notification Button" />
+2. Select **Add Notification**.
 
-Provide a unique, descriptive **Name** for your alert. You can also add an optional **Description** to provide further context and clarity regarding the alert's intent.
+    <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-add-alert.webp" alt="Add Notification Button" />
 
-<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-alert-name-description.webp" alt="Input fields for Alert Name and Description" />
+3. Enter a unique alert **Name** and **Description** (optional) for quick identification.
 
-## Select the Metadata Entity to Monitor
+    <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-alert-name-description.webp" alt="Input fields for Alert Name and Description" />
 
-Choose the specific entity type whose changes you want to track. These sources include data assets (like **Table** or **Pipeline**) as well as governance and platform entities (like **Glossary**, **Tag**, **User**, or **Announcement**).
-Any relevant change to the selected entity will generate an event for this notification.
+4. Select an entity type to trigger this alert.
 
-<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-source.webp" alt="Select the Source Resource for System Notifications" />
+    <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-source.webp" alt="Select the Source Resource for System Notifications" />
 
-## Configure Filters (Optional)
+    **Available source entities**
 
-<Note>
-If you do not set any filter, the alert will apply to **all** events over the selected source entity type.
-</Note>
+    The source you pick determines which entity type's events trigger the alert. Choose from data assets, service connections, governance entities, or collaboration threads.
 
-Filters allow refining the scope of the alert to focus only on relevant changes. The available filter criteria depend on the source entity selected. Events can be narrowed down basing on a variety of criteria, including:
+    **General**
 
-* **Owner:** Filter events based on the designated owner of the asset.
-* **Entity FQN:** Filter by the Fully Qualified Name of the entity.
-* **Event Type:** Filter by the specific action that occurred (e.g., Created, Updated, Deleted).
-* **Updater Name:** Filter based on the user or service that executed the change.
-* **Domain:** Filter events based on the Data Domain the entity belongs to.
-* **Filter By Updater Is Bot:** Filter to include or exclude changes made by automated ingestion or system processes.
+    | Source | What it covers |
+    |---|---|
+    | **All** | Every entity type — subscribes to events across the entire catalog |
 
-Use the **Include** toggle to define the logic for the filter condition:
-* **Include (Toggle ON):** If the event meets the filter condition, the alert is **sent**.
-* **Exclude (Toggle OFF):** If the event meets the filter condition, the alert is **silenced** (not sent).
+    **Data assets**
 
-You can add multiple filters to a single alert subscription.
+    | Source | What it covers |
+    |---|---|
+    | **Table** | Database tables and views |
+    | **Dashboard** | BI dashboards (Tableau, Looker, PowerBI, etc.) |
+    | **Chart** | Individual charts within a BI dashboard |
+    | **Dashboard Data Model** | Underlying data models behind BI dashboards |
+    | **Pipeline** | Data pipeline assets (Airflow, dbt, etc.) |
+    | **Topic** | Messaging topics (Kafka, Pulsar) |
+    | **ML Model** | Machine learning model assets |
+    | **Database** | Database entities within a database service |
+    | **Database Schema** | Schemas within a database |
+    | **Location** | Storage location entities |
 
-<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-filter-0.webp" alt="Define Filters" />
-<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-filter-1.webp" alt="Define Filters" />
+    **Service connections**
 
-## Select Destinations
+    | Source | What it covers |
+    |---|---|
+    | **Ingestion Pipeline** | OpenMetadata metadata ingestion pipelines — fires on success, failure, or config changes |
+    | **Database Service** | Database service connections (Snowflake, BigQuery, Postgres, etc.) |
+    | **Dashboard Service** | BI service connections |
+    | **Pipeline Service** | Pipeline service connections |
+    | **Messaging Service** | Messaging service connections |
+    | **Storage Service** | Object storage service connections |
+    | **ML Model Service** | ML model service connections |
+    | **Metadata Service** | Metadata service connections |
 
-Choose where to send your alerts. OpenMetadata supports both internal and external channels.
+    **Governance**
 
-**Internal Destinations:**
-* **Admins** - Notify all platform administrators
-* **Followers** - Notify users following the asset
-* **Owners** - Alert the asset owners
-* **Teams or Specific Users** - Target specific teams or individuals
+    | Source | What it covers |
+    |---|---|
+    | **Glossary** | Business glossary entities |
+    | **Glossary Term** | Individual terms within a glossary |
+    | **Tag** | Classification tags |
+    | **Tag Category** | Tag classifications (for example, PII, Tier) |
+    | **User** | OpenMetadata user accounts |
 
-**External Destinations:**
-* **Email**
-* **Chat**: Slack, MS Teams, Google Chat
-* **Automation**: Generic Webhooks
+    **Collaboration**
 
-<img src="/public/images/how-to-guides/admin-guide/internal.webp" alt="Internal Destinations" />
+    These three sources all relate to threads posted on data assets, but each covers a distinct thread type. Choosing the wrong one is a common source of misconfigured alerts.
 
-<img src="/public/images/how-to-guides/admin-guide/external.webp" alt="External Destinations" />
+    | Source | Thread type | What it covers |
+    |---|---|---|
+    | **Conversation** | `Conversation` | Free-form comments posted on any data asset |
+    | **Task** | `Task` | Structured workflow tasks — **including incidents**, description requests, tag requests, and approval workflows |
+    | **Announcement** | `Announcement` | Time-bound announcements posted on data assets |
+
+    <Warning>
+    **Incident alerts require Task as the source, not Conversation.**
+
+    Incidents in OpenMetadata are Task threads, not Conversation threads. If you set Source = Conversation, the alert will never fire for incident comments, assignments, or status changes. Set Source = **Task** to receive notifications for incident activity.
+    </Warning>
+
+    The **Task** source covers all of the following task types:
+
+    | Task type | When it is created |
+    |---|---|
+    | `RequestTestCaseFailureResolution` | A data quality test fails and an incident is opened |
+    | `RequestDescription` | A user requests a description be written for an asset |
+    | `UpdateDescription` | A user requests an existing description be changed |
+    | `RequestTag` | A user requests a tag be applied to an asset |
+    | `UpdateTag` | A user requests an existing tag be changed |
+    | `RequestApproval` | A governance approval workflow is triggered |
+    | `RecognizerFeedbackApproval` | An automated classification suggestion requires user review and approval |
+    | `Generic` | A general-purpose task created manually |
+
+    The only filter available for **Task** and **Conversation** is **Mentioned User or Team** — narrow the alert to threads where a specific person or team is @-mentioned. You can't filter tasks by task type (for example, incidents only) in the alert UI.
+
+5. Add filters to narrow the alert scope so only specific events trigger a notification.
+
+    <Note>
+    If you don't set any filter, the alert applies to all events over the selected source entity type.
+    </Note>
+
+    Use filters to narrow the alert to relevant changes. The available criteria depend on the source entity selected. Filter events by:
+
+    * **Owner:** Filter events based on the designated owner of the asset.
+    * **Entity FQN:** Filter by the Fully Qualified Name of the entity.
+    * **Event Type:** Filter by the specific action that occurred (for example, Created, Updated, Deleted).
+    * **Updater Name:** Filter based on the user or service that executed the change.
+    * **Domain:** Filter events based on the Data Domain the entity belongs to.
+    * **Filter By Updater Is Bot:** Filter to include or exclude changes made by automated ingestion or system processes.
+
+    Use the **Include** toggle to define the logic for the filter condition:
+    * **Include (Toggle ON)**: If the event meets the filter condition, the alert is **sent**.
+    * **Exclude (Toggle OFF)**: If the event meets the filter condition, the alert is **silenced** (not sent).
+
+    Add multiple filters to a single alert subscription.
+
+    <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-filter-0.webp" alt="Define Filters" />
+    <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/system-notifications-filter-1.webp" alt="Define Filters" />
+
+6. Add destinations where you want to deliver alerts — internal OpenMetadata roles or external channels like Slack and email.
+
+    **Internal Destinations**:
+    * **Admins** - Notify all platform administrators
+    * **Followers** - Notify users following the asset
+    * **Owners** - Alert the asset owners
+    * **Teams or Specific Users** - Target specific teams or individuals
+
+    **External Destinations**:
+    * **Email**
+    * **Chat**: Slack, MS Teams, and Google Chat
+    * **Automation**: Generic Webhooks
+
+    <img src="/public/images/how-to-guides/admin-guide/internal.webp" alt="Internal Destinations" />
+
+    <img src="/public/images/how-to-guides/admin-guide/external.webp" alt="External Destinations" />

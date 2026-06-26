@@ -9,24 +9,19 @@ All OpenMetadata MCP tools, with parameters and examples.
 
 ## Available Tools
 
-| Tool | Category | Description |
-|------|----------|-------------|
-| [`search_metadata`](#search_metadata) | Discovery | Keyword-based search for data assets and business terms |
-| [`semantic_search`](#semantic_search) | Discovery | Meaning-based search using vector embeddings |
-| [`get_entity_details`](#get_entity_details) | Discovery | Retrieve full details for a specific entity by FQN |
-| [`patch_entity`](#patch_entity) | Governance | Update an existing entity using JSON Patch |
-| [`create_glossary`](#create_glossary) | Governance | Create a new glossary to organize business terms |
-| [`create_glossary_term`](#create_glossary_term) | Governance | Add a term to an existing glossary |
-| [`create_metric`](#create_metric) | Governance | Create a new metric entity |
-| [`get_entity_lineage`](#get_entity_lineage) | Lineage | Explore upstream/downstream dependencies |
-| [`create_lineage`](#create_lineage) | Lineage | Create a lineage relationship between two entities |
-| [`get_test_definitions`](#get_test_definitions) | Data Quality | List available test definitions for tables or columns |
-| [`create_test_case`](#create_test_case) | Data Quality | Create a data quality test for a table or column |
-| [`root_cause_analysis`](#root_cause_analysis) | Data Quality | Perform root cause analysis via data quality lineage |
+| Category | Tools |
+|---|---|
+| **Discover** | [search_metadata](#search_metadata), [semantic_search](#semantic_search) |
+| **Inspect** | [get_entity_details](#get_entity_details) |
+| **Lineage & Impact** | [get_entity_lineage](#get_entity_lineage), [create_lineage](#create_lineage), [root_cause_analysis](#root_cause_analysis) |
+| **Knowledge** | [create_glossary](#create_glossary), [create_glossary_term](#create_glossary_term) |
+| **Govern & Classify** | [create_classification](#create_classification), [create_tag](#create_tag), [create_domain](#create_domain), [create_data_product](#create_data_product), [patch_entity](#patch_entity) |
+| **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
+| **Metrics** | [create_metric](#create_metric) |
 
----
+## Discover
 
-## Discovery & Search Tools
+Search and find data assets across your catalog using keyword, semantic, or natural language queries.
 
 ### search_metadata
 
@@ -38,7 +33,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 - Search for glossary terms
 - Locate pipelines by name or description
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -52,15 +47,14 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `includeAggregations` | boolean | No | Include aggregation/facet data (default: false) |
 | `maxAggregationBuckets` | integer | No | Max buckets per aggregation (default: 10, max: 50) |
 
-#### Entity Types
-
+**Entity Types**
 - **Service Entities**: `databaseService`, `messagingService`, `apiService`, `dashboardService`, `pipelineService`, `storageService`, `mlmodelService`, `metadataService`, `searchService`
 - **Data Asset Entities**: `apiCollection`, `apiEndpoint`, `table`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `dashboardDataModel`, `pipeline`, `chart`, `topic`, `searchIndex`, `mlmodel`, `container`
 - **User Entities**: `user`, `team`
 - **Domain Entities**: `domain`, `dataProduct`
 - **Governance Entities**: `metric`, `glossary`, `glossaryTerm`
 
-#### Examples
+**Examples**
 
 **Basic Search**:
 
@@ -132,8 +126,6 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
-
 ### semantic_search
 
 **Description**: Find data assets by meaning using vector search ([setup guide](../../deployment/semantic-search#enable-semantic-search)). Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
@@ -143,7 +135,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 - Find assets related to a concept (e.g., "customer spending behavior")
 - Discover hidden relationships across services
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -153,7 +145,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `k` | integer | No | KNN neighbor count for tuning result quality (default: 100) |
 | `threshold` | number | No | Minimum similarity score 0.0–1.0 (default: 0.0) |
 
-#### Examples
+**Examples**
 
 **Conceptual Search**:
 
@@ -193,20 +185,22 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
+## Inspect
+
+Retrieve detailed information about specific entities and company knowledge pills.
 
 ### get_entity_details
 
 **Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually.
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `entityType` | string | Yes | Type of entity (e.g., `table`, `dashboard`, `topic`, `pipeline`) |
 | `fqn` | string | Yes | Fully qualified name — use the exact value from `search_metadata` or `semantic_search` results |
 
-#### Examples
+**Examples**
 
 **Get Table Details**:
 
@@ -259,15 +253,27 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
+## Lineage & Impact
 
-## Governance Tools
+Explore data dependencies, trace upstream sources, and analyze downstream impact.
 
-### patch_entity
+### get_entity_lineage
 
-**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
 
-#### Example
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity |
+| `fqn` | string | Yes | Fully qualified name of the entity |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `includeColumnLineage` | boolean | No | Include column-level lineage mappings. Default is `false` (table-level only) |
+
+**Examples**
+
+**Get Full Lineage**:
 
 ```json
 {
@@ -275,23 +281,116 @@ All OpenMetadata MCP tools, with parameters and examples.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "patch_entity",
+    "name": "get_entity_lineage",
     "arguments": {
       "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.customer_orders",
-      "patch": "[{\"op\":\"replace\",\"path\":\"/description\",\"value\":\"Updated description for customer orders table.\"}]"
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 3,
+      "downstreamDepth": 3
     }
   }
 }
 ```
 
----
+**Downstream-Focused Impact Analysis**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 1,
+      "downstreamDepth": 5
+    }
+  }
+}
+```
+
+### create_lineage
+
+**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
+| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_lineage",
+    "arguments": {
+      "fromEntity": {
+        "type": "table",
+        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
+      },
+      "toEntity": {
+        "type": "table",
+        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+      }
+    }
+  }
+}
+```
+
+> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
+
+### root_cause_analysis
+
+**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fqn` | string | Yes | FQN of the entity where failure was detected |
+| `entityType` | string | Yes | Entity type to analyze (for example, `table`) |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `queryFilter` | string | No | Optional OpenSearch DSL filter JSON |
+| `includeDeleted` | boolean | No | Include deleted entities in traversal (default: false) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "tools/call",
+  "params": {
+    "name": "root_cause_analysis",
+    "arguments": {
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "entityType": "table",
+      "upstreamDepth": 4,
+      "downstreamDepth": 1,
+      "includeDeleted": false
+    }
+  }
+}
+```
+
+## Knowledge
+
+Create and manage glossaries, terms, and reusable context memories.
 
 ### create_glossary
 
 **Description**: Create a new glossary to organize business terms. Set `mutuallyExclusive: true` to restrict entities to a single term from the glossary at a time.
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -301,7 +400,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `owners` | array | No | List of owner usernames or emails |
 | `reviewers` | array | No | List of reviewer usernames or emails |
 
-#### Examples
+**Examples**
 
 **Create a Business Glossary**:
 
@@ -359,13 +458,11 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
-
 ### create_glossary_term
 
 **Description**: Create a new term within an existing glossary. Supports hierarchical parent–child relationships between terms.
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -376,7 +473,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `owners` | array | No | List of owner usernames or emails |
 | `reviewers` | array | No | List of reviewer usernames or emails |
 
-#### Examples
+**Examples**
 
 **Create a Root-Level Term**:
 
@@ -417,78 +514,27 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
+## Govern & Classify
 
-### create_metric
+Define and apply classifications, tags, domains, data products, and entity updates.
 
-**Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
+### create_classification
 
-#### Parameters
+**Description**: Create a new Classification in OpenMetadata. A Classification is a top-level container that groups related Tags (e.g., `PII`, `Tier`). The `name` becomes the root segment of every tag FQN under it. The `mutuallyExclusive` flag is immutable once the classification exists.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `name` | string | Yes | Name of the metric |
-| `description` | string | No | Description of the metric in Markdown format |
-| `displayName` | string | No | Human-readable display name for the metric |
-| `metricExpressionLanguage` | string | Yes | Expression language used for the metric (for example, `SQL`) |
-| `metricExpressionCode` | string | Yes | Metric formula/expression in the selected language |
-| `metricType` | string | No | Metric type such as `COUNT`, `SUM`, `AVERAGE`, `RATIO`, or `OTHER` |
-| `granularity` | string | No | Time granularity such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR` |
-| `unitOfMeasurement` | string | No | Unit of measurement such as `COUNT`, `DOLLARS`, `PERCENTAGE`, or `OTHER` |
-| `customUnitOfMeasurement` | string | No | Custom unit string, required when `unitOfMeasurement` is `OTHER` |
-| `owners` | array | No | List of owner usernames or emails |
-| `reviewers` | array | No | List of reviewer usernames or emails |
-| `relatedMetrics` | array | No | List of related metric FQNs |
-| `tags` | array | No | List of tags to apply |
-| `domains` | array | No | List of domains to associate |
-
-#### Example
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 10,
-  "method": "tools/call",
-  "params": {
-    "name": "create_metric",
-    "arguments": {
-      "name": "monthly_recurring_revenue",
-      "displayName": "Monthly Recurring Revenue",
-      "description": "Monthly recurring revenue from active subscriptions.",
-      "metricExpressionLanguage": "SQL",
-      "metricExpressionCode": "SUM(subscription_amount)",
-      "metricType": "SUM",
-      "granularity": "MONTH",
-      "unitOfMeasurement": "DOLLARS",
-      "owners": ["finance-team"],
-      "reviewers": ["data-governance-team"],
-      "tags": ["Finance", "KPI"],
-      "domains": ["Revenue"]
-    }
-  }
-}
-```
-
----
-
-## Lineage Tools
-
-### get_entity_lineage
-
-**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
-
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `entityType` | string | Yes | Type of entity |
-| `fqn` | string | Yes | Fully qualified name of the entity |
-| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
-| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `name` | string | Yes | Name of the classification. Becomes the root segment of tag FQNs (e.g., `PII` → `PII.Sensitive`). Must be unique. |
+| `description` | string | Yes | Description of the classification in Markdown format. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, an entity can only carry one tag from this classification at a time. Immutable after creation. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this classification belongs to. Each domain must already exist. |
 
-#### Examples
-
-**Get Full Lineage**:
+**Example**
 
 ```json
 {
@@ -496,18 +542,57 @@ All OpenMetadata MCP tools, with parameters and examples.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "get_entity_lineage",
+    "name": "create_classification",
     "arguments": {
-      "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
-      "upstreamDepth": 3,
-      "downstreamDepth": 3
+      "name": "PII",
+      "description": "Tags for classifying Personally Identifiable Information across data assets.",
+      "mutuallyExclusive": false,
+      "owners": ["data-governance-team"],
+      "reviewers": ["privacy-team"]
     }
   }
 }
 ```
 
-**Downstream-Focused Impact Analysis**:
+### create_tag
+
+**Description**: Create a new Tag inside a Classification in OpenMetadata. The tag FQN is `Classification.TagName` (e.g., `PII.Sensitive`). At least one of `classification` or `parent` must be provided.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the tag (the leaf segment, e.g., `Sensitive`). Must be unique within its parent. |
+| `description` | string | Yes | Description of the tag in Markdown format. |
+| `classification` | string | No | Name of the classification this tag belongs to (e.g., `PII`). Must already exist. Optional if `parent` is provided. |
+| `parent` | string | No | FQN of the parent tag for a nested tag (e.g., `PII.PersonalData`). Must already exist. Omit for a top-level tag. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, child tags under this tag are mutually exclusive on an entity. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this tag belongs to. Each domain must already exist. |
+
+**Examples**
+
+**Create a top-level tag**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_tag",
+    "arguments": {
+      "name": "Sensitive",
+      "description": "Data that contains sensitive personal information requiring strict access controls.",
+      "classification": "PII"
+    }
+  }
+}
+```
+
+**Create a nested tag**:
 
 ```json
 {
@@ -515,31 +600,36 @@ All OpenMetadata MCP tools, with parameters and examples.
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "get_entity_lineage",
+    "name": "create_tag",
     "arguments": {
-      "entityType": "table",
-      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
-      "upstreamDepth": 1,
-      "downstreamDepth": 5
+      "name": "Email",
+      "description": "Email addresses — a subset of sensitive personal data.",
+      "parent": "PII.Sensitive"
     }
   }
 }
 ```
 
----
+### create_domain
 
-### create_lineage
+**Description**: Create a new Domain in OpenMetadata. A Domain is a top-level governance grouping of data assets. To create a child domain, set `parent` to the FQN of an existing parent domain. `domainType` defaults to `Aggregate` if omitted.
 
-**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
-
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
-| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
+| `name` | string | Yes | Name of the domain. Must be unique. |
+| `description` | string | Yes | Description of the domain in Markdown format. |
+| `domainType` | string | No | Type of domain: `Source-aligned`, `Consumer-aligned`, or `Aggregate` (default). |
+| `parent` | string | No | FQN of an existing parent domain when creating a child domain. Omit for a top-level domain. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of domain experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this domain (e.g., `Tier.Tier1`). |
 
-#### Example
+**Examples**
+
+**Create a top-level domain**:
 
 ```json
 {
@@ -547,32 +637,115 @@ All OpenMetadata MCP tools, with parameters and examples.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "create_lineage",
+    "name": "create_domain",
     "arguments": {
-      "fromEntity": {
-        "type": "table",
-        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
-      },
-      "toEntity": {
-        "type": "table",
-        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
-      }
+      "name": "Finance",
+      "description": "Domain for all finance and accounting data assets.",
+      "domainType": "Consumer-aligned",
+      "experts": ["jane.doe"],
+      "owners": ["finance-team"]
     }
   }
 }
 ```
 
-> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
+**Create a child domain**:
 
----
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_domain",
+    "arguments": {
+      "name": "Revenue",
+      "description": "Sub-domain covering revenue tracking and forecasting.",
+      "domainType": "Aggregate",
+      "parent": "Finance"
+    }
+  }
+}
+```
 
-## Data Quality Tools
+### create_data_product
+
+**Description**: Create a new Data Product in OpenMetadata. A Data Product groups data assets that deliver business value and must belong to at least one Domain. All referenced domain FQNs must already exist.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the data product. Must be unique. |
+| `description` | string | Yes | Description of the data product in Markdown format. |
+| `domains` | array | Yes | FQNs of the domains this data product belongs to (e.g., `Finance`). At least one required; each must already exist. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of data product experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this data product (e.g., `Tier.Tier1`, `PII.Sensitive`). |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_data_product",
+    "arguments": {
+      "name": "customer_360",
+      "displayName": "Customer 360",
+      "description": "Unified view of customer data including orders, support history, and lifetime value.",
+      "domains": ["Finance", "Marketing"],
+      "experts": ["alice.smith"],
+      "owners": ["data-platform-team"],
+      "tags": ["Tier.Tier1"]
+    }
+  }
+}
+```
+
+### patch_entity
+
+**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity to patch (e.g., `table`, `glossaryTerm`) |
+| `fqn` | string | Yes | Fully qualified name of the entity to patch |
+| `patch` | string | Yes | JSON Patch operations array as a JSON string. Each operation has `op` (`add`/`remove`/`replace`), `path`, and `value` |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "patch_entity",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "patch": "[{\"op\":\"replace\",\"path\":\"/description\",\"value\":\"Updated description for customer orders table.\"}]"
+    }
+  }
+}
+```
+
+## Data Quality
+
+Access test definitions and create test cases to validate your data assets.
 
 ### get_test_definitions
 
 **Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -581,7 +754,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `after` | string | No | Pagination cursor — use `nextCursor` from the previous response |
 | `testPlatform` | string | No | Filter by platform: `OpenMetadata`, `GreatExpectations`, `DBT`, `Deequ`, `Soda`, `Other` (default: `OpenMetadata`) |
 
-#### Example
+**Example**
 
 ```json
 {
@@ -598,13 +771,11 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
-
 ### create_test_case
 
 **Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
 
-#### Parameters
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -616,7 +787,7 @@ All OpenMetadata MCP tools, with parameters and examples.
 | `entityType` | string | No | Target OpenMetadata entity type (default: `table`). For column-level tests, keep `entityType` as `table` and set `columnName`. |
 | `description` | string | No | Optional description of the test case |
 
-#### Example
+**Example**
 
 ```json
 {
@@ -638,38 +809,55 @@ All OpenMetadata MCP tools, with parameters and examples.
 }
 ```
 
----
+## Metrics
 
-### root_cause_analysis
+Define and track measurable business and technical KPIs.
 
-**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
+### create_metric
 
-#### Parameters
+**Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
+
+**Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `fqn` | string | Yes | FQN of the entity where failure was detected |
-| `entityType` | string | Yes | Entity type to analyze (for example, `table`) |
-| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
-| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
-| `queryFilter` | string | No | Optional OpenSearch DSL filter JSON |
-| `includeDeleted` | boolean | No | Include deleted entities in traversal (default: false) |
+| `name` | string | Yes | Name of the metric |
+| `description` | string | No | Description of the metric in Markdown format |
+| `displayName` | string | No | Human-readable display name for the metric |
+| `metricExpressionLanguage` | string | Yes | Expression language used for the metric (for example, `SQL`) |
+| `metricExpressionCode` | string | Yes | Metric formula/expression in the selected language |
+| `metricType` | string | No | Metric type such as `COUNT`, `SUM`, `AVERAGE`, `RATIO`, or `OTHER` |
+| `granularity` | string | No | Time granularity such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR` |
+| `unitOfMeasurement` | string | No | Unit of measurement such as `COUNT`, `DOLLARS`, `PERCENTAGE`, or `OTHER` |
+| `customUnitOfMeasurement` | string | No | Custom unit string, required when `unitOfMeasurement` is `OTHER` |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+| `relatedMetrics` | array | No | List of related metric FQNs |
+| `tags` | array | No | List of tags to apply |
+| `domains` | array | No | List of domains to associate |
 
-#### Example
+**Example**
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 12,
+  "id": 10,
   "method": "tools/call",
   "params": {
-    "name": "root_cause_analysis",
+    "name": "create_metric",
     "arguments": {
-      "fqn": "mysql_prod.ecommerce.public.customer_orders",
-      "entityType": "table",
-      "upstreamDepth": 4,
-      "downstreamDepth": 1,
-      "includeDeleted": false
+      "name": "monthly_recurring_revenue",
+      "displayName": "Monthly Recurring Revenue",
+      "description": "Monthly recurring revenue from active subscriptions.",
+      "metricExpressionLanguage": "SQL",
+      "metricExpressionCode": "SUM(subscription_amount)",
+      "metricType": "SUM",
+      "granularity": "MONTH",
+      "unitOfMeasurement": "DOLLARS",
+      "owners": ["finance-team"],
+      "reviewers": ["data-governance-team"],
+      "tags": ["Finance", "KPI"],
+      "domains": ["Revenue"]
     }
   }
 }
