@@ -1,6 +1,6 @@
 ---
 title: OpenLineage | OpenMetadata Data Lineage Pipeline
-description: Connect your data pipelines with OpenMetadata'sOpenLineage connector. Track data lineage, monitor pipeline metadata, and gain end-to-end visibility.
+description: Connect your data pipelines with OpenMetadata's OpenLineage connector. Track data lineage, monitor pipeline metadata, and gain end-to-end visibility.
 sidebarTitle: Overview
 ---
 import ConfigureIngestion from '/snippets/connectors/pipeline/configure-ingestion.mdx'
@@ -15,15 +15,19 @@ name="OpenLineage"
 stage="BETA"
 availableFeatures={["Pipelines", "Lineage", "Usage"]}
 unavailableFeatures={["Pipeline Status", "Owners", "Tags"]} />
+
 In this section, we provide guides and references to use the OpenLineage connector.
 Configure and schedule OpenLineage metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v1.12.x/connectors/pipeline/openlineage/troubleshooting)
+
 ## Requirements
+
 OpenMetadata is integrated with OpenLineage up to version 1.7.0 and will continue to work for future OpenLineage versions.
 OpenLineage is an open framework for data lineage collection and analysis. At its core is an extensible specification that systems can use to interoperate with lineage metadata.
 Apart from being a specification, it is also a set of integrations collecting lineage from various systems such as Apache Airflow and Spark.
+
 ### OpenLineage Connector Events
 OpenLineage connector consumes OpenLineage events from either a **Kafka broker** or **AWS Kinesis Data Streams** and translates them to OpenMetadata Lineage information.
 
@@ -80,6 +84,32 @@ spark = SparkSession.builder\
     .config('spark.openlineage.transport.region', 'us-east-2')\
     .getOrCreate()
 ```
+
+## How Table Resolution Works
+
+This section is specifically about dataset resolution. The connector can create pipeline services and pipeline entities from incoming OpenLineage job metadata, but table resolution is read-only: tables, schemas, and databases must already exist in OpenMetadata. **Ingest your database sources before running the OpenLineage pipeline** or lineage edges will not attach.
+
+<Info>
+If a dataset in an OpenLineage event cannot be resolved to an existing OpenMetadata entity, it is skipped with a warning in the ingestion logs. The rest of the event is still processed.
+</Info>
+
+### Resolution Order
+
+Each dataset in an OpenLineage event is resolved using the following priority:
+
+1. **Symlink identifiers** — if the event includes a `symlinks` facet, those identities are tried first. `LOCATION`-type symlinks (raw physical paths) are skipped. This is the shape Spark emits for Hive/Glue-cataloged tables backed by object storage (e.g. S3).
+2. **Top-level namespace and name** — used as fallback if no symlink resolves.
+
+The first candidate that matches a configured OpenMetadata service wins.
+
+### Hive / Glue Tables on Object Storage
+
+When Spark writes to a table in a Glue or Hive catalog backed by S3, the OpenLineage event identifies the dataset by its S3 path as the top-level namespace. The connector reads the `symlinks` facet first — which carries the catalog table identity — and resolves it correctly against the ingested service.
+
+<Tip>
+Ensure your Glue or Hive catalog tables are ingested into OpenMetadata before running the OpenLineage pipeline, so the symlink identity can be matched.
+</Tip>
+
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"OpenLineage"} selectServicePath={"/public/images/connectors/openlineage/select-service.png"} addNewServicePath={"/public/images/connectors/openlineage/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/openlineage/service-connection.png"} />
 ## Connection Details
