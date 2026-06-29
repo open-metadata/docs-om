@@ -61,51 +61,78 @@ Configure the source type and service name for your Salesforce connector.
 
 </ContentSection>
 
-<ContentSection id={2} title="Username" lines="7">
+<ContentSection id={2} title="Consumer Key" lines="8">
 
-**username**: Username to connect to the Salesforce. This user should have the access as defined in requirements.
-
-</ContentSection>
-
-<ContentSection id={3} title="Password" lines="8">
-
-**password**: Password to connect to Salesforce.
-
-</ContentSection>
-
-<ContentSection id={4} title="Security Token" lines="9">
-
-**securityToken**: Salesforce Security Token is required to access the metadata through APIs. You can checkout [this doc](https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm&type=5) on how to get the security token.
-
-</ContentSection>
-
-<ContentSection id={5} title="Organization ID" lines="10">
-
-**Organization ID**: Salesforce Organization ID is the unique identifier for your Salesforce identity. You can check out [this doc](https://help.salesforce.com/s/articleView?id=000385215&type=1) on how to get the your Salesforce Organization ID.
+**consumerKey**: Salesforce Consumer Key (Client ID) for OAuth 2.0 authentication. Obtained from your Salesforce Connected App (External Client App) configuration. Provide this together with `consumerSecret` to authenticate via OAuth 2.0.
 
 <Tip>
-**Note**: You need to provide `15` digit organization id in this section. for e.g. `00DIB000004nDEq`, which you can find by following the steps mentioned in above doc (`Salesforce dashboard->Setup->Company Profile->Company Information->Salesforce.com Organization Id`).
-</Tip>
-
-<Tip>
-**Note**: If you want to access salesforce metadata without token(only by using organization id), you will need to setup your ip in trusted ip ranges. You can go (`Salesforce dashboard->Setup->Security->Network Access->Trusted IP Ranges`) to configure this. You can check [here](https://help.salesforce.com/s/articleView?id=sf.security_networkaccess.htm&type=5) to configure your ip in trusted ip ranges.
+The OAuth flow used depends on the `salesforceDomain` value and which other fields are set:
+- **Client credentials** (key/secret only): Works only with a **My Domain** value (e.g., `mycompany.my`). Does **not** work with `login` or `test`.
+- **OAuth password flow**: Provide `consumerKey`/`consumerSecret` **and** `username`/`password` together. Works with `login` or `test`.
 </Tip>
 
 </ContentSection>
 
-<ContentSection id={6} title="SObject Name" lines="11">
+<ContentSection id={3} title="Consumer Secret" lines="9">
 
-**sobjectName**: Specify the Salesforce Object Name in case you want to ingest a specific object.  If left blank, we will ingest all the Objects.
-
-</ContentSection>
-
-<ContentSection id={7} title="Salesforce API Version" lines="12">
-
-**salesforceApiVersion**: Follow the steps mentioned [here](https://help.salesforce.com/s/articleView?id=000386929&type=1) to get the API version. Enter the numerical value in the field, For example `42.0`.
+**consumerSecret**: Salesforce Consumer Secret (Client Secret) for OAuth 2.0 authentication. Obtained from your Salesforce Connected App (External Client App) configuration. Provide this together with `consumerKey` to authenticate via OAuth 2.0.
 
 </ContentSection>
 
-<ContentSection id={8} title="Salesforce Domain" lines="13">
+<ContentSection id={4} title="Username / Password" lines="10-12">
+
+**username**, **password**: Required for the OAuth password flow when using `login` or `test` domain. Provide these together with `consumerKey`/`consumerSecret`.
+
+**securityToken** (commented out): Triggers the legacy SOAP login branch in `simple-salesforce` instead of the OAuth password flow. Only use this if you are not providing `consumerKey`/`consumerSecret`.
+
+<Warning>
+**Important**: Salesforce is deprecating direct username/password API access. Migrate to OAuth 2.0 using a Connected App (External Client App) to avoid future disruption. See [Salesforce OAuth documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_authenticate.htm&type=5).
+</Warning>
+
+</ContentSection>
+
+<ContentSection id={5} title="Organization ID" lines="15">
+
+**organizationId**: Salesforce Organization ID is the unique identifier for your Salesforce identity. You can check out [this doc](https://help.salesforce.com/s/articleView?id=000385215&type=1) on how to get your Salesforce Organization ID.
+
+<Tip>
+**Note**: You need to provide the `15` digit organization id, for example, `00DIB000004nDEq`, which you can find by following the steps mentioned in the doc above (`Salesforce dashboard->Setup->Company Profile->Company Information->Salesforce.com Organization Id`).
+</Tip>
+
+<Tip>
+**Note**: If you want to access salesforce metadata without a token (only by using organization id), you will need to set up your IP in trusted IP ranges. You can go (`Salesforce dashboard->Setup->Security->Network Access->Trusted IP Ranges`) to configure this. You can check [here](https://help.salesforce.com/s/articleView?id=sf.security_networkaccess.htm&type=5) to configure your IP in trusted IP ranges.
+</Tip>
+
+</ContentSection>
+
+<ContentSection id={6} title="SObject Names" lines="16-17">
+
+**sobjectNames**: List of Salesforce Object Names to ingest. If left empty, all objects will be ingested (subject to `tableFilterPattern`).
+
+</ContentSection>
+
+<ContentSection id={7} title="Database Name" lines="18">
+
+**databaseName**: Optional name to give to the database in OpenMetadata. Defaults to `default` if left blank.
+
+</ContentSection>
+
+<ContentSection id={8} title="Salesforce API Version" lines="19">
+
+**salesforceApiVersion**: The API version to use when connecting to Salesforce. The correct value depends on your authentication method:
+
+- **OAuth 2.0 (password flow or client credentials)**: Use any current Salesforce-supported version, including `65.0` or higher.
+- **Username / Password (Legacy)**: Use `64.0` or lower. Salesforce removed the SOAP `login()` endpoint in API version `65.0`, which the legacy username/password flow relies on — setting `65.0` or higher will cause login failures. Note that API versions `31.0` through `64.0` are also scheduled to be retired by Salesforce in mid-2027, so we recommend migrating to OAuth 2.0 before that date.
+
+Follow the steps mentioned [here](https://help.salesforce.com/s/articleView?id=000386929&type=1) to find your org's API version.
+
+<Tip>
+The connector's default API version is `42.0`. For OAuth 2.0, we recommend setting a newer current version (for example, `59.0` or higher) for access to the latest Salesforce features. For the legacy Username/Password flow, keep it at `64.0` or lower to avoid login failures.
+</Tip>
+
+</ContentSection>
+
+<ContentSection id={9} title="Salesforce Domain" lines="20">
 
 **salesforceDomain**: When connecting to Salesforce, you can specify the domain to use for accessing the platform. The common domains include `login` and `test`, and you can also utilize Salesforce My Domain.
 
@@ -113,7 +140,7 @@ By default, the domain `login` is used for accessing Salesforce.
 
 </ContentSection>
 
-<ContentSection id={9} title="Connection Options" lines="14">
+<ContentSection id={10} title="Connection Options" lines="21">
 
 #### Advanced Configuration
 
@@ -121,7 +148,7 @@ By default, the domain `login` is used for accessing Salesforce.
 
 </ContentSection>
 
-<ContentSection id={10} title="Connection Arguments" lines="15">
+<ContentSection id={11} title="Connection Arguments" lines="23">
 
 **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
 
@@ -129,19 +156,19 @@ By default, the domain `login` is used for accessing Salesforce.
 
 </ContentSection>
 
-<ContentSection id={11} title="Source Config" lines="18-61">
+<ContentSection id={12} title="Source Config" lines="25-68">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={12} title="Sink Configuration" lines="62-64">
+<ContentSection id={13} title="Sink Configuration" lines="69-71">
 
 <IngestionSinkDef />
 
 </ContentSection>
 
-<ContentSection id={13} title="Workflow Configuration" lines="65-81">
+<ContentSection id={14} title="Workflow Configuration" lines="72-88">
 
 <WorkflowConfigDef />
 
@@ -158,12 +185,19 @@ source:
   serviceConnection:
     config:
       type: Salesforce
+      # OAuth 2.0 password flow (login/test domain) – consumerKey + consumerSecret + username + password
+      consumerKey: consumerKey
+      consumerSecret: consumerSecret
       username: username
       password: password
-      securityToken: securityToken
+      # securityToken: securityToken  # Legacy SOAP flow only – omit when using OAuth password flow
+      # Client credentials flow (My Domain only) – remove username/password above
+      # and set salesforceDomain to your My Domain value (e.g. mycompany.my)
       organizationId: organizationId
-      sobjectName: sobjectName
-      salesforceApiVersion: "42.0"
+      sobjectNames:
+        - Account
+      databaseName: salesforce
+      salesforceApiVersion: "65.0"
       salesforceDomain: login
       # connectionOptions:
       #   key: value

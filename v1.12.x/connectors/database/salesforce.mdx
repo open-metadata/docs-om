@@ -34,16 +34,40 @@ These are the permissions you will require to fetch the metadata from Salesforce
 <Steps>
 <Step title="Connection Details">
 <Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
+When using a **Hybrid Ingestion Runner**, any sensitive credential fields – such as passwords, API keys, or private keys – must reference secrets using the following format:
 ```
 password: secret:/my/database/password
 ```
 This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
 For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
 </Tip>
-- **Username**: Username to connect to the Salesforce. This user should have the access as defined in requirements.
-- **Password**: Password to connect to Salesforce.
-- **Security Token**: Salesforce Security Token is required to access the metadata through APIs. You can checkout [this doc](https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm&type=5) on how to get the security token.
+**Authentication**
+
+OpenMetadata supports two authentication methods for Salesforce:
+
+- **OAuth 2.0 (Recommended)** – Authenticate using a Salesforce Connected App (External Client App) with a Consumer Key and Consumer Secret. See the [Salesforce External Client Apps documentation](https://help.salesforce.com/s/articleView?id=xcloud.external_client_apps.htm&type=5) to set one up.
+
+    - **Consumer Key**: Salesforce Consumer Key (Client ID) for OAuth 2.0 authentication. Obtained from your Salesforce Connected App configuration. Provide this together with Consumer Secret to use OAuth 2.0.
+    - **Consumer Secret**: Salesforce Consumer Secret (Client Secret) for OAuth 2.0 authentication. Obtained from your Salesforce Connected App configuration. Provide this together with Consumer Key to use OAuth 2.0.
+
+    <Tip>
+    **Which OAuth flow applies depends on your Salesforce Domain setting:**
+    - **OAuth password flow** (most common): Provide Consumer Key and Consumer Secret **together with** Username and Password. Works with `login` or `test` as the Salesforce Domain.
+    - **Client credentials flow** (no username/password): Provide only Consumer Key and Consumer Secret. Requires your **Salesforce My Domain** as the domain value (e.g., `mycompany.my`). Does **not** work with `login` or `test`.
+    </Tip>
+
+- **Username / Password (Legacy)**
+
+    <Warning>
+    **Important**: Salesforce is deprecating direct username/password API access. Migrate to OAuth 2.0 using a Connected App (External Client App) to avoid future disruption. See [Salesforce OAuth documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_authenticate.htm&type=5).
+    </Warning>
+
+    - **Username**: Username to connect to the Salesforce. This user should have the access as defined in requirements.
+    - **Password**: Password to connect to Salesforce.
+    - **Security Token**: Salesforce Security Token is required for username/password authentication. See the [Salesforce Security Token documentation](https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm&type=5) to get your security token.
+
+**Common Fields**
+
 - **Organization ID**: Salesforce Organization ID is the unique identifier for your Salesforce identity. You can check out [this doc](https://help.salesforce.com/s/articleView?id=000385215&type=1) on how to get the your Salesforce Organization ID.
   <Tip>
   **Note**: You need to provide `15` digit organization id in this section. for e.g. `00DIB000004nDEq`, which you can find by following the steps mentioned in above doc (`Salesforce dashboard->Setup->Company Profile->Company Information->Salesforce.com Organization Id`).
@@ -51,8 +75,16 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
   <Tip>
   **Note**: If you want to access salesforce metadata without token(only by using organization id), you will need to setup your ip in trusted ip ranges. You can go (`Salesforce dashboard->Setup->Security->Network Access->Trusted IP Ranges`) to configure this. You can check [here](https://help.salesforce.com/s/articleView?id=sf.security_networkaccess.htm&type=5) to configure your ip in trusted ip ranges.
   </Tip>
-- **Salesforce Object Name**: Specify the Salesforce Object Name in case you want to ingest a specific object.  If left blank, we will ingest all the Objects.
-- **Salesforce API Version**: Follow the steps mentioned [here](https://help.salesforce.com/s/articleView?id=000386929&type=1) to get the API version. Enter the numerical value in the field, For example `42.0`.
+- **Salesforce Object Names**: List of Salesforce Object Names to ingest. If left blank, all objects will be ingested (subject to filter patterns).
+- **Database Name**: Optional name to give to the database in OpenMetadata. Defaults to `default` if left blank.
+- **Salesforce API Version**: The API version to use when connecting to Salesforce. The correct value depends on your authentication method:
+  - **OAuth 2.0 (password flow or client credentials)**: Use any current Salesforce-supported version, including `65.0` or higher.
+  - **Username / Password (Legacy)**: Use `64.0` or lower. Salesforce removed the SOAP `login()` endpoint in API version `65.0`, which the legacy username/password flow relies on — setting `65.0` or higher will cause login failures. Note that API versions `31.0` through `64.0` are also scheduled to be retired by Salesforce in mid-2027, so we recommend migrating to OAuth 2.0 before that date.
+
+  Follow the steps mentioned [here](https://help.salesforce.com/s/articleView?id=000386929&type=1) to find your org's API version.
+  <Tip>
+  The connector's default API version is `42.0`. For OAuth 2.0, we recommend setting a newer current version (for example, `59.0` or higher) for access to the latest Salesforce features. For the legacy Username/Password flow, keep it at `64.0` or lower to avoid login failures.
+  </Tip>
 - **Salesforce Domain**: Specify the Salesforce domain (subdomain only) to use for authentication. This field accepts only the domain prefix, not the full URL.
 
   **Common values:**
