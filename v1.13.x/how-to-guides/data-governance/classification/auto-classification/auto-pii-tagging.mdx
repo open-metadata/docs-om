@@ -12,17 +12,26 @@ Auto PII tagging for Sensitive/NonSensitive at the column level is performed bas
 
 1. **Column Name Scanner**: We validate the column names of the table against a set of regex rules that help us identify
     common English patterns to identify email addresses, SSN, bank accounts, etc.
-2. **Entity Recognition**: If the sample data ingestion is enabled, we'll validate the sample rows against an Entity
-    Recognition engine that will bring up any sensitive information from a list of [supported entities](https://microsoft.github.io/presidio/supported_entities/).
-    In that case, the `confidence` parameter lets you tune the minimum score required to tag a column as `PII.Sensitive`.
+2. **Entity Recognition**: The workflow always samples rows directly from the source and validates them against an Entity
+    Recognition engine that identifies sensitive information from a list of [supported entities](https://microsoft.github.io/presidio/supported_entities/).
+    The `confidence` parameter lets you tune the minimum score required to tag a column as `PII.Sensitive`.
+    The **Store Sample Data** toggle controls whether those sampled rows are persisted in OpenMetadata — it does not affect whether classification runs.
 
 Note that if a column is already tagged as `PII`, we will ignore its execution.
 
 ## Troubleshooting
 
+### Recognizer ran but tag was not applied
+
+If the auto-classification logs show a recognizer attempted to classify a column but no tag appears:
+
+- **Sampled values are masked or anonymized** — the content recognizer found no match above the confidence threshold. Switch the recognizer `Target` to **Column Name** to tag based on the column name alone, regardless of data content.
+- **Confidence score too low** — the recognizer ran but scored below the threshold. Lower the confidence threshold or add context to boost the score.
+- **Column already tagged as PII** — columns with an existing `PII` tag are skipped. Check the column's existing tags.
+
 <Tip>
 
-In OpenMetadata, the auto-classification feature primarily applies the PII classification, tagging data as either Sensitive or Non-Sensitive. The General classification, which includes tags like Address, Name, etc., is not available in the OpenMetadata. This functionality is present in the OpenMetadata and is expected to be included in the open-source release starting from version 1.7.1.
+In OpenMetadata, the auto-classification feature primarily applies the PII classification, tagging data as either Sensitive or Non-Sensitive. The General classification, which includes tags like Address, Name, etc., is not available in OpenMetadata. This functionality is present in the OpenMetadata and is expected to be included in the open-source release starting from version 1.7.1.
 
 </Tip>
 
