@@ -57,6 +57,27 @@ kubectl logs job/<pipeline-name> -c main
 
 ## Troubleshooting
 
+### Server/Client Version Mismatch
+
+If you see an error like `server version X does not match client version Y`, the ingestion job is running a different version of the ingestion library than the OpenMetadata server expects.
+
+**Most common cause:** `ingestionImage` is set to `:latest` in your Helm values. When a new OpenMetadata release is published, `:latest` moves to that version. Any Kubernetes node without the old image cached will pull the new one on the next job run, silently upgrading the ingestion client while your server stays on the previous version.
+
+**Fix:** Pin `ingestionImage` to the exact version of your server:
+
+```yaml
+k8s:
+  ingestionImage: "docker.getcollate.io/openmetadata/ingestion-base:1.12.8"
+```
+
+Replace `1.12.8` with your actual server version. The ingestion major version must match the server major version — for example, a 1.12.x server requires a 1.12.x ingestion image.
+
+After updating, redeploy OpenMetadata:
+
+```bash
+helm upgrade openmetadata open-metadata/openmetadata -f values.yaml -n openmetadata
+```
+
 ### Pipeline stuck in "Queued" state
 
 If the pipeline cannot start and remains in "Queued" state, check if the pod can be scheduled:
