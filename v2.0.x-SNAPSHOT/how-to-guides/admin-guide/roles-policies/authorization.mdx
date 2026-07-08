@@ -159,6 +159,12 @@ A role bundles multiple policies that match a specific job function. For example
 | Overlooking Bot and MCP resources | Automated integrations can access or move data if over-permissioned | Treat bot and MCP permissions with the same care as human user permissions |
 | Leaving out `Ingestion Runner` in pipeline roles | Engineers can create pipelines but can't run them | Always pair `Ingestion Pipeline` (`Create`) with `Ingestion Runner` (`Trigger`) |
 
+<Warning>
+**Important**: This has been enforced since OpenMetadata 1.12.9. Triggering an ingestion pipeline through the API (`POST /v1/services/ingestionPipelines/trigger/{id}`) now requires the `Trigger` operation to be explicitly granted — `EditAll` no longer covers it. The upgrade automatically added `Trigger` to the default bot policies (`Ingestion`, `Lineage`, `Profiler`, `Quality`, `Usage`) and the default Data Steward role.
+
+If you have a custom role or policy that grants `EditAll` on `Ingestion Pipeline` without an explicit `Trigger` grant, add `Trigger` to it after upgrading — otherwise pipeline triggers will start failing silently for anyone assigned that role. Scheduled runs are unaffected. This only applies to manually or programmatically triggered runs.
+</Warning>
+
 ## Roles Based Access Controls (RBAC) Search
 
 By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC search – this ensures users only see assets their role allows them to access.
