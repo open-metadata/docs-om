@@ -1,0 +1,61 @@
+name: Bump /latest redirects
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect latest version from directory listing
+        run: |
+          # Find all vX.Y.x dirs (excludes -SNAPSHOT), pick the highest by version sort
+          VERSION=$(ls -d v*.x 2>/dev/null | grep -v SNAPSHOT | sort -V | tail -1)
+          if [ -z "$VERSION" ]; then
+            echo "No versioned directories found." && exit 1
+          fi
+          echo "Detected latest version: $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Update docs.json redirects
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const nv = process.env.VERSION;
+          const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
+          const cur = docs.redirects
+            .find(r => r.source === '/latest/:slug*')
+            .destination.match(/\/(v[\d.x]+)\//)[1];
+          if (cur === nv) { console.log(`Already pointing to ${nv} — nothing to do.`); process.exit(0); }
+          let n = 0;
+          docs.redirects = docs.redirects.map(r => {
+            if (r.destination.startsWith(`/${cur}/`) && !r.source.startsWith(`/${cur}/`)) {
+              n++;
+              return { ...r, destination: r.destination.replace(`/${cur}/`, `/${nv}/`) };
+            }
+            return r;
+          });
+          fs.writeFileSync('docs.json', JSON.stringify(docs, null, 2) + '\n');
+          console.log(`Updated ${n} redirects: ${cur} → ${nv}`);
+          EOF
+        env:
+          VERSION: ${{ env.VERSION }}
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: "bump-latest-${{ env.VERSION }}"
+          base: main
+          commit-message: "Docs: Bump /latest redirects to ${{ env.VERSION }}"
+          title: "Docs: Bump /latest redirects to ${{ env.VERSION }}"
+          body: |
+            Automated: bumps all unversioned redirects in `docs.json` to point to `${{ env.VERSION }}`.
+
+            Version-internal redirects (e.g. old-version/… → old-version/…) are left untouched.
