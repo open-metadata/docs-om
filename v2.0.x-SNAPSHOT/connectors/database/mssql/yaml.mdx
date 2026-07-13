@@ -66,6 +66,21 @@ Query Store is auto-detected per database. No configuration is needed. When `ing
 
 **We recommend enabling Query Store** on the databases you ingest, for reliable and durable Usage and Lineage history.
 
+To check whether Query Store is enabled on a database, and how it is currently operating:
+```sql
+SELECT actual_state_desc, query_capture_mode_desc, size_based_cleanup_mode_desc
+FROM sys.database_query_store_options;
+```
+To enable it:
+```sql
+ALTER DATABASE [YourDatabase] SET QUERY_STORE = ON
+(
+    QUERY_CAPTURE_MODE = ALL,
+    CLEANUP_POLICY = ( STALE_QUERY_THRESHOLD_DAYS = 30 )
+);
+```
+The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` already purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB` rather than switching to read-only, so no override is needed there.
+
 Accessing the plan-cache DMVs requires `VIEW SERVER STATE`:
 ```sql
 GRANT VIEW SERVER STATE TO YourUser;
