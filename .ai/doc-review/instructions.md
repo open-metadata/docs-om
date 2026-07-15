@@ -55,7 +55,7 @@ Present every issue as a row in this table. One row per issue — do not combine
 - **#** — Sequential issue number.
 - **Guideline** — The specific rule from the OpenMetadata Writing Style Guide that is violated. Always name the rule and its section number (e.g. "Contractions — §3.3", "Oxford comma — §4.2", "OpenMetadata brand name — §10.1"). Never write a vague label like "tone issue."
 - **Severity** — One of:
-  - **Critical** — Breaks a core rule: wrong brand name, passive voice throughout, title-case documentation headings, gendered pronouns, no Oxford comma throughout.
+  - **Critical** — Breaks a core rule: wrong brand name, passive voice throughout, gendered pronouns, no Oxford comma throughout.
   - **Major** — Noticeably degrades quality: jargon, wordiness, redundant phrases used repeatedly, missing contractions throughout.
   - **Minor** — Single small polish item: one number not spelled out, one missing em dash, one weak word choice.
 - **Original text** — The exact sentence, phrase, or word from the content that needs to change. Always quote verbatim in double quotes. If the issue is structural (e.g. a missing heading), write a short description instead.
