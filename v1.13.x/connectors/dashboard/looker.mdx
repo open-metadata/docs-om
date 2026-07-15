@@ -14,12 +14,13 @@ import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.js
   icon='/public/images/connectors/looker.webp'
 name="Looker"
   stage="PROD"
-availableFeatures={["Dashboards", "Charts", "Owners", "Datamodels", "Lineage", "Usage"]}
-  unavailableFeatures={["Tags", "Projects"]}
+availableFeatures={["Dashboards", "Charts", "Owners", "Datamodels", "Projects", "Lineage", "Usage"]}
+  unavailableFeatures={["Tags"]}
 />
 In this section, we provide guides and references to use the Looker connector.
 Configure and schedule Looker metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [Entity Mapping](#entity-mapping)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Lineage](#lineage)
 - [Troubleshooting](/v1.13.x/connectors/dashboard/looker/troubleshooting)
@@ -41,6 +42,38 @@ out of LookML Views, including their lineage to the source databases.
 Moreover, Looker lineage only supports LookML views configured with `sql_table_name` and `derived_table` in plain SQL.
 We do not yet support liquid variables.
 </Tip>
+## Entity Mapping
+The Looker connector maps Looker assets to OpenMetadata entities as follows:
+| Looker Asset | OpenMetadata Entity | Description |
+|---|---|---|
+| **Dashboards** | **Dashboard** | Looker dashboards are mapped to OpenMetadata Dashboard entities. |
+| **Dashboard Elements** (tiles) | **Chart** | Visualization tiles within a Looker dashboard are mapped to OpenMetadata Chart entities. |
+| **Explores** and **Views** (LookML) | **Data Models** | LookML Explores and Views are mapped to OpenMetadata Data Model entities. |
+| **Folders** (Dashboards) / **LookML Projects** (Explores & Views) | **Project field** | The project field means something different depending on the entity: for a Dashboard it stores the Looker folder name, while for an Explore or View it stores the LookML project (Git repository) it belongs to. |
+### Example Structure
+**Looker Structure:**
+```
+Folder: Sales Team
+└── Dashboard: Revenue Overview
+    ├── Tile: Monthly Revenue
+    └── Tile: Regional Breakdown
+LookML Project: sales_analytics
+├── Explore: revenue
+└── View: orders
+```
+**OpenMetadata Structure:**
+```
+Dashboard: "Revenue Overview" (Project: "Sales Team")
+├── Chart: "Monthly Revenue"
+└── Chart: "Regional Breakdown"
+Data Model: "revenue" (Project: "sales_analytics")
+Data Model: "orders" (Project: "sales_analytics")
+```
+This mapping ensures that:
+- Looker dashboards appear as OpenMetadata dashboards, organized by their Looker folder
+- Dashboard tiles appear as charts underneath their dashboard
+- LookML Explores and Views appear as data models, organized by their LookML project
+- The project field is sourced differently depending on entity type: a Looker folder for Dashboards, a LookML project for Data Models
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"Looker"} selectServicePath={"/public/images/connectors/looker/select-service.png"} addNewServicePath={"/public/images/connectors/looker/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/looker/service-connection.png"} />
 # Connection Details
