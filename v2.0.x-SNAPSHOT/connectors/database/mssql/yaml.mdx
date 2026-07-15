@@ -60,11 +60,13 @@ GRANT VIEW DEFINITION TO Mary;
 GRANT VIEW ANY DEFINITION TO [login_name];
 ```
 ### Usage & Lineage consideration
-To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) (`sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan` & `sys.query_store_runtime_stats`) when it is enabled on a database. Query Store keeps a durable, on-disk record of executed queries. The plan-cache DMVs (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats` & `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
+To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) when it is enabled on a database. Query Store exposes this history through `sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan`, and `sys.query_store_runtime_stats`. Query Store keeps a durable, on-disk record of executed queries. The plan-cache Dynamic Management Views (DMVs) (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats`, and `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
 
 Query Store is auto-detected per database. No configuration is needed. When `ingestAllDatabases` is enabled, each database is read from its own best source independently: databases with Query Store use it, and the rest fall back to the plan-cache DMVs, so one database without Query Store never downgrades the others.
 
-**We recommend enabling Query Store** on the databases you ingest, for reliable and durable Usage and Lineage history.
+<Tip>
+**Tip:** Enable Query Store on the databases you ingest, for reliable and durable Usage and Lineage history.
+</Tip>
 
 To check whether Query Store is enabled on a database, and how it is currently operating:
 ```sql
