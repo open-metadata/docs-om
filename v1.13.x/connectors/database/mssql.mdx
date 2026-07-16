@@ -73,17 +73,23 @@ ALTER DATABASE [YourDatabase] SET QUERY_STORE = ON
     CLEANUP_POLICY = ( STALE_QUERY_THRESHOLD_DAYS = 30 )
 );
 ```
-The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` already purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB` rather than switching to read-only, so no override is needed there.
+The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB`, which reduces the risk of Query Store switching to read-only. Under heavy write load, cleanup can still fall behind, and Query Store can switch to read-only temporarily until it catches up.
 
-Accessing the plan-cache DMVs requires `VIEW SERVER STATE`:
-```sql
-GRANT VIEW SERVER STATE TO YourUser;
-```
-Accessing Query Store requires `VIEW DATABASE STATE` (SQL Server 2016-2019 and Azure SQL Database) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022+ and Azure SQL Managed Instance), granted per database:
+<Warning>
+Query Store needs two permissions together. The database-level grant below lets `sys.database_query_store_options` and Query Store's other metadata views succeed, but the query text comes from `sys.query_store_query_text`, which needs the server-level grant. Without the server-level grant, usage and lineage queries can run without error while returning no query text.
+</Warning>
+
+Database-level, for Query Store metadata: `VIEW DATABASE STATE` (SQL Server 2016-2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
 ```sql
 GRANT VIEW DATABASE STATE TO YourUser;
--- SQL Server 2022+: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
 ```
+Server-level, for the query text and the plan-cache DMV fallback: `VIEW SERVER STATE` (SQL Server 2019 and earlier) or `VIEW SERVER PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW SERVER STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW SERVER PERFORMANCE STATE TO YourUser;
+```
+Exact grant names and tiers can differ on Azure SQL Database and Azure SQL Managed Instance. Check `sys.database_query_store_options` and the [Microsoft documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-query-text-transact-sql) for your instance.
 ### For Remote Connection
 #### 1. SQL Server running
 Make sure the SQL server that you are trying to connect is in running state.
