@@ -24,6 +24,7 @@ In this section, we provide guides and references to use the PowerBI connector.
 </Info>
 Configure and schedule PowerBI metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [Entity Mapping](#entity-mapping)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Lineage](#lineage)
 - [Troubleshooting](/v1.13.x/connectors/dashboard/powerbi/troubleshooting)
@@ -78,6 +79,37 @@ Please refer [here](https://stackoverflow.com/questions/71001110/power-bi-rest-a
 The service principal does not take into account the default user workspaces e.g `My Workspace`.
 Create new workspaces in PowerBI by following the document [here](https://docs.microsoft.com/en-us/power-bi/collaborate-share/service-create-the-new-workspaces)
 For reference here is a [thread](https://community.powerbi.com/t5/Service/Error-while-executing-Get-dataset-call-quot-API-is-not/m-p/912360#M85711) referring to the same
+## Entity Mapping
+The PowerBI connector maps PowerBI assets to OpenMetadata entities as follows:
+| PowerBI Asset | OpenMetadata Entity | Description |
+|---|---|---|
+| **Dashboards** and **Reports** | **Dashboard** | Both PowerBI Dashboards (tile-based) and Reports are mapped to OpenMetadata Dashboard entities. |
+| **Tiles** (within a Dashboard) | **Chart** | Tiles on a PowerBI Dashboard are mapped to OpenMetadata Chart entities. Report pages do not generate separate Chart entities. |
+| **Datasets, Dataflows, Datamarts** | **Data Models** | PowerBI datasets, dataflows, and datamarts are mapped to OpenMetadata Data Model entities. |
+| **Workspaces** | **Project field** | The PowerBI workspace name is stored in the project field of the Dashboard and Data Model entities. |
+### Example Structure
+**PowerBI Structure:**
+```
+Workspace: Sales Team
+├── Dashboard: Revenue Overview
+│   ├── Tile: Monthly Revenue
+│   └── Tile: Regional Breakdown
+├── Report: Sales Trends
+└── Dataset: Sales Data Model
+```
+**OpenMetadata Structure:**
+```
+Dashboard: "Revenue Overview" (Project: "Sales Team")
+├── Chart: "Monthly Revenue"
+└── Chart: "Regional Breakdown"
+Dashboard: "Sales Trends" (Project: "Sales Team")
+Data Model: "Sales Data Model" (Project: "Sales Team")
+```
+This mapping ensures that:
+- PowerBI dashboards and reports both appear as OpenMetadata dashboards
+- Tiles on a dashboard appear as charts underneath it
+- Datasets, dataflows, and datamarts appear as data models
+- PowerBI workspace names are preserved in the project field
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"PowerBI"} selectServicePath={"/public/images/connectors/powerbi/select-service.png"} addNewServicePath={"/public/images/connectors/powerbi/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/powerbi/service-connection.png"} />
 # Connection Details

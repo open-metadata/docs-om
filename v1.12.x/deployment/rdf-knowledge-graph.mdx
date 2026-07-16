@@ -1,0 +1,347 @@
+---
+title: Enable RDF (Knowledge Graph) | OpenMetadata Deployment Guide
+description: Enable the RDF Knowledge Graph in OpenMetadata by deploying Apache Jena Fuseki and pointing the server at the triplestore.
+sidebarTitle: Enable RDF (Knowledge Graph)
+---
+
+## Overview
+
+RDF Knowledge Graph represents your metadata as RDF triples in a Fuseki triplestore, alongside the relational data in your primary database. This unlocks:
+
+- **SPARQL querying**: A query language for graphs, similar in spirit to SQL - lets you ask questions that span many related entities at once, which are hard to write as SQL joins.
+- **Ontology-based reasoning**: OpenMetadata loads a formal description of its own data model (an ontology) and a set of validation rules (SHACL shapes) into the graph, so relationships can be checked and inferred automatically.
+- A **standardized, linked-data representation** (JSON-LD) of every entity, which makes it easier to connect your catalog with external knowledge graph and governance tools.
+
+<Warning>
+
+RDF Knowledge Graph is an optional feature, **disabled by default**. Turning it on for a catalog with a large number of existing assets adds meaningful load while the initial index runs. See [Performance Considerations](#performance-considerations) below. Test in a non-production environment first, and schedule the initial full index for a low-traffic window.
+
+</Warning>
+
+## Prerequisites
+
+Before enabling RDF, make sure the following are in place.
+
+- An **Apache Jena Fuseki** triplestore reachable from the OpenMetadata server. You can run the one shipped in the
+  OpenMetadata repository (`docker/rdf-store`) or point at your own Fuseki deployment.
+- Persistent storage for Fuseki sized for your catalog. The RDF dataset grows independently of your primary database and search index, so plan capacity the same way you would for Elasticsearch/OpenSearch storage.
+- Network access from the OpenMetadata server (and from any container that runs schema migrations) to the Fuseki endpoint.
+- **OpenSearch** (not Elasticsearch) if you also want to use the semantic-search-over-graph endpoint (`/api/v1/rdf/search/semantic`), which delegates to OpenSearch's vector search. Core RDF indexing, SPARQL, and graph exploration do not require OpenSearch.
+
+## How It Works
+
+RDF support layers on top of your existing OpenMetadata deployment in three steps.
+
+1. **Storage Backend**: Apache Jena Fuseki stores your metadata as RDF triples (small subject-predicate-object statements -- the basic building blocks of a graph) in a dataset named `openmetadata` by default. OpenMetadata talks to Fuseki using SPARQL, the standard protocol for querying and updating graph data over HTTP.
+2. **Ontology & Shapes**: On startup, OpenMetadata loads two reference documents into Fuseki: an ontology that defines what kinds of things exist in the graph and how they relate, and a set of shapes that define what valid data looks like. Together, these keep the graph consistent as new data flows in.
+3. **Continuous Sync**: As entities are created, updated, or deleted, an RDF updater keeps the triplestore in sync - the same way OpenMetadata already keeps its search index in sync.
+
+## Configuration
+
+RDF is configured in `openmetadata.yaml` under the `rdf` section. All settings can be overridden with environment variables.
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `RDF_ENABLED` | `false` | Master switch. Every RDF code path is a no-op until this is `true`. |
+| `RDF_STORAGE_TYPE` | `FUSEKI` | Triplestore backend. `FUSEKI` is the only implemented option today (see warning below). |
+| `RDF_ENDPOINT` | `http://localhost:3030/openmetadata` | The full URL OpenMetadata uses to reach Fuseki, ending in the dataset name -- for example, `.../openmetadata`. Keep this in sync with `RDF_DATASET` below; OpenMetadata reads the dataset name back out of this URL. |
+| `RDF_REMOTE_USERNAME` | `admin` | Fuseki basic-auth username. |
+| `RDF_REMOTE_PASSWORD` | `admin` | Fuseki basic-auth password. |
+| `RDF_BASE_URI` | `https://open-metadata.org/` | Base URI used when minting RDF resource URIs. |
+| `RDF_DATASET` | `openmetadata` | Fuseki dataset name. Must match the path segment in `RDF_ENDPOINT`. |
+
+```yaml
+rdf:
+  enabled: ${RDF_ENABLED:-false}
+  baseUri: ${RDF_BASE_URI:-"https://open-metadata.org/"}
+  storageType: ${RDF_STORAGE_TYPE:-"FUSEKI"}
+  remoteEndpoint: ${RDF_ENDPOINT:-"http://localhost:3030/openmetadata"}
+  username: ${RDF_REMOTE_USERNAME:-"admin"}
+  password: ${RDF_REMOTE_PASSWORD:-"admin"}
+  dataset: ${RDF_DATASET:-"openmetadata"}
+```
+
+<Warning>
+
+**Important**: `storageType` currently only supports `FUSEKI`. `QLEVER` is defined in the configuration schema for future use but is
+not implemented -- setting it will fail at startup.
+
+</Warning>
+
+<Info>
+
+**Note**: Some RDF settings that appear in `docker-compose` override files you may find in the OpenMetadata repository -- for
+example `RDF_JSONLD_ENABLED`, `RDF_SPARQL_ENABLED`, `RDF_AUTO_GENERATE`, `RDF_SYNC_BATCH_SIZE` -- are not wired to any
+configuration key and have no effect. Only the environment variables in the table above are read by the server. If
+you're copying an example compose file, verify it sets `RDF_ENDPOINT` (not `RDF_REMOTE_ENDPOINT`).
+
+</Info>
+
+Set these environment variables on **both** the OpenMetadata server and the migrations container -- not just one. The migrations container is what actually loads the RDF ontology/shapes and registers the `RdfIndexApp` application, so if only one of the two containers has RDF configured, installation fails with an error like `RdfRepository not initialized`.
+
+## Docker Deployment
+
+Docker is the easiest way to try RDF locally or in a small non-production environment, since Fuseki and its configuration are already wired into the compose files shipped with OpenMetadata.
+
+There are two ways to run RDF with Docker - pick whichever matches your situation, you don't need both.
+
+<Tabs>
+  <Tab title="Quickstart with RDF">
+    Runs the full stack (MySQL, Elasticsearch, Fuseki, migrations, server, ingestion) with RDF enabled from the start.
+    This is **not** the default quickstart -- RDF support is opt-in via this separate compose file.
+
+    ```bash
+    git clone https://github.com/open-metadata/OpenMetadata.git
+    cd OpenMetadata/docker/docker-compose-quickstart
+    docker compose -f docker-compose-rdf.yml up -d
+    ```
+  </Tab>
+  <Tab title="Add RDF to an existing stack">
+    Layers Fuseki and the required environment variables onto an already-running MySQL or Postgres development stack.
+
+    ```bash
+    # MySQL-backed stack
+    docker compose -f docker-compose.yml -f docker-compose-fuseki.yml up -d
+
+    # Postgres-backed stack
+    docker compose -f docker-compose-postgres.yml -f docker-compose-postgres-fuseki.yml up -d
+    ```
+  </Tab>
+</Tabs>
+
+To configure RDF manually in a `docker-compose` override or `.env` file:
+
+```yaml
+environment:
+  RDF_ENABLED: "true"
+  RDF_STORAGE_TYPE: "FUSEKI"
+  RDF_ENDPOINT: "http://fuseki:3030/openmetadata"
+  RDF_REMOTE_USERNAME: "admin"
+  RDF_REMOTE_PASSWORD: "admin"
+  RDF_DATASET: "openmetadata"
+```
+
+## Kubernetes Deployment
+
+The official OpenMetadata Helm charts can deploy Fuseki for you as an optional add-on. You then tell OpenMetadata where to find it using a dedicated `rdf` section in the chart's values file, rather than the generic `extraEnvs` list used for other settings.
+
+Fuseki ships as an optional dependency in the `openmetadata-dependencies` Helm chart. Deploy it as its own release, and disable the chart's other dependencies (MySQL, OpenSearch, Airflow) if you're already running them through another release -- otherwise you'll end up with duplicates.
+
+### Step 1: Create the Fuseki Admin Credentials Secret
+
+OpenMetadata uses this same password when it connects to Fuseki, so store it in a secret the Fuseki chart reads by default:
+
+```bash
+kubectl create secret generic fuseki-admin-credentials \
+  --from-literal=admin-password=<STRONG_PASSWORD> \
+  --namespace <namespace>
+```
+
+### Step 2: Add the OpenMetadata Helm Repository
+
+Skip this if you've already added it while installing OpenMetadata itself:
+
+```bash
+helm repo add open-metadata https://helm.open-metadata.org/
+helm repo update
+```
+
+### Step 3: Deploy Fuseki
+
+Prepare a values file that enables only Fuseki. The `resources`, `jvmArgs`, and `persistence` values below are the chart's production defaults -- scale them to your catalog size:
+
+```yaml
+# fuseki-values.yaml
+mysql:
+  enabled: false
+opensearch:
+  enabled: false
+airflow:
+  enabled: false
+
+fuseki:
+  enabled: true
+  image:
+    repository: daschswiss/apache-jena-fuseki
+    tag: "6.0.0"
+  resources:
+    requests:
+      cpu: "1500m"
+      memory: "10Gi"
+    limits:
+      cpu: "2500m"
+      memory: "12Gi"
+  jvmArgs: "-Xmx8g -Xms8g"
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: ""   # empty string uses the cluster default StorageClass
+  adminPassword:
+    secretName: "fuseki-admin-credentials"
+    secretKey: "admin-password"
+```
+
+Deploy it as a dedicated release:
+
+```bash
+helm upgrade --install fuseki open-metadata/openmetadata-dependencies \
+  --values fuseki-values.yaml \
+  --namespace <namespace>
+```
+
+This creates a Fuseki `Deployment`, a `ClusterIP` `Service` named `fuseki` on port `3030`, and -- since `persistence.enabled` is `true` -- a PVC. OpenMetadata will reach it in-cluster at `http://fuseki:3030`. Confirm it
+came up cleanly before moving on:
+
+```bash
+kubectl get pods -n <namespace> -l app=fuseki
+kubectl logs -n <namespace> deploy/fuseki
+```
+
+You don't need to create the Fuseki dataset yourself: on startup, the OpenMetadata server checks for the configured
+dataset and creates it through the Fuseki admin API if it doesn't already exist.
+
+### Step 4: Point OpenMetadata at Fuseki
+
+Add an `rdf` block under `openmetadata.config` in your OpenMetadata chart's values file. 
+
+Each key here maps to one of the environment variables from the [Configuration](#configuration) - `enabled` to `RDF_ENABLED`, `storageType` to `RDF_STORAGE_TYPE`, `remoteEndpoint` to `RDF_ENDPOINT`, `username`/`password` to `RDF_REMOTE_USERNAME`/`RDF_REMOTE_PASSWORD`, `dataset` to `RDF_DATASET`, and `baseUri` to `RDF_BASE_URI`:
+
+```yaml
+# openmetadata-values.yaml
+openmetadata:
+  config:
+    rdf:
+      enabled: true
+      storageType: "FUSEKI"
+      remoteEndpoint: "http://fuseki:3030/openmetadata"
+      username: "admin"
+      password:
+        secretRef: fuseki-admin-credentials
+        secretKey: admin-password
+      dataset: "openmetadata"
+      baseUri: "https://open-metadata.org/"
+```
+
+Apply the change with a Helm upgrade against your existing release:
+
+```bash
+helm upgrade --install openmetadata open-metadata/openmetadata \
+  --values openmetadata-values.yaml \
+  --namespace <namespace>
+```
+
+Once the server pod restarts, confirm it picked up the RDF configuration and connected to Fuseki without errors:
+
+```bash
+kubectl logs -n <namespace> deploy/openmetadata | grep -i rdf
+```
+
+From here, move on to [Running the Initial Index](#running-the-initial-index) below to populate the graph.
+
+## Running the Initial Index
+
+Once RDF is enabled and the server has started successfully, run the **RDF Knowledge Graph Indexing** application to index existing entities into the triplestore:
+
+- **From the OpenMetadata UI**: 
+    1. Navigate to **Settings** > **Applications**, and click the **RDF Knowledge Graph Indexing** application.
+    2. Click **Run Now**.
+
+- **Via the API**:
+  ```bash
+  curl -X POST "$OM_HOST/api/v1/apps/trigger/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
+  ```
+
+**Check Status**:
+
+Run the following command:
+
+```bash
+curl "$OM_HOST/api/v1/apps/name/RdfIndexApp/status" -H "Authorization: Bearer $TOKEN"
+```
+
+If a large indexing run needs to be stopped (for example, before a maintenance window ends), use:
+
+```bash
+curl -X POST "$OM_HOST/api/v1/apps/stop/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
+```
+
+RDF indexing runs distributed across available server instances by default. Only one reindex job can be active per
+cluster at a time.
+
+## Performance Considerations
+
+Indexing a large catalog (hundreds of thousands of assets) into RDF for the first time adds meaningful load to both the OpenMetadata server and Fuseki, and can noticeably slow down concurrent operations -- entity updates such as adding a tag have been observed taking 30-40 seconds while a full reindex is in progress.
+
+- Schedule the initial full index, and any subsequent full reindex, during a low-traffic window (for example, overnight or over a weekend).
+- Give Fuseki adequate JVM heap for your catalog size (`-Xmx`/`-Xms`, 8G is a reasonable starting point for mid-size catalogs) and persistent storage sized for growth -- the RDF dataset is a separate volume from your primary database.
+- Incremental updates (create/update/delete of individual entities) are lightweight and do not require the same scheduling care as a full reindex.
+
+## Troubleshooting
+
+Common failure modes when enabling RDF or running a reindex, and how to recover from them.
+
+### `RdfRepository not initialized` / RdfIndexApp fails to install at startup
+
+This means RDF was turned on (`RDF_ENABLED=true`) but the server couldn't finish setting up its connection to Fuseki
+-- usually because the server and migrations container ended up with different RDF settings, or because Fuseki wasn't
+reachable yet when the server started.
+
+- Confirm the same RDF environment variables are set on both the migrations container and the main server container. On Kubernetes, older Helm chart versions had a bug where the `rdf` block was only applied to the migrations init container and not the main server container -- make sure you're on a chart version that applies it
+  to both.
+- Confirm `RDF_ENDPOINT` is reachable from the server pod/container (not just from your local machine).
+- Check the server startup logs for the underlying `JenaFusekiStorage` / `RdfRepository` log lines -- they indicate
+  which step failed (dataset creation, ontology load, connection).
+
+### Another RDF reindex job is already active
+
+Distributed indexing blocks a new run while an existing job is in `READY`, `RUNNING`, or `STOPPING` state. If a
+previous job is stuck (for example, after a server restart mid-index), restarting the server pods alone does not
+clear this state.
+
+- Stop the stuck job explicitly: `POST /api/v1/apps/stop/RdfIndexApp`.
+- If that doesn't clear it, wait for the distributed lock to go stale (a few minutes) before retrying.
+
+### Reindex fails with "Failed to clear RDF data" or a SPARQL update times out
+
+This typically indicates the Fuseki dataset was left in an inconsistent state by a restart that happened mid-write
+(for example, the OpenMetadata server or Fuseki pod restarting while a clear/reindex was in progress).
+
+Recovery steps:
+
+1. **Scale Fuseki down.** Scale the Fuseki deployment to 0 replicas.
+2. **Delete only the RDF dataset directory.** On Fuseki's persistent volume, delete just the `openmetadata` dataset directory (leave any other datasets on the same Fuseki instance untouched).
+3. **Scale Fuseki back up.** Scale Fuseki back to 1 replica and confirm it starts cleanly.
+4. **Restart the OpenMetadata server.** Restart the OpenMetadata server pod(s)/container(s) so the ontology and shapes graphs get reloaded into the fresh dataset.
+5. **Retrigger the reindex.** Run `RdfIndexApp` again.
+
+<Warning>
+
+This deletes all RDF data. Since the RDF graph is a derived index of your existing metadata (not a source of truth), this is safe -- but you will need to run a full reindex afterward.
+
+</Warning>
+
+### RDF indexing is slowing down the rest of the platform
+
+See [Performance Considerations](#performance-considerations) above -- run full reindexes during low-traffic windows,
+and confirm Fuseki has adequate CPU/memory/storage for your catalog size.
+
+### Fuseki pod is OOMKilled during indexing
+
+A full reindex of a large catalog can push memory usage past Fuseki's configured limits.
+
+- Increase `fuseki.resources.requests`/`limits` and `fuseki.jvmArgs` (`-Xmx`/`-Xms`) proportionally to your catalog
+  size, keeping the JVM heap comfortably below the container memory limit.
+- Re-run the reindex after resizing.
+
+## API Reference
+
+RDF exposes a set of REST endpoints under `/api/v1/rdf`, including:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/rdf/status` | RDF enabled/inference status. |
+| `GET /api/v1/rdf/entity/{entityType}/{id}` | RDF representation of a single entity. |
+| `GET /api/v1/rdf/sparql` / `POST /api/v1/rdf/sparql` | Run a SPARQL query against the metadata graph. |
+| `POST /api/v1/rdf/sparql/update` | Run a SPARQL update against the metadata graph. |
+| `GET /api/v1/rdf/graph/explore` | Explore the graph around an entity. |
+| `GET /api/v1/rdf/search/semantic` | Semantic search over the graph. |
