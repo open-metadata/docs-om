@@ -48,6 +48,80 @@ jobs:
         env:
           VERSION: ${{ env.VERSION }}
 
+      - name: Validate current Python SDK docs
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const match = version.match(/^v(\d+)\.(\d+)\.x$/);
+          if (!match) throw new Error(`Unsupported version directory: ${version}`);
+
+          const releaseLine = `${match[1]}.${match[2]}`;
+          const primaryFiles = [
+            `${version}/api-reference.mdx`,
+            `${version}/api-reference/sdk/python.mdx`,
+          ];
+
+          for (const file of primaryFiles) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pins = [...content.matchAll(/openmetadata-ingestion~=([0-9]+\.[0-9]+)/g)];
+            if (!pins.length) throw new Error(`${file}: missing openmetadata-ingestion release pin`);
+            for (const pin of pins) {
+              if (pin[1] !== releaseLine) {
+                throw new Error(`${file}: expected ${releaseLine}.x package, found ${pin[1]}.x`);
+              }
+            }
+          }
+
+          const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true })
+            .flatMap((entry) => {
+              const path = `${directory}/${entry.name}`;
+              return entry.isDirectory() ? walk(path) : [path];
+            });
+
+          for (const file of walk(version).filter((path) => path.endsWith('.mdx'))) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pins = content.matchAll(
+              /openmetadata-ingestion(?:\[[^\]\n]+\])?[^0-9\n]{0,24}([0-9]+\.[0-9]+)/g,
+            );
+            for (const pin of pins) {
+              if (pin[1] !== releaseLine) {
+                throw new Error(`${file}: stale Python SDK release ${pin[1]}.x`);
+              }
+            }
+            if (content.includes('openmetadata-demo/tree/main/sdk-2.0-examples/python') ||
+                content.includes('openmetadata-demo/blob/main/example_apis.py')) {
+              throw new Error(`${file}: stale Python SDK example link`);
+            }
+          }
+
+          const sdk = fs.readFileSync(`${version}/api-reference/sdk/python.mdx`, 'utf8');
+          const examples = 'https://github.com/open-metadata/openmetadata-demo/tree/main/sdk-examples';
+          if (!sdk.includes(examples)) throw new Error('Current Python SDK page lacks canonical examples link');
+
+          const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
+          const required = [
+            '/latest/:slug*',
+            '/sdk/python',
+            '/sdk/python/overview',
+            '/sdk/python/:slug*',
+          ];
+          for (const source of required) {
+            const redirect = docs.redirects.find((item) => item.source === source);
+            if (!redirect || !redirect.destination.includes(`/${version}/`)) {
+              throw new Error(`${source}: redirect does not target ${version}`);
+            }
+          }
+          EOF
+        env:
+          VERSION: ${{ env.VERSION }}
+
+      - name: Check canonical Python SDK example link
+        run: |
+          curl --fail --silent --show-error --location --head \
+            https://github.com/open-metadata/openmetadata-demo/tree/main/sdk-examples \
+            > /dev/null
+
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6
         with:
