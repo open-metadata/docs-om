@@ -79,7 +79,48 @@ For example if you want to add a condition to filter out queries executed by met
 
 ## MSSQL Filter Condition
 
-To fetch the query history log from MSSQL we execute the following query
+MSSQL reads query history from Query Store when it's enabled on a database, otherwise from the plan-cache DMVs. Your filter condition applies to whichever source is active for that database.
+
+When Query Store is enabled, OpenMetadata executes the following query
+
+```
+SELECT TOP {result_limit}
+    t.database_name,
+    t.text query_text,
+    t.start_time,
+    t.end_time,
+    t.duration,
+    NULL schema_name,
+    NULL query_type,
+    NULL user_name,
+    NULL aborted
+FROM (
+  SELECT
+    DB_NAME() AS database_name,
+    qt.query_sql_text AS text,
+    MAX(rs.last_execution_time) AS start_time,
+    DATEADD(s, CAST(AVG(rs.avg_duration) / 1000000 AS INT), MAX(rs.last_execution_time)) AS end_time,
+    AVG(rs.avg_duration) / 1000000.0 AS duration
+  FROM sys.query_store_query AS q
+  INNER JOIN sys.query_store_query_text AS qt
+    ON qt.query_text_id = q.query_text_id
+  INNER JOIN sys.query_store_plan AS p
+    ON p.query_id = q.query_id
+  INNER JOIN sys.query_store_runtime_stats AS rs
+    ON rs.plan_id = p.plan_id
+  WHERE ISNULL(q.object_id, 0) = 0
+    AND rs.last_execution_time BETWEEN '{start_time}' AND '{end_time}'
+  GROUP BY q.query_id, qt.query_sql_text
+) AS t
+WHERE t.text NOT LIKE '/* {{"app": "OpenMetadata", %%}} */%%'
+    AND t.text NOT LIKE '/* {{"app": "dbt", %%}} */%%'
+
+    AND {**your filter condition**}
+
+ORDER BY t.start_time DESC
+```
+
+When Query Store is not enabled, OpenMetadata falls back to the following query against the plan-cache DMVs
 
 ```
 SELECT TOP {result_limit}

@@ -76,6 +76,14 @@ Connector pages follow a consistent template:
 
 New pages **must** be added to `docs.json` in the appropriate navigation section, or they won't appear in the sidebar.
 
+### AI content review
+
+When reviewing OpenMetadata documentation, release notes, UI copy, or other written content, use the AI-neutral workflow in `.ai/doc-review/instructions.md` and its checklist in `.ai/doc-review/references/checklist.md`. These instructions are shared across AI assistants and are not tied to Claude Code.
+
+### Pre-commit content review (Claude Code)
+
+Before running `git commit` on any change touching `.mdx` files (or `docs.json`), read `.ai/doc-review/instructions.md` and `.ai/doc-review/references/checklist.md`, and review the staged diff against every applicable item — unless the changes were already reviewed against this checklist earlier in the same conversation. Show Critical and Major findings before committing; if Minor findings also exist, mention the count and offer to show them rather than listing them inline by default. Proceed with the commit only after the user has seen this and confirmed.
+
 ---
 
 ## Changing the Site

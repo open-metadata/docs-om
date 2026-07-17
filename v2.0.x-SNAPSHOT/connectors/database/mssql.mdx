@@ -52,10 +52,44 @@ GRANT VIEW DEFINITION TO Mary;
 GRANT VIEW ANY DEFINITION TO [login_name];
 ```
 ### Usage & Lineage consideration
-To perform the query analysis for Usage and Lineage computation, we fetch the query logs from `sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats` &  `sys.dm_exec_sql_text` system tables. To access these tables your user must have `VIEW SERVER STATE` privilege.
+To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) when it is enabled on a database. Query Store exposes this history through `sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan`, and `sys.query_store_runtime_stats`. Query Store keeps a durable, on-disk record of executed queries. The plan-cache Dynamic Management Views (DMVs) (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats`, and `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
+
+Query Store is auto-detected per database. No configuration is needed. When `ingestAllDatabases` is enabled, each database is read from its own best source independently: databases with Query Store use it, and the rest fall back to the plan-cache DMVs, so one database without Query Store never downgrades the others.
+
+<Tip>
+**Tip:** Enable Query Store on the databases you ingest, for reliable and durable Usage and Lineage history.
+</Tip>
+
+To check whether Query Store is enabled on a database, and how it is currently operating:
+```sql
+SELECT actual_state_desc, query_capture_mode_desc, size_based_cleanup_mode_desc
+FROM sys.database_query_store_options;
+```
+To enable it:
+```sql
+ALTER DATABASE [YourDatabase] SET QUERY_STORE = ON
+(
+    QUERY_CAPTURE_MODE = ALL,
+    CLEANUP_POLICY = ( STALE_QUERY_THRESHOLD_DAYS = 30 )
+);
+```
+The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB`, which reduces the risk of Query Store switching to read-only. Under heavy write load, cleanup can still fall behind, and Query Store can switch to read-only temporarily until it catches up.
+
+<Warning>
+Query Store needs two permissions together. The database-level grant below lets `sys.database_query_store_options` and Query Store's other metadata views succeed, but the query text comes from `sys.query_store_query_text`, which needs the server-level grant. Without the server-level grant, usage and lineage queries can run without error while returning no query text.
+</Warning>
+
+Database-level, for Query Store metadata: `VIEW DATABASE STATE` (SQL Server 2016-2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW DATABASE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+```
+Server-level, for the query text and the plan-cache DMV fallback: `VIEW SERVER STATE` (SQL Server 2019 and earlier) or `VIEW SERVER PERFORMANCE STATE` (SQL Server 2022 and later).
 ```sql
 GRANT VIEW SERVER STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW SERVER PERFORMANCE STATE TO YourUser;
 ```
+Exact grant names and tiers can differ on Azure SQL Database and Azure SQL Managed Instance. Check `sys.database_query_store_options` and the [Microsoft documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-query-text-transact-sql) for your instance.
 ### For Remote Connection
 #### 1. SQL Server running
 Make sure the SQL server that you are trying to connect is in running state.

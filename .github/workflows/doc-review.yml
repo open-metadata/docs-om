@@ -1,0 +1,53 @@
+name: AI Documentation Review (on demand)
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  doc-review:
+    if: |
+      github.event.issue.pull_request != null &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      contains(github.event.comment.body, '/content-review')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "/content-review"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+
+            Read .ai/doc-review/instructions.md and .ai/doc-review/references/checklist.md
+            in this repo. Run `gh pr diff <PR NUMBER>` to get this PR's changes, and review
+            the changed .mdx content against every applicable checklist item, exactly as
+            instructed.
+
+            Produce the Review Report in the exact format instructions.md specifies,
+            including every finding regardless of severity (Critical, Major, and Minor) —
+            this review was explicitly requested.
+
+            Prefix it with: "**Draft review — not all suggestions may apply. A maintainer
+            will select which findings to act on.**"
+
+            Return the Review Report as your final response — do not call `gh pr comment`
+            or any other command to post it yourself. This action automatically publishes
+            your final response as the PR comment, and calling `gh pr comment` in addition
+            would post a duplicate.
+
+            Do not attempt to create inline review comments or submit a formal PR review —
+            only the one summary comment.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr diff:*),Read"
