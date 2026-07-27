@@ -57,19 +57,55 @@ jobs:
           if (!match) throw new Error(`Unsupported version directory: ${version}`);
 
           const releaseLine = `${match[1]}.${match[2]}`;
-          const primaryFiles = [
+          const sdkFile = `${version}/api-reference/sdk/python.mdx`;
+          const sdk = fs.readFileSync(sdkFile, 'utf8');
+          const canonicalPin = sdk.match(
+            /openmetadata-ingestion~=([0-9]+\.[0-9]+\.[0-9]+\.0)/,
+          );
+          if (!canonicalPin) {
+            throw new Error(`${sdkFile}: missing x.y.z.0 package pin`);
+          }
+
+          const packageLine = canonicalPin[1];
+          if (!packageLine.startsWith(`${releaseLine}.`)) {
+            throw new Error(`${sdkFile}: expected ${releaseLine}.x package, found ${packageLine}`);
+          }
+
+          const primaryPinFiles = [
             `${version}/api-reference.mdx`,
-            `${version}/api-reference/sdk/python.mdx`,
+            `${version}/api-reference/getting-started.mdx`,
+            sdkFile,
           ];
 
-          for (const file of primaryFiles) {
+          for (const file of primaryPinFiles) {
             const content = fs.readFileSync(file, 'utf8');
-            const pins = [...content.matchAll(/openmetadata-ingestion~=([0-9]+\.[0-9]+)/g)];
+            const pins = [
+              ...content.matchAll(
+                /openmetadata-ingestion~=([0-9]+\.[0-9]+\.[0-9]+\.0)/g,
+              ),
+            ];
             if (!pins.length) throw new Error(`${file}: missing openmetadata-ingestion release pin`);
             for (const pin of pins) {
-              if (pin[1] !== releaseLine) {
-                throw new Error(`${file}: expected ${releaseLine}.x package, found ${pin[1]}.x`);
+              if (pin[1] !== packageLine) {
+                throw new Error(`${file}: expected ${packageLine} package, found ${pin[1]}`);
               }
+            }
+          }
+
+          const primaryFacadeFiles = [
+            `${version}/api-reference.mdx`,
+            `${version}/api-reference/getting-started.mdx`,
+            `${version}/api-reference/data-assets/tables.mdx`,
+            sdkFile,
+          ];
+          const staleFacade = /from metadata\.(?:ingestion\.ometa\.ometa_api|sdk\.entities) import/;
+          for (const file of primaryFacadeFiles) {
+            const content = fs.readFileSync(file, 'utf8');
+            if (staleFacade.test(content)) {
+              throw new Error(`${file}: stale Python SDK facade import`);
+            }
+            if (!content.includes('from metadata.sdk import')) {
+              throw new Error(`${file}: missing top-level metadata.sdk import`);
             }
           }
 
@@ -82,11 +118,11 @@ jobs:
           for (const file of walk(version).filter((path) => path.endsWith('.mdx'))) {
             const content = fs.readFileSync(file, 'utf8');
             const pins = content.matchAll(
-              /openmetadata-ingestion(?:\[[^\]\n]+\])?[^0-9\n]{0,24}([0-9]+\.[0-9]+)/g,
+              /openmetadata-ingestion(?:\[[^\]\n]+\])?[^0-9\n]{0,24}([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)/g,
             );
             for (const pin of pins) {
-              if (pin[1] !== releaseLine) {
-                throw new Error(`${file}: stale Python SDK release ${pin[1]}.x`);
+              if (pin[1] !== packageLine) {
+                throw new Error(`${file}: expected ${packageLine} package, found ${pin[1]}`);
               }
             }
             if (content.includes('openmetadata-demo/tree/main/sdk-2.0-examples/python') ||
@@ -95,9 +131,14 @@ jobs:
             }
           }
 
-          const sdk = fs.readFileSync(`${version}/api-reference/sdk/python.mdx`, 'utf8');
           const examples = 'https://github.com/open-metadata/openmetadata-demo/tree/main/sdk-examples';
           if (!sdk.includes(examples)) throw new Error('Current Python SDK page lacks canonical examples link');
+
+          const serverPatch = packageLine.split('.').slice(0, 3).join('.');
+          const sdkSource = `OpenMetadata/blob/${serverPatch}-release/ingestion/src/metadata/sdk/README.md`;
+          if (!sdk.includes(sdkSource)) {
+            throw new Error(`${sdkFile}: Python SDK source link does not target ${serverPatch}-release`);
+          }
 
           const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
           const required = [
