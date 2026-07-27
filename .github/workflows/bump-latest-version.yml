@@ -115,6 +115,47 @@ jobs:
               return entry.isDirectory() ? walk(path) : [path];
             });
 
+          const supportedTableMethods = new Set([
+            'add_custom_metric',
+            'add_followers',
+            'add_sample_data',
+            'add_tag',
+            'create',
+            'delete',
+            'export_csv',
+            'get_sample_data',
+            'get_specific_version',
+            'get_versions',
+            'import_csv',
+            'list',
+            'list_all',
+            'remove_followers',
+            'restore',
+            'retrieve',
+            'retrieve_by_name',
+            'search',
+            'update',
+            'update_column_description',
+            'update_custom_properties',
+            'update_custom_properties_by_name',
+          ]);
+          const tableDocs = `${version}/api-reference/data-assets/tables`;
+          for (const file of walk(tableDocs).filter((path) => path.endsWith('.mdx'))) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pythonBlocks = content.matchAll(/```python[^\n]*\n([\s\S]*?)```/g);
+            for (const block of pythonBlocks) {
+              const calls = block[1].matchAll(/\bTables\.([A-Za-z_]\w*)\s*\(/g);
+              for (const call of calls) {
+                if (!supportedTableMethods.has(call[1])) {
+                  throw new Error(`${file}: unsupported Tables.${call[1]}() example`);
+                }
+              }
+              if (/\bTables\.(?:add_custom_metric|add_sample_data)\(\s*[^,\n]+,\s*\{/.test(block[1])) {
+                throw new Error(`${file}: typed Tables method receives a raw mapping`);
+              }
+            }
+          }
+
           for (const file of walk(version).filter((path) => path.endsWith('.mdx'))) {
             const content = fs.readFileSync(file, 'utf8');
             const pins = content.matchAll(
@@ -159,9 +200,9 @@ jobs:
 
       - name: Check canonical Python SDK example link
         run: |
-          curl --fail --silent --show-error --location --head \
-            https://github.com/open-metadata/openmetadata-demo/tree/main/sdk-examples \
-            > /dev/null
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/open-metadata/openmetadata-demo/main/sdk-examples/02_basic_crud.py \
+            | grep --fixed-strings "from metadata.sdk import"
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6

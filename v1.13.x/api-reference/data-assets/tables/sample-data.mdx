@@ -53,38 +53,34 @@ Manage sample data rows for a table. Sample data provides a preview of the table
 
 <RequestExample dropdown>
 ```python GET /v1/tables/{id}/sampleData
-from metadata.sdk import configure
-from metadata.sdk import Tables
+from metadata.generated.schema.entity.data.table import TableData
+from metadata.sdk import Tables, configure
 
 configure(
     host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+    jwt_token="your-jwt-token",
 )
 
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Get sample data
-sample = Tables.get_sample_data(table_id)
-for row in sample.get("rows", []):
-    print(row)
+table = Tables.get_sample_data(table_id)
+if table and table.sampleData:
+    for row in table.sampleData.rows:
+        print(row)
 
 # Add sample data
-Tables.add_sample_data(table_id, {
-    "columns": [
-        {"name": "id", "dataType": "INT"},
-        {"name": "name", "dataType": "VARCHAR"},
-        {"name": "email", "dataType": "VARCHAR"},
-        {"name": "created_at", "dataType": "TIMESTAMP"}
-    ],
-    "rows": [
+sample_data = TableData(
+    columns=["id", "name", "email", "created_at"],
+    rows=[
         [1, "Alice Johnson", "alice@example.com", "2024-01-15T10:30:00Z"],
         [2, "Bob Smith", "bob@example.com", "2024-02-20T14:15:00Z"],
-        [3, "Carol Williams", "carol@example.com", "2024-03-10T09:45:00Z"]
-    ]
-})
+        [3, "Carol Williams", "carol@example.com", "2024-03-10T09:45:00Z"],
+    ],
+)
+Tables.add_sample_data(table_id, sample_data)
 
-# Delete sample data
-Tables.delete_sample_data(table_id)
+# Delete sample data with the REST request in the cURL example.
 ```
 
 ```java GET /v1/tables/{id}/sampleData
