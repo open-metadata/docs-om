@@ -88,7 +88,7 @@ The following workflows require additional grants:
 - **Incremental Extraction**: OpenMetadata fetches the information by querying `snowflake.account_usage.tables`.
 - **Ingesting Tags**: OpenMetadata fetches the information by querying `snowflake.account_usage.tag_references`.
 - **Ingesting Stored Procedures**: OpenMetadata fetches the information by querying `snowflake.account_usage.procedures` & `snowflake.account_usage.functions`.
-- **Lineage & Usage Workflow**: OpenMetadata fetches the query logs by querying `snowflake.account_usage.query_history`. For this, the Snowflake user must be granted the `ACCOUNTADMIN` role or a role with `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database.
+- **Lineage & Usage Workflow**: For lineage, OpenMetadata uses Snowflake's `ACCOUNT_USAGE.ACCESS_HISTORY` view by default, which provides Snowflake-computed table- and column-level lineage (including for queries OpenMetadata cannot parse). If the configured role cannot read `ACCESS_HISTORY`, ingestion automatically falls back to parsing query logs. For the Usage workflow—and as the lineage fallback—OpenMetadata fetches query logs by querying `snowflake.account_usage.query_history`. Both `ACCESS_HISTORY` and `QUERY_HISTORY` require the Snowflake user to have the `ACCOUNTADMIN` role or a role with `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database.
 
   For more information about the `account_usage` schema, see [Account Usage](https://docs.snowflake.com/en/sql-reference/account-usage).
 
@@ -137,17 +137,24 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
   Replace every newline character in your key with a literal `\n`, including after the final line.
 - **Snowflake Passphrase Key (Optional)**: If you have configured the encrypted key pair authentication for the given user you will have to pass the passphrase associated with the private key in this field. You can check out [this](https://docs.snowflake.com/en/user-guide/key-pair-auth) doc to get more details about key-pair authentication.
 - **Include Temporary and Transient Tables**:
-Optional configuration for ingestion of `TRANSIENT` and `TEMPORARY` tables, By default, it will skip the `TRANSIENT` and `TEMPORARY` tables.
+Optional configuration for ingestion of `TRANSIENT` and `TEMPORARY` tables. Enabled by default, so these tables are ingested alongside permanent ones. Disable it to skip them.
 - **Include Streams**:
 Optional configuration for ingestion of streams, By default, it will skip the streams.
 - **Include Stages**:
 Optional configuration for ingestion of Snowflake stages (internal and external). By default, stages are not ingested.
 - **Query Tag (Optional)**: Session query tag used to monitor usage on Snowflake. To use a query tag, the Snowflake user should have enough privileges to alter the session.
 - **Client Session Keep Alive**: Optional Configuration to keep the session active in case the ingestion job runs for longer duration.
-- **Account Usage Schema Name**: Full name of account usage schema, used in case your user does not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
-When using this field, make sure you have all these tables available within your custom schema  `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`.
+- **Account Usage Schema Name**: Full name of account usage schema, used in case your user does not have direct access to `SNOWFLAKE.ACCOUNT_USAGE` schema. In such case you can replicate tables `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`, `ACCESS_HISTORY` to a custom schema let's say `CUSTOM_DB.CUSTOM_SCHEMA` and provide the same name in this field.
+When using this field, make sure you have all these tables available within your custom schema `QUERY_HISTORY`, `TAG_REFERENCES`, `PROCEDURES`, `FUNCTIONS`, `ACCESS_HISTORY`.
+- **Cost of Credit (Optional)**: Cost of a Snowflake credit for your account, used to estimate warehouse and query costs. Defaults to `3.3`.
+- **Snowflake Source Host (Optional)**: Snowflake account host used to build direct links back to Snowflake, for example from lineage or query details. Defaults to `app.snowflake.com`.
 </Step>
 <AdvancedConfiguration />
+<Step>
+In addition to the fields above, the Snowflake connector's Advanced Configuration includes:
+    - **Use Access History for Lineage**: Uses Snowflake's `ACCOUNT_USAGE.ACCESS_HISTORY` view as the source of query lineage. `ACCESS_HISTORY` provides Snowflake-computed table- and column-level lineage, including for queries OpenMetadata cannot parse. Enabled by default. If the configured role cannot read `ACCESS_HISTORY`, ingestion automatically falls back to the legacy query-log parser.
+    - **Access History Chunk Size (Days)**: Number of days of `ACCESS_HISTORY` scanned per query when "Use Access History for Lineage" is enabled. The lineage time window is split into chunks of this size to keep each query bounded and avoid timeouts on busy accounts. Defaults to `2`.
+</Step>
 <TestConnection />
 <ConfigureIngestion />
 <IngestionScheduleAndDeploy />
