@@ -47,33 +47,40 @@ Define custom SQL-based metrics on a table or specific column. Custom metrics ar
 
 <RequestExample dropdown>
 ```python PUT /v1/tables/{id}/customMetric
-from metadata.sdk import configure
-from metadata.sdk.entities import Tables
+from metadata.generated.schema.api.tests.createCustomMetric import (
+    CreateCustomMetricRequest,
+)
+from metadata.sdk import Tables, configure
 
 configure(
     host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+    jwt_token="your-jwt-token",
 )
 
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Add a table-level custom metric
-Tables.add_custom_metric(table_id, {
-    "name": "active_customer_ratio",
-    "description": "Ratio of active customers to total customers",
-    "expression": "SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
-})
+Tables.add_custom_metric(
+    table_id,
+    CreateCustomMetricRequest(
+        name="active_customer_ratio",
+        description="Ratio of active customers to total customers",
+        expression="SELECT AVG(CASE WHEN active = true THEN 1 ELSE 0 END) FROM {table}",
+    ),
+)
 
 # Add a column-level custom metric
-Tables.add_custom_metric(table_id, {
-    "name": "email_domain_count",
-    "description": "Number of distinct email domains",
-    "columnName": "email",
-    "expression": "SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
-})
+Tables.add_custom_metric(
+    table_id,
+    CreateCustomMetricRequest(
+        name="email_domain_count",
+        description="Number of distinct email domains",
+        columnName="email",
+        expression="SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}",
+    ),
+)
 
-# Delete a custom metric
-Tables.delete_custom_metric(table_id, "active_customer_ratio")
+# Delete custom metrics with the REST request in the cURL example.
 ```
 
 ```java PUT /v1/tables/{id}/customMetric

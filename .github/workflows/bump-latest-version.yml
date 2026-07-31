@@ -48,6 +48,162 @@ jobs:
         env:
           VERSION: ${{ env.VERSION }}
 
+      - name: Validate current Python SDK docs
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const match = version.match(/^v(\d+)\.(\d+)\.x$/);
+          if (!match) throw new Error(`Unsupported version directory: ${version}`);
+
+          const releaseLine = `${match[1]}.${match[2]}`;
+          const sdkFile = `${version}/api-reference/sdk/python.mdx`;
+          const sdk = fs.readFileSync(sdkFile, 'utf8');
+          const canonicalPin = sdk.match(
+            /openmetadata-ingestion~=([0-9]+\.[0-9]+\.[0-9]+\.0)/,
+          );
+          if (!canonicalPin) {
+            throw new Error(`${sdkFile}: missing x.y.z.0 package pin`);
+          }
+
+          const packageLine = canonicalPin[1];
+          if (!packageLine.startsWith(`${releaseLine}.`)) {
+            throw new Error(`${sdkFile}: expected ${releaseLine}.x package, found ${packageLine}`);
+          }
+
+          const primaryPinFiles = [
+            `${version}/api-reference.mdx`,
+            `${version}/api-reference/getting-started.mdx`,
+            sdkFile,
+          ];
+
+          for (const file of primaryPinFiles) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pins = [
+              ...content.matchAll(
+                /openmetadata-ingestion~=([0-9]+\.[0-9]+\.[0-9]+\.0)/g,
+              ),
+            ];
+            if (!pins.length) throw new Error(`${file}: missing openmetadata-ingestion release pin`);
+            for (const pin of pins) {
+              if (pin[1] !== packageLine) {
+                throw new Error(`${file}: expected ${packageLine} package, found ${pin[1]}`);
+              }
+            }
+          }
+
+          const primaryFacadeFiles = [
+            `${version}/api-reference.mdx`,
+            `${version}/api-reference/getting-started.mdx`,
+            `${version}/api-reference/data-assets/tables.mdx`,
+            sdkFile,
+          ];
+          const staleFacade = /from metadata\.(?:ingestion\.ometa\.ometa_api|sdk\.entities) import/;
+          for (const file of primaryFacadeFiles) {
+            const content = fs.readFileSync(file, 'utf8');
+            if (staleFacade.test(content)) {
+              throw new Error(`${file}: stale Python SDK facade import`);
+            }
+            if (!content.includes('from metadata.sdk import')) {
+              throw new Error(`${file}: missing top-level metadata.sdk import`);
+            }
+          }
+
+          const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true })
+            .flatMap((entry) => {
+              const path = `${directory}/${entry.name}`;
+              return entry.isDirectory() ? walk(path) : [path];
+            });
+
+          const supportedTableMethods = new Set([
+            'add_custom_metric',
+            'add_followers',
+            'add_sample_data',
+            'add_tag',
+            'create',
+            'delete',
+            'export_csv',
+            'get_sample_data',
+            'get_specific_version',
+            'get_versions',
+            'import_csv',
+            'list',
+            'list_all',
+            'remove_followers',
+            'restore',
+            'retrieve',
+            'retrieve_by_name',
+            'search',
+            'update',
+            'update_column_description',
+            'update_custom_properties',
+            'update_custom_properties_by_name',
+          ]);
+          const tableDocs = `${version}/api-reference/data-assets/tables`;
+          for (const file of walk(tableDocs).filter((path) => path.endsWith('.mdx'))) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pythonBlocks = content.matchAll(/```python[^\n]*\n([\s\S]*?)```/g);
+            for (const block of pythonBlocks) {
+              const calls = block[1].matchAll(/\bTables\.([A-Za-z_]\w*)\s*\(/g);
+              for (const call of calls) {
+                if (!supportedTableMethods.has(call[1])) {
+                  throw new Error(`${file}: unsupported Tables.${call[1]}() example`);
+                }
+              }
+              if (/\bTables\.(?:add_custom_metric|add_sample_data)\(\s*[^,\n]+,\s*\{/.test(block[1])) {
+                throw new Error(`${file}: typed Tables method receives a raw mapping`);
+              }
+            }
+          }
+
+          for (const file of walk(version).filter((path) => path.endsWith('.mdx'))) {
+            const content = fs.readFileSync(file, 'utf8');
+            const pins = content.matchAll(
+              /openmetadata-ingestion(?:\[[^\]\n]+\])?[^0-9\n]{0,24}([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)/g,
+            );
+            for (const pin of pins) {
+              if (pin[1] !== packageLine) {
+                throw new Error(`${file}: expected ${packageLine} package, found ${pin[1]}`);
+              }
+            }
+            if (content.includes('openmetadata-demo/tree/main/sdk-2.0-examples/python') ||
+                content.includes('openmetadata-demo/blob/main/example_apis.py')) {
+              throw new Error(`${file}: stale Python SDK example link`);
+            }
+          }
+
+          const examples = 'https://github.com/open-metadata/openmetadata-demo/tree/main/sdk-examples';
+          if (!sdk.includes(examples)) throw new Error('Current Python SDK page lacks canonical examples link');
+
+          const serverPatch = packageLine.split('.').slice(0, 3).join('.');
+          const sdkSource = `OpenMetadata/blob/${serverPatch}-release/ingestion/src/metadata/sdk/README.md`;
+          if (!sdk.includes(sdkSource)) {
+            throw new Error(`${sdkFile}: Python SDK source link does not target ${serverPatch}-release`);
+          }
+
+          const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
+          const required = [
+            '/latest/:slug*',
+            '/sdk/python',
+            '/sdk/python/overview',
+            '/sdk/python/:slug*',
+          ];
+          for (const source of required) {
+            const redirect = docs.redirects.find((item) => item.source === source);
+            if (!redirect || !redirect.destination.includes(`/${version}/`)) {
+              throw new Error(`${source}: redirect does not target ${version}`);
+            }
+          }
+          EOF
+        env:
+          VERSION: ${{ env.VERSION }}
+
+      - name: Check canonical Python SDK example link
+        run: |
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/open-metadata/openmetadata-demo/main/sdk-examples/02_basic_crud.py \
+            | grep --fixed-strings "from metadata.sdk import"
+
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6
         with:
