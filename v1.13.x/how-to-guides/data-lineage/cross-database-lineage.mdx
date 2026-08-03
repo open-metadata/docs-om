@@ -1,0 +1,57 @@
+---
+title: Cross Database Lineage
+description: Learn how OpenMetadata resolves lineage across multiple databases or projects without requiring cross-service access.
+sidebarTitle: Cross Database Lineage
+---
+
+# Cross Database Lineage
+
+OpenMetadata can generate lineage across multiple databases or projects without requiring a single service account or connection to have access across all of them. This applies to connectors where data is organized into separate ingestion services — for example, BigQuery projects, or databases in other supported connectors.
+
+## Architecture
+
+Configure each database or project as its own independent service in OpenMetadata:
+
+- Each service uses its own dedicated service account or credentials.
+- The service account only requires permissions for its own database or project.
+- OpenMetadata ingests metadata from each service independently.
+- There is no requirement to grant one service account access to all databases or projects.
+
+## How Cross Database Lineage Works
+
+During lineage extraction:
+
+1. OpenMetadata parses the query history or view definitions for the service being ingested.
+2. When a query or view references a table, OpenMetadata resolves that reference by searching the metadata already ingested into OpenMetadata.
+3. If the referenced table belongs to another database or project, OpenMetadata searches the metadata from the corresponding service.
+4. Once OpenMetadata finds the referenced asset, it creates the lineage relationship.
+
+This applies to both view lineage and query lineage.
+
+<Note>
+The lookup happens within OpenMetadata's metadata store. The connector doesn't query across databases or projects, and the service account doesn't require access to assets outside its own database or project.
+</Note>
+
+## Configuration
+
+OpenMetadata's lineage options include **Process Cross Database Lineage** and **Cross Database Service Names**. To configure them on an existing Lineage Agent:
+
+1. Navigate to **Settings** > **Services** > **Databases** and select the service running the Lineage Agent.
+2. Click the **Agents** tab, locate the Lineage Agent, click the three-dot menu next to it, and select **Edit**.
+   <img src="/public/images/features/ingestion/workflows/lineage/edit-lineage-option.png" alt="Edit the Lineage Agent" />
+3. In the **Configure Ingestion** step, scroll to the following cross database service lineage options:
+      - **Process Cross Database Lineage**: Enable this toggle to build lineage across tables in different databases or projects.
+      - **Cross Database Service Names**: Names of the other services to search when resolving table references. Specify one or more service names to limit the search scope, or set the value to `*` to search across all available services. Using `*` means you don't need to update the configuration whenever a new service is added.
+      <img src="/public/images/features/ingestion/workflows/lineage/cross-db-lineage-option.png" alt="Configure Lineage Option" />
+4. Click **Next** to review the schedule, then click **Submit** to redeploy the Lineage Agent with the updated configuration.
+
+**Cross Database Service Names** and other lineage options can also be set while adding a new Lineage Agent. For the full list of fields and how to set them, see [Lineage Options](/v1.13.x/how-to-guides/data-lineage/workflow#lineage-options).
+
+## Security Considerations
+
+This architecture follows least-privilege principles:
+
+- Each database or project uses its own dedicated service account.
+- No cross-project or cross-database IAM permissions are required.
+- Project and database isolation is maintained.
+- OpenMetadata builds lineage from metadata already ingested, rather than through direct cross-project or cross-database access.
