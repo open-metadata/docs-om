@@ -23,12 +23,12 @@ For deployments that use a separate service per database or project:
 
 During lineage extraction:
 
-1. OpenMetadata parses the query history or view definitions for the service being ingested.
-2. When a query or view references a table, OpenMetadata resolves that reference by searching the metadata already ingested into OpenMetadata.
+1. OpenMetadata parses the query history, view definitions, or stored procedure definitions for the service being ingested.
+2. When a query, view, or stored procedure references a table, OpenMetadata resolves that reference by searching the metadata already ingested into OpenMetadata.
 3. If the referenced table belongs to another database or project, OpenMetadata searches the metadata from the corresponding service.
 4. Once OpenMetadata finds the referenced asset, it creates the lineage relationship.
 
-This applies to both view lineage and query lineage.
+This applies to query, view, and stored-procedure lineage when the corresponding processing options are enabled.
 
 <Note>
 The lookup happens within OpenMetadata's metadata store. The connector doesn't query across databases or projects, and the service account doesn't require access to assets outside its own database or project.
@@ -39,22 +39,25 @@ The lookup happens within OpenMetadata's metadata store. The connector doesn't q
 OpenMetadata's lineage options include **Process Cross Database Lineage** and **Cross Database Service Names**. To configure them on an existing Lineage Agent:
 
 1. Navigate to **Settings** > **Services** > **Databases** and select the service running the Lineage Agent.
-2. Click the **Agents** tab, locate the Lineage Agent, click the three-dot menu next to it, and select **Edit**.
+2. Select the **Agents** tab.
+3. On the Lineage Agent, select the three-dot menu.
+4. Select **Edit**.
    <img src="/public/images/features/ingestion/workflows/lineage/edit-lineage-option.png" alt="Edit the Lineage Agent" />
-3. In the **Configure Ingestion** step, scroll to the following cross-database lineage options:
+5. In the **Configure Ingestion** step, scroll to the following cross-database lineage options:
    - **Process Cross Database Lineage**: Enable this toggle to build lineage across tables in different databases or projects.
    - **Cross Database Service Names**: Names of the other services to search when resolving table references. List the specific service names to search. The underlying search returns a limited number of matches per lookup, so `*` can resolve to the wrong table or miss the correct service when many services or tables share names. Update this list when a new service needs to participate in cross-database lineage.
 
    <img src="/public/images/features/ingestion/workflows/lineage/cross-db-lineage-option.png" alt="Configure cross-database lineage options" />
-4. Click **Next** to review the schedule, then click **Submit** to redeploy the Lineage Agent with the updated configuration.
+6. Select **Next** to review the schedule.
+7. Select **Submit** to redeploy the Lineage Agent with the updated configuration.
 
-**Cross Database Service Names** and other lineage options can also be set while adding a new Lineage Agent. For the full list of fields and how to set them, see [Lineage Options](/v1.12.x/how-to-guides/data-lineage/workflow#lineage-options).
+Set **Cross Database Service Names** and other lineage options when adding a new Lineage Agent. For the full list of fields and how to set them, see [Lineage Options](/v1.12.x/how-to-guides/data-lineage/workflow#lineage-options).
 
 ## Security Considerations
 
 This architecture follows least-privilege principles:
 
 - Each database or project uses its own dedicated service account.
-- No cross-project or cross-database IAM permissions are required.
-- Project and database isolation is maintained.
+- Service accounts don't require cross-project or cross-database IAM permissions.
+- This model maintains project and database isolation.
 - OpenMetadata builds lineage from metadata already ingested, rather than through direct cross-project or cross-database access.
