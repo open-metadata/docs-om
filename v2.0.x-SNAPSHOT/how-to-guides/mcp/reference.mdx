@@ -9,10 +9,13 @@ All OpenMetadata MCP tools, with parameters and examples.
 
 ## Available Tools
 
+Tools are labeled **Read** (retrieve data only) or **Write** (create or modify data).
+
 | Category | Tools |
 |---|---|
 | **Discover** | [search_metadata](#search_metadata), [semantic_search](#semantic_search), [search_company_context](#search_company_context) |
 | **Inspect** | [get_entity_details](#get_entity_details), [get_company_context](#get_company_context) |
+| **Context** | [get_user_context](#get_user_context), [get_persona_context](#get_persona_context), [get_asset_context](#get_asset_context), [find_context](#find_context), [get_knowledge_content](#get_knowledge_content) |
 | **Lineage & Impact** | [get_entity_lineage](#get_entity_lineage), [create_lineage](#create_lineage), [root_cause_analysis](#root_cause_analysis) |
 | **Knowledge** | [create_glossary](#create_glossary), [create_glossary_term](#create_glossary_term), [create_context_memory](#create_context_memory) |
 | **Govern & Classify** | [create_classification](#create_classification), [create_tag](#create_tag), [create_domain](#create_domain), [create_data_product](#create_data_product), [patch_entity](#patch_entity) |
@@ -53,6 +56,7 @@ Search and find data assets across your catalog using keyword, semantic, or natu
 - **User Entities**: `user`, `team`
 - **Domain Entities**: `domain`, `dataProduct`
 - **Governance Entities**: `metric`, `glossary`, `glossaryTerm`
+- **Data Quality Entities**: `testCase`, `testSuite`, `testCaseResult`
 
 **Examples**
 
@@ -125,6 +129,10 @@ Search and find data assets across your catalog using keyword, semantic, or natu
   }
 }
 ```
+
+<Note>
+Results include a `similarityScore` field (0.0–1.0) for each entity when semantic ranking is active, indicating how closely the result matches your query. Higher scores indicate stronger relevance.
+</Note>
 
 ### semantic_search
 
@@ -219,7 +227,7 @@ Retrieve detailed information about specific entities and company knowledge pill
 
 ### get_entity_details
 
-**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually.
+**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually. The response includes an `extension` field containing any custom properties defined for the entity type.
 
 **Parameters**
 
@@ -302,6 +310,164 @@ Retrieve detailed information about specific entities and company knowledge pill
     "name": "get_company_context",
     "arguments": {
       "fqn": "data-retention-policy.gdpr-rules"
+    }
+  }
+}
+```
+
+## Context
+
+Retrieve context knowledge associated with the current user, a persona, or a specific data asset. Context tools are all **Read** operations.
+
+### get_user_context
+
+**Type**: Read
+
+**Description**: Returns the authenticated user's identity, email, persona, team memberships, and roles within OpenMetadata. The tool resolves only the calling user's own context — it cannot read another user's identity or roles.
+
+**Parameters**: None required.
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_user_context"
+  }
+}
+```
+
+**Sample Response**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "## Current User\n\n**Name**: Jane Doe\n**Email**: jane.doe@company.com\n**Persona**: Data Analyst\n**Teams**: analytics-team, data-platform\n**Roles**: DataSteward"
+      }
+    ]
+  }
+}
+```
+
+### get_persona_context
+
+**Type**: Read
+
+**Description**: Retrieves context knowledge pills associated with a specific persona — preferences, use cases, and runbook entries scoped to that persona's role. Use this to tailor AI assistant behavior for a given user type.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `persona` | string | No | Name of the persona to retrieve context for. Defaults to the calling user's active persona |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_persona_context",
+    "arguments": {
+      "persona": "Data Analyst"
+    }
+  }
+}
+```
+
+### get_asset_context
+
+**Type**: Read
+
+**Description**: Retrieves context knowledge pills associated with a specific data asset — annotations, runbook entries, and preferences scoped to that asset. Use this after `get_entity_details` to get human-authored context beyond the entity schema.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of the entity (e.g., `table`, `dashboard`) |
+| `fqn` | string | Yes | Fully qualified name of the entity — use the exact value from search results |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_asset_context",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders"
+    }
+  }
+}
+```
+
+### find_context
+
+**Type**: Read
+
+**Description**: Keyword search across all stored context memories — asset-scoped and persona-scoped. Returns matching context pills. Use when you want to search across all context without restricting to a specific asset or persona. For company-level knowledge pills, use `search_company_context` instead.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Keywords to search across context memory content |
+| `size` | integer | No | Number of results to return (default: 10, max: 50) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "find_context",
+    "arguments": {
+      "query": "PII handling policy",
+      "size": 5
+    }
+  }
+}
+```
+
+### get_knowledge_content
+
+**Type**: Read
+
+**Description**: Retrieves the full content of a knowledge article or document stored in the Context Center. Use the FQN returned by `find_context` or `search_company_context`.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fqn` | string | Yes | Fully qualified name of the knowledge article — use the exact value from `find_context` or `search_company_context` results |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_knowledge_content",
+    "arguments": {
+      "fqn": "company-wiki.data-policies.pii-handling"
     }
   }
 }
