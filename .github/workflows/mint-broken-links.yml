@@ -21,7 +21,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -38,6 +38,22 @@ jobs:
           mkdir -p "$REPORT_DIR"
           printf '%s\n' "$PR_NUMBER" > "$REPORT_DIR/pr_number"
 
+      - name: Find changed documentation files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+        run: |
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+            '*.md' '*.mdx' 'docs.json' 'mint.json' > "$CHANGED_FILES"
+
+          if [ -s "$CHANGED_FILES" ]; then
+            echo "Checking the following documentation files:"
+            cat "$CHANGED_FILES"
+          else
+            echo "No documentation or configuration files changed."
+          fi
+
       - name: Run Mint broken-link check
         id: broken-links
         continue-on-error: true
@@ -45,14 +61,28 @@ jobs:
           CI: "true"
           LOG_FILE: ${{ runner.temp }}/mint-broken-links.log
           NO_COLOR: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "true"
           RETRY_STATUS_FILE: ${{ runner.temp }}/mint-broken-links-retry-status
           RETRY_URLS_FILE: ${{ runner.temp }}/mint-broken-links-retry-urls
-          MINT_VERSION: 4.2.616
+          CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+          MINT_VERSION: 4.2.797
         run: |
           set -o pipefail
+          if [ ! -s "$CHANGED_FILES" ]; then
+            echo "No documentation or configuration files changed."
+            exit 0
+          fi
+
+          args=()
+          while IFS= read -r file; do
+            args+=(--files "$file")
+          done < "$CHANGED_FILES"
+
+          # Mint's CLI does not resolve anchors provided by imported MDX components.
+          # Mintlify's rendered link validation covers those anchors separately.
           if npm exec --yes --package="mint@${MINT_VERSION}" -- \
             mint broken-links \
-            --check-anchors \
+            "${args[@]}" \
             --check-external \
             --check-snippets \
             --check-redirects \
