@@ -145,7 +145,7 @@ OpenMetadata's MCP OAuth implementation uses **OAuth 2.0 Dynamic Client Registra
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /.well-known/oauth-authorization-server` | OAuth 2.0 authorization server metadata (RFC 8414) |
-| `GET /.well-known/openid-configuration` | OpenID Connect discovery (for OIDC-aware clients) |
+| `GET /.well-known/openid-configuration` | OAuth metadata compatibility alias — serves the same RFC 8414 metadata as above for clients that only check this OIDC-conventional path (not a true OpenID Connect discovery document) |
 | `POST /mcp/register` | Dynamic client registration |
 
 ## Token Lifetimes
@@ -173,8 +173,10 @@ These limits are per-server-instance. In clustered deployments, the effective li
 
 ## Allowed Origins (CORS)
 
-By default, the MCP Server allows requests from all origins. For self-hosted deployments, administrators can restrict allowed origins by configuring `mcpConfiguration.allowedOrigins` in the OpenMetadata server configuration file.
+By default, the MCP Server allows CORS requests only from a small set of local development origins (`http://localhost:3000`, `http://localhost:8585`, `http://localhost:9090`) — it does not allow all origins. This allowlist is part of OpenMetadata's MCP settings, stored in the database rather than the static server configuration file. Administrators can update it via the `GET`/`PUT /api/v1/system/mcp/config` API (admin only). It is not currently exposed in the MCP application's settings UI.
 
-Only origins on the allowlist will receive a valid `Access-Control-Allow-Origin` response header. This is relevant for browser-based MCP clients or custom integrations that call the MCP endpoint directly from a web page.
+Only requests whose `Origin` header exactly matches an entry in the allowlist receive a valid `Access-Control-Allow-Origin` response header — there is no wildcard or prefix matching. This is relevant for browser-based MCP clients or custom integrations that call the MCP endpoint directly from a web page.
 
-For a full breakdown of the security model — PKCE details, public client handling, RBAC enforcement, audit trail, and secrets management — see the [MCP Server Security](/v2.0.x-SNAPSHOT/how-to-guides/mcp/security) page.
+## Revoking Access
+
+MCP clients can revoke an access or refresh token directly using the OAuth 2.0 Token Revocation endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)), advertised as `revocation_endpoint` in the OAuth discovery document. A `POST` request to `{baseUrl}/mcp/revoke` with the token (and an optional `token_type_hint` of `access_token` or `refresh_token`) invalidates that token immediately. Administrators can also revoke access at the user level by managing active sessions from the OpenMetadata admin settings, as described under [Token Management](#token-management) above.

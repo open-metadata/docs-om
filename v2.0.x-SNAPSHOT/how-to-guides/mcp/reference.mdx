@@ -131,7 +131,7 @@ Search and find data assets across your catalog using keyword, semantic, or natu
 ```
 
 <Note>
-Results include a `similarityScore` field (0.0–1.0) for each entity when semantic ranking is active, indicating how closely the result matches your query. Higher scores indicate stronger relevance.
+Results include a `similarityScore` field for each entity whenever the search backend returns a relevance score for that hit. This is the backend's raw, opaque score (not a value normalized to a 0.0–1.0 range), so absolute values vary by query and are not comparable across searches — only relative ordering within the same result set is meaningful. Higher scores indicate stronger relevance.
 </Note>
 
 ### semantic_search
@@ -323,9 +323,17 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Returns the authenticated user's identity, email, persona, team memberships, and roles within OpenMetadata. The tool resolves only the calling user's own context — it cannot read another user's identity or roles.
+**Description**: Returns context about the currently authenticated user — identity (ID, name, display name, email, admin/bot flags), team memberships, roles (direct and team-inherited), domains, active persona, and lightweight summaries of entities the user owns and follows. Use this to answer identity questions such as "what is my role?" or "what do I own?" before asking the user for details. The user is resolved from the authenticated request — there is no parameter to look up another user.
 
-**Parameters**: None required.
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `includeOwnedSummary` | boolean | No | Include a summary of entities owned by the user and their teams (default: `true`) |
+| `includeFollowedSummary` | boolean | No | Include a summary of entities the user follows (default: `true`) |
+| `ownedLimit` | integer | No | Max owned entities to return, 1–100 (default: 20) |
+| `followedLimit` | integer | No | Max followed entities to return, 1–100 (default: 20) |
+| `ownedFilter` | string | No | Narrow owned entities to ones worth surfacing: `NONE` (default, all owned), `MISSING_DESCRIPTION`, `MISSING_TIER`, or `ANY_GAP`. Gap filters apply to data-asset entity types only |
 
 **Example**
 
@@ -335,7 +343,10 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "get_user_context"
+    "name": "get_user_context",
+    "arguments": {
+      "ownedFilter": "ANY_GAP"
+    }
   }
 }
 ```
@@ -361,13 +372,15 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Retrieves context knowledge pills associated with a specific persona — preferences, use cases, and runbook entries scoped to that persona's role. Use this to tailor AI assistant behavior for a given user type.
+**Description**: Returns the shared AI context document curated for a persona — preferences, use cases, and runbook entries scoped to that persona's role. With no `personaName`, returns context for the caller's active persona. The document can span multiple parts. Call again with an incremented `part` while the response's `hasMore` is `true`. Access is limited to persona members, admins, and bots.
 
 **Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `persona` | string | No | Name of the persona to retrieve context for. Defaults to the calling user's active persona |
+| `personaName` | string | No | Fully qualified name of the persona. Omit to use the caller's active persona |
+| `format` | string | No | `markdown` (default) or `json` |
+| `part` | integer | No | One-based document part to fetch. Start at 1 and continue while `hasMore` is `true` (default: 1) |
 
 **Example**
 
@@ -379,7 +392,7 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
   "params": {
     "name": "get_persona_context",
     "arguments": {
-      "persona": "Data Analyst"
+      "personaName": "Data Analyst"
     }
   }
 }
@@ -389,14 +402,16 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Retrieves context knowledge pills associated with a specific data asset — annotations, runbook entries, and preferences scoped to that asset. Use this after `get_entity_details` to get human-authored context beyond the entity schema.
+**Description**: Returns the full AI context for a single data asset in one call: the business knowledge attached to it (approved glossary term definitions, Context Center articles) plus type-specific structural context. For tables this includes the column schema, primary key, foreign keys (with the referenced columns and cardinality), and the columns most frequently joined with other tables. Prefer this over `get_entity_details` once you've selected an asset and need its business rules and join keys. Use the `fullyQualifiedName` and `entityType` values directly from search results.
 
 **Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `entityType` | string | Yes | Type of the entity (e.g., `table`, `dashboard`) |
-| `fqn` | string | Yes | Fully qualified name of the entity — use the exact value from search results |
+| `entityType` | string | Yes | Type of the asset (e.g., `table`, `dashboard`, `pipeline`) |
+| `fqn` | string | Yes | Fully qualified name of the asset — use the exact value from search results |
+| `format` | string | No | `markdown` (default) returns a compact, LLM-friendly document. `json` returns the structured AIContext object |
+| `query` | string | No | The user's question. When set, each truncated knowledge item is excerpted to the passage most relevant to this question instead of its opening |
 
 **Example**
 
@@ -419,14 +434,15 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Keyword search across all stored context memories — asset-scoped and persona-scoped. Returns matching context pills. Use when you want to search across all context without restricting to a specific asset or persona. For company-level knowledge pills, use `search_company_context` instead.
+**Description**: For a business question where no specific asset has been chosen yet, semantically searches the company-knowledge layer — glossary term definitions, metric definitions, and Context Center articles — and returns the matching definitions plus the candidate data assets each concept points to (glossary terms → the tables tagged with them, metrics → the assets they apply to, and articles → the assets they're about). Use this to bootstrap a data question from business concepts into candidate tables, then call `get_asset_context` on those FQNs. This is a semantic search over company knowledge, not a keyword search over asset or persona memories.
 
 **Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | Yes | Keywords to search across context memory content |
-| `size` | integer | No | Number of results to return (default: 10, max: 50) |
+| `query` | string | Yes | Natural-language question or business terms to find relevant company knowledge and candidate assets for |
+| `size` | integer | No | Number of knowledge items to return (default: 10, max: 50) |
+| `format` | string | No | `markdown` (default) returns definitions and candidate assets as an LLM-friendly document. `json` returns the structured result |
 
 **Example**
 
@@ -449,13 +465,17 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Retrieves the full content of a knowledge article or document stored in the Context Center. Use the FQN returned by `find_context` or `search_company_context`.
+**Description**: `get_asset_context` and `find_context` return bounded excerpts of long glossary definitions, metric definitions, and Context Center articles. When you need the full detail of one specific item, call this tool with that item's `entityType` and `fqn`. Without a `query`, the tool returns the full body. With a `query`, it returns only the passages most relevant to that query.
 
 **Parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `fqn` | string | Yes | Fully qualified name of the knowledge article — use the exact value from `find_context` or `search_company_context` results |
+| `entityType` | string | Yes | Knowledge item type: `glossaryTerm`, `metric`, `page`, or `contextMemory` |
+| `fqn` | string | Yes | Fully qualified name of the knowledge item, as returned by `get_asset_context` or `find_context` |
+| `query` | string | No | When set, return only the passages most relevant to this query instead of the full body |
+| `size` | integer | No | Number of relevant passages to return when `query` is set (default: 3, max: 10) |
+| `format` | string | No | `markdown` (default) or `json` |
 
 **Example**
 
@@ -467,6 +487,7 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
   "params": {
     "name": "get_knowledge_content",
     "arguments": {
+      "entityType": "page",
       "fqn": "company-wiki.data-policies.pii-handling"
     }
   }
