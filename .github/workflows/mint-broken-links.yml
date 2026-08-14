@@ -1,0 +1,217 @@
+name: Mint Broken Links
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mint-broken-links-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  broken-links:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out pull request
+        timeout-minutes: 5
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Save pull request metadata
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_DIR: ${{ runner.temp }}/mint-broken-links-report
+        run: |
+          mkdir -p "$REPORT_DIR"
+          printf '%s\n' "$PR_NUMBER" > "$REPORT_DIR/pr_number"
+
+      - name: Find changed documentation files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+        run: |
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+            '*.md' '*.mdx' 'docs.json' 'mint.json' > "$CHANGED_FILES"
+
+          if [ -s "$CHANGED_FILES" ]; then
+            echo "Checking the following documentation files:"
+            cat "$CHANGED_FILES"
+          else
+            echo "No documentation or configuration files changed."
+          fi
+
+      - name: Run Mint broken-link check
+        id: broken-links
+        continue-on-error: true
+        env:
+          CI: "true"
+          LOG_FILE: ${{ runner.temp }}/mint-broken-links.log
+          NO_COLOR: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+          RETRY_STATUS_FILE: ${{ runner.temp }}/mint-broken-links-retry-status
+          RETRY_URLS_FILE: ${{ runner.temp }}/mint-broken-links-retry-urls
+          CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+          MINT_VERSION: 4.2.797
+        run: |
+          set -o pipefail
+          if [ ! -s "$CHANGED_FILES" ]; then
+            echo "No documentation or configuration files changed."
+            exit 0
+          fi
+
+          args=()
+          while IFS= read -r file; do
+            args+=(--files "$file")
+          done < "$CHANGED_FILES"
+
+          # Mint's CLI does not resolve anchors provided by imported MDX components.
+          # Mintlify's rendered link validation covers those anchors separately.
+          if npm exec --yes --package="mint@${MINT_VERSION}" -- \
+            mint broken-links \
+            "${args[@]}" \
+            --check-external \
+            --check-snippets \
+            --check-redirects \
+            2>&1 | tee "$LOG_FILE"; then
+            exit 0
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const log = fs.readFileSync(process.env.LOG_FILE, 'utf8')
+            .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+            .replace(/\r/g, '');
+          const transientErrors = new Set([
+            'This operation was aborted',
+            'fetch failed',
+            'ETIMEDOUT',
+            'ECONNRESET',
+          ]);
+          const lines = log.split('\n');
+          const matches = [];
+          let hasUnparsedFailure = false;
+
+          for (let index = 0; index < lines.length; index += 1) {
+            const markerMatch = lines[index].match(/^\s*⎿\s+(.+?)\s*$/);
+            if (!markerMatch) continue;
+
+            let failure = markerMatch[1].trim();
+            while (!failure.includes(')') && index + 1 < lines.length) {
+              const continuation = lines[index + 1].trim();
+              if (!continuation || continuation.startsWith('⎿')) break;
+              index += 1;
+              failure += failure.includes(' (') ? ` ${continuation}` : continuation;
+            }
+
+            const failureMatch = failure.match(/^(\S+)\s+\(([^)]+)\)\s*$/);
+            if (!failureMatch) {
+              hasUnparsedFailure = true;
+              continue;
+            }
+
+            matches.push(failureMatch);
+          }
+
+          const countMatch = log.match(/found (\d+) broken links/);
+          const expectedFailureCount = countMatch ? Number(countMatch[1]) : 0;
+          const allFailuresAreTransient =
+            !hasUnparsedFailure &&
+            expectedFailureCount > 0 &&
+            matches.length === expectedFailureCount &&
+            matches.every((match) =>
+              /^https?:\/\//.test(match[1]) && transientErrors.has(match[2]),
+            );
+          const urls = allFailuresAreTransient
+            ? [...new Set(matches.map((match) => match[1]))]
+            : [];
+
+          fs.writeFileSync(process.env.RETRY_STATUS_FILE, allFailuresAreTransient ? 'retryable' : 'failed');
+          fs.writeFileSync(process.env.RETRY_URLS_FILE, urls.length ? `${urls.join('\n')}\n` : '');
+          NODE
+
+          if [ "$(cat "$RETRY_STATUS_FILE")" != 'retryable' ]; then
+            exit 1
+          fi
+
+          echo "Retrying transient external-link failures individually..." | tee -a "$LOG_FILE"
+          retry_failed=0
+          while IFS= read -r url; do
+            if curl --fail --silent --show-error --location --head \
+              --retry 3 --retry-all-errors --connect-timeout 10 --max-time 45 \
+              --output /dev/null -- "$url" \
+              || curl --fail --silent --show-error --location \
+                --retry 3 --retry-all-errors --connect-timeout 10 --max-time 45 \
+                --output /dev/null -- "$url"; then
+              echo "Validated after retry: $url" | tee -a "$LOG_FILE"
+            else
+              echo "Still unavailable after retries: $url" | tee -a "$LOG_FILE"
+              retry_failed=1
+            fi
+          done < "$RETRY_URLS_FILE"
+
+          exit "$retry_failed"
+
+      - name: Prepare failure report
+        if: steps.broken-links.outcome == 'failure'
+        env:
+          LOG_FILE: ${{ runner.temp }}/mint-broken-links.log
+          REPORT_DIR: ${{ runner.temp }}/mint-broken-links-report
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const logFile = process.env.LOG_FILE;
+          const reportFile = `${process.env.REPORT_DIR}/output.txt`;
+          const maximumLength = 6000;
+          const summaryLength = 1600;
+          const fallback = 'Mint exited unsuccessfully before it produced any output.';
+          const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : fallback;
+          const cleanLog = log
+            .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+            .replace(/\r/g, '');
+          const meaningfulLog = cleanLog
+            .split('\n')
+            .filter((line) => !line.includes('checking for broken links...'))
+            .join('\n')
+            .trim();
+          const resultStart = meaningfulLog.search(/found \d+ broken links/);
+          const report = resultStart >= 0 ? meaningfulLog.slice(resultStart) : meaningfulLog;
+          const output = report.length > maximumLength
+            ? (() => {
+                const summary = report.slice(0, summaryLength);
+                const notice = '\n\n… Output truncated. Showing the result summary and final details.\n\n';
+                const tailLength = maximumLength - summary.length - notice.length;
+                return `${summary}${notice}${report.slice(-tailLength)}`;
+              })()
+            : report || fallback;
+
+          fs.writeFileSync(reportFile, output);
+          NODE
+
+      - name: Upload pull request report
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mint-broken-links-report
+          path: ${{ runner.temp }}/mint-broken-links-report/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Mark the check as failed
+        if: steps.broken-links.outcome == 'failure'
+        run: exit 1

@@ -12,7 +12,7 @@ In this guide, we'll walk through how to implement your own Custom Drive Connect
 
 <Tip>
 
-This guide is based on a working example in the OpenMetadata Demos repository: [link](https://github.com/open-metadata/openmetadata-demo/tree/main/custom-connector).
+Review the [SFTP source implementation](https://github.com/open-metadata/OpenMetadata/blob/1.12.14-release/ingestion/src/metadata/ingestion/source/drive/sftp/metadata.py) for a complete, release-aligned Drive source.
 
 </Tip>
 
@@ -60,7 +60,7 @@ class MyDriveConnector(Source):
 
 </Tip>
 
-For more on the ingestion framework, refer to the [OpenMetadata Ingestion Workflow Docs](https://docs.open-metadata.org/latest/connectors/ingestion/workflows)
+For more on the ingestion framework, refer to the [OpenMetadata Ingestion Workflow docs](/v1.12.x/connectors/ingestion/workflows).
 
 ### Step 2 - Yield Drive Data as Entities
 
@@ -148,7 +148,7 @@ To run your Custom Drive Connector inside Docker (e.g., with Airflow or directly
 
 ```Dockerfile
 
-FROM openmetadata/ingestion:1.10.0
+FROM openmetadata/ingestion:<version>
 
 WORKDIR ingestion
 USER airflow
@@ -172,18 +172,24 @@ run:
 
 ```
 
-### Step 6 - Configure Custom Drive in OpenMetadata UI
+### Step 6 - Configure and Run the Connector
 
-- Navigate to Drive Services
-- Click **Add New Service > Custom**
-- Enter your Source Python Class as:
+The Custom Drive service form does not expose a Source Python Class field. Add the fully qualified class name to your ingestion YAML, then run it with the ingestion CLI.
 
-```python
-
-custom_drive.my_drive_connector.MyDriveConnector
-
+```yaml
+source:
+  type: custom-drive
+  serviceName: <service_name>
+  serviceConnection:
+    config:
+      type: CustomDrive
+      sourcePythonClass: custom_drive.my_drive_connector.MyDriveConnector
+  sourceConfig:
+    config:
+      type: DriveMetadata
+sink:
+  type: metadata-rest
+  config: {}
 ```
 
-Ensure the full module path is specified so OpenMetadata can import the connector.
-
-<img src="/public/images/connectors/custom-drive.png" alt="Custom Connector" />
+Run `metadata ingest -c <path-to-config.yaml>`.

@@ -15,9 +15,7 @@ process is the same for Pipelines, Dashboard or Messaging services.
 
 <Tip>
 
-This guide is based on a working example in the OpenMetadata Demos repository: [link](https://github.com/open-metadata/openmetadata-demo/tree/main/custom-connector).
-
-We'd recommend to go through the example to better understand how all the pieces should look like.
+Review the [Sample Data source](https://github.com/open-metadata/OpenMetadata/blob/1.12.14-release/ingestion/src/metadata/ingestion/source/database/sample_data.py) to see a complete, release-aligned custom source implementation.
 
 </Tip>
 
@@ -37,20 +35,19 @@ Watch OpenMetadata's [Webinar on Custom Connectors](https://www.youtube.com/watc
 ### Step 1 - Prepare your Connector
 
 A connector is a class that extends from `from metadata.ingestion.api.steps import Source`. It should implement
-all the required methods ([docs](https://docs.open-metadata.org/latest/sdk/python/build-connector/source#for-consumers-of-openmetadata-ingestion-to-define-custom-connectors-in-their-own-package-with-same-namespace)).
+all the required methods in the [Source API reference](/v1.12.x/api-reference/sdk/python/build-connector/source#for-consumers-of-openmetadata-ingestion-to-define-custom-connectors-in-their-own-package-with-same-namespace).
 
-In [connector/my_awesome_connector.py](https://github.com/open-metadata/openmetadata-demo/blob/main/custom-connector/connector/my_awesome_connector.py) you have a minimal example of it.
+Review the [Sample Data source](https://github.com/open-metadata/OpenMetadata/blob/1.12.14-release/ingestion/src/metadata/ingestion/source/database/sample_data.py) for a complete, release-aligned `Source` implementation.
 
-Note how te important method is the `_iter`. This is the generator function that will be iterated over
-to send all the Create Entity Requests to the `Sink`. Read more about the `Workflow` [here](https://docs.open-metadata.org/latest/sdk/python/build-connector).
+The important method is `_iter`. This generator function sends Create Entity Requests to the `Sink`. Read more about the `Workflow` in the [Python SDK reference](/v1.12.x/api-reference/sdk/python/build-connector).
 
 ### Step 2 - Yield the Data
 
 The `Sink` is expecting Create Entity Requests. To get familiar with the Python SDK and understand how to create
 the different Entities, a recommended read is the Python SDK [docs](/v1.12.x/sdk/python).
 
-We do not have docs and examples of all the supported Services. A way to get examples on how to create and fetch
-other types of Entities is to directly refer to the `ometa` [integration tests](https://github.com/open-metadata/OpenMetadata/tree/main/ingestion/tests/integration/ometa).
+We do not have docs and examples of all the supported Services. To see how to create and fetch
+other types of Entities, refer to the `ometa` [integration tests](https://github.com/open-metadata/OpenMetadata/tree/1.12.14-release/ingestion/tests/integration/ometa).
 
 #### Either & StackTraceError
 
@@ -102,8 +99,7 @@ Note that with the new structure, any errors are going to be properly logged at 
 
 ### Step 3 - Prepare the Package Installation
 
-We'll need to package the code so that it can be shipped to the ingestion container and used there. In this demo
-you can find a simple `setup.py` that builds the `connector` module.
+Package the code so the ingestion container can install and use it. Add a `setup.py` or `pyproject.toml` file to your connector package.
 
 ### Step 4 - Prepare the Ingestion Image
 
@@ -111,11 +107,11 @@ If you want to use the connector from the UI, the Python environment running the
 the new code you just created. For example, if running via Docker, the `openmetadata-ingestion` image should be
 aware of your new package.
 
-We will be running the demo against the OpenMetadata version `1.4.4`, therefore, our Dockerfile looks like:
+Use the ingestion image tag that matches your deployed OpenMetadata version. For example:
 
 ```Dockerfile
 # Base image from the right version
-FROM openmetadata/ingestion:1.4.4
+FROM openmetadata/ingestion:<version>
 
 # Let's use the same workdir as the ingestion image
 WORKDIR ingestion
@@ -130,8 +126,7 @@ RUN pip install --no-deps .
 
 ### Step 5 - Run OpenMetadata with the Custom Ingestion Image
 
-We have a `Makefile` prepared for you to run `make run`. This will get OpenMetadata up in Docker Compose using the
-custom Ingestion image.
+Build and run the custom ingestion image with your deployment method, such as Docker Compose or Kubernetes.
 
 ### Step 6 - Configure the Connector
 
