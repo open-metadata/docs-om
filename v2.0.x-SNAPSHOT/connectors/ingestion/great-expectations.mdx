@@ -10,15 +10,15 @@ For Data Quality tests the open source python package Great Expectations stands 
 <Warning>
 **Great Expectations 1.3 or later is required.**
 
-Support for the Great Expectations 0.18 line was removed in OpenMetadata 2.0. The `OpenMetadataValidationAction1xx` class and the `metadata.great_expectations.action1xx` module that shipped alongside it during the transition have also been removed — use `OpenMetadataValidationAction` from `metadata.great_expectations.action` instead.
+OpenMetadata 2.0 removes support for the Great Expectations 0.18 line. It also removes the `OpenMetadataValidationAction1xx` class and the `metadata.great_expectations.action1xx` module that shipped alongside it during the transition — use `OpenMetadataValidationAction` from `metadata.great_expectations.action` instead.
 
-Great Expectations 1.x removed the `great_expectations` CLI and the YAML checkpoint file. Checkpoints are now defined in Python, and the OpenMetadata action is passed as an object rather than an `action_list` entry. See [Upgrade Prerequisites](/v2.0.x-SNAPSHOT/deployment/upgrade) for the full list of breaking changes.
+Great Expectations 1.x removed the `great_expectations` CLI and the YAML checkpoint file. You now define checkpoints in Python and pass the OpenMetadata action as an object rather than as an `action_list` entry. See [Upgrade Prerequisites](/v2.0.x-SNAPSHOT/deployment/upgrade) for the full list of breaking changes.
 </Warning>
 
 ## Requirements
 
 ### OpenMetadata Requirements
-You will need to have OpenMetadata version 1.13 or later.
+You'll need OpenMetadata version 1.13 or later.
 
 To deploy OpenMetadata, follow the procedure to [Try OpenMetadata in Docker](/v2.0.x-SNAPSHOT/quick-start/local-docker-deployment).
 
@@ -122,12 +122,12 @@ checkpoint_result = checkpoint.run()
 
 **Properties**:
 
-- `config_file_path`: the path to the **directory** holding the `config.yaml` file that describes your OpenMetadata server connection
-- `database_service_name`: [Optional] the name of the service in OpenMetadata. If not specified and 2 tables have the same name in 2 different OpenMetadata services, the action will fail
-- `database_name`: [Optional] The database name as it appears in OpenMetadata. When omitted, the database of the execution engine the expectations ran against is used
-- `schema_name`: [Optional] The schema name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. Defaults to *default* if not specified
-- `table_name`: [Optional] The table name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. **Required** for query assets, where the table cannot be determined automatically
-- `expectation_suite_table_config_map`: [Optional] A dictionary mapping expectation suite names to their target OpenMetadata tables. Required when running multi-table checkpoints, where different expectation suites should send results to different tables. Each entry specifies the `database_name`, `schema_name` and `table_name` for routing validation results
+- `config_file_path`: The path to the **directory** holding the `config.yaml` file that describes your OpenMetadata server connection.
+- `database_service_name`: [Optional] The name of the service in OpenMetadata. If not specified and 2 tables have the same name in 2 different OpenMetadata services, the action will fail.
+- `database_name`: [Optional] The database name as it appears in OpenMetadata. When omitted, the action uses the database of the execution engine the expectations ran against.
+- `schema_name`: [Optional] The schema name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. Defaults to `default` if not specified.
+- `table_name`: [Optional] The table name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. **Required** for query assets, where the action can't determine the table automatically.
+- `expectation_suite_table_config_map`: [Optional] A dictionary mapping expectation suite names to their target OpenMetadata tables. Required when running multi-table checkpoints, where different expectation suites should send results to different tables. Each entry specifies the `database_name`, `schema_name`, and `table_name` for routing validation results.
 
 <Info>
 Every part of the table name has to resolve before the action writes anything. The action looks in three places: its own configuration, the suite mapping, and the batch spec. If it can't determine the database, schema, or table, the run fails with an error naming the missing parts instead of writing to the wrong table.
@@ -160,12 +160,12 @@ Once the run completes, the test cases and their results appear on the table's D
 
 ## Multi-Table Checkpoints
 
-When validating **multiple tables in a single checkpoint**, use the `expectation_suite_table_config_map` parameter to route validation results to the correct OpenMetadata tables. This is necessary because:
-- Each expectation suite might target a different table
-- The checkpoint action needs to know where to send each suite's results
-- Without the mapping, all results would attempt to go to the same default table
+When validating multiple tables in a single checkpoint, use the `expectation_suite_table_config_map` parameter to route validation results to the correct OpenMetadata tables. This is necessary because:
+- Each expectation suite might target a different table.
+- The checkpoint action needs to know where to send each suite's results.
+- Without the mapping, all results would attempt to go to the same default table.
 
-This matters most for **query assets**: a query asset's batch spec carries the query, not the table it reads from, so the mapping is the only way the action can tell where the results belong.
+This matters most for query assets: A query asset's batch spec carries the query, not the table it reads from, so the mapping is the only way the action can tell where the results belong.
 
 ```python
 import great_expectations as gx
