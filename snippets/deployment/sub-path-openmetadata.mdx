@@ -1,8 +1,10 @@
 ## Subpath in OpenMetadata
 
-To configure **OpenMetadata** to operate under a subpath (e.g., `/openmetadata`)—useful when deploying behind a reverse proxy or load balancer—you need to adjust specific settings in the `openmetadata.yaml` configuration file.
+To configure **OpenMetadata** to operate under a subpath (for example `/openmetadata`), useful when deploying behind a reverse proxy or load balancer, you need to adjust specific settings in the `openmetadata.yaml` configuration file.
 
----
+<Warning>
+**`BASE_PATH` must not have a trailing slash**, but `basePath` in `openmetadata.yaml` needs one. OpenMetadata builds static asset URLs by appending directly to `basePath` with no separator, so if it's missing the trailing slash, requests resolve to `/openmetadataassets/...` instead of `/openmetadata/assets/...` and every static asset 404s.
+</Warning>
 
 ## Configuration Steps
 
@@ -10,20 +12,20 @@ To configure **OpenMetadata** to operate under a subpath (e.g., `/openmetadata`)
 
 Define the `basePath` parameter to configure the application's root context, and ensure that the `publicKeyUrl` is updated accordingly to reflect the new base path.
 
-This sets the root context for the application.
+This sets the root context for the application. Note the trailing slash on `basePath`:
 
 ```yaml
-basePath: ${BASE_PATH:-/openmetadata}
+basePath: ${BASE_PATH:-/openmetadata}/
 ```
 
-This configuration sets the base path to /openmetadata by default. You can override it by setting the BASE_PATH environment variable.
+This configuration sets the base path to /openmetadata by default. You can override it by setting the BASE_PATH environment variable: set `BASE_PATH` itself **without** a trailing slash (e.g., `BASE_PATH=/openmetadata`), since the `/` above is appended for you.
 
 ### 2. Configure Web Paths
 
-Configure the web application and API endpoint paths to align with the specified base path.
+Configure the web application and API endpoint paths to align with the specified base path. These settings live under the top-level `server:` block:
 
 ```yaml
-web:
+server:
   applicationContextPath: ${BASE_PATH:-/openmetadata}
   rootPath: ${BASE_PATH:-/openmetadata}api/*
 ```
@@ -51,10 +53,10 @@ assets:
 Here's how the relevant section of your `openmetadata.yaml` might look:
 
 ```yaml
-basePath: ${BASE_PATH:-/openmetadata}
+basePath: ${BASE_PATH:-/openmetadata}/
 publicKeyUrl: ${BASE_PATH:-/}api/v1/system/config/jwks
 
-web:
+server:
   applicationContextPath: ${BASE_PATH:-/openmetadata}
   rootPath: ${BASE_PATH:-/openmetadata}api/*
 
