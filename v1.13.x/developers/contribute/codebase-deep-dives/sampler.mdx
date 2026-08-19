@@ -106,14 +106,17 @@ Defined in `models.py`:
 
 ```
 SampleConfig
-  ├── profileSample: float         # Percentage (e.g., 50.0) or row count
-  ├── profileSampleType: PERCENTAGE | ROWS
-  ├── samplingMethodType: BERNOULLI | SYSTEM   # Database-specific method
+  ├── profileSampleConfig: ProfileSampleConfig | None
+  │     ├── sampleConfigType: STATIC | DYNAMIC
+  │     └── config: StaticSamplingConfig | DynamicSamplingConfig
+  │           ├── (static)  profileSample / profileSampleType / samplingMethodType
+  │           └── (dynamic) smartSampling: bool / thresholds: list
   └── randomizedSample: bool       # Whether to randomize row selection
 
-TableConfig
+TableConfig                        # extends BaseProfileConfig
   ├── fullyQualifiedName: str
-  ├── profileSample / profileSampleType / samplingMethodType
+  ├── profileSampleConfig: ProfileSampleConfig | None
+  ├── profileSample / profileSampleType / samplingMethodType   # resolved values
   ├── profileQuery: str            # Custom SQL for sampling
   ├── partitionConfig: ...         # Partition filtering
   └── columnConfig: ColumnConfig   # Include/exclude columns
@@ -277,7 +280,7 @@ Supports:
 For NoSQL databases (MongoDB, DynamoDB), `NoSQLSampler`:
 
 - Uses `NoSQLAdaptor` to abstract database-specific operations
-- Converts percentage to row count: `num_rows * (profileSample / 100)`
+- Converts percentage to row count: `num_rows * (profileSample / 100)`, using the sample resolved from `profileSampleConfig`
 - Calls `client.scan(limit=N)` for sampling
 - Transposes list-of-dicts format into columnar `TableData`
 
@@ -290,13 +293,19 @@ For NoSQL databases (MongoDB, DynamoDB), `NoSQLSampler`:
     Extend `SQASampler` and override `set_tablesample()`:
 
     ```python
+    from sqlalchemy import func
+
+    from metadata.generated.schema.type.staticSamplingConfig import StaticSamplingConfig
     from metadata.sampler.sqlalchemy.sampler import SQASampler
 
     class MyDBSampler(SQASampler):
-        def set_tablesample(self, selectable):
-            # Add your database's TABLESAMPLE clause
+        def set_tablesample(self, static: StaticSamplingConfig | None, selectable):
+            # Add your database's TABLESAMPLE clause. The static config is resolved
+            # by the caller, so dynamic sampling is already collapsed to a number.
+            if not static:
+                return selectable
             return selectable.tablesample(
-                func.bernoulli(self.sample_config.profileSample)
+                func.bernoulli(static.profileSample)
             )
     ```
   </Step>
