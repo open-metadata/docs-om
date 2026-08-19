@@ -1,0 +1,201 @@
+---
+title: Run the Google Drive Connector Externally
+description: Use YAML to configure Google Drive ingestion, enabling structured metadata extraction for files, folders, and Google Sheets.
+slug: /connectors/drive/googledrive/yaml
+sidebarTitle: Run Externally
+mode: "wide"
+collate: true
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.0.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfig from '/snippets/connectors/yaml/drive/googledrive-source-config.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/googledrive.webp'
+  name="Google Drive"
+  stage="BETA"
+  availableFeatures={["Metadata", "Owners", "Sample Data"]}
+  unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "Tags"]}
+/>
+In this section, we provide guides and references to use the Google Drive connector.
+Configure and schedule Google Drive metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Google Drive ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[googledrive]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/drive/googleDriveConnection.json)
+you can find the structure to create a connection to Google Drive.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Google Drive:
+<CodePreview>
+  <ContentPanel>
+    <ContentSection id={1} title="Source Configuration" lines="1-3">
+      Configure the source type and service name for your Google Drive connector.
+    </ContentSection>
+    <ContentSection id={2} title="GCP Credentials" lines="7-19">
+      **credentials**: GCP service account credentials used to access the Google Drive API. Provide the key file contents directly, or omit this block to fall back to [ADC authentication](https://cloud.google.com/docs/authentication#adc).
+    </ContentSection>
+    <ContentSection id={3} title="Delegated Email" lines="20">
+      **delegatedEmail** (Optional): Email address to impersonate using domain-wide delegation.
+    </ContentSection>
+    <ContentSection id={4} title="Drive ID" lines="21">
+      **driveId** (Optional): Specific shared drive ID to connect to. Leave unset to process all accessible drives.
+    </ContentSection>
+    <ContentSection id={5} title="Include Team Drives" lines="22">
+      **includeTeamDrives**: Include shared/team drives in metadata extraction. Defaults to `true`.
+    </ContentSection>
+    <ContentSection id={6} title="Include Google Sheets" lines="23">
+      **includeGoogleSheets**: Extract metadata for Google Sheets files. Defaults to `false`.
+    </ContentSection>
+    <ContentSection id={7} title="Filter Patterns" lines="24-33">
+      **directoryFilterPattern**, **fileFilterPattern**, **spreadsheetFilterPattern**, **worksheetFilterPattern** (all Optional): Regex to only include/exclude directories, files, spreadsheets, or worksheets that match the pattern.
+    </ContentSection>
+    <ContentSection id={8} title="Source Config" lines="34-64">
+      Configure Drive metadata ingestion options for Google Drive: which entity types to include, deletion handling, owners, and filter patterns.
+    </ContentSection>
+    <ContentSection id={9} title="Sink Configuration" lines="65-67">
+      <IngestionSinkDef />
+    </ContentSection>
+    <ContentSection id={10} title="Workflow Configuration" lines="68-84">
+      <WorkflowConfigDef />
+    </ContentSection>
+  </ContentPanel>
+  <CodePanel fileName="googledrive_config.yaml">
+```yaml
+source:
+  type: googledrive
+  serviceName: local_googledrive
+  serviceConnection:
+    config:
+      type: GoogleDrive
+      credentials:
+        gcpConfig:
+          type: service_account
+          projectId: my-gcp-project
+          privateKeyId: "9dd8...db55"
+          privateKey: |
+            -----BEGIN PRIVATE KEY-----
+            <your_private_key_content>
+            -----END PRIVATE KEY-----
+          clientEmail: gdrive-connector@my-gcp-project.iam.gserviceaccount.com
+          clientId: "1234567890"
+          authUri: https://accounts.google.com/o/oauth2/auth
+          tokenUri: https://oauth2.googleapis.com/token
+          authProviderX509CertUrl: https://www.googleapis.com/oauth2/v1/certs
+          clientX509CertUrl: https://www.googleapis.com/robot/v1/metadata/x509/gdrive-connector%40my-gcp-project.iam.gserviceaccount.com
+      # delegatedEmail: user@yourcompany.com
+      # driveId: 0AbCdEfGhIjKlMnOpQ
+      includeTeamDrives: true
+      includeGoogleSheets: false
+      # directoryFilterPattern:
+      #   includes:
+      #     - /Reports/.*
+      #   excludes:
+      #     - /Archive/.*
+      # fileFilterPattern:
+      #   includes:
+      #     - .*\.pdf
+      #   excludes:
+      #     - .*_backup\..*
+      # spreadsheetFilterPattern:
+      #   includes:
+      #     - ^report_.*
+      # worksheetFilterPattern:
+      #   includes:
+      #     - ^Summary.*
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+### Configuration Examples
+#### Service Account with Domain-Wide Delegation
+```yaml
+source:
+  type: googledrive
+  serviceName: googledrive_prod
+  serviceConnection:
+    config:
+      type: GoogleDrive
+      credentials:
+        gcpConfig:
+          type: service_account
+          projectId: my-gcp-project
+          privateKeyId: "9dd8...db55"
+          privateKey: |
+            -----BEGIN PRIVATE KEY-----
+            <your_private_key_content>
+            -----END PRIVATE KEY-----
+          clientEmail: gdrive-connector@my-gcp-project.iam.gserviceaccount.com
+          clientId: "1234567890"
+          authUri: https://accounts.google.com/o/oauth2/auth
+          tokenUri: https://oauth2.googleapis.com/token
+          authProviderX509CertUrl: https://www.googleapis.com/oauth2/v1/certs
+          clientX509CertUrl: https://www.googleapis.com/robot/v1/metadata/x509/gdrive-connector%40my-gcp-project.iam.gserviceaccount.com
+      delegatedEmail: shared-drives@yourcompany.com
+      includeTeamDrives: true
+```
+#### Google Sheets Ingestion with Filtering
+```yaml
+source:
+  type: googledrive
+  serviceName: googledrive_analytics
+  serviceConnection:
+    config:
+      type: GoogleDrive
+      credentials:
+        gcpConfig:
+          type: service_account
+          projectId: my-gcp-project
+          privateKeyId: "9dd8...db55"
+          privateKey: |
+            -----BEGIN PRIVATE KEY-----
+            <your_private_key_content>
+            -----END PRIVATE KEY-----
+          clientEmail: gdrive-connector@my-gcp-project.iam.gserviceaccount.com
+          clientId: "1234567890"
+          authUri: https://accounts.google.com/o/oauth2/auth
+          tokenUri: https://oauth2.googleapis.com/token
+          authProviderX509CertUrl: https://www.googleapis.com/oauth2/v1/certs
+          clientX509CertUrl: https://www.googleapis.com/robot/v1/metadata/x509/gdrive-connector%40my-gcp-project.iam.gserviceaccount.com
+      includeGoogleSheets: true
+      spreadsheetFilterPattern:
+        includes:
+          - ^report_.*
+        excludes:
+          - ^draft_.*
+      worksheetFilterPattern:
+        includes:
+          - ^Summary.*
+        excludes:
+          - ^Sheet\d+$
+```
+<IngestionCli />
+## Related
+<Columns cols={2}>
+  <Card title="Configure Ingestion Externally" href="/v2.0.x-SNAPSHOT/deployment/ingestion">
+    Deploy, configure, and manage the ingestion workflows externally.
+  </Card>
+</Columns>
