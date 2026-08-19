@@ -228,3 +228,54 @@ WHERE user_id > 1
 You can refer to [this redshift documentation](https://docs.aws.amazon.com/redshift/latest/dg/SYS_QUERY_HISTORY.html) to find out more about the `SYS_QUERY_HISTORY` view.
 
 For example if you want to add a condition to filter out queries executed by metabase client, i.e. the queries staring with `-- metabase %` then you can put the condition as `query NOT LIKE '--metabase %'`.
+
+
+## Exasol Filter Condition
+
+OpenMetadata reads the query history from Exasol's `EXA_DBA_AUDIT_SQL` and
+`EXA_DBA_AUDIT_SESSIONS` system tables. The following query shows the base
+query used by the workflow. Your conditions, as specified in the UI or YAML,
+will be inserted at the `{**your filter condition**}` placeholder.
+
+```sql
+SELECT
+    s.sql_text AS query_text,
+    s.command_name AS query_type,
+    se.user_name AS user_name,
+    s.start_time AS start_time,
+    s.stop_time AS end_time,
+    s.duration AS duration
+FROM EXA_DBA_AUDIT_SQL s
+JOIN EXA_DBA_AUDIT_SESSIONS se
+    ON s.session_id = se.session_id
+WHERE s.sql_text NOT LIKE '/* {{"app": "OpenMetadata", %%}} */%%'
+    AND s.sql_text NOT LIKE '/* {{"app": "dbt", %%}} */%%'
+    AND start_time BETWEEN
+        TO_TIMESTAMP('{start_time}')
+        AND TO_TIMESTAMP('{end_time}')
+    AND (
+        s.command_name IN ('MERGE', 'UPDATE', 'CREATE TABLE AS', 'CREATE VIEW')
+        OR (
+            s.command_name = 'INSERT'
+            AND LOWER(s.sql_text) LIKE '%insert%into%select%from%'
+        )
+    )
+    AND {**your filter condition**}
+LIMIT {result_limit};
+```
+
+This combined query represents the base Exasol query and the workflow-specific
+lineage filter applied by OpenMetadata. See the [base query](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/ingestion/source/database/exasol/queries.py)
+and the [lineage filter](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/ingestion/source/database/exasol/lineage.py).
+Select the corresponding release tag or branch in GitHub to inspect a specific
+OpenMetadata version.
+
+For more information about the query history table, see the [Exasol
+documentation](https://docs.exasol.com/db/latest/sql_references/system_tables/statistical/exa_dba_audit_sql.htm).
+
+For example, to filter out queries issued by the Metabase client when their
+text starts with `-- metabase %`, use the following condition:
+
+```sql
+sql_text NOT LIKE '-- metabase %'
+```

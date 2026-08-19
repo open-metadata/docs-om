@@ -25,12 +25,12 @@ Manage the profiler configuration for a table and retrieve profiling results inc
   UUID of the table.
 </ParamField>
 
-<ParamField body="profileSample" type="number">
-  Sample size for profiling (percentage or row count depending on `profileSampleType`).
-</ParamField>
+<ParamField body="profileSampleConfig" type="object">
+  How much data to profile. Contains `sampleConfigType` (`STATIC` or `DYNAMIC`, defaults to `DYNAMIC`) and a `config` object holding the settings for that type.
 
-<ParamField body="profileSampleType" type="string">
-  Type of sample: `PERCENTAGE` or `ROWS`.
+  For `STATIC`, `config` takes `profileSample` (number), `profileSampleType` (`PERCENTAGE` or `ROWS`) and optionally `samplingMethodType` (`BERNOULLI` or `SYSTEM`).
+
+  For `DYNAMIC`, `config` takes `smartSampling` (boolean, defaults to `true`) and optionally `thresholds`, a list of `{rowCountThreshold, profileSample}` tiers.
 </ParamField>
 
 <ParamField body="sampleDataCount" type="integer">
@@ -111,20 +111,25 @@ table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Get profiler config
 config = Tables.get_profiler_config(table_id)
-print(f"Sample: {config.get('profileSample')}%")
+sample_config = config.get("profileSampleConfig", {}).get("config", {})
+print(f"Sample: {sample_config.get('profileSample')}%")
 
 # Set profiler config - profile 50% of rows
 Tables.set_profiler_config(table_id, {
-    "profileSample": 50,
-    "profileSampleType": "PERCENTAGE",
+    "profileSampleConfig": {
+        "sampleConfigType": "STATIC",
+        "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
+    },
     "sampleDataCount": 200,
     "excludeColumns": ["created_at"]
 })
 
 # Set profiler config with specific column metrics
 Tables.set_profiler_config(table_id, {
-    "profileSample": 100,
-    "profileSampleType": "PERCENTAGE",
+    "profileSampleConfig": {
+        "sampleConfigType": "STATIC",
+        "config": {"profileSample": 100, "profileSampleType": "PERCENTAGE"}
+    },
     "includeColumns": [
         {"columnName": "email", "metrics": ["distinctCount", "nullCount"]},
         {"columnName": "name", "metrics": ["distinctCount", "maxLength", "minLength"]}
@@ -145,8 +150,10 @@ var config = Tables.getProfilerConfig(tableId);
 
 // Set profiler config
 Tables.setProfilerConfig(tableId, Map.of(
-    "profileSample", 50,
-    "profileSampleType", "PERCENTAGE",
+    "profileSampleConfig", Map.of(
+        "sampleConfigType", "STATIC",
+        "config", Map.of("profileSample", 50, "profileSampleType", "PERCENTAGE")
+    ),
     "sampleDataCount", 200,
     "excludeColumns", List.of("created_at")
 ));
@@ -165,8 +172,10 @@ curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profi
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
-    "profileSample": 50,
-    "profileSampleType": "PERCENTAGE",
+    "profileSampleConfig": {
+      "sampleConfigType": "STATIC",
+      "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
+    },
     "sampleDataCount": 200,
     "excludeColumns": ["performance_score"]
   }'
@@ -192,8 +201,10 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfil
 <ResponseExample>
 ```json Response (Profiler Config)
 {
-  "profileSample": 50,
-  "profileSampleType": "PERCENTAGE",
+  "profileSampleConfig": {
+    "sampleConfigType": "STATIC",
+    "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
+  },
   "sampleDataCount": 200,
   "excludeColumns": ["created_at"]
 }
@@ -218,12 +229,8 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfil
 
 ## Response (Profiler Config)
 
-<ResponseField name="profileSample" type="number">
-  Sample size for profiling.
-</ResponseField>
-
-<ResponseField name="profileSampleType" type="string">
-  Type of sample: `PERCENTAGE` or `ROWS`.
+<ResponseField name="profileSampleConfig" type="object">
+  How much data is profiled. Contains `sampleConfigType` (`STATIC` or `DYNAMIC`) and a `config` object holding the settings for that type.
 </ResponseField>
 
 <ResponseField name="sampleDataCount" type="integer">
