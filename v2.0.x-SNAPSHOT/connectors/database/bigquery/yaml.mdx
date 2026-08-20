@@ -100,13 +100,25 @@ Configure the source type and service name for your BigQuery connector.
 
 </ContentSection>
 
-<ContentSection id={2} title="Connection Type" lines="2">
+<ContentSection id={2} title="Connection Type" lines="6">
 
 **type**: Set to `BigQuery` for BigQuery connections.
 
 </ContentSection>
 
-<ContentSection id={3} title="Credentials" lines="7-8">
+<ContentSection id={3} title="Host and Port" lines="7">
+
+**hostPort**: The ingestion runtime uses the BigQuery API endpoint `bigquery.googleapis.com`. Custom `hostPort` values are not currently applied.
+
+</ContentSection>
+
+<ContentSection id={4} title="Billing Project ID" lines="8">
+
+**billingProjectId** (Optional): The GCP project that should be charged for the BigQuery jobs OpenMetadata runs. Use this when the project that pays for metadata, usage, or lineage queries is different from the project ID or IDs you ingest from.
+
+</ContentSection>
+
+<ContentSection id={5} title="Credentials" lines="9-10">
 
 **credentials**: You can authenticate with your BigQuery instance using either `GCP Credentials Path` where you can specify the file path of the service account key or you can pass the values directly by choosing the `GCP Credentials Values` from the service account key file.
 
@@ -114,7 +126,7 @@ You can checkout [this](https://cloud.google.com/iam/docs/keys-create-delete#iam
 
 </ContentSection>
 
-<ContentSection id={4} title="GCP Configuration" lines="8">
+<ContentSection id={6} title="GCP Configuration" lines="10-23">
 
 <div>
 
@@ -158,7 +170,21 @@ credentials:
 
 </ContentSection>
 
-<ContentSection id={5} title="Taxonomy Configuration" lines="9">
+<ContentSection id={7} title="GCP Impersonate Service Account" lines="24-26">
+
+**gcpImpersonateServiceAccount** (Optional): Enable the authenticated service account to impersonate another service account, instead of ingesting directly with the credentials above.
+- **impersonateServiceAccount**: The email of the service account to impersonate.
+- **lifetime**: Number of seconds the delegated credential should remain valid. Defaults to `3600`.
+
+</ContentSection>
+
+<ContentSection id={8} title="Include Policy Tags" lines="27">
+
+**includePolicyTags** (Optional): Option to include policy tags as part of the column description. Enabled by default.
+
+</ContentSection>
+
+<ContentSection id={9} title="Taxonomy Configuration" lines="28-29">
 
 <div>
 
@@ -176,33 +202,27 @@ If you have attached policy tags to the columns of table available in BigQuery, 
 
 </ContentSection>
 
-<ContentSection id={6} title="Usage Location" lines="10">
+<ContentSection id={10} title="Usage Location" lines="30">
 
 **Usage Location (Optional)**: Location used to query `INFORMATION_SCHEMA.JOBS_BY_PROJECT` to fetch usage data. You can pass multi-regions, such as `us` or `eu`, or your specific region such as `us-east1`. Australia and Asia multi-regions are not yet supported.
 
 </ContentSection>
 
-<ContentSection id={7} title="Cost Per TiB" lines="11">
+<ContentSection id={11} title="Cost Per TiB" lines="31">
 
 **Cost Per TiB (Optional)**: The cost (in USD) per tebibyte (TiB) of data processed during BigQuery usage analysis. This value is used to estimate query costs when analyzing usage metrics from `INFORMATION_SCHEMA.JOBS_BY_PROJECT`.
 
-This setting does **not** affect actual billing—it is only used for internal reporting and visualization of estimated costs. The default value, if not set, may assume the standard on-demand BigQuery pricing (e.g., $5.00 per TiB), but you should adjust it according to your organization's negotiated rates or flat-rate pricing model.
+This setting does **not** affect actual billing—it is only used for internal reporting and visualization of estimated costs. The default value is $6.25 per TiB; adjust it according to your organization's negotiated rates or flat-rate pricing model.
 
 </ContentSection>
 
-<ContentSection id={8} title="Billing Project ID" lines="12">
-
-**Billing Project ID (Optional)**: A billing project ID is a unique string used to identify and authorize your project for billing in Google Cloud.
-
-</ContentSection>
-
-<ContentSection id={9} title="Connection Options" lines="13">
+<ContentSection id={12} title="Connection Options" lines="32-33">
 
 **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
 
 </ContentSection>
 
-<ContentSection id={10} title="Connection Arguments" lines="14">
+<ContentSection id={13} title="Connection Arguments" lines="34-35">
 
 **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
 
@@ -210,19 +230,19 @@ This setting does **not** affect actual billing—it is only used for internal r
 
 </ContentSection>
 
-<ContentSection id={11} title="Source Config" lines="18-61">
+<ContentSection id={14} title="Source Config" lines="36-79">
 
 <SourceConfigDef />
 
 </ContentSection>
 
-<ContentSection id={12} title="Sink Configuration" lines="62-64">
+<ContentSection id={15} title="Sink Configuration" lines="80-82">
 
 <IngestionSinkDef />
 
 </ContentSection>
 
-<ContentSection id={13} title="Workflow Configuration" lines="65-81">
+<ContentSection id={16} title="Workflow Configuration" lines="83-99">
 
 <WorkflowConfigDef />
 
@@ -239,6 +259,8 @@ source:
   serviceConnection:
     config:
       type: BigQuery
+      # hostPort: bigquery.googleapis.com
+      # billingProjectId: project-id-1
       credentials:
         gcpConfig:
 ```
@@ -246,11 +268,14 @@ source:
 <GcpConfig />
 
 ```yaml
-      # taxonomyLocation: us
+        # gcpImpersonateServiceAccount:
+        #   impersonateServiceAccount: target-service-account@project.iam.gserviceaccount.com
+        #   lifetime: 3600
+      # includePolicyTags: true
       # taxonomyProjectID: ["project-id-1", "project-id-2"]
+      # taxonomyLocation: us
       # usageLocation: us
-      # costPerTiB: 5.00
-      # billingProjectId: project-id-1
+      # costPerTB: 5.00
       # connectionOptions:
       #   key: value
       # connectionArguments:
