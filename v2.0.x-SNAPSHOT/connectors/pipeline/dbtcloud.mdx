@@ -3,11 +3,9 @@ title: dbt Cloud Connector | OpenMetadata Pipeline Integration
 description: Connect dbt Cloud to OpenMetadata with our comprehensive pipeline connector guide. Setup instructions, configuration examples, and troubleshooting tips.
 sidebarTitle: Overview
 ---
-import ConfigureIngestion from '/snippets/connectors/pipeline/configure-ingestion.mdx'
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/dbtcloud.webp'
@@ -16,60 +14,152 @@ stage="PROD"
 availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Usage"]}
 unavailableFeatures={["Owners", "Tags"]} />
 In this section, we provide guides and references to use the dbt Cloud connector.
-Configure and schedule dbt Cloud metadata and profiler workflows from the OpenMetadata UI:
+Configure and schedule dbt Cloud metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
-    - [dbt Cloud Versions](#dbt-cloud-versions)
 - [Metadata Ingestion](#metadata-ingestion)
-    - [Service Name](#metadata-ingestion)
-    - [Connection Details](#connection-details)
-    - [Metadata Ingestion Options](#metadata-ingestion-options)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/pipeline/dbtcloud/troubleshooting)
-    - [Workflow Deployment Error](/v2.0.x-SNAPSHOT/connectors/pipeline/dbtcloud/troubleshooting#workflow-deployment-error)
+
 ## Requirements
+
+Before configuring the dbt Cloud connector, make sure the following requirements are in place.
+
 ### dbt Cloud Versions
+
 OpenMetadata is integrated with dbt Cloud up to version [1.8](https://docs.getdbt.com/docs/get-started-dbt) and will continue to work for future dbt Cloud versions.
-The Ingestion framework uses [dbt Cloud APIs](https://docs.getdbt.com/dbt-cloud/api-v2#/) to connect to dbt Cloud and fetch metadata.
+The ingestion framework uses [dbt Cloud APIs](https://docs.getdbt.com/dbt-cloud/api-v2#/) to connect to dbt Cloud and fetch metadata.
+
 ### dbt Cloud Permissions
+
 The dbt Cloud API User token or Service account token must have the permission to fetch metadata.
 To know more about permissions required refer [here](https://docs.getdbt.com/docs/dbt-cloud-apis/service-tokens#permissions-for-service-account-tokens).
+
 ### dbt Cloud Account
+
 - dbt Cloud [multi-tenant](https://docs.getdbt.com/docs/cloud/about-cloud/tenancy#multi-tenant) or [single tenant](https://docs.getdbt.com/docs/cloud/about-cloud/tenancy#single-tenant) account is required.
 - You must be on a [Team or Enterprise plan](https://www.getdbt.com/pricing/).
 - Your projects must be on dbt version 1.0 or later. Refer to [Upgrade dbt version in Cloud](https://docs.getdbt.com/docs/dbt-versions/upgrade-dbt-version-in-cloud) to upgrade.
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"DBT Cloud"} selectServicePath={"/public/images/connectors/dbtcloud/select-service.png"} addNewServicePath={"/public/images/connectors/dbtcloud/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/dbtcloud/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
+
+To ingest metadata from dbt Cloud, you need to create a service connection. The service connects dbt Cloud with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **dbt Cloud** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/dbtcloud.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other dbt Cloud services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/dbtcloud.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for dbt Cloud. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/dbtcloud.png)
+
+- **Host**: dbt Cloud Access URL, for example `https://abc12.us1.dbt.com`. Go to your dbt Cloud account settings to find your Access URL.
+- **Discovery API URL**: dbt Cloud Discovery API URL, for example `https://metadata.cloud.getdbt.com/graphql`. Go to your dbt Cloud account settings to find your Discovery API URL. Make sure you have `/graphql` at the end of your URL.
+- **Account Id**: The Account ID of your dbt Cloud Project. Go to your dbt Cloud account settings to find your Account Id. This is a numeric value, but OpenMetadata parses it as a string.
+- **Job Ids** *(Optional)*: Job IDs of your dbt Cloud Jobs in your Project to fetch metadata for. Look for the segment after "jobs" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the job ID is `73659994`. This is a numeric value, but OpenMetadata parses it as a string. If not passed, all Jobs under the Account Id will be ingested.
+- **Project Ids** *(Optional)*: Project IDs of your dbt Cloud Account to fetch metadata for. Look for the segment after "projects" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the project ID is `87477`. This is a numeric value, but OpenMetadata parses it as a string. If not passed, all Projects under the Account Id will be ingested.
+
+  Note that if both `Job Ids` and `Project Ids` are passed, jobs from the passed projects are filtered. Any `Job Ids` not belonging to the `Project Ids` are also filtered out.
+- **Token**: The Authentication Token of your dbt Cloud API Account. To get your access token, follow the docs [here](https://docs.getdbt.com/docs/dbt-cloud-apis/authentication). Make sure the token has the necessary permissions to run GraphQL queries and get job and run details.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dbt Cloud service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
 <Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
+Leave the filter pattern empty to ingest all pipelines available in the source.
 </Tip>
-- **Host**: dbt Cloud Access URL eg.`https://abc12.us1.dbt.com`. Go to your dbt Cloud account settings to know your Access URL.
-- **Discovery API URL** : dbt Cloud Access URL eg. `https://metadata.cloud.getdbt.com/graphql`. Go to your dbt Cloud account settings to know your Discovery API url. Make sure you have `/graphql` at the end of your URL.
-- **Account Id** : The Account ID of your dbt Cloud Project. Go to your dbt Cloud account settings to know your Account Id. This will be a numeric value but in openmetadata we parse it as a string.
-- **Job Ids** : Optional. Job IDs of your dbt Cloud Jobs in your Project to fetch metadata for. Look for the segment after "jobs" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the job ID is `73659994`. This will be a numeric value but in openmetadata we parse it as a string. If not passed all Jobs under the Account id will be ingested.
-- **Project Ids** : Optional. Project IDs of your dbt Cloud Account to fetch metadata for. Look for the segment after "projects" in the URL. For instance, in a URL like `https://cloud.getdbt.com/accounts/123/projects/87477/jobs/73659994`, the job ID is `87477`. This will be a numeric value but in openmetadata we parse it as a string. If not passed all Projects under the Account id will be ingested.
-Note that if both `Job Ids` and `Project Ids` are passed then it will filter out the jobs from the passed projects. any `Job Ids` not belonging to the `Project Ids` will also be filtered out.
-- **Token** : The Authentication Token of your dbt Cloud API Account. To get your access token you can follow the docs [here](https://docs.getdbt.com/docs/dbt-cloud-apis/authentication).
-Make sure you have the necessary permissions on the token to run graphql queries and get job and run details.
-</Step>
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which pipelines OpenMetadata ingests from dbt Cloud.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
 ## Displaying Lineage Information
+
 Steps to retrieve and display the lineage information for a dbt Cloud service. Note that only the metadata from the last run will be used for lineage.
-1. Ingest Source and Sink Database Metadata: Identify both the source and sink database used by the dbt Cloud service for example Redshift. Ingest metadata for these database.
-2. Ingest dbt Cloud Service Metadata: Finally, Ingest your dbt Cloud service.
+
+1. **Ingest Source and Sink Database Metadata**: Identify both the source and sink database used by the dbt Cloud service, for example Redshift. Ingest metadata for these databases.
+2. **Ingest dbt Cloud Service Metadata**: Finally, ingest your dbt Cloud service.
+
 By successfully completing these steps, the lineage information for the service will be displayed.
+
 <img src="/public/images/connectors/dbtcloud/lineage.png" alt="dbt Cloud Lineage" />
+
 ### Missing Lineage
+
 If lineage information is not displayed for a dbt Cloud service, follow these steps to diagnose the issue.
-1. *dbt Cloud Account*: Make sure that the dbt Cloud instance you are ingesting have the necessary permissions to fetch jobs and run graphql queries over the API.
-2. *Metadata Ingestion*: Ensure that metadata for both the source and sink database is ingested and passed to the lineage system. This typically involves configuring the relevant connectors to capture and transmit this information.
-3. *Last Run Successful*: Ensure that the Last Run for a Job is successful as OpenMetadata gets the metadata required to build the lineage using the last Run under a Job.
+
+1. **dbt Cloud Account**: Make sure that the dbt Cloud instance you are ingesting has the necessary permissions to fetch jobs and run GraphQL queries over the API.
+2. **Metadata Ingestion**: Ensure that metadata for both the source and sink database is ingested and passed to the lineage system. This typically involves configuring the relevant connectors to capture and transmit this information.
+3. **Last Run Successful**: Ensure that the Last Run for a Job is successful, as OpenMetadata gets the metadata required to build the lineage using the last Run under a Job.
+
+<Related />

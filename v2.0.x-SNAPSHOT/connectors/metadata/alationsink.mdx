@@ -3,12 +3,10 @@ title: Alation Sink | OpenMetadata Metadata Integration
 description: Connect Alation to OpenMetadata seamlessly with our AlationSink connector. Complete setup guide, configuration steps, and metadata sync instructions.
 sidebarTitle: Overview
 ---
-import ConfigureIngestion from '/snippets/connectors/metadata/configure-ingestion.mdx'
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
 import ExternalIngestionDeployment from '/snippets/v2.0.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentMetadata from '/snippets/connectors/metadata-agent/metadata.mdx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/alation.webp'
@@ -24,57 +22,146 @@ Configure and schedule Alation Sink metadata workflow from the OpenMetadata UI:
 - [Data Mapping and Assumptions](#data-mapping-and-assumptions)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/metadata/alationsink/troubleshooting)
+
 <ExternalIngestionDeployment />
+
 ## Requirements
+
 The connector uses `POST` requests to write the data into Alation.
-Hence, an user credentials or an access token with `Source Admin` or `Catalog Admin` or `Server Admin` permissions will be required.
-Follow the link [here](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-via-ui) to create the access token.
+Hence, user credentials or an access token with `Source Admin`, `Catalog Admin`, or `Server Admin` permissions will be required.
+Follow the [Alation API authentication guide](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-via-ui) to create the access token.
+
 ## Data Mapping and Assumptions
-Following entities are supported and will be mapped to the from OpenMetadata to the entities in Alation.
+
+Following entities are supported and will be mapped from OpenMetadata to the entities in Alation.
+
 | Alation Entity               | OpenMetadata Entity          |
 | :----------------------------| :--------------------------- |
 | Data Source (OCF)            | Database                     |
 | Schema                       | Schema                       |
 | Table                        | Table                        |
 | Columns                      | Columns                      |
+
 ## Metadata Ingestion
-Then, prepare the Alation Sink Service and configure the Ingestion:
-<MetadataIngestionUi connector={"AlationSink"} selectServicePath={"/public/images/connectors/alationsink/select-service.png"} addNewServicePath={"/public/images/connectors/alationsink/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/alationsink/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
+
+To ingest metadata from AlationSink, you need to create a service connection. The service connects AlationSink with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Metadata Services**, then click the **AlationSink** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Metadata/select-service/alationsink.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other AlationSink services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Metadata/service-name/alationsink.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for AlationSink. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Metadata/connection-details/alationsink.png)
+
 - **Host and Port**: Host and port of the Alation service.
 - **Authentication Types**:
     1. Basic Authentication
     - Username: The name of the user whose credentials will be used to sign in.
     - Password: The password of the user.
     2. Access Token Authentication
-    The access token created using the steps mentioned [here](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-via-ui) can directly be entered. We'll use that directly to authenticate the Alation APIs
+    The access token created using the steps in the [Alation API authentication guide](https://developer.alation.com/dev/docs/authentication-into-alation-apis#create-via-ui) can directly be entered. We'll use that directly to authenticate the Alation APIs.
     - accessToken: Generated access token
-- **Project Name**: Project name to create the refreshToken. Can be anything.
-- **Pagination Limit**: Pagination limit used for Alation APIs pagination
+- **Project Name**: Project name used to create the refresh token. It can be anything.
+- **Pagination Limit**: Pagination limit used for Alation APIs pagination.
 - **DataSource Links**: Add a custom mapping between OpenMetadata databases and Alation DataSources.
-If this mapping is present the connector will only look for the datasource in Alation to create other entities inside it. It will not create the datasource in Alation and it'll need to be created beforehand.
-The mapping needs to be of the format `alation_datasource_id: openmetadata_database_fqn`
-Here `alation_datasource_id` corresponds to the numerical id of the datasource in alation.
+If this mapping is present, the connector will only look for the data source in Alation to create other entities inside it. It will not create the data source in Alation, so it needs to be created beforehand.
+The mapping needs to be of the format `alation_datasource_id: openmetadata_database_fqn`.
+Here `alation_datasource_id` corresponds to the numerical ID of the data source in Alation.
 And `openmetadata_database_fqn` corresponds to the fullyQualifiedName of the database in OpenMetadata.
 Below is an example of the mapping:
+
 ```yaml
 datasourceLinks: {
     "23": "sample_data.ecommerce_db",
     "15": "mysql_prod.customers_db",
 }
 ```
-</Step>
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your source. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentMetadata />
+
+<Related />

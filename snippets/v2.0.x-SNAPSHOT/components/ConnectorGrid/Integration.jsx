@@ -40,6 +40,7 @@ export const Integrations = () => {
                 { name: 'Greenplum', image: '/public/images/connectors/greenplum.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/greenplum' },
                 { name: 'Hive', image: '/public/images/connectors/hive.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/hive' },
                 { name: 'Impala', image: '/public/images/connectors/impala.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/impala' },
+                { name: 'IOMETE', image: '/public/images/connectors/iomete.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/iomete' },
                 { name: 'MariaDB', image: '/public/images/connectors/mariadb.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/mariadb' },
                 { name: 'MongoDB', image: '/public/images/connectors/mongodb.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/mongodb' },
                 { name: 'MSSQL', image: '/public/images/connectors/mssql.webp', link: '/v2.0.x-SNAPSHOT/connectors/database/mssql' },
@@ -81,6 +82,7 @@ export const Integrations = () => {
                 { name: 'Metabase', image: '/public/images/connectors/metabase.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/metabase' },
                 { name: 'MicroStrategy', image: '/public/images/connectors/microstrategy.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/microstrategy' },
                 { name: 'Mode', image: '/public/images/connectors/mode.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/mode' },
+                { name: 'Omni', image: '/public/images/connectors/omni.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/omni' },
                 { name: 'Power BI', image: '/public/images/connectors/power-bi.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/powerbi' },
                 { name: 'SSRS', image: '/public/images/connectors/ssrs.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/ssrs' },
                 { name: 'Redash', image: '/public/images/connectors/redash.webp', link: '/v2.0.x-SNAPSHOT/connectors/dashboard/redash' },
@@ -104,6 +106,7 @@ export const Integrations = () => {
                 { name: 'Flink', image: '/public/images/connectors/flink.png', link: '/v2.0.x-SNAPSHOT/connectors/pipeline/flink' },
                 { name: 'NiFi', image: '/public/images/connectors/apachenifi.webp', link: '/v2.0.x-SNAPSHOT/connectors/pipeline/nifi' },
                 { name: 'OpenLineage', image: '/public/images/connectors/openlineage.png', link: '/v2.0.x-SNAPSHOT/connectors/pipeline/openlineage' },
+                { name: 'Prefect', image: '/public/images/connectors/prefect.svg', link: '/v2.0.x-SNAPSHOT/connectors/pipeline/prefect' },
                 { name: 'Spline', image: '/public/images/connectors/spline.webp', link: '/v2.0.x-SNAPSHOT/connectors/pipeline/spline' },
             ],
         },
@@ -133,6 +136,14 @@ export const Integrations = () => {
             services: [
                 { name: 'AlationSink', image: '/public/images/connectors/alation.webp', link: '/v2.0.x-SNAPSHOT/connectors/metadata/alationsink' },
                 { name: 'Atlas', image: '/public/images/connectors/atlas.webp', link: '/v2.0.x-SNAPSHOT/connectors/metadata/atlas' },
+            ],
+        },
+        {
+            connector: 'Drive',
+            services: [
+                { name: 'Custom Drive', image: '/public/images/connectors/googledrive.webp', link: '/v2.0.x-SNAPSHOT/connectors/drive/custom-drive' },
+                { name: 'Google Drive', image: '/public/images/connectors/googledrive.webp', link: '/v2.0.x-SNAPSHOT/connectors/drive/googledrive' },
+                { name: 'SFTP', image: '/public/images/connectors/sftp.webp', link: '/v2.0.x-SNAPSHOT/connectors/drive/sftp' },
             ],
         },
     ];

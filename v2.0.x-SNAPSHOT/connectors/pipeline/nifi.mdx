@@ -3,11 +3,9 @@ title: Nifi Connector | OpenMetadata Data Pipeline Integration
 description: Connect Apache NiFi to OpenMetadata seamlessly. Complete setup guide for NiFi pipeline connector with step-by-step configuration and metadata extraction.
 sidebarTitle: Overview
 ---
-import ConfigureIngestion from '/snippets/connectors/pipeline/configure-ingestion.mdx'
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/apachenifi.webp'
@@ -20,40 +18,126 @@ Configure and schedule NiFi metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/pipeline/nifi/troubleshooting)
+
 ## Requirements
+
+Before configuring the NiFi connector, make sure the following requirements are in place.
+
 ### Metadata
+
 OpenMetadata supports 2 types of connection for the NiFi connector:
-- **basic authentication**: use username/password to authenticate to NiFi.
-- **client certificate authentication**: use CA, client certificate and client key files to authenticate.
-The user should be able to send request to the NiFi API and access the `Resources` endpoint.
+- **Basic authentication**: use username/password to authenticate to NiFi.
+- **Client certificate authentication**: use CA, client certificate and client key files to authenticate.
+
+The user should be able to send requests to the NiFi API and access the `Resources` endpoint.
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"NiFi"} selectServicePath={"/public/images/connectors/nifi/select-service.png"} addNewServicePath={"/public/images/connectors/nifi/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/nifi/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
-- **Host and Port**: Pipeline Service Management/UI URI. This should be specified as a string in the format 'hostname:port'.
+
+To ingest metadata from NiFi, you need to create a service connection. The service connects NiFi with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **NiFi** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/nifi.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other NiFi services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/nifi.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for NiFi. A help panel displays inline guidance for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/nifi.png)
+
+- **Host and Port**: Pipeline Service Management/UI URI. This should be specified as a string in the format `hostname:port`.
 - **NiFi Config**: OpenMetadata supports username/password or client certificate authentication.
-    1. Basic Authentication
-        - Username: Username to connect to NiFi. This user should be able to send request to the Nifi API and access the `Resources` endpoint.
+    - **Basic Authentication**
+        - Username: Username to connect to NiFi. This user should be able to send requests to the NiFi API and access the `Resources` endpoint.
         - Password: Password to connect to NiFi.
-        - Verify SSL: Whether SSL verification should be perform when authenticating.
-    2. Client Certificate Authentication
-        - Certificate Authority Path: Path to the certificate authority (CA) file. This is the certificate used to store and issue your digital certificate. This is an optional parameter. If omitted SSL verification will be skipped; this can present some sever security issue.
-        **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
+        - Verify SSL: Whether SSL verification should be performed when authenticating.
+    - **Client Certificate Authentication**
+        - Certificate Authority Path: Path to the certificate authority (CA) file. This is the certificate used to store and issue your digital certificate. This is an optional parameter. If omitted, SSL verification will be skipped; this can present a severe security issue.
+        **Important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using the OpenMetadata Ingestion Docker container, this file should be in this container.
         - Client Certificate Path: Path to the certificate client file.
-        **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
+        **Important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using the OpenMetadata Ingestion Docker container, this file should be in this container.
         - Client Key Path: Path to the client key file.
-        **important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using OpenMetadata Ingestion Docker container, this file should be in this container.
-</Step>
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+        **Important**: This file should be accessible from where the ingestion workflow is running. For example, if you are using the OpenMetadata Ingestion Docker container, this file should be in this container.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your NiFi service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which pipelines (process groups) OpenMetadata ingests from NiFi.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

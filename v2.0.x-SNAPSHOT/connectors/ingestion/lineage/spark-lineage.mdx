@@ -1,113 +1,135 @@
 ---
-title: Spark Lineage Ingestion
+title: "Spark Lineage Ingestion"
+description: "Capture table- and column-level lineage from Apache Spark jobs in OpenMetadata using the native OpenLineage Spark integration. Includes guides for both Spark 3.x and Spark 2.4.x."
 sidebarTitle: Spark Lineage
 ---
 
 # Spark Lineage Ingestion
 
-A spark job may involve movement/transfer of data which may result into a data lineage, to capture such lineages you can make use of `OpenMetadata Spark Agent` which you can configure with your spark session and capture these spark lineages into your OpenMetadata instance.
+A Spark job often moves or transforms data between tables, producing data lineage. OpenMetadata captures this lineage directly from the **standard [OpenLineage](https://openlineage.io/) Spark integration**: the open-source `openlineage-spark` listener used across the data ecosystem, with no custom agent required.
 
-In this guide we will explain how you can make use of the `OpenMetadata Spark Agent` to capture such lineage.
+<Warning>
+**Important**:
+**The `openmetadata-spark-agent.jar` is superseded by the OpenLineage Spark listener — use the listener directly.**
 
-- [Requirements](#requirement)
-- [Configuration](#configuration)
-- [Using Spark Agent with Databricks](#using-spark-agent-with-databricks)
-- [Using Spark Agent with Glue](#using-spark-agent-with-glue)
+Earlier versions of this guide asked you to download and configure the custom `openmetadata-spark-agent.jar`. That JAR is **no longer required**. OpenMetadata now consumes OpenLineage events natively over HTTP at `POST /api/v1/openlineage/lineage`, so you can point the upstream `io.openlineage:openlineage-spark` listener straight at OpenMetadata.
 
-## Requirement
+If you're still running the custom Spark Agent, migrate by changing two things in your Spark configuration:
+- Swap the agent JAR (`openmetadata-spark-agent.jar`) for the upstream `io.openlineage:openlineage-spark` package.
+- Replace the `spark.openmetadata.transport.*` properties with the `spark.openlineage.transport.*` HTTP transport properties shown below.
+</Warning>
 
-To use the `OpenMetadata Spark Agent`, you will have to download the latest jar from [here](https://github.com/open-metadata/openmetadata-spark-agent/releases).
+## How it works
 
-We support spark version 3.1 and above.
+1. You add the open-source `openlineage-spark` listener to your Spark session.
+2. The listener emits OpenLineage run events as your job reads and writes data.
+3. You point the listener's **HTTP transport** at OpenMetadata's OpenLineage endpoint (`/api/v1/openlineage/lineage`), authenticating with an OpenMetadata bot JSON Web Token (JWT).
+4. OpenMetadata resolves the datasets in each event to existing tables, builds table- and column-level lineage, and records a pipeline for the Spark job.
 
+- [Requirements](#requirements)
+- [Choosing the right JAR](#choosing-the-right-jar)
+- [Spark 3.x Configuration](#spark-3-x-configuration)
+- [Spark 2.4.x Configuration](#spark-2-4-x-configuration)
+- [Using OpenLineage with Databricks](#using-openlineage-with-databricks)
+- [Using OpenLineage with Glue](#using-openlineage-with-glue)
 
-## Configuration
+## Requirements
 
-While configuring the spark session, in this guide we will make use of PySpark to demonstrate the use of `OpenMetadata Spark Agent`
+- A Spark cluster running **Spark 2.4.x** or **Spark 3.x** (see the version-specific sections below for the right JAR).
+- Network access from your Spark driver to your OpenMetadata instance.
+- An OpenMetadata **bot JWT token** for authentication. See [Generate Token](/v2.0.x-SNAPSHOT/deployment/security/enable-jwt-tokens#generate-token) for how to generate one.
 
+<Info>
+**Resolving datasets to your tables.** OpenMetadata matches the datasets in OpenLineage events to existing tables using the dataset namespace. If your Spark sources don't resolve automatically, configure the **namespace-to-service mapping** (and, optionally, auto-creation of missing entities and the default pipeline service) in OpenMetadata's OpenLineage settings. This is the server-side replacement for the old `spark.openmetadata.transport.databaseServiceNames` option from the Spark Agent.
+</Info>
 
-<Steps>
-<Step title="Once you have downloaded the">
-Once you have downloaded the jar from [here](https://github.com/open-metadata/openmetadata-spark-agent/releases) in your spark configuration you will have to add the path to your `openmetadata-spark-agent.jar` along with other required jars to run your spark job, in this example it is `mysql-connector-java.jar`
-</Step>
-<Step title="`openmetadata-spark-agent.jar` comes with a custom">
-`openmetadata-spark-agent.jar` comes with a custom spark listener i.e. `io.openlineage.spark.agent.OpenLineageSparkListener` you will need to add this as `extraListeners` spark configuration.
-</Step>
-<Step title="`spark.openmetadata.transport.hostPort`: Specify the host &">
-`spark.openmetadata.transport.hostPort`: Specify the host & port of the instance where your OpenMetadata is hosted.
-</Step>
-<Step title="`spark.openmetadata.transport.type` is required configura...">
-`spark.openmetadata.transport.type` is required configuration with value as `openmetadata`.
-</Step>
-<Step title="`spark.openmetadata.transport.jwtToken`: Specify your Ope...">
-`spark.openmetadata.transport.jwtToken`: Specify your OpenMetadata Jwt token here. Checkout [this](/v2.0.x-SNAPSHOT/deployment/security/enable-jwt-tokens#generate-token) documentation on how you can generate a jwt token in OpenMetadata.
-</Step>
-<Step title="`spark.openmetadata.transport.pipelineServiceName`: This ...">
-`spark.openmetadata.transport.pipelineServiceName`: This spark job will be creating a new pipeline service of type `Spark`, use this configuration to customize the pipeline service name.
+## Choosing the right JAR
 
-Note: If the pipeline service with the specified name already exists then we will be updating/using the same pipeline service.
-</Step>
-<Step title="`spark.openmetadata.transport.pipelineName`: This spark j...">
-`spark.openmetadata.transport.pipelineName`: This spark job will also create a new pipeline within the pipeline service defined above. Use this configuration to customize the name of pipeline.
+The `openlineage-spark` listener ships as a single package that you add to your Spark job. The version you use depends on your Spark version:
 
-Note: If the pipeline with the specified name already exists then we will be updating/using the same pipeline.
-</Step>
-<Step title="`spark.openmetadata.transport.pipelineSourceUrl`: You can...">
-`spark.openmetadata.transport.pipelineSourceUrl`: You can use this configuration to provide additional context to your pipeline by specifying a url related to the pipeline.
-</Step>
-<Step title="`spark.openmetadata.transport.pipelineDescription`: Provi...">
-`spark.openmetadata.transport.pipelineDescription`: Provide pipeline description using this spark configuration.
-</Step>
-<Step title="`spark.openmetadata.transport.databaseServiceNames`: Prov...">
-`spark.openmetadata.transport.databaseServiceNames`: Provide the comma separated list of database service names which contains the source tables used in this job. If you do not provide this configuration then we will be searching through all the services available in openmetadata.
-</Step>
-<Step title="`spark.openmetadata.transport.timeout`: Provide the timeo...">
-`spark.openmetadata.transport.timeout`: Provide the timeout to communicate with OpenMetadata APIs.
-</Step>
-<Step title="In this job we are">
-In this job we are reading data from `employee` table and moving it to another table `employee_new` of within same mysql source.
-</Step>
-</Steps>
+| Spark version | `openlineage-spark` version | Maven coordinate |
+|---|---|---|
+| **Spark 3.x** | Latest release (`1.37.0` or newer) | `io.openlineage:openlineage-spark_2.12:1.37.0` |
+| **Spark 2.4.x** | **`1.36.0`** (last release to support Spark 2) | `io.openlineage:openlineage-spark_2.12:1.36.0` |
+
+<Note>
+**Note**: OpenLineage **dropped Spark 2.x support in release `1.37.0`**: from that release onward the minimum supported version is Spark 3.x. If you are on **Spark 2.4.x, pin `openlineage-spark` to `1.36.0`**. Match the Scala suffix (`_2.12` or `_2.13`) to the Scala version your Spark build was compiled with.
+</Note>
+
+## Spark 3.x Configuration
+
+The example below uses PySpark. It adds the OpenLineage listener and points its HTTP transport at OpenMetadata.
+
+### 1. Add the openlineage-spark package
+
+Add `io.openlineage:openlineage-spark_2.12:<version>` to `spark.jars.packages` (or add a downloaded JAR to `spark.jars`) along with any other JARs your job needs, in this example the MySQL connector.
+
+### 2. Register the OpenLineage listener
+
+`openlineage-spark` ships a Spark listener, `io.openlineage.spark.agent.OpenLineageSparkListener`. Register it as a `spark.extraListeners`.
+
+### 3. spark.openlineage.transport.type
+
+Set `spark.openlineage.transport.type` to `http` so events are pushed to OpenMetadata's REST endpoint.
+
+### 4. spark.openlineage.transport.url
+
+Set `spark.openlineage.transport.url` to the base URL of your OpenMetadata instance, for example, `https://<your-openmetadata-host>`.
+
+### 5. spark.openlineage.transport.endpoint
+
+Set `spark.openlineage.transport.endpoint` to `/api/v1/openlineage/lineage`, OpenMetadata's native OpenLineage ingestion endpoint.
+
+### 6. spark.openlineage.transport.auth
+
+Authenticate with an OpenMetadata bot JWT: set `spark.openlineage.transport.auth.type` to `api_key` and `spark.openlineage.transport.auth.apiKey` to your token. See [Generate Token](/v2.0.x-SNAPSHOT/deployment/security/enable-jwt-tokens#generate-token).
+
+### 7. spark.openlineage.namespace
+
+Set `spark.openlineage.namespace` to the **OpenLineage job namespace** that identifies the source of these events. This is **not** the pipeline service name. OpenMetadata combines the namespace with the job name to build the pipeline that represents this Spark job, and places it under the pipeline service configured as `defaultPipelineService` in OpenMetadata's OpenLineage settings (which defaults to a service named `openlineage`). To group these jobs under a specific service, set `defaultPipelineService` to an existing pipeline service rather than changing the namespace.
+
+### 8. spark.openlineage.parentJobName (optional)
+
+Optionally set `spark.openlineage.parentJobName` (and a `spark.openlineage.parentRunId`) to give the Spark job a stable OpenLineage job name and run identity. When OpenMetadata auto-creates a pipeline, it names it `<namespace>-<parentJobName>` under the configured `defaultPipelineService`.
+
+### 9. Run your job
+
+In this job we read data from the `employee` table and write it to another table, `employee_new`, within the same MySQL source.
 
 ```py
 from pyspark.sql import SparkSession
+from uuid import uuid4
 
 spark = (
     SparkSession.builder.master("local")
     .appName("localTestApp")
-.config(
-        "spark.jars",
-        "path/to/openmetadata-spark-agent.jar,path/to/mysql-connector-java-8.0.30.jar",
+    .config(
+        "spark.jars.packages",
+        # Spark 3.x: use the latest openlineage-spark release (1.37.0+)
+        "io.openlineage:openlineage-spark_2.12:1.37.0,mysql:mysql-connector-java:8.0.30",
     )
-.config(
+    .config(
         "spark.extraListeners",
         "io.openlineage.spark.agent.OpenLineageSparkListener",
     )
-.config("spark.openmetadata.transport.hostPort", "http://localhost:8585")
-.config("spark.openmetadata.transport.type", "openmetadata")
-.config("spark.openmetadata.transport.jwtToken", "<openmetadata-jwt-token>")
-.config(
-        "spark.openmetadata.transport.pipelineServiceName", "my_pipeline_service"
+    .config("spark.openlineage.transport.type", "http")
+    .config("spark.openlineage.transport.url", "https://<your-openmetadata-host>")
+    .config(
+        "spark.openlineage.transport.endpoint",
+        "/api/v1/openlineage/lineage",
     )
-.config("spark.openmetadata.transport.pipelineName", "my_pipeline_name")
-.config(
-        "spark.openmetadata.transport.pipelineSourceUrl",
-        "http://your.org/path/to/pipeline",
+    .config("spark.openlineage.transport.auth.type", "api_key")
+    .config(
+        "spark.openlineage.transport.auth.apiKey",
+        "<your-openmetadata-bot-jwt>",
     )
-.config(
-        "spark.openmetadata.transport.pipelineDescription", "My ETL Pipeline"
-    )
-.config(
-        "spark.openmetadata.transport.databaseServiceNames",
-        "random,local_mysql",
-    )
-.config("spark.openmetadata.transport.timeout", "30")
-.getOrCreate()
+    .config("spark.openlineage.namespace", "my_spark_namespace")
+    .config("spark.openlineage.parentJobName", "my_pipeline_name")
+    .config("spark.openlineage.parentRunId", str(uuid4()))
+    .getOrCreate()
 )
 
-# Read table using jdbc()
-
-# Read from MySQL Table
+# Read from MySQL table
 employee_df = (
     spark.read.format("jdbc")
     .option("url", "jdbc:mysql://localhost:3306/openmetadata_db")
@@ -134,127 +156,145 @@ employee_df = (
 spark.stop()
 ```
 
-
-Once this pyspark job get finished you will see a new pipeline service with name `my_pipeline_service` generated in your openmetadata instance which would contain a pipeline with name `my_pipeline` as per the above example and you should also see lineage between the table `employee` and `employee_new` via `my_pipeline`.
-
+Once this PySpark job finishes, OpenMetadata records the lineage between `employee` and `employee_new`. The Spark job appears as a pipeline named `my_spark_namespace-my_pipeline_name`, built from the namespace and job name, under the **`openlineage`** pipeline service (the default `defaultPipelineService`). To land these pipelines in a different service, point `defaultPipelineService` at an existing pipeline service in OpenMetadata's OpenLineage settings.
 
 <img src="/public/images/connectors/spark/spark-pipeline-service.png" alt="Spark Pipeline Service" />
 
+<img src="/public/images/connectors/spark/spark-pipeline-details.png" alt="Spark Pipeline Details" />
 
- <img src="/public/images/connectors/spark/spark-pipeline-details.png" alt="Spark Pipeline Details" />
+<img src="/public/images/connectors/spark/spark-pipeline-lineage.png" alt="Spark Pipeline Lineage" />
 
+## Spark 2.4.x Configuration
 
+The configuration is **identical to Spark 3.x except for the `openlineage-spark` version**, which must be pinned to **`1.36.0`**: the last OpenLineage release that supports Spark 2.x. Everything else (the listener class and all `spark.openlineage.transport.*` properties) is the same.
 
- <img src="/public/images/connectors/spark/spark-pipeline-lineage.png" alt="Spark Pipeline Lineage" />
+### 1. Pin openlineage-spark to 1.36.0
 
-## Using Spark Agent with Databricks
+Use `io.openlineage:openlineage-spark_2.12:1.36.0`. Versions `1.37.0` and later require Spark 3.x and will not work on Spark 2.4.x. Make sure your Spark 2.4 build is compiled with Scala 2.12 to match the `_2.12` artifact.
 
-Follow the below steps in order to use OpenMetadata Spark Agent with databricks.
+### 2. Use the same transport configuration
 
-### 1. Upload the jar to compute cluster
+The listener class and all `spark.openlineage.transport.*` / `spark.openlineage.namespace` properties are exactly the same as in the Spark 3.x section above.
 
-To use the `OpenMetadata Spark Agent`, you will have to download the latest jar from [here](https://github.com/open-metadata/openmetadata-spark-agent/releases) and upload it to your databricks compute cluster.
+```py
+from pyspark.sql import SparkSession
+from uuid import uuid4
 
-To upload the jar you can visit the compute details page and then go to the libraries tab
+spark = (
+    SparkSession.builder.master("local")
+    .appName("localTestApp")
+    .config(
+        "spark.jars.packages",
+        # Spark 2.4.x: pin to 1.36.0 (last release supporting Spark 2)
+        "io.openlineage:openlineage-spark_2.12:1.36.0,mysql:mysql-connector-java:8.0.30",
+    )
+    .config(
+        "spark.extraListeners",
+        "io.openlineage.spark.agent.OpenLineageSparkListener",
+    )
+    .config("spark.openlineage.transport.type", "http")
+    .config("spark.openlineage.transport.url", "https://<your-openmetadata-host>")
+    .config(
+        "spark.openlineage.transport.endpoint",
+        "/api/v1/openlineage/lineage",
+    )
+    .config("spark.openlineage.transport.auth.type", "api_key")
+    .config(
+        "spark.openlineage.transport.auth.apiKey",
+        "<your-openmetadata-bot-jwt>",
+    )
+    .config("spark.openlineage.namespace", "my_spark_namespace")
+    .config("spark.openlineage.parentJobName", "my_pipeline_name")
+    .config("spark.openlineage.parentRunId", str(uuid4()))
+    .getOrCreate()
+)
 
-<img src="/public/images/connectors/spark/spark-upload-jar.png" alt="Spark Upload Jar" />
+# ... your read/write logic, identical to the Spark 3.x example ...
 
-Click on the "Install Now" button and choose `dbfs` mode and upload the `OpenMetadata Spark Agent` jar.
+spark.stop()
+```
 
-<img src="/public/images/connectors/spark/spark-upload-jar-2.png" alt="Spark Upload Jar" />
+## Using OpenLineage with Databricks
 
-Once your jar is uploaded copy the path of the jar for the next steps.
+Follow the steps below to capture lineage from Databricks Spark jobs into OpenMetadata using the OpenLineage listener.
 
-<img src="/public/images/connectors/spark/spark-uploaded-jar.png" alt="Spark Upload Jar" />
+### 1. Install the openlineage-spark library on the cluster
 
+The simplest approach is to add `openlineage-spark` as a **Maven library** on your cluster:
 
-### 2. Create Initialization Script
+1. Open the compute (cluster) details page and go to the **Libraries** tab.
+2. Click **Install new** > **Maven**.
+3. Enter the coordinate for your Databricks Runtime's Spark version:
+   - **Spark 3.x** (DBR 7.3+): `io.openlineage:openlineage-spark_2.12:1.37.0` (or newer)
+   - **Spark 2.4.x** (DBR 6.x): `io.openlineage:openlineage-spark_2.12:1.36.0`
+4. Click **Install** and wait for the library to attach.
 
+<img src="/public/images/connectors/spark/spark-upload-jar.png" alt="Install OpenLineage library on Databricks cluster" />
 
-Once your jar is uploaded you need to create a initialization script in your workspace.
+<Tip>
+**Tip**: If your environment cannot reach Maven Central, download the `openlineage-spark` JAR, upload it to DBFS, and either install it as a DBFS library or copy it into `/databricks/jars` via a cluster init script.
+</Tip>
+
+### 2. Configure the cluster Spark settings
+
+Go to **Advanced options** > **Spark** > **Spark config** and add the OpenLineage listener and HTTP transport settings:
+
+<img src="/public/images/connectors/spark/spark-config-set.png" alt="Databricks cluster Spark config" />
 
 ```
+spark.extraListeners io.openlineage.spark.agent.OpenLineageSparkListener
+spark.openlineage.transport.type http
+spark.openlineage.transport.url https://<your-openmetadata-host>
+spark.openlineage.transport.endpoint /api/v1/openlineage/lineage
+spark.openlineage.transport.auth.type api_key
+spark.openlineage.transport.auth.apiKey <your-openmetadata-bot-jwt>
+spark.openlineage.namespace databricks_spark
+```
+
+### 3. (Optional) Set the listener via an init script
+
+If you prefer to register the listener through an init script, for example to guarantee it loads before the driver starts, create the script in your workspace and attach it under **Advanced options** > **Init Scripts**:
+
+```bash
 #!/bin/bash
 
-STAGE_DIR_JAR="<path to jar copied from step 1>"
-
-echo "BEGIN: Upload Spark Listener JARs"
-cp -f $STAGE_DIR_JAR /mnt/driver-daemon/jars || { echo "Error copying Spark Listener library file"; exit 1;}
-echo "END: Upload Spark Listener JARs"
-
-echo "BEGIN: Modify Spark config settings"
 cat << 'EOF' > /databricks/driver/conf/openlineage-spark-driver-defaults.conf
 [driver] {
   "spark.extraListeners" = "io.openlineage.spark.agent.OpenLineageSparkListener"
 }
 EOF
-echo "END: Modify Spark config settings"
 ```
 
-Note: The copied path would look like this `dbfs:/FileStore/jars/....` you need to modify it like `/dbfs/FileStore/jars/...` this.
+<img src="/public/images/connectors/spark/spark-init-script.png" alt="Databricks Init Script" />
 
-<img src="/public/images/connectors/spark/prepare-script.png" alt="Prepare Script" />
+After the library and configuration are in place, start (or restart) the cluster. Your Databricks Spark jobs will now push lineage to OpenMetadata.
 
+## Using OpenLineage with Glue
 
+Follow the steps below to capture lineage from AWS Glue Spark jobs into OpenMetadata.
 
-### 3. Configure Initialization Script
+<Note>
+**Note**: Match the `openlineage-spark` version to your Glue version's Spark runtime: Glue 3.0/4.0/5.0 run Spark 3.x (use `1.37.0` or newer), while Glue 2.0 runs Spark 2.4.x (use `1.36.0`).
+</Note>
 
-Once you have created a initialization script, you will need to attach this script to your compute instance, to do that you can go to advanced config > init scripts and add your script path.
+### 1. Provide the openlineage-spark JAR
 
-<img src="/public/images/connectors/spark/prepare-script.png" alt="Prepare Script" />
-
-
-<img src="/public/images/connectors/spark/spark-init-script.png" alt="Spark Init Script" />
-
-
-### 4. Configure Spark
-
-After configuring the init script, you will need to update the spark config as well.
-
-
-<img src="/public/images/connectors/spark/spark-config-set.png" alt="Spark Set Config" />
-
-these are the possible configurations that you can do, please refer the `Configuration` section above to get the detailed information about the same.
-
-```
-spark.extraListeners io.openlineage.spark.agent.OpenLineageSparkListener
-spark.openmetadata.transport.type openmetadata
-spark.openmetadata transport.pipelineSourceUrl http://<your-pipeline-host-port>
-spark.openmetadata transport.pipelineDescription "your pipeline description"
-spark.openmetadata.transport.hostPort https://<your-openmetadata-host-port>
-spark openmetadata transport.pipelineServiceName demo_pipeline
-spark.openmetadata transport.pipelineName demo_pipeline
-spark.openmetadata transport.databaseServiceNames db-service-name1,db-service-name2
-spark.openmetadata.transport.jwtToken <your-jwt-token>
-spark.openmetadata.transport.timeout 30
-```
-
-After all these steps are completed you can start/restart your compute instance and you are ready to extract the lineage from spark to OpenMetadata.
-
-
-## Using Spark Agent with Glue
-
-Follow the below steps in order to use OpenMetadata Spark Agent with glue.
-
-### 1. Specify the OpenMetadata Spark Agent JAR URL
-
-1. Upload the OpenMetadata Spark Agent Jar to S3
-2. Navigate to the glue job,In the Job details tab, navigate to Advanced properties → Libraries → Dependent Jars path
-3. Add the S3 url of OpenMetadata Spark Agent Jar in the Dependent Jars path.
+1. Download the `openlineage-spark` JAR for your Spark version and upload it to S3.
+2. Open the Glue job and, in the **Job details** tab, go to **Advanced properties** > **Libraries** > **Dependent JARs path**.
+3. Add the S3 URL of the `openlineage-spark` JAR to the **Dependent JARs path**.
 
 <img src="/public/images/connectors/spark/glue-job-jar.png" alt="Glue Job Configure Jar" />
 
+### 2. Add the Spark configuration in Job parameters
 
-### 2. Add Spark configuration in Job Parameters
+In the same **Job details** tab, add a job parameter:
 
-In the same Job details tab, add a new property under Job parameters:
-
-1. Add the `--conf` property with following value, make sure to customize this configuration as described in the above documentation.
+1. Add a `--conf` parameter with the following value (customize the host, token, and namespace):
 
 ```
-spark.extraListeners=io.openlineage.spark.agent.OpenLineageSparkListener --conf spark.openmetadata.transport.hostPort=https://your-org.host:port  --conf spark.openmetadata.transport.type=openmetadata --conf spark.openmetadata.transport.jwtToken=<jwt-token> --conf spark.openmetadata.transport.pipelineServiceName=glue_spark_pipeline_service --conf spark.openmetadata.transport.pipelineName=glue_pipeline_name --conf spark.openmetadata.transport.timeout=30
+spark.extraListeners=io.openlineage.spark.agent.OpenLineageSparkListener --conf spark.openlineage.transport.type=http --conf spark.openlineage.transport.url=https://<your-openmetadata-host> --conf spark.openlineage.transport.endpoint=/api/v1/openlineage/lineage --conf spark.openlineage.transport.auth.type=api_key --conf spark.openlineage.transport.auth.apiKey=<your-openmetadata-bot-jwt> --conf spark.openlineage.namespace=glue_spark
 ```
 
-2. Add the `--user-jars-first` parameter and set its value to `true`
+2. Add the `--user-jars-first` parameter and set its value to `true`.
 
 <img src="/public/images/connectors/spark/glue-job-params.png" alt="Glue Job Configure Params" />

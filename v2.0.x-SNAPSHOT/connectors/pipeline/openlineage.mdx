@@ -1,13 +1,11 @@
 ---
 title: OpenLineage | OpenMetadata Data Lineage Pipeline
-description: Connect your data pipelines with OpenMetadata'sOpenLineage connector. Track data lineage, monitor pipeline metadata, and gain end-to-end visibility.
+description: Connect your data pipelines with OpenMetadata's OpenLineage connector. Track data lineage, monitor pipeline metadata, and gain end-to-end visibility.
 sidebarTitle: Overview
 ---
-import ConfigureIngestion from '/snippets/connectors/pipeline/configure-ingestion.mdx'
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/openlineage.png'
@@ -20,22 +18,30 @@ Configure and schedule OpenLineage metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/pipeline/openlineage/troubleshooting)
+
 ## Requirements
+
 OpenMetadata is integrated with OpenLineage up to version 1.7.0 and will continue to work for future OpenLineage versions.
 OpenLineage is an open framework for data lineage collection and analysis. At its core is an extensible specification that systems can use to interoperate with lineage metadata.
 Apart from being a specification, it is also a set of integrations collecting lineage from various systems such as Apache Airflow and Spark.
+
 ### OpenLineage Connector Events
+
 OpenLineage connector consumes OpenLineage events from either a **Kafka broker** or **AWS Kinesis Data Streams** and translates them to OpenMetadata Lineage information.
 
 ### Kafka Configuration
 
+Configure the OpenLineage event producer that matches how you run your pipelines.
+
 #### Airflow OpenLineage Events (Kafka)
+
 To configure your Airflow instance:
 1. Install the appropriate provider in [Airflow](https://airflow.apache.org/docs/apache-airflow-providers-openlineage/stable/index.html)
 2. Configure the OpenLineage provider by following Airflow's [provider structure guide](https://airflow.apache.org/docs/apache-airflow-providers-openlineage/stable/guides/structure.html)
     - Use `kafka` transport mode as OpenLineage events are collected from the Kafka topic. Detailed configuration options can be found [here](https://openlineage.io/docs/client/python/#configuration)
 
 #### Spark OpenLineage Events (Kafka)
+
 Configure Spark Session to produce OpenLineage events compatible with the OpenMetadata connector:
 ```python
 from pyspark.sql import SparkSession
@@ -64,6 +70,7 @@ The OpenLineage connector also supports consuming events from AWS Kinesis Data S
   - `kinesis:ListShards`
 
 #### Spark OpenLineage Events (Kinesis)
+
 Configure Spark Session to produce OpenLineage events to Kinesis:
 ```python
 from pyspark.sql import SparkSession
@@ -80,17 +87,108 @@ spark = SparkSession.builder\
     .config('spark.openlineage.transport.region', 'us-east-2')\
     .getOrCreate()
 ```
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"OpenLineage"} selectServicePath={"/public/images/connectors/openlineage/select-service.png"} addNewServicePath={"/public/images/connectors/openlineage/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/openlineage/service-connection.png"} />
-## Connection Details
-<Steps>
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+
+To ingest metadata from OpenLineage, you need to create a service connection. The service connects OpenLineage with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **OpenLineage** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/openlineage.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other OpenLineage services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/openlineage.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for OpenLineage. A help panel displays inline guidance for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/openlineage.png)
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your OpenLineage service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes one filter option, **Pipeline**, which controls which pipelines OpenMetadata ingests from OpenLineage.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose one of the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
 ### Providing Connection Details Programmatically via API
 
+You can also create and configure the OpenLineage service using the Python SDK instead of the UI.
+
 #### 1. Preparing the Client
+
+Configure the SDK client with your OpenMetadata host and JWT token.
+
 ```python
 from metadata.sdk import configure
 
@@ -98,6 +196,9 @@ configure(host="http://localhost:8585/api", jwt_token="<token>")
 ```
 
 #### 2. Creating the OpenLineage Pipeline Service (Kafka)
+
+Create the pipeline service pointing at your Kafka broker.
+
 ```python
 from metadata.sdk import client
 from metadata.generated.schema.api.services.createPipelineService import CreatePipelineServiceRequest
@@ -143,6 +244,9 @@ client().ometa.create_or_update(openlineage_service_request)
 ```
 
 #### 3. Creating the OpenLineage Pipeline Service (Kinesis)
+
+Create the pipeline service pointing at your Kinesis stream instead.
+
 ```python
 from metadata.sdk import client
 from metadata.generated.schema.api.services.createPipelineService import CreatePipelineServiceRequest
@@ -180,3 +284,5 @@ openlineage_service_request = CreatePipelineServiceRequest(
 )
 client().ometa.create_or_update(openlineage_service_request)
 ```
+
+<Related />

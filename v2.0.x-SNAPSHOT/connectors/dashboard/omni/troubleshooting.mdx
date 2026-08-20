@@ -1,0 +1,69 @@
+---
+title: Omni Connector Troubleshooting Guide | OpenMetadata Support
+description: Resolve Omni dashboard ingestion issues such as authentication failures, rate limits, connection timeouts, and missing lineage.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Omni-Specific Issues
+
+The following issues are specific to the Omni connector's REST API integration.
+
+### Authentication Failed (401)
+
+**Issue**: The Test Connection step fails with a 401 error.
+
+**Cause**: Omni rejected the API token, it may be invalid, expired, or revoked, or Host and Port does not point at your Omni organization.
+
+**Solution**: Verify the token value and confirm it hasn't been revoked in Omni. Confirm **Host and Port** points at your Omni organization, for example `https://your-org.omniapp.co`. Regenerate the token in Omni and update the connection if authentication continues to fail.
+
+### Insufficient Permissions (403)
+
+**Issue**: The Test Connection step fails with a 403 error.
+
+**Cause**: The token is valid but not authorized to read models and documents.
+
+**Solution**: Use an Organization API Key (or a Personal Access Token with sufficient access) that can read models and documents. See [Requirements](#requirements) for how to generate one.
+
+### Rate Limit Reached (429)
+
+**Issue**: The Test Connection step or a metadata ingestion run fails or is delayed with a 429 error.
+
+**Cause**: Omni throttled the request. The default limit is 60 requests/minute.
+
+**Solution**: Wait and retry, or ask Omni to raise the rate limit for the API key. If this happens consistently during ingestion, narrow the Dashboard/Chart/Data Model/Project filter patterns to reduce the number of assets processed per run.
+
+### TLS Verification Failed
+
+**Issue**: The Test Connection step fails with an SSL/TLS certificate verification error.
+
+**Cause**: The server's certificate could not be verified with the current SSL configuration.
+
+**Solution**: Provide the CA certificate under **SSL Config** with **Verify SSL** set to `validate`, or set **Verify SSL** to `ignore` for a self-signed certificate (not recommended outside of testing).
+
+### Connection Timeouts
+
+**Issue**: The Test Connection step fails with a timeout or cannot reach the host.
+
+**Cause**: **Host and Port** is incorrect, includes a trailing `/api` (the connector appends this automatically), or the ingestion runner cannot reach your Omni instance over the network.
+
+**Solution**: Verify **Host and Port** is correct and does not include a trailing `/api`. Check network connectivity between the ingestion runner and your Omni instance. If your Omni instance sits behind an internal certificate authority, set **Verify SSL** to `validate` and provide the CA certificate under **SSL Config**.
+
+### Missing Dashboards, Charts, or Data Models
+
+**Issue**: Some dashboards, charts, data models, or projects you expect to see are missing after ingestion.
+
+**Cause**: The Dashboard, Chart, Data Model, or Project filter pattern excludes them, or the token doesn't have access to the project or folder they live in.
+
+**Solution**: Check the **Dashboard Filter Pattern**, **Chart Filter Pattern**, **Data Model Filter Pattern**, and **Project Filter Pattern** for rules that might be excluding the assets you expect to see. Confirm the token has access to the project or folder the document lives in.
+
+### Missing Lineage
+
+**Issue**: Dashboards, charts, and data models are ingested, but no table-to-table lineage edges appear.
+
+**Cause**: Lineage depends on each Omni topic's declared base table matching a table OpenMetadata has already ingested. If the source database service hasn't been ingested yet, or its schema/table names don't match what the Omni topic points to, lineage can't be resolved.
+
+**Solution**: Ingest the source database service before running the Omni service, and confirm its schema and table names match what Omni's topic points to. Set **Db Service Prefixes** in the metadata agent's **Lineage Information** section to scope table matching to the correct database service.
