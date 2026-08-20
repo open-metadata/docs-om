@@ -154,11 +154,16 @@ This is a good option if you which to execute your workflow via the Airflow SDK 
 This is a sample config for the profiler:
 
 <Steps>
-<Step title="computeMetrics">
-**computeMetrics**: Option to turn on/off computing profiler metrics. This flag is useful when you want to only ingest the sample data with the profiler workflow and not any other information.
+<Step title="computeTableMetrics">
+**computeTableMetrics**: Option to turn on/off computing table-level metrics. Turn both this and `computeColumnMetrics` off when you only want to ingest sample data with the profiler workflow and not any other information.
 </Step>
-<Step title="profileSample">
-**profileSample**: Percentage of data or no. of rows we want to execute the profiler and tests on.
+<Step title="computeColumnMetrics">
+**computeColumnMetrics**: Option to turn on/off computing column-level metrics.
+</Step>
+<Step title="profileSampleConfig">
+**profileSampleConfig**: How much data the profiler and tests run on.
+
+`sampleConfigType` is either `DYNAMIC` (the default), which resolves the sample size at runtime from the table's row count, or `STATIC`, which uses a fixed size you set yourself. `config` holds the settings for the type you chose.
 </Step>
 <Step title="threadCount">
 **threadCount**: Number of threads to use during metric computations.
@@ -190,7 +195,7 @@ To send the metadata to OpenMetadata, it needs to be specified as `type: metadat
 <Step title="Workflow Configuration">
 #### Workflow Configuration
 
-The main property here is the `OpenMetadataServerConfig`, where you can define the host and security provider of your OpenMetadata installation.
+The main property here is the `openMetadataServerConfig`, where you can define the host and security provider of your OpenMetadata installation.
 
 For a simple, local installation using our docker containers, this looks like:
 </Step>
@@ -203,25 +208,29 @@ source:
   sourceConfig:
     config:
       type: Profiler
-computeMetrics: true
-# profileSample: 85
-# threadCount: 5
-# timeoutSeconds: 43200
-# databaseFilterPattern:
+      computeTableMetrics: true
+      computeColumnMetrics: true
+      # profileSampleConfig:
+      #   sampleConfigType: DYNAMIC
+      #   config:
+      #     smartSampling: true
+      # threadCount: 5
+      # timeoutSeconds: 43200
+      # databaseFilterPattern:
       #   includes:
       #     - database1
       #     - database2
       #   excludes:
       #     - database3
       #     - database4
-# schemaFilterPattern:
+      # schemaFilterPattern:
       #   includes:
       #     - schema1
       #     - schema2
       #   excludes:
       #     - schema3
       #     - schema4
-# tableFilterPattern:
+      # tableFilterPattern:
       #   includes:
       #     - table1
       #     - table2
@@ -233,9 +242,10 @@ processor:
   config: {}  # Remove braces if adding properties
     # tableConfig:
     #   - fullyQualifiedName: <table fqn>
-    #     profileSample: <number between 0 and 99> # default
-
-    #     profileSample: <number between 0 and 99> # default will be 100 if omitted
+    #     profileSampleConfig:
+    #       sampleConfigType: STATIC  # omit entirely to inherit dynamic sampling
+    #       config:
+    #         profileSample: <number between 0 and 99>
     #     columnConfig:
     #       excludeColumns:
     #         - <column name>
@@ -265,7 +275,7 @@ sink:
   config: {}
 workflowConfig:
   # loggerLevel: DEBUG  # DEBUG, INFO, WARN or ERROR
-  OpenMetadataServerConfig:
+  openMetadataServerConfig:
     hostPort: <OpenMetadata host and port>
     authProvider: <OpenMetadata auth provider>
 ```

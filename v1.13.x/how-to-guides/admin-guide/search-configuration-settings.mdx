@@ -1,102 +1,236 @@
 ---
 title: Search Configuration Settings for Relevance, Ranking, and Field Boosting
-description: Detailed guide on customizing search relevance and behavior across a platform, including global rules, term boosting, field weighting, and asset-specific configurations.
+description: Detailed guide on customizing search relevance and behavior across OpenMetadata, including global rules, term boosting, field weighting, and asset-specific configurations.
 sidebarTitle: Search configuration settings
 ---
 
 # Search Configuration Settings
 
-The **Search Configuration** section in OpenMetadata allows administrators to fine-tune the relevance and behavior of search results across the platform. You can define these settings at two levels:
+Search configuration controls how results are ranked, weighted, and displayed across your OpenMetadata instance. Tuning these settings makes your most important assets easier to find — surfacing trusted, frequently used data at the top of results while reducing noise from less relevant matches.
 
-- **Global Search Level**
-- **Data Asset Type Level** (e.g., Containers, Dashboards, APIs)
+Adjust search behavior at two levels:
 
-## 1. Global Search Configuration
+- **Global level** — rules that apply to every search across all asset types in OpenMetadata. See [Global Settings](#global-settings).
+- **Asset type level** — rules that apply to one specific type, such as Tables, Dashboards, or APIs. See [Asset Type Level Search Configuration](#asset-type-level-search-configuration).
 
-These settings impact **all searches across data assets**. Use this to apply platform-wide rules for performance, security, and scoring.
+Start with global settings to establish a consistent baseline, then use asset-type settings to fine-tune search for your most critical asset categories.
 
-### 🔗 Access Path:
-`Settings → Preferences → Search`
+## How to Access
 
-### Configurable Options:
+To access and configure these settings, navigate to **Settings** > **Preferences** > **Search**.
 
-| Setting                           | Description                                                                 |
-|-----------------------------------|-----------------------------------------------------------------------------|
-| Enable Roles & Policies in Search | Toggle to include role-based access policies in search filtering.          |
-| Max Aggregate Size                | Maximum size of aggregated search results (default: `10000`).              |
-| Max Result Hits                   | Maximum number of search hits returned in a single query (default: `10000`). |
-| Max Analyzed Offset               | Controls how much of a field’s content is analyzed (default: `1000`).      |
+## Global Settings
+
+Global settings control how search behaves across your entire OpenMetadata instance. Changes here affect every asset type, every search query, and every user.
+
+<img src="/public/images/how-to-guides/admin-guide/global-settings.png" alt="Global Settings" />
+
+### Configurable Options
+
+These settings control instance-wide performance limits and access rules for search. In most cases, the defaults work well for smaller deployments. Increase the limits if your OpenMetadata instance contains a large number of assets and users report incomplete or truncated results.
+
+| Setting | What it does | Default |
+|---------|-------------|---------|
+| Enable Roles & Policies in Search | When turned on, each user's search results are filtered to show only assets they have permission to access. Turn this on if your OpenMetadata instance has data governance or access control requirements. | Off |
+| Max Aggregate Size | Sets the maximum number of grouped results returned in a single search. If users search across many assets and results appear cut off, try increasing this value. | 10,000 |
+| Max Result Hits | Sets the maximum number of individual results returned in a single search. Raise this limit if searches are returning fewer results than expected. | 10,000 |
+| Max Analyzed Offset | Controls how much of a text field's content is scanned during search. If important keywords in long descriptions aren't appearing in results, try increasing this value. | 1,000 |
 
 ### Term Boost (Global)
 
-Define boost values to give priority to specific field terms in the search scoring mechanism. For example, Tier levels:
+Term boost lets you promote assets with a specific tag so they appear higher across all search results — regardless of asset type.
 
-| Field        | Boost |
-|--------------|-------|
-| Tier.Tier1   | 50    |
-| Tier.Tier2   | 30    |
-| Tier.Tier3   | 10    |
+Select a tag from the dropdown, then use the slider to set how strongly it should be promoted. A higher boost value pushes those assets further up the results list.
 
-- **Use Case:** Prioritize Tier 1 assets over lower-tiered ones in search results.
+**Example**:
 
-<img src="/public/images/how-to-guides/admin-guide/global.png" alt="Global Search Configuration" />
+| Tag | Boost value |
+|-----|-------------|
+| Tier.Tier1 | 0.05 |
+| Tier.Tier2 | 0.03 |
+| Tier.Tier3 | 0.01 |
 
-## 2. Data Asset Level Search Configuration
+In this setup, Tier 1 assets appear above Tier 2 and Tier 3 assets when all other relevance signals are equal. This is useful when you want to steer users toward trusted, production-ready data.
 
-Search ranking can be further refined per **data asset type**, such as Containers, Dashboards, or APIs. These allow **domain-specific control** over what fields or values influence the ranking of search results.
+### Field Value Boost (Global)
+
+Field value boost promotes assets based on a numeric field — such as usage count or votes — so that frequently used or highly rated assets naturally rise in search results. It works the same way as the asset-type field value boost but applies platform-wide, across every asset type.
+
+To configure it, open **Settings** > **Preferences** > **Search** and use the **Add**, **Edit**, and **Delete** options in the Field Value Boost section. Changes here apply to every asset type. Any field value boost set at the asset-type level is applied in addition to the global one — both contribute to an asset's final ranking.
+
+The following defaults are seeded by the system and apply globally unless changed:
+
+| Field | Impact | Modifier | Missing value |
+|-------|--------|----------|---------------|
+| `usageSummary.weeklyStats.count` | 0.002 | log1p | 1 |
+| `totalVotes` | 0.005 | log1p | 0 |
+| `usageSummary.weeklyStats.percentileRank` | 0.0005 | none | 0 |
+
+## Asset Type Level Search Configuration
+
+Asset type settings let you fine-tune how search behaves for a specific kind of asset — for example, Tables, Dashboards, or Pipelines — without affecting how other types behave.
+
+Each section has an **Add**, **Edit**, and **Delete** option to build out your configuration incrementally. If something isn't working the way you expected, select **Restore Defaults** to reset the entire search configuration — this replaces the full `searchConfig` with system defaults across all sections, not just the current one.
+
+### Search Preview
+
+The asset-type settings screen is split into two panels. The left panel contains your configuration sections — Matching Fields, Term Boost, and others. The right panel is a live **Preview** pane that shows real search results based on your current (unsaved) settings.
+
+Type a query into the **Search for Data Assets** bar in the preview pane to see which assets would be returned. Each result shows the asset's name, breadcrumb path, description, domain, owners, tier, and a **SCORE** value to show exactly how your configuration is influencing relevance ranking.
+
+The preview updates as you adjust matching fields, weights, or boost settings — without affecting live search results for other users. Once the results look right, select **Save** to apply your changes. If you want to undo all changes and return to the system defaults, select **Restore Defaults** in the preview pane header.
+
+<img src="/public/images/how-to-guides/admin-guide/data-asset-level-search.png" alt="Search Preview Pane" />
 
 ### Matching Fields
 
-Defines which fields contribute to determining relevance in search.
+Matching fields define which parts of an asset's metadata are considered when your search query runs. For example, if `description` is included as a matching field, searching for a keyword will also look inside asset descriptions — not just names.
 
-| Property       | Description                                      |
-|----------------|--------------------------------------------------|
-| Field          | The metadata field (e.g., `name.keyword`)        |
-| Match Type     | Determines type of match (e.g., `Exact Match`)   |
-| Weight         | Numeric value defining the field’s importance    |
-| Highlight Fields | Toggle to highlight this field in search preview |
+- To add a new matching field, select **Add**.
+- To configure the settings in an existing field, select the respective matching fields card.
 
-**Example:**
-`name.keyword` set as **Exact Match** with **weight 20**
+<img src="/public/images/how-to-guides/admin-guide/matching-fields.png" alt="Matching Fields" />
 
-<img src="/public/images/how-to-guides/admin-guide/data-asset-level-search.png" alt="Data Asset Level Search Configuration" />
+For more information about various matching fields available, see [Available Matching Fields](#available-matching-fields).
 
+#### Matching Fields Settings
+
+Each field has four settings:
+
+| Setting | What it does |
+|---------|-------------|
+| **Field name and description** | The piece of metadata to search against — for example, `name.keyword` searches the exact asset name, while `description` searches the asset's description text. |
+| **Match type** | Controls how strictly the search query must match the field's value. For match type definitions, see [Match Types](#match-types). |
+| **Weight** | Determines how much influence this field has on the overall relevance score. A field with a weight of 20 contributes far more to ranking than one with a weight of 2. |
+| **Highlight fields** | When turned on, matching text in this field is highlighted in search results, making it easier for users to see why an asset appeared. |
+
+<img src="/public/images/how-to-guides/admin-guide/matching-fields-settings.png" alt="Matching Fields Settings" width="400" height="500" />
+
+#### Match Types
+
+Match type controls how flexible or strict the comparison between your search query and a field's value is. Choosing the right match type for each field helps you return accurate results without overwhelming users with noise.
+
+| Match type | What it does |
+|------------|-------------|
+| **Exact match** | Returns results only where the field value matches your search term character-for-character. Best for fields like `name.keyword` where users know exactly what they're looking for and partial matches would be misleading. |
+| **Phrase match** | Returns results where all your search words appear together in the same order. Use this when the full phrase matters — for example, "customer orders" should rank higher than assets where "customer" and "orders" appear separately in different places. |
+| **Fuzzy match** | Returns results even when the search query contains minor typos or misspellings. Useful for name fields where users may not recall the exact spelling. Use this sparingly — applied to too many fields, it can return a large number of irrelevant results. |
+| **Standard match** | A flexible general-purpose match that finds close variations of the search term. Works well for descriptions, free-text fields, and any field where the exact wording is less predictable. |
+
+#### Available Matching Fields
+
+The table below lists the configurable fields, along with their default weights and match types. **Table** is used as an example — other asset types follow the same pattern with fields suited to their structure.
+
+| Field | What it searches | Default weight | Default match type |
+|-------|-----------------|----------------|--------------------|
+| `displayName.keyword` | The display name — exact spelling only | 20 | Exact match |
+| `name.keyword` | The asset name — exact spelling only | 20 | Exact match |
+| `name` | The asset name — flexible text search | 10 | Phrase match |
+| `name.ngram` | The asset name — matches partial words (for example, "cust" matches "customer") | 1 | Fuzzy match |
+| `name.compound` | The asset name — matches joined or compound words | 8 | Standard match |
+| `displayName` | The display name — flexible text search | 10 | Phrase match |
+| `displayName.ngram` | The display name — partial word matching | 1 | Fuzzy match |
+| `displayName.compound` | The display name — joined or compound words | 8 | Standard match |
+| `description` | The asset's description text | 2 | Standard match |
+| `fullyQualifiedName` | The full path name of the asset (for example, `service.database.schema.table`) | 5 | Standard match |
+| `fqnParts` | Individual segments of the full path name, searched separately | 5 | Standard match |
+| `columns.name.keyword` | Column names — exact spelling only | 2 | Exact match |
+| `columns.displayName.keyword` | Column display names — exact spelling only | 2 | Exact match |
+| `columnNamesFuzzy` | Column names — fuzzy matching for partial or misspelled column name queries | 1.5 | Standard match |
+
+These fields are available across most asset types and can be added from the field picker:
+
+| Field | What it searches |
+|-------|-----------------|
+| `tags.tagFQN.text` | Tag names — useful for surfacing assets tagged with labels like "PII" or "Sensitive" |
+| `tier.tagFQN.text` | Tier classification names |
+| `certification.tagLabel.tagFQN.text` | Certification label names |
+| `domains.displayName.keyword` | The name of the domain the asset belongs to |
+| `dataProducts.displayName.keyword` | The name of the data product the asset belongs to |
+
+#### Asset-Type-Specific Fields
+
+Some asset types have additional fields that reflect their unique structure. These are only available when configuring search for that specific asset type.
+
+**Dashboard**
+- `charts.name` — Names of charts included in the dashboard
+- `charts.description` — Descriptions of charts included in the dashboard
+- `charts.tags.tagFQN.text` — Tags applied to individual charts within the dashboard
+
+**Topic**
+- `messageSchema.schemaFields.name.keyword` — Exact name of a field in the topic's message schema
+- `messageSchema.schemaFields.description` — Description of a field in the topic's message schema
+
+**Pipeline**
+- `tasks.name` — Names of tasks within the pipeline
+- `tasks.description` — Descriptions of tasks within the pipeline
+
+**Container**
+- `dataModel.columns.name` — Column names in the container's data model
+- `dataModel.columns.name.keyword` — Column names — exact match only
+
+**ML Model**
+- `mlFeatures.name` — Names of features the model uses as inputs
+- `mlFeatures.description` — Descriptions of features the model uses as inputs
+
+**API Endpoint**
+- `responseSchema.schemaFields.name.keyword` — Exact name of a field in the API response schema
+- `requestSchema.schemaFields.name.keyword` — Exact name of a field in the API request schema
+
+**Query**
+- `queryText` — The full SQL text of the query
+- `queryText.ngram` — Partial word matching within the SQL text
+
+**Glossary Term**
+- `synonyms` — Alternative names or synonyms for the glossary term
+- `synonyms.ngram` — Partial word matching on synonym text
+- `glossary.name` — The name of the glossary the term belongs to
+
+### Score Mode and Boost Mode
+
+When multiple boost rules are active at the same time, score mode and boost mode control how they're combined and applied to the final result order.
+
+| Setting | Options | What it does |
+|---------|---------|-------------|
+| **Score mode** | `Avg`, `First`, `Max`, `Min`, `Multiply`, `Sum` | Determines how multiple active boosts are combined into a single boost value. **Sum** adds all active boosts together. **Max** uses only the highest single boost. **Avg** averages them. |
+| **Boost mode** | `Avg`, `Max`, `Min`, `Multiply`, `Replace`, `Sum` | Determines how the combined boost value is applied on top of the base relevance score. **Multiply** scales the base score by the boost — the default, and usually the most effective for promoting popular assets. **Replace** ignores the base score entirely and uses only the boost value. |
+
+**Defaults**: Score mode = **Sum**, Boost mode = **Multiply**
 
 ### Term Boost
 
-Boosts specific field values to rank some records higher.
-
-| Field              | Boost         |
-|--------------------|---------------|
-| dbtTags.model_tag_one | (Custom value) |
-
-
+Term boost for an asset type works the same way as global term boost, but only affects results for that specific asset type. Select a tag from the dropdown and use the slider to set the boost value. Assets with that tag will appear higher in results when users search within that asset type.
 
 ### Field Value Boost
 
-Boost based on **numerical or date-based field values**, using conditions and modifiers.
+Field value boost lets you rank assets higher based on a numeric metric — for example, how many times an asset was used last week, or how many upvotes it has received. This helps surface active, well-regarded assets without requiring users to filter manually.
 
-**Configuration Fields:**
+To add a field value boost, select **Add** and configure the following options:
 
-- **Field**: Choose the field to evaluate
-- **Impact**: Boosting factor
-- **Modifier**: *(none, log, sqrt, etc.)*
-- **Missing Value**: Default value if field is absent
-- **Range Conditions**: Define value-based thresholds (`>`, `<`, `>=`, `<=`)
+<img src="/public/images/how-to-guides/admin-guide/add-field-value-boost.png" alt="Add Field Value Boost" />
 
-**Example:**
-Boost items where a field (e.g., `views`) is greater than a defined threshold.
+**Configuration options**:
 
+| Option | What it does |
+|--------|-------------|
+| **Field** | The numeric field to use for ranking — for example, `usageSummary.weeklyStats.count` boosts assets based on how often they were accessed in the past week. |
+| **Impact** | Controls how much the field value influences the final score. A higher impact value means usage or votes will push results up more aggressively. |
+| **Modifier** | A mathematical adjustment applied to the field value before it's used in scoring. `log1p` is recommended for usage counts because it reduces the outsized effect of very large values — an asset used 10,000 times shouldn't rank infinitely higher than one used 5,000 times. Other options include `none`, `log`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, and `reciprocal`. |
+| **Missing value** | The score to assign when the field is empty or not present on an asset. Typically `0`, meaning assets without that field won't receive a boost — though some seeded defaults use `1` (for example, the usage count boost). |
+| **Range condition** | Optionally limits the boost to assets where the field value falls within a specific range. For example, boost only assets with more than 100 weekly uses. Options include `Greater than`, `≥`, `Less than`, and `≤`. |
 
 ### Restore Defaults
 
-Each configuration section provides a **Restore Defaults** button to revert to system defaults.
-
-<img src="/public/images/how-to-guides/admin-guide/restore-defaults.png" alt="Restore Defaults" />
+Selecting **Restore Defaults** resets the entire search configuration for your OpenMetadata instance by replacing the full `searchConfig` with the original system defaults. This resets all sections at once — matching fields, term boost, score mode, boost mode, and field value boost.
 
 ## Best Practices
 
-- Use **Term Boosting** to elevate priority metadata like `Tier` or `Tags`.
-- Apply **Field Value Boosting** for popularity metrics (e.g., `views`, `usage`).
-- Avoid **excessive boosting** — keep scoring balanced.
-- Use **Match Types** wisely to prevent unintended exclusions (e.g., `Exact Match` vs `Partial`).
+These recommendations help you get the most consistent and useful results from search configuration.
+
+- Use **Exact match** on `.keyword` fields like `name.keyword` when you want only precise name matches to count. This is useful when your assets have highly similar names and partial matches create confusion.
+- Use **Phrase match** on `name` and `displayName` when word order matters. For example, "customer orders" should rank higher than an asset where the same two words appear in different fields.
+- Use **Fuzzy match** sparingly. It helps users find assets despite typos, but applying it to too many fields increases the chance of irrelevant results appearing.
+- Use **Standard match** for description fields and other free-text content where users' exact phrasing is unpredictable.
+- Use **Term boost** to promote assets with important tags — such as a tier level or certification — so they consistently appear near the top of results for all users.
+- Use **Field value boost** to ensure frequently used or highly rated assets surface first, especially in large catalogs where relevance alone may not distinguish quality.
+- Avoid assigning very high weights to many fields at once. When too many fields have high weights, each individual boost contributes less, and the overall ranking becomes harder to reason about.

@@ -6,12 +6,16 @@ mode: "wide"
 ---
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
 import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
 import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
 import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
 import ExternalIngestionDeployment from '/snippets/v1.13.x/connectors/external-ingestion-deployment.mdx'
 import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
 import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
 import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
 
 <ConnectorDetailsHeader
 icon='/public/images/connectors/exasol.webp'
@@ -20,33 +24,30 @@ stage="PROD"
 availableFeatures={["Metadata", "Lineage", "Column-level Lineage"]}
 unavailableFeatures={["Query Usage", "Data Profiler", "Data Quality", "Owners", "dbt", "Tags", "Stored Procedures", "Sample Data", "Auto-Classification"]} />
 In this section, we provide guides and references to use the Exasol connector.
+
 Configure and schedule Exasol metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
-- [Lineage](/connectors/ingestion/lineage)
+- [Lineage](#lineage)
+
 <ExternalIngestionDeployment />
 ## Requirements
 ### Python Requirements
 <PythonRequirements />
 To run the Exasol ingestion, you will need to install:
 ```bash
-pip3 install "openmetadata-ingestion[Exasol]"
+pip3 install "openmetadata-ingestion[exasol]"
 ```
 
 ### Database Privilege Requirements
-To ingest basic metadata, an Exasol user must have the following privileges:
-  - `USAGE` privilege on Schema
-  - `SELECT` privilege on Tables
 
-To use the lineage workflow, OpenMetadata fetches query logs by querying
-`EXA_STATISTICS.EXA_DBA_AUDIT_SQL` and joining
-`EXA_STATISTICS.EXA_DBA_AUDIT_SESSIONS`. To access these
-system tables, an Exasol user must have the `SELECT ANY DICTIONARY` system
-privilege, and auditing must be enabled on the database. For more information
-about Exasol auditing, see
-[Auditing](https://docs.exasol.com/db/latest/database_concepts/auditing.htm#Implementation).
+For the required database privileges, see the [Requirements section of the Exasol connector documentation](/v1.13.x/connectors/database/exasol#requirements).
 
 ## Metadata Ingestion
+The Exasol service connection is defined by the [Exasol connection JSON schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/exasolConnection.json).
+
+To create and run a Metadata Ingestion workflow, define a YAML configuration that connects to Exasol, processes the required entities, and sends the metadata to OpenMetadata. The workflow configuration follows the [metadata ingestion workflow JSON schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json).
+
 ### 1. Define the YAML Config
 
 <CodePreview>
@@ -82,8 +83,8 @@ Configure the source type and service name for your Exasol connector.
 **SSL/TLS Settings**: Mode/setting for SSL validation:
 
 - **validate-certificate**: Uses Transport Layer Security (TLS) and validates the server certificate using system certificate stores.
-- **ignore-certificate**: Uses Transport Layer Security (TLS) but disables the validation of the server certificate. This should not be used in production. It can be useful during testing with self-signed certificates.
-- **disable-tls**: Does not use any Transport Layer Security (TLS). Data will be sent in plain text (no encryption). While this may be helpful in rare cases of debugging, make sure you do not use this in production.
+- **ignore-certificate**: Uses Transport Layer Security (TLS) but disables the validation of the server certificate. This mode should **never** be used in production. It is useful for testing with self-signed certificates.
+- **disable-tls**: Does not use any Transport Layer Security (TLS). Data will be sent in plain text (no encryption). This mode should **never** be used in production and should only be used in debugging scenarios.
 
 </ContentSection>
 
@@ -99,10 +100,21 @@ Configure the source type and service name for your Exasol connector.
 
 </ContentSection>
 
-
-<ContentSection id={8} title="Source Config" lines="15-58">
+<ContentSection id={18} title="Source Config" lines="25-68">
 
 <SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={19} title="Sink Configuration" lines="69-71">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={20} title="Workflow Configuration" lines="72-88">
+
+<WorkflowConfigDef />
 
 </ContentSection>
 
@@ -113,14 +125,14 @@ Configure the source type and service name for your Exasol connector.
 ```yaml
 source:
   type: exasol
-  serviceName: "<service name>"
+  serviceName: "local_exasol"
   serviceConnection:
     config:
       type: Exasol
-      username: Exasol  # REQUIRED
-      password: password  # REQUIRED
+      username: username # REQUIRED
+      password: password # REQUIRED
       hostPort: 127.0.0.1:8563  # REQUIRED - format: host:port
-      SSL/TLS Settings: validate-certificate (default), or ignore-certificate, or disable-tls
+      SSL/TLS Settings: validate-certificate
       # connectionOptions:
       #   key: value
       # connectionArguments:
@@ -138,3 +150,4 @@ source:
 </CodePreview>
 
 <IngestionCli />
+<Lineage connector="exasol" />
