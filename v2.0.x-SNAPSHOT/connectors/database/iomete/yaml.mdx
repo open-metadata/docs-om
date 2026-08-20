@@ -1,0 +1,157 @@
+---
+title: Run the IOMETE Connector Externally
+description: Use YAML to ingest metadata from IOMETE, including tables, schemas, and profiling.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/v2.0.x-SNAPSHOT/connectors/yaml/data-profiler.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.0.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/iomete.webp'
+name="IOMETE"
+stage="BETA"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "dbt", "View Lineage", "View Column-level Lineage", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the IOMETE connector.
+Configure and schedule IOMETE metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+The IOMETE user must have access to the lakehouse cluster and sufficient privileges to read metadata.
+### Python Requirements
+<PythonRequirements />
+To run the IOMETE ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[iomete]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/iometeConnection.json)
+you can find the structure to create a connection to IOMETE.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your IOMETE connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Host and Port" lines="7">
+
+**hostPort**: Host of the IOMETE service. You can optionally include the port using the `host:port` format (e.g. `dev.iomete.cloud:443`). If no port is specified, port `443` is used by default.
+
+</ContentSection>
+
+<ContentSection id={3} title="Username" lines="8">
+
+**username**: Username to connect to IOMETE. This user should have privileges to read all the metadata in IOMETE.
+
+</ContentSection>
+
+<ContentSection id={4} title="Password" lines="9">
+
+**password**: Password to connect to IOMETE.
+
+</ContentSection>
+
+<ContentSection id={5} title="Cluster" lines="10">
+
+**cluster**: IOMETE lakehouse cluster name to connect to. This is passed as the `cluster` query parameter in the connection URL.
+
+</ContentSection>
+
+<ContentSection id={6} title="Data Plane" lines="11">
+
+**dataPlane**: IOMETE data plane name. This is passed as the `data_plane` query parameter in the connection URL (e.g. `default`).
+
+</ContentSection>
+
+<ContentSection id={7} title="Catalog and Database Schema" lines="12-13">
+
+**catalog** (Optional): Catalog of the data source (e.g. `spark_catalog`). If left blank, OpenMetadata uses the default catalog.
+**databaseSchema** (Optional): IOMETE database (schema) to restrict metadata ingestion to. If left blank, OpenMetadata attempts to scan all schemas in the catalog.
+
+</ContentSection>
+
+<ContentSection id={8} title="Source Config" lines="14-57">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={9} title="Sink Configuration" lines="58-60">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={10} title="Workflow Configuration" lines="61-77">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="iomete_config.yaml">
+
+```yaml
+source:
+  type: iomete
+  serviceName: <service name>
+  serviceConnection:
+    config:
+      type: Iomete
+      hostPort: <hostPort>  # REQUIRED - format: host:port
+      username: <username>  # REQUIRED
+      password: <password>  # REQUIRED
+      cluster: <cluster>  # REQUIRED
+      dataPlane: <dataPlane>  # REQUIRED
+      # catalog: spark_catalog
+      # databaseSchema: schema
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<DataProfiler connector="iomete" />
+<AutoClassification connector="iomete" />
+<DataQuality />
+## Lineage
+You can learn more about how to ingest lineage [here](/v2.0.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/v2.0.x-SNAPSHOT/connectors/database/dbt).
