@@ -3,7 +3,11 @@ import { VersionMatrix } from '/snippets/components/VersionMatrix/VersionMatrix.
 import { VERSION_MATRIX_DATA_WITH_UPDATES } from '/snippets/components/VersionMatrix/versionMatrixData.mdx'
 
 <BreakingChanges>
-- **Ingestion Framework:** All workflows have integrated the `workflow.print_status()` inside the `workflow.execute()` call. This change was needed to better handle logger lifecycles. If you're using the Ingestion Framework directly to manage workflows via the usual process:
+OpenMetadata 2.0 is a major release with breaking changes across the API, ingestion, configuration and
+UI. The highest-impact ones are listed below; the full, component-by-component breakdown lives in
+[Breaking Changes: 1.13 → 2.0](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/overview).
+
+- **Ingestion Framework:** all workflows have integrated `workflow.print_status()` inside the `workflow.execute()` call, to better handle logger lifecycles. If you drive workflows directly you can now remove the `print_status()` call — the only side effect is temporarily duplicated summary logs.
 
   ```
   workflow_config = yaml.safe_load(CONFIG)
@@ -14,26 +18,17 @@ import { VERSION_MATRIX_DATA_WITH_UPDATES } from '/snippets/components/VersionMa
   workflow.stop()
   ```
 
-  You can now remove the `print_status()` call. Note that the only side effect would be temporarily getting duplicated summary logs.
+- **Collaboration:** `/v1/suggestions` is removed and suggestions are now Tasks; announcements move from `/v1/feed` to `/v1/announcements`. See [Collaboration](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
+- **Ingestion:** `ingestionPipeline.pipelineStatuses` is now an **array**, and the Databricks Pipeline connection requires `authType` instead of a top-level `token`. See [Ingestion & Connectors](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+- **Great Expectations:** the validation action now requires **Great Expectations 1.3 or later**; the `great-expectations-1xx` extra no longer exists and test case results report row counts only. See [Ingestion & Connectors](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+- **Configuration:** embedding and natural-language-query provider settings move out of `elasticsearch.naturalLanguageSearch` into a new top-level `llmConfiguration` block, and concurrent sessions are capped at 5 per user by default. See [Platform, Config & Security](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security).
+- **Explore:** the Explore page is redesigned. URL parameters change (`page`/`size` become `currentPage`/`pageSize`, plus a new `browsePath`), filters now stack with the browse location, and result ordering changes. See [Discovery & Search](/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search).
+- **Entity status:** field changed from **status** to **entityStatus** for **glossaryTerm** and **dataContract**, as it is introduced for different data assets. For Data Contracts the value also changed from **Active** to **Approved**.
 
-- Changed field from **status** to **entityStatus** for **glossaryTerm** and **dataContract**, as we introduce it for different data assets.
-- For Data Contracts, the value also changed from **Active** to **Approved**.
-
-- **Great Expectations:** the validation action now requires **Great Expectations 1.3 or later**. OpenMetadata 2.0 drops support for the 0.18 line, and `openmetadata-ingestion[great-expectations]` now installs `great-expectations~=1.3`. The separate `great-expectations-1xx` extra no longer exists.
-
-  If you adopted the interim GX 1.x module during 1.13, rename it in your checkpoint. `metadata.great_expectations.action1xx` and `OpenMetadataValidationAction1xx` have been removed:
-
-  ```python
-  # Before
-  from metadata.great_expectations.action1xx import OpenMetadataValidationAction1xx
-
-  # After
-  from metadata.great_expectations.action import OpenMetadataValidationAction
-  ```
-
-  Checkpoints that already reference `metadata.great_expectations.action` and `OpenMetadataValidationAction` keep those names. The surrounding checkpoint definition still has to move to the GX 1.x API. Pass actions as objects to `Checkpoint(actions=[...])` rather than as an `action_list` of dictionaries, and call `checkpoint.run()` instead of `great_expectations checkpoint run`. See the [Great Expectations](/v2.0.x-SNAPSHOT/connectors/ingestion/great-expectations) guide for the updated configuration.
-
-  Test case results now report row counts only — `unexpected_count`, `missing_count`, `element_count`, and `observed_value`. The percentage values (`unexpected_percent`, `unexpected_percent_total`, `missing_percent`, and `success_rate`) are no longer sent, because OpenMetadata charts every result value of a test case on a single axis and percentages plotted next to row counts were unreadable. Percentages remain derivable as `unexpected_count / element_count`.
+<Card title="Read the full breaking changes guide" icon="triangle-exclamation" href="/v2.0.x-SNAPSHOT/deployment/upgrade/breaking-changes/overview">
+  Component-by-component breakdown across API, Explore, collaboration, governance, data quality,
+  lineage, ingestion, applications, platform and UI — plus an upgrade checklist.
+</Card>
 </BreakingChanges>
 
 ## Prerequisites
