@@ -78,9 +78,17 @@ Read `pipelineStatuses[0]` for the latest run, and regenerate SDK models.
   </Tab>
 </Tabs>
 
+`authType` accepts three variants: **Personal Access Token**, **DatabricksOAuth** and **Azure AD**.
+
+<Warning>
+Stored service configurations are migrated automatically. **External ingestion YAMLs are not** — any
+YAML you keep in source control, in a CI job, or on a hybrid runner must be updated by hand or the
+run fails validation.
+</Warning>
+
 <Tip>
-Existing services are migrated automatically. Update Terraform, Ansible and scripted service creation,
-plus any ingestion YAML that sets `token` at the top level.
+Update Terraform, Ansible and scripted service creation, plus any ingestion YAML that sets `token` at
+the top level.
 </Tip>
 
 ## Log stream payload changed
@@ -152,6 +160,33 @@ Coverage added in 2.0: database connectors generally (plus Databricks and Unity 
 Airflow REST and dbt Cloud pipeline totals, Looker and Tableau via manual progress mode, and the
 profiler and auto-classification workflows.
 
+## Ingestion images move to Python 3.12
+
+<Warning>
+**Breaking.** Affects anyone who builds a custom ingestion image or installs the ingestion package
+into their own Python environment.
+</Warning>
+
+| | Released 1.13.x | 2.0 |
+| --- | --- | --- |
+| Ingestion image | `apache/airflow:3.2.x-python3.10` | `apache/airflow:3.3.0-python3.12` |
+| Operator image | `python:3.10-bookworm` | `python:3.12-slim-trixie` |
+
+<Warning>
+**`cp310` wheels will not load.** Any custom connector, driver or dependency pinned to a CPython 3.10
+wheel must be rebuilt or repinned for CPython 3.12.
+</Warning>
+
+<Tip>
+Rebuild every custom ingestion image, and re-resolve any private requirements file, before pointing
+agents at 2.0. If you run the ingestion package directly, move the virtualenv to Python 3.12.
+</Tip>
+
+<Note>
+The 3.12 move was also backported into the 1.13 maintenance line after 1.13.3. If you are already
+running a 1.13.4 build you have made this jump; upgrading from **1.13.0 – 1.13.3** you have not.
+</Note>
+
 ## Great Expectations 1.3 or later is required
 
 <Warning>
@@ -164,7 +199,7 @@ profiler and auto-classification workflows.
 + "great-expectations": "great-expectations~=1.3",
 ```
 
-The separate `great-expectations-1xx` extra is **removed**. 1.3 is the floor because Great
+**Great Expectations 0.x is no longer supported**, and the separate `great-expectations-1xx` extra is **removed**. 1.3 is the floor because Great
 Expectations only gained the validation-action registry there — on 1.0–1.2 `Checkpoint.actions` is a
 closed union that rejects the OpenMetadata action outright.
 
