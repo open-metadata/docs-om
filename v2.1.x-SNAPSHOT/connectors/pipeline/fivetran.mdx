@@ -1,0 +1,138 @@
+---
+title: Fivetran Connector | OpenMetadata Data Integration
+description: Connect Fivetran pipelines to OpenMetadata for automated data lineage tracking, metadata discovery, and comprehensive pipeline monitoring and governance.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/fivetran.webp'
+name="Fivetran"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Usage"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the Fivetran connector.
+Configure and schedule Fivetran metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/pipeline/fivetran/troubleshooting)
+
+## Requirements
+
+To access Fivetran APIs, a Fivetran account on a Standard, Enterprise, or Business Critical plan is required.
+
+### Permissions
+
+Generate the API key and API secret from a Fivetran user with an account-level role that has read access to all destinations and connections, such as **Account Reviewer**. OpenMetadata needs to discover every destination and connector in the account. A destination-scoped role (for example, View Destination) is not enough, because it only covers destinations the user was explicitly invited to.
+
+For detailed, per-phase Pipeline Status (Extract/Process/Load), OpenMetadata also reads the `fivetran_metadata.log` table that Fivetran automatically publishes in each destination's warehouse, using the Database Service already connected to that warehouse in OpenMetadata. The database user in that connection needs `SELECT` access to the `fivetran_metadata` schema. If this table isn't reachable, OpenMetadata automatically falls back to Fivetran's REST sync-history API for pipeline status.
+
+## Metadata Ingestion
+
+To ingest metadata from Fivetran, you need to create a service connection. The service connects Fivetran with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **Fivetran** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/fivetran.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Fivetran services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/fivetran.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Fivetran. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/fivetran.png)
+
+- **API Key**: Fivetran API Key. Follow the steps below to generate the Fivetran API key and API secret:
+  1. Click your user name in your Fivetran dashboard.
+  2. Click **API Key**.
+  3. Click **Generate API key**. (If you already have an API key, the button text is **Generate new API key**.)
+  4. Make a note of the key and secret, as they won't be displayed once you close the page or navigate away.
+
+  For more detailed documentation, visit [here](https://fivetran.com/docs/rest-api/getting-started).
+- **API Secret**: Fivetran API Secret. Copy this from the same step where the API key is generated.
+- **Host and Port**: Host and port of the Fivetran instance. By default, OpenMetadata uses `https://api.fivetran.com` to connect to the Fivetran APIs.
+- **Limit**: Fivetran API limit for pagination. This is the maximum number of records returned in a single page of results when using Fivetran's API for pagination.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Fivetran service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which pipelines OpenMetadata ingests from Fivetran.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

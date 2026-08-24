@@ -1,0 +1,272 @@
+---
+title: Redshift Connector | OpenMetadata AWS Data Warehouse
+description: Connect Amazon Redshift to OpenMetadata Easily with our comprehensive database connector guide. Setup instructions, configuration tips, and metadata ext...
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/redshift.webp'
+name="Redshift"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the Redshift connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth**: Username and password authentication
+- **IAM Auth**: AWS IAM-based authentication with automatic temporary credential retrieval (supports both Provisioned Clusters and Serverless Workgroups)
+</Info>
+
+Configure and schedule Redshift metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+    - [Incremental Extraction](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/metadata/incremental-extraction/redshift)
+- [Query Usage](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/usage)
+- [Data Profiler](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+- [Data Quality](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality)
+- [Lineage](/v2.1.x-SNAPSHOT/connectors/ingestion/lineage)
+- [dbt Integration](/v2.1.x-SNAPSHOT/connectors/database/dbt)
+- [Enable Security](#securing-redshift-connection-with-ssl-in-openmetadata)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/database/redshift/troubleshooting)
+
+## Requirements
+
+Before configuring the Redshift connector, make sure the following requirements are in place.
+
+### Metadata
+Redshift user must grant `SELECT` privilege on table [SVV_TABLE_INFO](https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_TABLE_INFO.html) to fetch the metadata of tables and views. For more information visit [here](https://docs.aws.amazon.com/redshift/latest/dg/c_visibility-of-data.html).
+```sql
+-- Create a new user
+-- More details https://docs.aws.amazon.com/redshift/latest/dg/r_CREATE_USER.html
+CREATE USER test_user with PASSWORD 'password';
+-- Grant SELECT on table
+GRANT SELECT ON TABLE svv_table_info to test_user;
+```
+<Note>
+The Redshift connector supports both Amazon Redshift Provisioned (cluster) and Amazon Redshift Serverless starting from release 1.11.5. The connector automatically detects the deployment type during ingestion and uses the appropriate system views for query and lineage extraction. No additional configuration changes are required.
+</Note>
+<Tip>
+Ensure that the ingestion user has **USAGE** privileges on the schema containing the views. If additional access is needed, run the following command:
+```sql
+GRANT USAGE ON SCHEMA "<schema_name>" TO <ingestion_user>;
+```
+</Tip>
+### Profiler & Data Quality
+Executing the profiler workflow or data quality tests will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. The user should also be allowed to view information in `SVV_TABLE_INFO` for all objects in the database. For system-level profiling metrics on Provisioned Clusters, the user also needs:
+```sql
+GRANT SELECT ON TABLE pg_catalog.stl_insert TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_delete TO <ingestion_user>;
+```
+More information on the profiler workflow setup can be found [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+### Usage & Lineage
+For the usage and lineage workflow, the user will need `SELECT` privilege on the following system tables:
+
+**For Provisioned Clusters:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.stl_query TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_querytext TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.stl_scan TO <ingestion_user>;
+```
+
+**For Serverless Workgroups:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.sys_query_history TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.sys_query_text TO <ingestion_user>;
+GRANT SELECT ON TABLE pg_catalog.sys_query_detail TO <ingestion_user>;
+```
+
+You can find more information on the usage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+### Stored Procedures
+For stored procedure lineage extraction, the user needs `SELECT` privilege on:
+
+**For Provisioned Clusters:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.svl_stored_proc_call TO <ingestion_user>;
+```
+
+**For Serverless Workgroups:**
+```sql
+GRANT SELECT ON TABLE pg_catalog.sys_procedure_call TO <ingestion_user>;
+```
+### IAM Authentication
+To use IAM authentication instead of basic username/password, ensure the IAM role or user has the following permissions:
+
+**For Provisioned Clusters:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": [
+        "arn:aws:redshift:<region>:<account-id>:dbuser:<cluster-id>/<db-user>",
+        "arn:aws:redshift:<region>:<account-id>:dbname:<cluster-id>/<db-name>"
+      ]
+    }
+  ]
+}
+```
+
+**For Serverless Workgroups:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift-serverless:GetCredentials",
+      "Resource": "arn:aws:redshift-serverless:<region>:<account-id>:workgroup/<workgroup-id>"
+    }
+  ]
+}
+```
+<Note>
+The connector automatically detects whether your Redshift endpoint is Provisioned or Serverless based on the hostname pattern and uses the appropriate API for credential retrieval.
+</Note>
+
+## Metadata Ingestion
+
+To ingest metadata from Redshift, you need to create a service connection. The service connects Redshift with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Redshift** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/redshift.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Redshift services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/redshift.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Redshift. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/redshift.png)
+
+It is recommended to exclude the schema "information_schema" from the metadata ingestion as it contains system tables and views.
+
+- **Username**: Specify the User to connect to Redshift. It should have enough privileges to read all the metadata.
+- **Auth Type**: Choose the authentication method:
+  - **Basic Auth**: Use username and password for authentication.
+    - **Password**: Password to connect to Redshift.
+  - **IAM Auth**: Use AWS IAM for authentication. This retrieves temporary credentials automatically.
+    - **AWS Region**: AWS region where your Redshift cluster/workgroup is located (for example, `us-east-1`).
+    - **AWS Access Key ID** (Optional): Access key for the IAM user/role. If not provided, the connector uses the default AWS credentials chain (environment variables, instance profile, and so on).
+    - **AWS Secret Access Key** (Optional): Secret key corresponding to the Access Key ID.
+    - **AWS Session Token** (Optional): Session token for temporary credentials.
+    - **Assume Role ARN** (Optional): ARN of a role to assume for cross-account access.
+    - **Assume Role Session Name** (Optional): Session name when assuming a role.
+- **Database**: The database of the data source is an optional parameter, if you would like to restrict the metadata reading to a single database. If left blank, OpenMetadata ingestion attempts to scan all the databases.
+
+#### SSL Configuration
+In order to integrate SSL in the Metadata Ingestion Config, the user will have to add the SSL config under connectionArguments which is placed in the source.
+
+#### SSL Modes
+There are a couple of types of SSL modes that Redshift supports which can be added to ConnectionArguments, they are as follows:
+- **disable**: SSL is disabled and the connection is not encrypted.
+- **allow**: SSL is used if the server requires it.
+- **prefer**: SSL is used if the server supports it. Amazon Redshift supports SSL, so SSL is used when you set sslmode to prefer.
+- **require**: SSL is required.
+- **verify-ca**: SSL must be used and the server certificate must be verified.
+- **verify-full**: SSL must be used. The server certificate must be verified and the server hostname must match the hostname attribute on the certificate.
+For more information, you can visit [Redshift SSL documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html)
+
+#### Advanced Configuration
+
+Database Services have an Advanced Configuration section, where you can pass extra arguments to the connector and, if needed, change the connection scheme. This would only be required to handle advanced connectivity scenarios or customizations.
+
+- **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+- **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, Table, and Stored Procedure sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+- **Stored Procedure**: Controls which stored procedures are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+## Securing Redshift Connection with SSL in OpenMetadata
+To establish secure connections between OpenMetadata and a Redshift database, you can configure SSL using different SSL modes provided by Redshift, each offering varying levels of security.
+Under `Advanced Config`, specify the SSL mode appropriate for your connection, such as `prefer`, `verify-ca`, `allow`, and others. After selecting the SSL mode, provide the CA certificate used for SSL validation (`caCertificate`). Note that Redshift requires only the CA certificate for SSL validation.
+<img src="/public/images/connectors/ssl_connection.png" alt="SSL Configuration" height="450px" />
+
+<Related />

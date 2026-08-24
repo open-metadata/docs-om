@@ -1,0 +1,260 @@
+---
+title: Tableau Connector | OpenMetadata Integration Guide
+description: Connect Tableau dashboards to OpenMetadata with our comprehensive connector guide. Setup instructions, configuration options, and metadata extraction steps.
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDashboard from '/snippets/connectors/metadata-agent/dashboard.mdx'
+import DashboardLineage from '/snippets/connectors/dashboard/dashboard-lineage.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/tableau.webp'
+name="Tableau"
+stage="PROD"
+availableFeatures={["Dashboards", "Charts", "Lineage", "Owners", "Datamodels", "Tags", "Projects", "Column Lineage", "Usage"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Tableau connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth** — Username and password authentication
+- **Access Token Auth** — Personal access token name and secret for token-based authentication
+</Info>
+
+Configure and schedule Tableau metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Entity Mapping](#entity-mapping)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Enable Security](#securing-tableau-connection-with-ssl-in-openmetadata)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/dashboard/tableau/troubleshooting)
+
+## Requirements
+
+To ingest Tableau metadata, minimum `Site Role: Viewer` is required for the Tableau user.
+To create lineage between Tableau dashboards and any database service via the queries provided from Tableau Metadata API, enable the Tableau Metadata API for your Tableau server.
+For more information, see [Get Started with the Metadata API](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html).
+
+<Tip>
+- If using a **default site** on Tableau Server, leave the **Site URL** and **Site Name** fields **blank** in the ingestion configuration.
+- Ensure that the **Metadata API** is enabled for the user performing the ingestion. If it is not enabled, ingestion may fail. Follow the official Tableau documentation to [enable the Metadata API](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html#enable-the-tableau-metadata-api-for-tableau-server).
+- The minimum required role to retrieve owners is Site Admin Explorer.
+</Tip>
+
+<Tip>
+- As of OpenMetadata versions `1.7.4` and `1.7.5`, the `siteUrl` field has been removed from the Tableau connector configuration. This change was intentional, as confirmed in the release commit.
+- To connect to a non-default Tableau site, use the `siteName` field instead. The Tableau Python SDK does not require `siteUrl` for authentication.
+- Ensure the `siteName` field is correctly populated (do not use `*`) to enable successful metadata ingestion for multi-site Tableau environments.
+</Tip>
+
+### Source Tables and Lineage
+
+Lineage depends on Tableau exposing the source tables behind each data model.
+
+<Warning>
+**Table lineage requires** the ingestion account to have the **View** capability on the external assets in Tableau Catalog, granted directly or derived. For any asset it cannot view, Tableau returns the source table with its table and database names removed, keeping only internal identifiers, and reports no error. Those tables are skipped without a message, so **no lineage is created between them and the data models that use them**. Assets the account can view are unaffected, and dashboards, charts and data models are still ingested either way.
+</Warning>
+
+Grant the ingestion account **View** on the affected external assets in Tableau Catalog, or use an account that already holds it. A Viewer or Explorer site role alone is not enough for OpenMetadata to build table lineage. For the steps, see [Manage Permissions for External Assets](https://help.tableau.com/current/server/en-us/dm_perms_assets.htm) in the Tableau documentation.
+
+## Entity Mapping
+
+The Tableau connector maps Tableau assets to OpenMetadata entities as follows:
+
+| Tableau Asset | OpenMetadata Entity | Description |
+|---|---|---|
+| **Workbooks** | **Dashboard** | Tableau workbooks are mapped to OpenMetadata Dashboard entities. |
+| **Views** (worksheets, dashboard views, stories — all sheet types) | **Chart** | All Tableau views are mapped to OpenMetadata Chart entities, regardless of their sheet type. |
+| **Data Sources** (embedded and published) | **Data Models** | Tableau data sources are mapped to OpenMetadata Data Model entities. |
+| **Projects** | **Project field** | The Tableau project name is stored in the project field of the Dashboard. |
+
+### Example Structure
+
+**Tableau Structure:**
+```
+Project: Sales Team
+└── Workbook: Sales Analysis
+    ├── Dashboard: Revenue Overview (sheetType="dashboard")
+    ├── Worksheet: Monthly Sales (sheetType="worksheet")
+    └── Story: Sales Story (sheetType="story")
+```
+
+**OpenMetadata Structure:**
+```
+Dashboard: "Sales Analysis" (Project: "Sales Team")
+├── Chart: "Revenue Overview"
+├── Chart: "Monthly Sales"
+└── Chart: "Sales Story"
+```
+
+This mapping ensures that:
+- Tableau workbooks appear as OpenMetadata dashboards.
+- All views (worksheets, dashboard views, stories) appear as charts under that dashboard.
+- Tableau project names are preserved in the project field.
+- URLs point directly to the specific views.
+
+## Metadata Ingestion
+
+To ingest metadata from Tableau, you need to create a service connection. The service connects Tableau with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Dashboard Services**, then click the **Tableau** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Dashboard/select-service/tableau.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Tableau services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Dashboard/service-name/tableau.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Tableau. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/tableau.png)
+
+- **Host and Port**: URL or IP address of your installation of Tableau Server.
+- **Authentication Types**:
+    1. Basic Authentication
+    - Username: The name of the user whose credentials will be used to sign in.
+    - Password: The password of the user.
+    2. Access Token Authentication
+    - Personal Access Token: The personal access token name. For more information, see [Personal Access Tokens](https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm).
+    - Personal Access Token Secret: The personal access token value. For more information, see [Personal Access Tokens](https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm).
+- **API Version**: Tableau API version. If not provided, the version will be used from the Tableau server automatically. For a list of Tableau Server versions and their corresponding REST API and REST API schema versions, see [REST API Versions](https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api_concepts_versions.htm).
+- **Site Name**: This corresponds to the `contentUrl` attribute in the Tableau REST API. The `site_name` is the portion of the URL that follows the `/site/` in the URL.
+- **Pagination Limit**: The pagination limit will be used while querying the Tableau Graphql endpoint to get the data source information.
+- **Proxy URL**: Optional proxy URL for the Tableau server. If not provided, the hostPort will be used. This is used to generate the dashboard and chart URLs.
+
+### Site Name
+
+The Site Name field behaves differently depending on whether you're connecting to Tableau Cloud or Tableau Server.
+
+#### 1. Service Connection for Tableau Cloud
+
+If you're connecting to a cloud Tableau instance, add the `Site Name` with your site name.
+
+#### 2. Service Connection for a Default Tableau Site
+
+For a default Tableau site, the `Site Name` field should be kept empty.
+
+#### 3. Service Connection for a Non-Default Tableau Site
+
+For a non-default Tableau site, the `Site Name` field is required.
+
+![Configure Service Connection - Non-default Site](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/tableau-non-default-site.png)
+
+<Tip>
+If `https://xxx.tableau.com/#/site/MarketingTeam/home` represents the homepage url for your Tableau site, the `MarketingTeam` from the url should be entered in the `Site Name` field.
+</Tip>
+
+### Authentication Type
+
+Tableau supports two authentication methods for the connector.
+
+#### 1. Basic Authentication
+
+Basic authentication requires the username and password of the user signing in.
+
+![Configure Service Connection - Basic Auth](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/tableau-basic-auth.png)
+
+#### 2. Access Token Authentication
+
+Access token authentication requires the personal access token name and the personal access token value.
+For more information, see [Personal Access Tokens](https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm).
+
+![Configure Service Connection - Access Token Auth](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/tableau-access-token-auth.png)
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+</Tip>
+
+**Filter Options**
+
+The Dashboard, Chart, and Data Model sections each include the following filter options:
+
+- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
+- **Chart**: Controls which charts within the ingested dashboards are included.
+- **Data Model**: Controls which data models are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDashboard />
+
+<DashboardLineage />
+
+### Tableau Metadata API requirement
+
+Make sure the **Tableau Metadata API** is enabled on your Tableau server. OpenMetadata uses this API to find out which database tables each dashboard is built on. Without it, lineage will not be collected.
+
+- To enable the Tableau Metadata API, see [Enable the Tableau Metadata API for Tableau Server](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html#enable-the-tableau-metadata-api-for-tableau-server).
+
+## Securing Tableau Connection with SSL in OpenMetadata
+
+To establish secure connections between OpenMetadata and Tableau, navigate to the `Advanced Config` section. Here, you can provide the CA certificate used for SSL validation by specifying the `caCertificate`. Alternatively, if both client and server require mutual authentication, you'll need to use all three parameters: `ssl_key`, `ssl_cert`, and `caCertificate`. In this case, `ssl_cert` is used for the client's SSL certificate, `ssl_key` for the private key associated with the SSL certificate, and `caCertificate` for the CA certificate to validate the server's certificate.
+
+<img src="/public/images/connectors/ssl_tableau.png" alt="SSL Configuration" height="450px" />
+
+<Related />

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.12.x, v1.13.x, v2.0.x-SNAPSHOT). The default/current version is **v1.12.x** — unversioned URLs redirect there via `docs.json` redirects (~line 6425).
+OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.13.x, v2.0.x, v2.1.x-SNAPSHOT). The default/current version is **v2.0.x** — unversioned URLs redirect there via `docs.json` redirects (~line 7147).
 
 The sibling directory `../OpenMetadata` contains the main OpenMetadata repo (JSON schemas in `openmetadata-spec/` and ingestion source in `ingestion/`). The `/connector-doc-review` skill uses it to validate connector docs against ground truth.
 
@@ -57,10 +57,10 @@ Reusable content lives in `snippets/` and is imported via absolute paths:
 
 ```jsx
 import TestConnection from '/snippets/connectors/test-connection.mdx'
-import DataProfiler from '/snippets/v1.11.x/connectors/yaml/data-profiler.mdx'
+import DataProfiler from '/snippets/v1.13.x/connectors/yaml/data-profiler.mdx'
 ```
 
-There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v1.11.x/`, `/snippets/v1.12.x/`, `/snippets/v1.13.x/`). Version-specific snippets typically contain `connectors-list.mdx` (connector catalog per service type), `related.mdx`, `data-profiler.mdx`, and deployment snippets that differ between versions. Always import the snippet matching the page's version.
+There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v1.13.x/`, `/snippets/v2.0.x/`, `/snippets/v2.1.x-SNAPSHOT/`). Version-specific snippets typically contain `connectors-list.mdx` (connector catalog per service type), `related.mdx`, `data-profiler.mdx`, and deployment snippets that differ between versions. Always import the snippet matching the page's version.
 
 ### Connector Docs Pattern
 
@@ -92,9 +92,9 @@ This section covers the infrastructure: navigation, styling, components, and ver
 
 ### Navigation Configuration
 
-All navigation is defined in `docs.json` (very large file, ~6.5k lines). It defines:
+All navigation is defined in `docs.json` (very large file, ~7.3k lines). It defines:
 - Version tabs and page hierarchy per version (bulk of the file)
-- Redirects from unversioned paths to v1.12.x (starts at ~line 6425)
+- Redirects from unversioned paths to v2.0.x (starts at ~line 7147)
 - Footer, navbar, SEO, and theme settings
 
 When editing `docs.json`, use targeted line-range reads rather than loading the whole file. Navigation groups are nested under `navigation.versions[].tabs[].groups[]`.
@@ -104,7 +104,7 @@ When editing `docs.json`, use targeted line-range reads rather than loading the 
 Each version is a self-contained directory with identical structure:
 
 ```
-v1.11.x/
+v2.0.x/
   index.mdx              # Homepage
   quick-start/            # Getting started
   deployment/             # Docker, Kubernetes, Bare Metal

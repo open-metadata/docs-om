@@ -1,0 +1,222 @@
+---
+title: Hex Connector | OpenMetadata Integration Documentation
+description: Connect Hex to OpenMetadata with our comprehensive dashboard connector guide. Setup instructions, configuration tips, and metadata extraction made simple.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDashboard from '/snippets/connectors/metadata-agent/dashboard.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/hex.webp'
+name="Hex"
+stage="BETA"
+availableFeatures={["Dashboards", "Charts", "Lineage", "Owners", "Tags"]}
+unavailableFeatures={["Owners", "Datamodels"]}
+/>
+
+In this section, we provide guides and references to use the Hex connector.
+
+Configure and schedule Hex metadata workflows from the OpenMetadata UI:
+
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/dashboard/hex/troubleshooting)
+
+## Requirements
+
+Before configuring the Hex connector, make sure the following requirements are in place.
+
+<Tip>
+Hex connector supports both personal and workspace tokens for authentication.
+</Tip>
+
+### Hex Account Setup
+
+Follow the steps below to configure the account setup for the Hex connector:
+
+### Step 1: Generate API Token
+
+To generate an API token in Hex:
+
+1. Log into your [Hex](https://app.hex.tech) account.
+2. Navigate to Account Settings.
+3. Go to the API Keys section.
+4. Click **Create API Key**.
+5. Choose the token type:
+   - **Personal Token**: Provides access to projects you own or have access to.
+   - **Workspace Token**: Provides access to all projects in the workspace (requires admin privileges).
+6. Copy and securely store the generated token.
+
+<Tip>
+API tokens are shown only once when created. Make sure to copy and store them securely.
+</Tip>
+
+### Step 2: Verify API Access
+
+Ensure that the token has appropriate permissions:
+- For personal tokens: Verify you have access to the projects you want to ingest.
+- For workspace tokens: Verify admin privileges are granted.
+
+## Metadata Ingestion
+
+To ingest metadata from Hex, you need to create a service connection. The service connects Hex with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Dashboard Services**, then click the **Hex** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Dashboard/select-service/hex.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Hex services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Dashboard/service-name/hex.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Hex. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/hex.png)
+
+- **hostPort**: URL to the Hex instance. Provide the URL to your Hex instance. For Hex cloud users, use `https://app.hex.tech`. For on-premise installations, provide your custom domain URL.
+- **tokenType**: Type of authentication token. Select the type of token you're using:
+  - **personal**: Personal access token (default)
+  - **workspace**: Workspace-level token (requires admin privileges)
+- **token**: Hex API Token. Provide the API token generated from your Hex account. This token is used for authentication with the Hex APIs.
+
+  To generate a token:
+  - Log into Hex
+  - Go to **Account Settings** > **API Keys**
+  - Create a new API key
+  - Copy the generated token
+- **includeTags**: Import Hex Categories and Status as Tags. Enable this option to import Hex project categories and status as OpenMetadata tags. This helps in organizing and filtering your Hex projects within OpenMetadata. By default, this is set to `true`.
+- **Dashboard Filter Pattern**: Use regex patterns to include or exclude specific dashboards from ingestion. This helps you control which Hex projects are imported into OpenMetadata.
+
+  Examples:
+  - Include only production projects: `^prod-.*`
+  - Exclude test projects: `^(?!test-).*`
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+</Tip>
+
+**Filter Options**
+
+The Dashboard, Chart, and Data Model sections each include the following filter options:
+
+- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
+- **Chart**: Controls which charts within the ingested dashboards are included.
+- **Data Model**: Controls which data models are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDashboard />
+
+## Lineage
+
+Hex connector extracts lineage information by:
+- **Warehouse Query History**: Directly queries data warehouse logs (Snowflake, BigQuery, Databricks, Redshift, and others) to find queries executed by Hex.
+- **Hex Metadata Identification**: Identifies Hex-originated queries using metadata comments embedded by Hex containing project IDs.
+- **SQL Parsing**: Analyzes the discovered SQL queries to extract upstream table dependencies.
+
+The lineage information helps you understand:
+- Which data warehouse tables are actually queried by each Hex project.
+- Real data usage patterns based on executed queries.
+- Impact analysis when making changes to underlying data sources.
+
+**Note**: The connector does not use Hex APIs for lineage. Instead, it discovers lineage by analyzing actual queries executed in your data warehouses, providing more accurate data dependency information.
+
+### Warehouse Query Log Requirements
+
+For lineage extraction to work, query logging must be enabled in your data warehouse:
+
+#### Snowflake
+- Requires access to `SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY`.
+- Query history is automatically maintained by Snowflake.
+
+#### BigQuery
+- Requires access to `INFORMATION_SCHEMA.JOBS_BY_PROJECT`.
+- Query history is automatically maintained by BigQuery.
+
+#### MySQL
+- Requires general_log to be enabled:
+```sql
+SET GLOBAL general_log = 'ON';
+SET GLOBAL log_output = 'TABLE';
+```
+- Grant access to the `mysql.general_log` table.
+
+#### Databricks
+- Requires access to `system.query.history`.
+- Query history is automatically maintained.
+
+#### Redshift
+- Requires access to the `stl_query` system table.
+- Query history is automatically maintained.
+
+#### Other Warehouses
+- Athena: Access to query history via CloudTrail or S3 logs.
+- ClickHouse: Access to the `system.query_log` table.
+
+<Related />

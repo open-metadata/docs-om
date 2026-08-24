@@ -1,0 +1,90 @@
+---
+title: Usage Workflow Guide | OpenMetadata Ingestion Workflows
+description: Monitor usage patterns from queries and dashboards with workflow-based usage extraction.
+sidebarTitle: Overview
+---
+
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+
+# Usage Workflow
+
+Learn how to configure the Usage workflow from the UI to ingest Query history data from your data sources.
+
+This workflow is available ONLY for the following connectors:
+
+- [BigQuery](/v2.0.x/connectors/database/bigquery)
+- [Clickhouse](/v2.0.x/connectors/database/clickhouse)
+- [Databricks](/v2.0.x/connectors/database/databricks)
+- [Exasol](/v2.0.x/connectors/database/exasol)
+- [MSSQL](/v2.0.x/connectors/database/mssql)
+- [PostgreSQL](/v2.0.x/connectors/database/postgres)
+- [Redshift](/v2.0.x/connectors/database/redshift)
+- [Snowflake](/v2.0.x/connectors/database/snowflake)
+
+If your database service is not yet supported, you can use this same workflow by providing a Query Log file!
+
+Learn how to do so 👇
+
+<CardGroup cols={1}>
+<Card title="Usage Workflow through Query Logs" href="/v2.0.x/connectors/ingestion/workflows/usage/usage-workflow-query-logs" >
+    Configure the usage workflow by providing a Query Log file.
+  </Card>
+</CardGroup>
+
+## UI Configuration
+
+Once the metadata ingestion runs correctly and we are able to explore the service Entities, we can add Query Usage information.
+
+This will populate the **Queries** tab from the Table Entity Page.
+
+<img src="/public/images/features/ingestion/workflows/usage/query-tab.png" alt="table-entity-page" />
+
+We can create a workflow that will obtain the query log and table creation information from the underlying database and feed it to OpenMetadata. The Usage Agent will be in charge of obtaining this data.
+
+### Step 1: Add a Usage Agent
+
+1. Navigate to **Settings** > **Services** and select the service type.
+2. Click the service you have added.
+3. Open the **Agents** tab and click **Add Agent** > **Usage**.
+
+    <img src="/public/images/features/ingestion/workflows/usage/add-usage-agent.png" alt="Add usage agent" />
+
+4. Give the agent a recognisable name and click **Next**.
+
+### Step 2: Configure the Agent
+
+Configure the core parameters for the Usage agent:
+
+<img src="/public/images/features/ingestion/workflows/usage/usage-agent-setup.png" alt="Usage Agent Setup" />
+
+| **Field** | **Description** |
+|:--- |:--- |
+| **Query Log Duration** | How many days back to look in query logs to process usage data. Default is `1`. |
+| **Stage File Location** | Absolute file path for the temporary file used to store query logs before processing. Default is `/tmp/query_log`. |
+| **Filter Condition** | Optional condition to filter which queries are included from the query history. |
+| **Result Limit** | Maximum number of query log results to process at a time. Default is `1000`. |
+| **Query Log File Path** | File path to the query logs, if reading from a file rather than querying the source directly. |
+| **Process Query Cost** | Toggle to enable processing of query cost data alongside usage. |
+
+### Step 3: Schedule and Deploy
+
+Choose how the usage agent should run:
+
+<img src="/public/images/features/ingestion/workflows/usage/usage-schedule-ingestion.png" alt="Schedule Usage Ingestion" />
+
+- **Schedule**: Runs repeatedly based on a defined interval. Set the **Frequency** (Hourly, Daily, Weekly, Monthly, or Custom) and the **Time** to run.
+- **On Demand**: Runs once when manually triggered.
+
+Configure the remaining options:
+- **Number of Retries**: How many times to retry if the ingestion fails.
+- **Raise on Error**: Toggle on to surface errors immediately rather than silently skipping them.
+
+Click **Add & Deploy** to save and activate the usage agent.
+
+## YAML Configuration
+
+In the [connectors](/v2.0.x/connectors) section we showcase how to run the metadata ingestion from a JSON/YAML file using the Airflow SDK or the CLI via metadata ingest. Running a usage workflow is also possible using a JSON/YAML configuration file.
+
+This is a good option if you wish to execute your workflow via the Airflow SDK or using the CLI; if you use the CLI a usage workflow can be triggered with the command `metadata usage -c FILENAME.yaml`. The `serviceConnection` config will be specific to your connector (you can find more information in the [connectors](/v2.0.x/connectors) section), though the sourceConfig for the usage will be similar across all connectors.
+
+<QueryUsage connector="bigquery" />

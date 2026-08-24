@@ -1,0 +1,152 @@
+---
+title: MariaDB Connector | OpenMetadata Database Integration Guide
+description: Connect MariaDB to OpenMetadata with our comprehensive database connector guide. Easy setup, configuration steps, and metadata extraction for your data catalog.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/mariadb.webp'
+name="MariaDB"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "dbt", "View Lineage", "View Column-level Lineage", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the MariaDB connector.
+Configure and schedule MariaDB metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Data Profiler](/v2.0.x/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+- [Data Quality](/v2.0.x/how-to-guides/data-quality-observability/quality)
+- [dbt Integration](/v2.0.x/connectors/database/dbt)
+- [Troubleshooting](/v2.0.x/connectors/database/mariadb/troubleshooting)
+
+## Requirements
+
+Before configuring the MariaDB connector, make sure the following requirements are in place.
+
+### Metadata
+
+To extract metadata the user used in the connection needs to have access to the `INFORMATION_SCHEMA`. By default a user can see only the rows in the `INFORMATION_SCHEMA` that correspond to objects for which the user has the proper access privileges.
+
+```SQL
+-- Create user. More details https://mariadb.com/kb/en/create-user/
+CREATE USER <username>[@<hostName>] IDENTIFIED BY '<password>';
+-- Grant select on a database
+GRANT SELECT ON world.* TO '<username>';
+-- Grant select on a database
+GRANT SELECT ON world.* TO '<username>';
+-- Grant select on a specific object
+GRANT SELECT ON world.hello TO '<username>';
+```
+
+### Profiler & Data Quality
+
+Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/v2.0.x/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v2.0.x/how-to-guides/data-quality-observability/quality).
+
+## Metadata Ingestion
+
+To ingest metadata from MariaDB, you need to create a service connection. The service connects MariaDB with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **MariaDB** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/mariadb.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other MariaDB services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/mariadb.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for MariaDB. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/mariadb.png)
+
+- **Username**: Specify the User to connect to MariaDB. It should have enough privileges to read all the metadata.
+- **Password**: Password to connect to MariaDB.
+- **Host and Port**: Enter the fully qualified hostname and port number for your MariaDB deployment in the Host and Port field.
+- **databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
+- **databaseSchema**: databaseSchema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single databaseSchema. When left blank, OpenMetadata Ingestion attempts to scan all the databaseSchema.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+<Related />

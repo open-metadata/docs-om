@@ -1,0 +1,270 @@
+---
+title: Great Expectations | OpenMetadata Data Quality Integration
+description: Integrate Great Expectations with OpenMetadata for automated data quality validation. Complete setup guide, connector configuration, and best practices.
+sidebarTitle: Great Expectations
+---
+
+# Great Expectations
+For Data Quality tests the open source python package Great Expectations stands out from the crowd. For those of you who don't know, [Great Expectations](https://greatexpectations.io/) is a shared, open standard for data quality. It helps data teams eliminate pipeline debt, through data testing, documentation, and profiling. Learn more about the product in [their documentation](https://docs.greatexpectations.io/docs/).  With this tutorial, we show you how to configure Great Expectations to integrate with OpenMetadata and ingest your test results to your table service page.
+
+<Warning>
+**Great Expectations 1.3 or later is required.**
+
+OpenMetadata 2.0 removes support for the Great Expectations 0.18 line. It also removes the `OpenMetadataValidationAction1xx` class and the `metadata.great_expectations.action1xx` module that shipped alongside it during the transition — use `OpenMetadataValidationAction` from `metadata.great_expectations.action` instead.
+
+Great Expectations 1.x removed the `great_expectations` CLI and the YAML checkpoint file. You now define checkpoints in Python and pass the OpenMetadata action as an object rather than as an `action_list` entry. See [Upgrade Prerequisites](/v2.0.x/deployment/upgrade) for the full list of breaking changes.
+</Warning>
+
+## Requirements
+
+### OpenMetadata Requirements
+You'll need OpenMetadata version 2.0 or later. On 1.13 and earlier, the Great Expectations 1.x action ships separately, under the `great-expectations-1xx` extra as `OpenMetadataValidationAction1xx` — see the [1.13 version of this page](/v1.13.x/connectors/ingestion/great-expectations).
+
+To deploy OpenMetadata, follow the procedure to [Try OpenMetadata in Docker](/v2.0.x/quick-start/local-docker-deployment).
+
+Before ingesting your tests results from Great Expectations you will need to have your table metadata ingested into OpenMetadata. Follow the instruction in the [Connectors](/v2.0.x/connectors) section to learn more.
+
+### Python Requirements
+
+<PythonRequirements />
+
+Install the OpenMetadata Great Expectations submodule, which brings in `great-expectations~=1.3`:
+
+```shell
+pip3 install 'openmetadata-ingestion[great-expectations]'
+```
+
+## Great Expectations Setup
+
+### Create your `config.yaml` file
+To ingest Great Expectations results in OpenMetadata, you will need to specify your OpenMetadata security configuration for the REST endpoint. This configuration file needs to be located inside the directory you pass as `config_file_path` and named `config.yaml`.
+
+```yaml
+hostPort: http://localhost:8585/api
+authProvider: azure
+apiVersion: v1
+securityConfig:
+  clientSecret: {{ env('CLIENT_SECRET') }}
+  authority: my
+  clientId: 123
+  scopes:
+    - a
+    - b
+```
+
+You can use environment variables in your configuration file by simply using `{{ env('<MY_ENV_VAR>') }}`. These will be parsed and rendered at runtime allowing you to securely create your configuration and commit it to your favorite version control tool. As we support multiple security configurations, you can check out the [Enable Security](/v2.0.x/deployment/security) section for more details on how to set the `securityConfig` part of the `yaml` file.
+
+![Great Expectations config file](/public/images/features/integrations/ge-config-yaml.gif)
+
+### Add the action to your checkpoint
+
+Instantiate `OpenMetadataValidationAction` and pass it to the `actions` list of your checkpoint:
+
+```python
+import great_expectations as gx
+
+from metadata.great_expectations.action import OpenMetadataValidationAction
+
+context = gx.get_context()
+conn_string = "redshift+psycopg2://user:pw@host:port/db"
+
+data_source = context.data_sources.add_redshift(
+    name="my_datasource",
+    connection_string=conn_string,
+)
+
+data_asset = data_source.add_table_asset(
+    name="customers_asset",
+    table_name="customers",
+    schema_name="public",
+)
+
+batch_definition = data_asset.add_batch_definition_whole_table("customers_batch")
+
+suite = context.suites.add(
+    gx.core.expectation_suite.ExpectationSuite(name="customers_suite")
+)
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToNotBeNull(column="customer_id")
+)
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToBeBetween(
+        column="lifetime_value", min_value=0, max_value=1000000
+    )
+)
+
+validation_definition = context.validation_definitions.add(
+    gx.core.validation_definition.ValidationDefinition(
+        name="customers_validation",
+        data=batch_definition,
+        suite=suite,
+    )
+)
+
+action = OpenMetadataValidationAction(
+    config_file_path="path/to/ometa/config/file/",
+    database_service_name="<serviceName in OM>",
+    database_name="<databaseName in OM>",
+    schema_name="<schemaName in OM>",
+    table_name="<tableName in OM>",
+)
+
+checkpoint = context.checkpoints.add(
+    gx.checkpoint.checkpoint.Checkpoint(
+        name="customers_checkpoint",
+        validation_definitions=[validation_definition],
+        actions=[action],
+    )
+)
+
+checkpoint_result = checkpoint.run()
+```
+
+**Properties**:
+
+- `config_file_path`: The path to the **directory** holding the `config.yaml` file that describes your OpenMetadata server connection.
+- `database_service_name`: [Optional] The name of the service in OpenMetadata. If not specified and 2 tables have the same name in 2 different OpenMetadata services, the action will fail.
+- `database_name`: [Optional] The database name as it appears in OpenMetadata. When omitted, the action uses the database of the execution engine the expectations ran against.
+- `schema_name`: [Optional] The schema name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. Defaults to `default` if not specified.
+- `table_name`: [Optional] The table name as it appears in OpenMetadata. For table assets the action reads this from the batch spec when present. **Required** for query assets, where the action can't determine the table automatically.
+- `expectation_suite_table_config_map`: [Optional] A dictionary mapping expectation suite names to their target OpenMetadata tables. Required when running multi-table checkpoints, where different expectation suites should send results to different tables. Each entry specifies the `database_name`, `schema_name`, and `table_name` for routing validation results.
+
+<Info>
+Every part of the table name has to resolve before the action writes anything. The action looks in three places: its own configuration, the suite mapping, and the batch spec. If it can't determine the database, schema, or table, the run fails with an error naming the missing parts instead of writing to the wrong table.
+</Info>
+
+### Adding a description to your test cases
+
+The action copies the `description` set in an expectation's `meta` to the OpenMetadata test case:
+
+```python
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToNotBeNull(
+        column="customer_id",
+        meta={"description": "Every customer must have an id"},
+    )
+)
+```
+
+Expectations without a `meta` description are still ingested; they simply produce a test case with no description.
+
+### Run your checkpoint
+
+Great Expectations 1.x removed the CLI, so checkpoints are run from Python:
+
+```python
+checkpoint_result = checkpoint.run()
+```
+
+Once the run completes, the test cases and their results appear on the table's Data Quality tab in OpenMetadata.
+
+## Multi-Table Checkpoints
+
+When validating multiple tables in a single checkpoint, use the `expectation_suite_table_config_map` parameter to route validation results to the correct OpenMetadata tables. This is necessary because:
+- Each expectation suite might target a different table.
+- The checkpoint action needs to know where to send each suite's results.
+- Without the mapping, all results would attempt to go to the same default table.
+
+This matters most for query assets: A query asset's batch spec carries the query, not the table it reads from, so the mapping is the only way the action can tell where the results belong.
+
+```python
+import great_expectations as gx
+
+from metadata.great_expectations.action import OpenMetadataValidationAction
+
+context = gx.get_context()
+
+data_source = context.data_sources.add_postgres(
+    name="my_datasource",
+    connection_string="postgresql+psycopg2://user:pw@host:port/db",
+)
+
+validation_definitions = []
+
+# users table
+users_asset = data_source.add_table_asset(
+    name="users_asset", table_name="users", schema_name="public"
+)
+users_suite = context.suites.add(
+    gx.core.expectation_suite.ExpectationSuite(name="users_suite")
+)
+users_suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeNull(column="email"))
+validation_definitions.append(
+    context.validation_definitions.add(
+        gx.core.validation_definition.ValidationDefinition(
+            name="users_validation",
+            data=users_asset.add_batch_definition_whole_table("users_batch"),
+            suite=users_suite,
+        )
+    )
+)
+
+# orders table
+orders_asset = data_source.add_table_asset(
+    name="orders_asset", table_name="orders", schema_name="public"
+)
+orders_suite = context.suites.add(
+    gx.core.expectation_suite.ExpectationSuite(name="orders_suite")
+)
+orders_suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToBeBetween(
+        column="amount", min_value=0, max_value=1000000
+    )
+)
+validation_definitions.append(
+    context.validation_definitions.add(
+        gx.core.validation_definition.ValidationDefinition(
+            name="orders_validation",
+            data=orders_asset.add_batch_definition_whole_table("orders_batch"),
+            suite=orders_suite,
+        )
+    )
+)
+
+action = OpenMetadataValidationAction(
+    config_file_path="/path/to/config/",
+    database_service_name="my_postgres_service",
+    expectation_suite_table_config_map={
+        "users_suite": {
+            "database_name": "production",
+            "schema_name": "public",
+            "table_name": "users",
+        },
+        "orders_suite": {
+            "database_name": "production",
+            "schema_name": "public",
+            "table_name": "orders",
+        },
+    },
+)
+
+checkpoint = context.checkpoints.add(
+    gx.checkpoint.checkpoint.Checkpoint(
+        name="multi_table_checkpoint",
+        validation_definitions=validation_definitions,
+        actions=[action],
+    )
+)
+
+checkpoint_result = checkpoint.run()
+```
+
+Any suite not present in the map falls back to the `database_name` / `schema_name` / `table_name` set on the action.
+
+## Test Results
+
+Each expectation becomes a test case in OpenMetadata, and each run adds a result to it. Results report row counts:
+
+| Value | Meaning |
+|---|---|
+| `unexpected_count` | Rows that failed the expectation |
+| `missing_count` | Rows with a null value for the column under test |
+| `element_count` | Rows evaluated |
+| `observed_value` | The value the expectation measured, for expectations that report one (for example `expect_column_mean_to_be_between`) |
+
+<Info>
+The action doesn't report percentages such as `unexpected_percent` and `missing_percent`. OpenMetadata charts every result value of a test case on a single axis, so a percentage plotted next to a row count is flattened into the baseline and unreadable. Divide `unexpected_count` by `element_count` if you need the percentage.
+</Info>
+
+### List of Great Expectations Supported Test
+We currently only support a certain number of Great Expectations tests. The full list can be found in the [Tests](/v2.0.x/how-to-guides/data-quality-observability/quality/tests-yaml) section.

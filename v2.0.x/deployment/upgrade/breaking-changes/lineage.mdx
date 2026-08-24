@@ -1,0 +1,132 @@
+---
+title: Breaking Changes - Lineage | Official Documentation
+description: FQN-based lineage edge APIs, batch hydration, time-window traversal semantics and lineage change events in OpenMetadata 2.0.
+sidebarTitle: Lineage
+collate: false
+---
+
+# Lineage
+
+Mostly additive — but the new time-window filter has non-obvious traversal semantics, and the
+knowledge-graph renderer is replaced.
+
+## New FQN-based edge APIs
+
+<Info>
+**Additive.** The UUID-based endpoints remain.
+</Info>
+
+| New endpoint | Purpose |
+| --- | --- |
+| `PUT /v1/lineage/{fromEntity}/name/{fromFQN}/{toEntity}/name/{toFQN}` | Create or replace an edge by name |
+| `PATCH /v1/lineage/{fromEntity}/name/{fromFQN}/{toEntity}/name/{toFQN}` | Patch an edge by name |
+| `GET /v1/lineage/getLineageEdge/{fromEntity}/name/{fromFQN}/{toEntity}/name/{toFQN}` | Read a single edge by name |
+| `DELETE /v1/lineage/source/name/{entityType}/{entityFQN}/type/{lineageSource}` | Delete all edges of one lineage source for an entity |
+
+The source-scoped delete is the clean way to re-run a lineage source (dbt, OpenLineage, manual)
+without wiping edges contributed by other sources.
+
+## Batch hydration
+
+<Info>
+**Additive.** Replaces N per-node entity `GET`s.
+</Info>
+
+```http
+POST /v1/lineage/hydrate
+```
+
+```json
+{
+  "entities": [ { "type": "table", "id": "…" } ],
+  "fields": "tags,owners,domains",
+  "include": "non-deleted"
+}
+```
+
+Accepts 1–200 entities, each identified by `type` and `id` only. The response groups hydrated entities
+by entity type. `fields` is applied uniformly — fields that do not apply to a given entity type are
+silently skipped.
+
+<Tip>
+Graph UIs and lineage exporters that fan out one entity `GET` per node should switch to a single
+hydrate call per page of nodes.
+</Tip>
+
+## Time-window lineage
+
+<Warning>
+**New capability with surprising semantics.** Read this before using it.
+</Warning>
+
+The search-lineage and entity-count-lineage requests gain `startTime` and `endTime` (epoch
+milliseconds), matched by range overlap on edge `createdAt` and `updatedAt`.
+
+The window is applied as a **hard prune during graph traversal**, not as a post-filter. An
+out-of-window edge severs discovery of everything reachable only through it, in both directions. A
+node is shown only if it is reachable from the root through edges that are **all** in-window.
+
+Two consequences worth planning for:
+
+1. **A single stale edge hides a whole subtree.** If the edge from `A → B` falls outside the window,
+   nothing downstream of `B` is returned even if those edges are in-window.
+2. **Legacy edges always match.** Edges with no timestamps match any window for backwards
+   compatibility, so a window query over a mix of legacy and temporal data returns *all* legacy edges
+   plus the in-window temporal ones. Do not read the result as a clean point-in-time snapshot until
+   your graph is fully timestamped.
+
+Setting `endTime` alone gives as-of semantics: edges that existed on or before that instant.
+
+## Lineage change events
+
+<Info>
+**Additive.** Affects webhook and event-subscription consumers.
+</Info>
+
+`changeEventType` adds `entityLineageAdded`, `entityLineageDeleted` and `entityLineageUpdated`.
+Lineage mutations previously surfaced only as generic entity updates, or not at all.
+
+<Tip>
+Subscriptions that filtered on `entityUpdated` to catch lineage changes may now see those changes
+arrive under the new types instead.
+</Tip>
+
+## Lineage UI
+
+<Note>
+**Behavioural.** Affects users and fork maintainers.
+</Note>
+
+| Change | Detail |
+| --- | --- |
+| **Time filter** | A new lineage time filter drives the `startTime` and `endTime` request fields |
+| **Traced paths** | Traced edges and nodes are rendered distinctly |
+| **Pagination** | Execution history and edge deletion are paginated |
+| **Node edits** | Entity edits reflect on graph nodes without a full graph reload |
+| **Component stack** | Lineage layers, canvas edge renderer, lineage table, node labels and control buttons migrate onto the shared core components; the MUI drawer and AntD modal are replaced |
+
+### Knowledge Graph renderer replaced
+
+<Warning>
+**Breaking for forks** that import the graph components.
+</Warning>
+
+The AntV-G6 based knowledge graph is removed and replaced by an RDF-backed **3D Knowledge Graph** tab
+with an Ontology mode and full-viewport expand. The `components/KnowledgeGraph/**` modules and
+`NodeContextMenu` are deleted; replacements live under `components/OntologyExplorer/**`.
+
+<Warning>
+The 3D graph reads from the RDF store. If RDF is disabled the tab has no data. Note also that RDF
+inference now defaults to **off** — see
+[Applications & Automation](/v2.0.x/deployment/upgrade/breaking-changes/applications-and-automation).
+</Warning>
+
+## OpenLineage & connector lineage
+
+<Info>
+**Additive.**
+</Info>
+
+Snowflake gains an opt-in access-history lineage path, dbt Cloud gains column-level lineage from
+compiled SQL, dbt gains semantic-layer metric ingestion with column-level lineage, and Kafka Connect
+creates lineage for `EventRouter` and `RegexRouter` routed topics.

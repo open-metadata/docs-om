@@ -1,0 +1,157 @@
+---
+title: Cassandra Connector | OpenMetadata Database Integration
+description: Connect Cassandra to OpenMetadata with our database connector. Step-by-step setup guide, configuration options, and metadata extraction for your NoSQL database.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/cassandra.webp'
+name="Cassandra"
+stage="BETA"
+availableFeatures={["Metadata"]}
+unavailableFeatures={["Query Usage", "Data Quality", "dbt", "Owners", "Lineage", "Column-level Lineage", "Tags", "Stored Procedures", "Data Profiler", "Auto-Classification"]} />
+In this section, we provide guides and references to use the Cassandra connector.
+Configure and schedule Cassandra metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Enable Security](#securing-cassandra-connection-with-ssl-in-openmetadata)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/database/cassandra/troubleshooting)
+
+## Requirements
+To extract metadata using the Cassandra connector, ensure the user in the connection has the following permissions:
+- Read Permissions: The ability to query tables and perform data extraction.
+- Schema Operations: Access to list and describe keyspaces and tables.
+
+## Metadata Ingestion
+
+To ingest metadata from Cassandra, you need to create a service connection. The service connects Cassandra with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Cassandra** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/cassandra.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Cassandra services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Database/service-name/cassandra.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Cassandra. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/cassandra.png)
+
+- **Username**: Username to connect to Cassandra. This user must have the necessary permissions to perform metadata extraction and table queries.
+- **Host Port**: When using the `cassandra` connecion schema, the hostPort parameter specifies the host and port of the Cassandra. This should be specified as a string in the format `hostname:port`. For example, `localhost:9042`.
+- **databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
+- **Auth Type**: Following authentication types are supported:
+1. **Basic Authentication**:
+We'll use the user credentials to connect to Cassandra
+- **password**: Password of the user.
+2. **DataStax Astra DB Configuration**:
+Configuration for connecting to DataStax Astra DB in the cloud.
+  - **connectTimeout**: Timeout in seconds for establishing new connections to Cassandra.
+  - **requestTimeout**: Timeout in seconds for individual Cassandra requests.
+  - **token**: The Astra DB application token used for authentication.
+  - **secureConnectBundle**: File path to the Secure Connect Bundle (.zip) used for a secure connection to DataStax Astra DB.
+
+#### SSL Modes
+There are a couple of types of SSL modes that Cassandra supports which can be added to ConnectionArguments, they are as follows:
+- **disable**: SSL is disabled and the connection is not encrypted.
+- **allow**: SSL is used if the server requires it.
+- **prefer**: SSL is used if the server supports it.
+- **require**: SSL is required.
+- **verify-ca**: SSL must be used and the server certificate must be verified.
+- **verify-full**: SSL must be used. The server certificate must be verified, and the server hostname must match the hostname attribute on the certificate.
+
+#### SSL Configuration
+In order to integrate SSL in the Metadata Ingestion Config, the user will have to add the SSL config under sslConfig which is placed in the source.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+## Securing Cassandra Connection with SSL in OpenMetadata
+To establish secure connections between OpenMetadata and a Cassandra database, you can use any SSL mode provided by Cassandra, except disable.
+Under `Advanced Config`, after selecting the SSL mode, provide the CA certificate, SSL certificate and SSL key.
+<img src="/public/images/connectors/ssl_connection.png" alt="SSL Configuration" height="450px" />
+
+<Related />

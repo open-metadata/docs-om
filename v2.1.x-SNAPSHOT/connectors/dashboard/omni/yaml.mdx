@@ -1,0 +1,148 @@
+---
+title: Run the Omni Connector Externally
+description: Use YAML to ingest metadata from Omni, including models, topics, workbooks, dashboards, charts, and lineage.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/dashboard/source-config-def.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/dashboard/source-config.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/omni.webp'
+  name="Omni"
+  stage="BETA"
+  availableFeatures={["Dashboards", "Charts", "Datamodels", "Lineage", "Owners", "Projects"]}
+  unavailableFeatures={["Tags"]} />
+In this section, we provide guides and references to use the Omni connector.
+
+OpenMetadata ingests Omni metadata through Omni's REST API. The connector reads Omni models and topics as data models, documents (workbooks) as dashboards with their tiles as charts, and builds lineage from your warehouse tables through topics to dashboards.
+
+Configure and schedule Omni metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+
+OpenMetadata authenticates with Omni using an API token sent as a `Bearer` token. Use either an **Organization API Key** (created by an Organization Admin, grants access across the organization's models and documents) or a **Personal Access Token** (scoped to your own access). For steps to obtain either credential, see [API authentication](https://docs.omni.co/api/authentication).
+
+<Tip>
+**Tip**: The token is shown only once when created. Copy and store it securely.
+</Tip>
+
+### Python Requirements
+<PythonRequirements />
+Omni only depends on the `requests` library, which already ships with the base package. To run the Omni ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/dashboard/omniConnection.json)
+you can find the structure to create a connection to Omni.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Omni:
+<CodePreview>
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Omni connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="hostPort" lines="7">
+
+**hostPort**: URL of the Omni instance, for example, `https://your-org.omniapp.co`. The `/api` path is added automatically.
+
+</ContentSection>
+
+<ContentSection id={3} title="token" lines="8">
+
+**token**: API token to authenticate with Omni. Generated in [Requirements](#requirements) above.
+
+</ContentSection>
+
+<ContentSection id={4} title="verifySSL and sslConfig" lines="9-10">
+
+**verifySSL** (Optional): Client SSL verification mode: `no-ssl` (default), `ignore`, or `validate`.
+**sslConfig** (Optional): CA certificate (and, for mutual TLS, client certificate and key) used when `verifySSL` is set to `validate`.
+
+</ContentSection>
+
+<ContentSection id={5} title="Filter Patterns" lines="11-30">
+
+**dashboardFilterPattern**, **chartFilterPattern**, **dataModelFilterPattern**, **projectFilterPattern** (all Optional): Regex to include or exclude dashboards, charts, data models (Omni topics), and projects that match the pattern.
+
+</ContentSection>
+
+<ContentSection id={6} title="Source Config" lines="31-73">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Sink Configuration" lines="74-76">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Workflow Configuration" lines="77-93">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+<CodePanel fileName="omni_config.yaml">
+
+```yaml
+source:
+  type: omni
+  serviceName: omni_source
+  serviceConnection:
+    config:
+      type: Omni
+      hostPort: https://your-org.omniapp.co  # REQUIRED
+      token: <token>  # REQUIRED
+      # verifySSL: no-ssl
+      # dashboardFilterPattern:
+      #   includes:
+      #     - <dashboard name>
+      #   excludes:
+      #     - <dashboard name>
+      # chartFilterPattern:
+      #   includes:
+      #     - <chart name>
+      # dataModelFilterPattern:
+      #   includes:
+      #     - <data model name>
+      # projectFilterPattern:
+      #   includes:
+      #     - <project name>
+```
+
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />
+
+## Lineage
+
+Omni resolves lineage from each topic's declared base table, so it doesn't need to parse warehouse query logs. A topic built on top of a table OpenMetadata has already indexed produces a direct edge from that source table, through the topic (data model), to every dashboard tile built on it. There is no separate lineage agent or pipeline: lineage is collected as part of the same metadata ingestion workflow above.

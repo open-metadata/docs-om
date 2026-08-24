@@ -1,0 +1,228 @@
+---
+title: MSSQL Connector | OpenMetadata SQL Server Integration Guide
+description: Connect your Microsoft SQL Server to OpenMetadata with our comprehensive MSSQL connector guide. Step-by-step setup, configuration, and metadata extraction.
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/mssql.webp'
+name="MSSQL"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Owners", "Tags", "SSIS packages"]} />
+In this section, we provide guides and references to use the MSSQL connector.
+Configure and schedule MSSQL metadata and profiler workflows from the OpenMetadata UI:
+- [Remote Connection](#for-remote-connection)
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](/v2.0.x/connectors/ingestion/workflows/usage)
+- [Data Profiler](/v2.0.x/how-to-guides/data-quality-observability/profiler/profiler-workflow)
+- [Data Quality](/v2.0.x/how-to-guides/data-quality-observability/quality)
+- [Lineage](/v2.0.x/connectors/ingestion/lineage)
+- [dbt Integration](/v2.0.x/connectors/database/dbt)
+- [Troubleshooting](/v2.0.x/connectors/database/mssql/troubleshoot)
+
+## Requirements
+
+MSSQL User must grant `SELECT` privilege to fetch the metadata of tables and views.
+```sql
+-- Create a new user
+-- More details https://learn.microsoft.com/en-us/sql/t-sql/statements/create-user-transact-sql?view=sql-server-ver16
+CREATE USER Mary WITH PASSWORD = '********';
+-- Grant SELECT on table
+GRANT SELECT TO Mary;
+```
+### View Definitions
+
+Capturing view lineage depends on an additional server or database permission.
+
+<Warning>
+**View lineage requires** the `VIEW DEFINITION` (database-level) or `VIEW ANY DEFINITION` (server-level) permission. Without it, SQL Server returns each view's definition as `NULL` and raises no error, so views are ingested without their SQL and **no view lineage is created**. Table metadata is not affected.
+</Warning>
+
+```sql
+-- Database-level: grant to the database user, in every database you ingest
+GRANT VIEW DEFINITION TO Mary;
+-- Or server-level: grant to the login (not the contained user) to cover all databases
+GRANT VIEW ANY DEFINITION TO [login_name];
+```
+### Usage & Lineage Consideration
+To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) when it is enabled on a database. Query Store exposes this history through `sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan`, and `sys.query_store_runtime_stats`. Query Store keeps a durable, on-disk record of executed queries. The plan-cache Dynamic Management Views (DMVs) (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats`, and `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
+
+Query Store is auto-detected per database. No configuration is needed. When `ingestAllDatabases` is enabled, each database is read from its own best source independently: databases with Query Store use it, and the rest fall back to the plan-cache DMVs, so one database without Query Store never downgrades the others.
+
+<Tip>
+**Tip**: Enable Query Store on the databases you ingest, for reliable and durable Usage and Lineage history.
+</Tip>
+
+To check whether Query Store is enabled on a database, and how it is currently operating:
+```sql
+SELECT actual_state_desc, query_capture_mode_desc, size_based_cleanup_mode_desc
+FROM sys.database_query_store_options;
+```
+To enable it:
+```sql
+ALTER DATABASE [YourDatabase] SET QUERY_STORE = ON
+(
+    QUERY_CAPTURE_MODE = ALL,
+    CLEANUP_POLICY = ( STALE_QUERY_THRESHOLD_DAYS = 30 )
+);
+```
+The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB`, which reduces the risk of Query Store switching to read-only. Under heavy write load, cleanup can still fall behind, and Query Store can switch to read-only temporarily until it catches up.
+
+<Warning>
+Query Store needs two permissions together. The database-level grant below lets `sys.database_query_store_options` and Query Store's other metadata views succeed, but the query text comes from `sys.query_store_query_text`, which needs the server-level grant. Without the server-level grant, usage and lineage queries can run without error while returning no query text.
+</Warning>
+
+Database-level, for Query Store metadata: `VIEW DATABASE STATE` (SQL Server 2016-2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW DATABASE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+```
+Server-level, for the query text and the plan-cache DMV fallback: `VIEW SERVER STATE` (SQL Server 2019 and earlier) or `VIEW SERVER PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW SERVER STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW SERVER PERFORMANCE STATE TO YourUser;
+```
+Exact grant names and tiers can differ on Azure SQL Database and Azure SQL Managed Instance. Check `sys.database_query_store_options` and the [Microsoft documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-query-text-transact-sql) for your instance.
+### For Remote Connection
+
+If the ingestion runner connects to MSSQL over the network rather than locally, work through the following checks in order.
+
+#### 1. SQL Server Running
+Make sure the SQL Server instance you are trying to connect to is in a running state.
+#### 2. Allow Remote Connection on SSMS (Microsoft SQL Server Management Studio)
+This step allows the SQL Server to accept remote connection requests.
+
+<img src="/public/images/connectors/mssql/remote-connection.png" alt="Remote Connection" />
+
+#### 3. Configure Windows Firewall
+If you are using SQL Server on Windows, you must configure the firewall on the computer running SQL Server to allow access.
+1. On the Start menu, select Run, type WF.msc, and then select OK.
+2. In the Windows Firewall with Advanced Security, in the left pane, right-click Inbound Rules, and then select New Rule in the action pane.
+3. In the Rule Type dialog box, select Port, and then select Next.
+4. In the Protocol and Ports dialog box, select TCP. Select Specific local ports, and then type the port number of the instance of the Database Engine, such as 1433 for the default instance. Select Next.
+5. In the Action dialog box, select Allow the connection, and then select Next.
+6. In the Profile dialog box, select any profiles that describe the computer connection environment when you want to connect to the Database Engine, and then select Next.
+7. In the Name dialog box, type a name and description for this rule, and then select Finish.
+For details, see this [link](https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-a-windows-firewall-for-database-engine-access?view=sql-server-ver15).
+
+## Metadata Ingestion
+
+To ingest metadata from MSSQL, you need to create a service connection. The service connects MSSQL with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **MSSQL** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/mssql.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other MSSQL services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/mssql.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for MSSQL. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/mssql.png)
+
+- **Connection Scheme**: Defines how to connect to MSSQL. OpenMetadata supports `mssql+pytds`, `mssql+pyodbc`, and `mssql+pymssql`. If you are using Windows Authentication from a Linux deployment, use `pymssql`.
+- **Username**: Specify the User to connect to MSSQL. It should have enough privileges to read all the metadata.
+- **Password**: Password to connect to MSSQL.
+- **Host and Port**: Enter the fully qualified hostname and port number for your MSSQL deployment in the Host and Port field.
+- **URI String**: In case of a `pyodbc` connection.
+- **Database**: The initial database to establish a connection to the data source.
+- **Ingest All Databases**: If you need to ingest multiple databases, aside from the initial one above, enable this option.
+
+#### Advanced Configuration
+
+Database Services have an Advanced Configuration section, where you can pass extra arguments to the connector and, if needed, change the connection scheme. This would only be required to handle advanced connectivity scenarios or customizations.
+
+- **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+- **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, Table, and Stored Procedure sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+- **Stored Procedure**: Controls which stored procedures are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+<Related />

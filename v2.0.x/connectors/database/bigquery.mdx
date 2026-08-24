@@ -1,0 +1,238 @@
+---
+title: BigQuery | OpenMetadata Connector Setup & Integration Guide
+description: Connect BigQuery to OpenMetadata seamlessly with our comprehensive database connector guide. Setup instructions, configuration tips, and metadata extrac...
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import PartitionedTables from '/snippets/connectors/database/partitioned-tables.mdx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/bigquery.webp'
+name="BigQuery"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Tags", "Stored Procedures", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Owners"]} />
+In this section, we provide guides and references to use the BigQuery connector.
+
+<Info>
+**Supported Authentication Types:**
+- **GCP Credentials Values** — Direct service account key values (type, project ID, private key, client email, and so on)
+- **GCP Credentials Path** — Path to a local service account key JSON file
+- **GCP External Account** — Workload Identity Federation for non-GCP environments
+- **GCP Application Default Credentials (ADC)** — Automatic credential discovery in GCP environments or via `gcloud auth application-default login`
+</Info>
+
+Configure and schedule BigQuery metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/database/bigquery/troubleshooting)
+
+## Requirements
+You need to create an service account in order to ingest metadata from bigquery refer. For more information about how to create a service account, see [Create Custom GCP Role](/v2.0.x/connectors/database/bigquery/create-credentials).
+
+<PartitionedTables />
+
+### Data Catalog API Permissions
+
+- Enable the `datacatalog.googleapis.com` service in your GCP project. See the [Data Catalog API reference](https://docs.cloud.google.com/data-catalog/docs/reference/rest).
+- Select the `GCP Project ID` that you want to enable the `Data Catalog API` on.
+- Click on `Enable API` which will enable the data catalog api on the respective project.
+<Tip>
+Access to the Google Data Catalog API is optional and only required if you want to retrieve policy tags from BigQuery. The BigQuery connector does not require this permission for general metadata ingestion.
+</Tip>
+### GCP Permissions
+To execute metadata extraction and usage workflow successfully the user or the service account should have enough access to fetch required data. Following table describes the minimum required permissions
+| #    | GCP Permission                | Required For            |
+| :--- | :---------------------------- | :---------------------- |
+| 1    | bigquery.datasets.get         | Metadata Ingestion      |
+| 2    | bigquery.tables.get           | Metadata Ingestion      |
+| 3    | bigquery.tables.getData       | Metadata Ingestion      |
+| 4    | bigquery.tables.list          | Metadata Ingestion      |
+| 5    | resourcemanager.projects.get  | Metadata Ingestion      |
+| 6    | bigquery.jobs.create          | Metadata Ingestion      |
+| 7    | bigquery.jobs.listAll         | Metadata Ingestion      |
+| 8    | bigquery.routines.get         | Stored Procedure        |
+| 9    | bigquery.routines.list        | Stored Procedure        |
+| 10   | datacatalog.taxonomies.get    | Fetch Policy Tags       |
+| 11   | datacatalog.taxonomies.list   | Fetch Policy Tags       |
+| 12   | bigquery.readsessions.create  | Bigquery Usage & Lineage Workflow |
+| 13   | bigquery.readsessions.getData | Bigquery Usage & Lineage Workflow |
+| 14   | logging.operations.list       | Incremental Metadata Ingestion    |
+<Tip>
+If the user has `External Tables`, please attach relevant permissions needed for external tables, along with the above list of permissions.
+</Tip>
+<Tip>
+If you are using BigQuery and have sharded tables, you might want to consider using partitioned tables instead. Partitioned tables allow you to efficiently query data by date or other criteria, without having to manage multiple tables. Partitioned tables also have lower storage and query costs than sharded tables.
+You can learn more about the benefits of partitioned tables [here](https://cloud.google.com/bigquery/docs/partitioned-tables#dt_partition_shard).
+If you want to convert your existing sharded tables to partitioned tables, you can follow the steps in this [guide](https://cloud.google.com/bigquery/docs/creating-partitioned-tables#convert-date-sharded-tables).
+This will help you simplify your data management and optimize your performance in BigQuery.
+</Tip>
+
+## Metadata Ingestion
+To ingest metadata from BigQuery, you need to create a service connection. The service connects BigQuery with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **BigQuery** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/bigquery.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other BigQuery services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Database/service-name/bigquery.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for BigQuery. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/bigquery.png)
+
+- **Host and Port**: The ingestion runtime uses the BigQuery API endpoint `bigquery.googleapis.com`. Custom `hostPort` values are not currently applied.
+- **GCP Credentials**:
+You can authenticate with your bigquery instance using either `GCP Credentials Path` where you can specify the file path of the service account key or you can pass the values directly by choosing the `GCP Credentials Values` from the service account key file.
+You can check out [this](https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console) documentation on how to create the service account keys and download it.
+  - **GCP Credentials Values**: Passing the raw credential values provided by BigQuery. This requires us to provide the following information, all provided by BigQuery:
+    - **Credentials type**: Credentials Type is the type of the account, for a service account the value of this field is `service_account`. To fetch this key, look for the value associated with the `type` key in the service account key file.
+    - **Billing Project ID (Optional)**: The GCP project that should be charged for the BigQuery jobs OpenMetadata runs. Use this when the project that pays for metadata, usage, or lineage queries is different from the project ID or IDs you ingest from.
+    - **Project ID**: The BigQuery project ID or IDs that OpenMetadata should scan for datasets, tables, and other metadata. For service account credentials, this usually comes from the `project_id` value in the key file. You can also pass multiple project IDs to ingest metadata from different BigQuery projects into one service.
+    - **Private Key ID**: This is a unique identifier for the private key associated with the service account. To fetch this key, look for the value associated with the `private_key_id` key in the service account file.
+    - **Private Key**: This is the private key associated with the service account that is used to authenticate and authorize access to BigQuery. To fetch this key, look for the value associated with the `private_key` key in the service account file.
+    - **Client Email**: This is the email address associated with the service account. To fetch this key, look for the value associated with the `client_email` key in the service account key file.
+    - **Client ID**: This is a unique identifier for the service account. To fetch this key, look for the value associated with the `client_id` key in the service account key  file.
+    - **Auth URI**: This is the URI for the authorization server. To fetch this key, look for the value associated with the `auth_uri` key in the service account key file. The default value to Auth URI is https://accounts.google.com/o/oauth2/auth.
+    - **Token URI**: The Google Cloud Token URI is a specific endpoint used to obtain an OAuth 2.0 access token from the Google Cloud IAM service. This token allows you to authenticate and access various Google Cloud resources and APIs that require authorization. To fetch this key, look for the value associated with the `token_uri` key in the service account credentials file. The default token URI is `https://oauth2.googleapis.com/token`.
+    - **Authentication Provider X509 Certificate URL**: This is the URL of the certificate that verifies the authenticity of the authorization server. To fetch this key, look for the value associated with the `auth_provider_x509_cert_url` key in the service account key file. The Default value for Auth Provider X509Cert URL is https://www.googleapis.com/oauth2/v1/certs
+    - **Client X509Cert URL**: This is the URL of the certificate that verifies the authenticity of the service account. To fetch this key, look for the value associated with the `client_x509_cert_url` key in the service account key  file.
+  - **GCP Credentials Path**: Passing a local file path that contains the credentials.
+  - **GCP Impersonate Service Account Configuration (Optional)**: Enable the authenticated service account to impersonate another service account, instead of ingesting directly with the credentials above.
+    - **Target Service Account Email**: The email of the service account to impersonate.
+    - **Lifetime**: Number of seconds the delegated credential should remain valid. Defaults to `3600`.
+    <Tip>
+    `Project ID` tells OpenMetadata where to read metadata from. `Billing Project ID` tells BigQuery which project should pay for the queries.
+
+    - Same-project setup: if your data lives in `analytics-prod` and that same project should pay for the queries, use `analytics-prod` as the `Project ID` and either leave `Billing Project ID` empty or set it to `analytics-prod`.
+    - Cross-project billing setup: if your data lives in `marketing-prod` and `finance-prod`, but all query costs should be charged to `central-billing`, use `marketing-prod` and `finance-prod` as `Project ID` values and set `Billing Project ID` to `central-billing`.
+    </Tip>
+- **Include Policy Tags (Optional)**: Option to include policy tags as part of the column description. Enabled by default.
+- **Taxonomy Project ID (Optional)**: Bigquery uses taxonomies to create hierarchical groups of policy tags. To apply access controls to BigQuery columns, tag the columns with policy tags. Learn more about how yo can create policy tags and set up column-level access control [here](https://cloud.google.com/bigquery/docs/column-level-security)
+If you have attached policy tags to the columns of table available in Bigquery, then OpenMetadata will fetch those tags and attach it to the respective columns.
+In this field you need to specify the id of project in which the taxonomy was created.
+- **Taxonomy Location (Optional)**: Bigquery uses taxonomies to create hierarchical groups of policy tags. To apply access controls to BigQuery columns, tag the columns with policy tags. Learn more about how yo can create policy tags and set up column-level access control [here](https://cloud.google.com/bigquery/docs/column-level-security)
+If you have attached policy tags to the columns of table available in Bigquery, then OpenMetadata will fetch those tags and attach it to the respective columns.
+In this field you need to specify the location/region in which the taxonomy was created.
+- **Usage Location (Optional)**:
+Location used to query `INFORMATION_SCHEMA.JOBS_BY_PROJECT` to fetch usage data. You can pass multi-regions, such as `us` or `eu`, or your specific region such as `us-east1`. Australia and Asia multi-regions are not yet supported.
+- **Cost Per TiB (Optional)**:
+The cost (in USD) per tebibyte (TiB) of data processed during BigQuery usage analysis. This value is used to estimate query costs when analyzing usage metrics from `INFORMATION_SCHEMA.JOBS_BY_PROJECT`.
+This setting does **not** affect actual billing, it is only used for internal reporting and visualization of estimated costs.
+The default value is $6.25 per TiB; adjust it according to your organization's negotiated rates or flat-rate pricing model.
+
+<Tip>
+**Application Default Credentials (ADC) Authentication**
+
+If you want to use [ADC authentication](https://cloud.google.com/docs/authentication#adc) for BigQuery, configure the GCP credentials with type `gcp_adc`:
+```yaml
+credentials:
+  gcpConfig:
+    type: gcp_adc
+    projectId: ["your-project-id"]  # Optional: specify project(s) for data access
+```
+**Using ADC with Billing Project ID**: When using ADC authentication, you can still specify a **Billing Project ID** to control which project pays for the BigQuery queries OpenMetadata runs. This is particularly useful when:
+- Your service account has access to multiple projects
+- You want to bill queries to a specific project different from the one containing your data
+- You're running queries that span multiple projects
+
+**ADC Setup**: ADC authentication works automatically when running in Google Cloud environments (GKE, Compute Engine, Cloud Run) or when you've configured it locally using `gcloud auth application-default login`.
+</Tip>
+
+#### Advanced Configuration
+
+Database Services have an Advanced Configuration section, where you can pass extra arguments to the connector and, if needed, change the connection Scheme. This would only be required to handle advanced connectivity scenarios or customizations.
+
+- **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+- **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+## Cross Project Lineage
+OpenMetadata supports cross-project lineage, but the data must be ingested within a single service. This means you need to perform lineage ingestion for just one service while including multiple projects.
+
+<Related />

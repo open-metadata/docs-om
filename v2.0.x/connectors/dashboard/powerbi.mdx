@@ -1,0 +1,266 @@
+---
+title: PowerBI Connector | OpenMetadata Integration Documentation
+description: Connect Power BI to OpenMetadata with our comprehensive dashboard connector guide. Setup instructions, configuration tips, and metadata extraction made simple.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDashboard from '/snippets/connectors/metadata-agent/dashboard.mdx'
+import DashboardLineage from '/snippets/connectors/dashboard/dashboard-lineage.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/power-bi.webp'
+name="PowerBI"
+  stage="PROD"
+availableFeatures={["Dashboards", "Charts", "Datamodels", "Projects", "Lineage", "Column Lineage", "Owners"]}
+  unavailableFeatures={["Tags", "Usage"]} />
+In this section, we provide guides and references to use the PowerBI connector.
+
+<Info>
+**Supported Authentication Types:**
+- **OAuth 2.0 Service Principal** — Azure AD application authentication using Client ID, Client Secret, and Tenant ID
+</Info>
+Configure and schedule PowerBI metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Entity Mapping](#entity-mapping)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/dashboard/powerbi/troubleshooting)
+
+## Requirements
+
+Before configuring the PowerBI connector, make sure the following requirements are in place.
+
+<Warning>
+To access the PowerBI APIs and import dashboards, charts, and datasets from PowerBI into OpenMetadata, a `PowerBI Pro` license is necessary.
+</Warning>
+<Tip>
+PowerBI dataflows are not yet supported.
+</Tip>
+<Tip>
+OpenMetadata does not support Power BI usage ingestion because the Power BI Usage API does not support Service Principal authentication.
+</Tip>
+<Tip>
+When configuring Azure Authentication, ensure that "Allow public client flows" is enabled. This setting is required to support authentication for public client applications.
+</Tip>
+
+### PowerBI Admin and Non-Admin APIs
+
+While configuring the PowerBI ingestion you can choose whether to use the PowerBI Admin APIs to retrieve the metadata or use the PowerBI Non-Admin APIs. See below for the difference in their functionality:
+
+- Enabled (Use PowerBI Admin APIs): Using the admin APIs fetches the dashboard and chart metadata from all the workspaces available in the PowerBI instance.
+
+<Tip>
+When using the PowerBI Admin APIs, the table and dataset information used to generate lineage is gathered using the PowerBI [Scan Result](https://learn.microsoft.com/en-us/rest/api/power-bi/admin/workspace-info-get-scan-result) API. This API has no limitations and hence does not restrict getting the necessary data for generating lineage.
+</Tip>
+
+- Disabled (Use Non-Admin PowerBI APIs): Using the non-admin APIs only fetches the dashboard and chart metadata from the workspaces that have the security group of the service principal assigned to them.
+
+<Tip>
+When using the PowerBI Non-Admin APIs, the table and dataset information used to generate lineage is gathered using the PowerBI [Get Dataset Tables](https://learn.microsoft.com/en-us/rest/api/power-bi/push-datasets/datasets-get-tables) API. This API only retrieves the table information if the dataset is a [Push Dataset](https://learn.microsoft.com/en-us/rest/api/power-bi/push-datasets).
+Hence the lineage can only be created for push datasets in this case.
+For more information please visit the PowerBI official documentation [here](https://learn.microsoft.com/en-us/rest/api/power-bi/push-datasets/datasets-get-tables#limitations).
+</Tip>
+
+### PowerBI Account Setup
+
+Follow the steps below to configure the account setup for the PowerBI connector:
+
+#### Step 1: Enable API permissions from the PowerBI Admin console
+
+We extract the information from PowerBI using APIs; this is a manual step a PowerBI Admin needs to do to ensure OpenMetadata can get the right information.
+Log in to the [Power BI](https://app.powerbi.com/) as Admin and from `Tenant` settings allow the below permissions:
+- Allow service principles to use Power BI APIs
+- Allow service principals to use read-only Power BI admin APIs
+- Enhance admin APIs responses with detailed metadata
+
+#### Step 2: Create the App in Azure AD
+
+Please follow the steps mentioned [here](https://docs.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal) for setting up the Azure AD application service principal.
+
+#### Step 3: Provide necessary API permissions to the Azure AD app
+
+Go to the `Azure Ad app registrations` page, select your app and add the dashboard permissions to the app for the PowerBI service, and grant admin consent for the same:
+
+The required permissions are:
+- `Dashboard.Read.All`
+
+Optional Permissions: (Without granting these permissions, the dataset information cannot be retrieved and the datamodel and lineage processing is skipped)
+- `Dataset.Read.All`
+
+<Warning>
+Make sure that in the API permissions section, **Tenant** related permissions are not being given to the app. Please refer [here](https://stackoverflow.com/questions/71001110/power-bi-rest-api-requests-not-authorizing-as-expected) for a detailed explanation.
+</Warning>
+
+#### Step 4: PowerBI Workspaces
+
+The service principal does not take into account the default user workspaces, for example, `My Workspace`.
+Create new workspaces in PowerBI by following the document [here](https://docs.microsoft.com/en-us/power-bi/collaborate-share/service-create-the-new-workspaces).
+For reference, see this [thread](https://community.powerbi.com/t5/Service/Error-while-executing-Get-dataset-call-quot-API-is-not/m-p/912360#M85711) referring to the same.
+
+## Entity Mapping
+
+The PowerBI connector maps PowerBI assets to OpenMetadata entities as follows:
+
+| PowerBI Asset | OpenMetadata Entity | Description |
+|---|---|---|
+| **Dashboards** and **Reports** | **Dashboard** | Both PowerBI Dashboards (tile-based) and Reports are mapped to OpenMetadata Dashboard entities. |
+| **Tiles** (within a Dashboard) | **Chart** | Tiles on a PowerBI Dashboard are mapped to OpenMetadata Chart entities. Report pages do not generate separate Chart entities. |
+| **Datasets, Dataflows, Datamarts** | **Data Models** | PowerBI datasets, dataflows, and datamarts are mapped to OpenMetadata Data Model entities. |
+| **Workspaces** | **Project field** | The PowerBI workspace name is stored in the project field of the Dashboard and Data Model entities. |
+
+### Example Structure
+
+**PowerBI Structure:**
+```
+Workspace: Sales Team
+├── Dashboard: Revenue Overview
+│   ├── Tile: Monthly Revenue
+│   └── Tile: Regional Breakdown
+├── Report: Sales Trends
+└── Dataset: Sales Data Model
+```
+
+**OpenMetadata Structure:**
+```
+Dashboard: "Revenue Overview" (Project: "Sales Team")
+├── Chart: "Monthly Revenue"
+└── Chart: "Regional Breakdown"
+Dashboard: "Sales Trends" (Project: "Sales Team")
+Data Model: "Sales Data Model" (Project: "Sales Team")
+```
+
+This mapping ensures that:
+- PowerBI dashboards and reports both appear as OpenMetadata dashboards
+- Tiles on a dashboard appear as charts underneath it
+- Datasets, dataflows, and datamarts appear as data models
+- PowerBI workspace names are preserved in the project field
+
+## Metadata Ingestion
+
+To ingest metadata from PowerBI, you need to create a service connection. The service connects PowerBI with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Dashboard Services**, then click the **PowerBI** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Dashboard/select-service/powerbi.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other PowerBI services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Dashboard/service-name/powerbi.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for PowerBI. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/powerbi.png)
+
+- **clientId**: PowerBI Client ID. To get the client ID (also known as application ID), follow these steps:
+  - Log into [Microsoft Azure](https://ms.portal.azure.com/#allservices).
+  - Search for App registrations and select the App registrations link.
+  - Select the Azure AD app you're using for embedding your Power BI content.
+  - From the Overview section, copy the Application (client) ID.
+- **clientSecret**: PowerBI Client Secret. To get the client secret, follow these steps:
+  - Log into [Microsoft Azure](https://ms.portal.azure.com/#allservices).
+  - Search for App registrations and select the App registrations link.
+  - Select the Azure AD app you're using for embedding your Power BI content.
+  - Under Manage, select Certificates & secrets.
+  - Under Client secrets, select New client secret.
+  - In the Add a client secret pop-up window, provide a description for your application secret, select when the application secret expires, and select Add.
+  - From the Client secrets section, copy the string in the Value column of the newly created application secret.
+- **tenantId**: PowerBI Tenant ID. To get the tenant ID, follow these steps:
+  - Log into [Microsoft Azure](https://ms.portal.azure.com/#allservices).
+  - Search for App registrations and select the App registrations link.
+  - Select the Azure AD app you're using for Power BI.
+  - From the Overview section, copy the Directory (tenant) ID.
+- **scope**: Service scope. To let OpenMetadata use the Power BI APIs using your Azure AD app, you'll need to add the following scopes:
+  - `https://analysis.windows.net/powerbi/api/.default`
+
+  Add this scope to your Microsoft Entra application registration.
+- **authorityUri**: Authority URI for the service. To identify a token authority, you can provide a URL that points to the authority in question. If you don't specify a URL for the token authority, OpenMetadata uses the default value of https://login.microsoftonline.com/.
+- **hostPort**: URL to the PowerBI instance. To connect with your Power BI instance, you'll need to provide the host URL. If you're using an on-premise installation of Power BI, this will be the domain name associated with your instance. If you don't specify a host URL, OpenMetadata uses the default value of https://app.powerbi.com to connect with your Power BI instance.
+- **Pagination Entity Per Page**: The pagination limit for Power BI APIs can be set using this parameter. The limit determines the number of records to be displayed per page. By default, the pagination limit is set to 100 records, which is also the maximum value allowed.
+- **Use Admin APIs**: Option for using the PowerBI admin APIs. Refer to the [Power BI Admin and Non-Admin APIs](/v2.0.x/connectors/dashboard/powerbi#powerbi-admin-and-non-admin-apis) section for more information.
+  - Enabled (Use PowerBI Admin APIs)
+  - Disabled (Use Non-Admin PowerBI APIs)
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+</Tip>
+
+**Filter Options**
+
+The Dashboard, Chart, and Data Model sections each include the following filter options:
+
+- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
+- **Chart**: Controls which charts within the ingested dashboards are included.
+- **Data Model**: Controls which data models are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDashboard />
+
+<DashboardLineage />
+
+<Related />
