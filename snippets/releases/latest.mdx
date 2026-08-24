@@ -60,106 +60,6 @@ The existing `from` and `size` offset parameters **continue to work** — the cu
 
 ---
 
-### Configuration — `naturalLanguageSearch` and `llmConfiguration`
-
-The LLM configuration has been consolidated. `naturalLanguageSearch` now holds only its own search knobs; provider credentials, models, and embeddings have moved to a new top-level `llmConfiguration` block.
-
-**Before (1.13):**
-```yaml
-naturalLanguageSearch:
-  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
-  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
-  embeddingProvider: ${EMBEDDING_PROVIDER:-bedrock}
-  maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
-  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-io.openmetadata.service.search.nlq.BedrockNLQService}
-  bedrock:
-    awsConfig:
-      region: ${AWS_DEFAULT_REGION:-""}
-      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
-      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
-    modelId: ${AWS_BEDROCK_MODEL_ID:-""}
-    embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
-    embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
-    timeoutSeconds: ${NLQ_BEDROCK_TIMEOUT_SECONDS:-15}
-    maxTokens: ${NLQ_BEDROCK_MAX_TOKENS:-256}
-    temperature: ${NLQ_BEDROCK_TEMPERATURE:-0.0}
-  openai:
-    apiKey: ${OPENAI_API_KEY:-""}
-    modelId: ${OPENAI_MODEL_ID:-"gpt-4o-mini"}
-    timeoutSeconds: ${NLQ_OPENAI_TIMEOUT_SECONDS:-30}
-    maxTokens: ${NLQ_OPENAI_MAX_TOKENS:-256}
-    temperature: ${NLQ_OPENAI_TEMPERATURE:-0.0}
-  filterExtractor:
-    cacheMaxSize: ${NLQ_CACHE_MAX_SIZE:-1000}
-    cacheExpiryMinutes: ${NLQ_CACHE_EXPIRY_MINUTES:-5}
-    maxSampleValues: ${NLQ_MAX_SAMPLE_VALUES:-10}
-```
-
-**After (2.0):**
-```yaml
-naturalLanguageSearch:
-  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
-  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
-  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-org.openmetadata.service.search.nlq.NoOpNLQService}
-  filterExtractor:
-    cacheMaxSize: ${NLQ_CACHE_MAX_SIZE:-1000}
-    cacheExpiryMinutes: ${NLQ_CACHE_EXPIRY_MINUTES:-5}
-    maxSampleValues: ${NLQ_MAX_SAMPLE_VALUES:-10}
-    maxTokens: ${NLQ_MAX_TOKENS:-256}
-    temperature: ${NLQ_TEMPERATURE:-0.0}
-    timeoutSeconds: ${NLQ_TIMEOUT_SECONDS:-15}
-
-llmConfiguration:
-  enabled: ${LLM_ENABLED:-false}
-  provider: ${LLM_PROVIDER:-bedrock}   # noop | openai | azureOpenAI | bedrock | google | anthropic
-  maxConcurrentRequests: ${LLM_MAX_CONCURRENT_REQUESTS:-5}
-  bedrock:
-    awsConfig:
-      enabled: ${BEDROCK_AWS_IAM_AUTH_ENABLED:-true}
-      region: ${AWS_DEFAULT_REGION:-""}
-      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
-      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
-    modelId: ${LLM_BEDROCK_MODEL_ID:-""}
-    maxTokens: ${LLM_BEDROCK_MAX_TOKENS:-4096}
-  openai:
-    apiKey: ${LLM_OPENAI_API_KEY:-""}
-    modelId: ${LLM_OPENAI_MODEL_ID:-"gpt-4o-mini"}
-    endpoint: ${LLM_OPENAI_ENDPOINT:-""}
-    deploymentName: ${LLM_OPENAI_DEPLOYMENT:-""}
-  embeddings:
-    provider: ${EMBEDDING_PROVIDER:-bedrock}   # bedrock | openai | google | djl
-    maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
-    bedrock:
-      embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
-      embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
-```
-
-**Renamed environment variables:**
-
-| Old (1.13) | New (2.0) |
-|---|---|
-| `AWS_BEDROCK_MODEL_ID` | `LLM_BEDROCK_MODEL_ID` |
-| `OPENAI_API_KEY` | `LLM_OPENAI_API_KEY` |
-| `OPENAI_MODEL_ID` | `LLM_OPENAI_MODEL_ID` |
-| `OPENAI_API_ENDPOINT` | `LLM_OPENAI_ENDPOINT` |
-| `OPENAI_DEPLOYMENT_NAME` | `LLM_OPENAI_DEPLOYMENT` |
-| `OPENAI_API_VERSION` | `LLM_OPENAI_API_VERSION` |
-| `GOOGLE_API_KEY` | `LLM_GOOGLE_API_KEY` |
-| `GOOGLE_MODEL_ID` | `LLM_GOOGLE_MODEL_ID` |
-| `GOOGLE_API_ENDPOINT` | _(removed)_ |
-| `NLQ_BEDROCK_TIMEOUT_SECONDS` | `NLQ_TIMEOUT_SECONDS` |
-| `NLQ_BEDROCK_MAX_TOKENS` | `NLQ_MAX_TOKENS` |
-| `NLQ_BEDROCK_TEMPERATURE` | `NLQ_TEMPERATURE` |
-| `NLQ_OPENAI_TIMEOUT_SECONDS` | `NLQ_TIMEOUT_SECONDS` |
-| `NLQ_OPENAI_MAX_TOKENS` | `NLQ_MAX_TOKENS` |
-| `NLQ_OPENAI_TEMPERATURE` | `NLQ_TEMPERATURE` |
-
-**New:** `LLM_ENABLED` and `LLM_PROVIDER` must both be set for embeddings or any LLM feature to activate. `providerClass` now defaults to `NoOpNLQService` — NLQ filter extraction stays off until `llmConfiguration` is enabled.
-
-**Action required:** Update `naturalLanguageSearch` in your YAML and add the new `llmConfiguration` block. Rename environment variables per the table above.
-
----
-
 ### Alerts — Conversation Scoping Fixed
 
 Alert filters (Entity FQN, Owner, Domain, Entity Id, Source) now apply correctly to conversations and replies. Previously, an alert scoped to a specific entity received conversation notifications from every entity in the catalog.
@@ -262,7 +162,6 @@ Support for Great Expectations 0.x has been **removed** in 2.0. **Action require
 
 | Area | Action Required |
 |---|---|
-| YAML / env vars | Update `naturalLanguageSearch` and add `llmConfiguration` block; rename env vars per table above |
 | MCP clients | No migration required — pass `cursor` for stable paging; `from`/`size` offset still works |
 | Alerts | After upgrade, widen or remove filters if entity-scoped alerts go quiet |
 | Profiler config | Explicitly add cardinality distribution if downstream features depend on it |
