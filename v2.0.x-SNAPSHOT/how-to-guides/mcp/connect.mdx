@@ -10,10 +10,10 @@ OpenMetadata provides a Model Context Protocol (MCP) server that allows AI assis
 ## Server Information
 
 - **Server Name**: `openmetadata-mcp-stateless`
-- **Version**: `0.11.2`
+- **Version**: `1.1.0`
 - **Endpoint**: `{OMURL}/mcp`
-- **Protocol**: Server-Sent Events (SSE) over HTTP
-- **Authentication**: JWT Bearer Token
+- **Protocol**: Streamable HTTP (MCP spec `2025-03-26`)
+- **Authentication**: OAuth 2.0 (recommended) or JWT Bearer Token
 
 ## Connection Setup
 
@@ -26,15 +26,19 @@ Your MCP server is available at:
 Replace `{OMURL}` with your OpenMetadata instance URL (e.g., `https://your-openmetadata.com/mcp`)
 
 ### 2. Authentication
-The MCP server requires [JWT authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp#personal-access-token-pat). Include your token in the Authorization header:
+The MCP server supports two authentication methods:
+
+- **OAuth 2.0 (recommended)**: Sign in with your existing OpenMetadata login. See [OAuth 2.0 Authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp/oauth) for setup instructions.
+- **Personal Access Token (PAT)**: For environments where browser-based login isn't available. Generate a token as described in [Personal Access Token (PAT)](/v2.0.x-SNAPSHOT/how-to-guides/mcp#personal-access-token-pat), then include it in the Authorization header:
 ```http
-Authorization: Bearer <your-jwt-token>
+Authorization: Bearer <your-token>
 ```
 
-### 3. Content Type
-All requests should use:
+### 3. Required HTTP Headers
+All Streamable HTTP POST requests must include:
 ```http
 Content-Type: application/json
+Accept: application/json, text/event-stream
 ```
 
 ## API Endpoints
@@ -49,15 +53,8 @@ Content-Type: application/json
   "id": 1,
   "method": "initialize",
   "params": {
-    "protocolVersion": "2024-11-05",
-    "capabilities": {
-      "tools": {},
-      "prompts": {},
-      "resources": {
-        "subscribe": true,
-        "listChanged": true
-      }
-    },
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
     "clientInfo": {
       "name": "your-client",
       "version": "1.0.0"
@@ -72,21 +69,27 @@ Content-Type: application/json
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-03-26",
     "capabilities": {
       "tools": true,
-      "prompts": true,
-      "resources": {
-        "subscribe": true,
-        "listChanged": true
-      },
-      "logging": {}
+      "prompts": true
     },
     "serverInfo": {
       "name": "openmetadata-mcp-stateless",
-      "version": "0.11.2"
+      "version": "1.1.0"
     }
   }
+}
+```
+
+### Complete Initialization
+
+After receiving the `initialize` response, send this notification before making normal requests:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
 }
 ```
 
@@ -102,7 +105,8 @@ Content-Type: application/json
 }
 ```
 
-**Sample Response**:
+**Sample Response** (truncated — the server exposes 24 tools; see the [MCP Tools Reference](/v2.0.x-SNAPSHOT/how-to-guides/mcp/reference) for the complete list):
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -111,7 +115,7 @@ Content-Type: application/json
     "tools": [
       {
         "name": "search_metadata",
-        "description": "Find your data and business terms in OpenMetadata. For example if the user asks to 'find tables that contain customers information', then 'customers' should be the query, and the entity_type should be 'table'. Here make sure to use 'Href' is available in result to create a hyperlink to the entity in OpenMetadata.",
+        "description": "Find your data and business terms in OpenMetadata.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -119,29 +123,24 @@ Content-Type: application/json
               "type": "string",
               "description": "Keywords to use for searching."
             },
-            "entity_type": {
+            "entityType": {
               "type": "string",
-              "description": "Optional entity type to filter results..."
+              "description": "Optional entity type to filter results."
             },
-            "limit": {
+            "size": {
               "type": "integer",
               "description": "Maximum number of results to return. Default is 10."
-            },
-            "fields": {
-              "type": "string",
-              "description": "Comma-separated list of additional fields to include..."
             }
-          },
-          "required": ["query"]
+          }
         }
       },
       {
         "name": "get_entity_details",
-        "description": "Get detailed information about a specific entity",
+        "description": "Retrieve full details for a specific entity by FQN.",
         "inputSchema": {
           "type": "object",
           "properties": {
-            "entity_type": {
+            "entityType": {
               "type": "string",
               "description": "Type of entity"
             },
@@ -150,7 +149,7 @@ Content-Type: application/json
               "description": "Fully qualified name of the entity"
             }
           },
-          "required": ["entity_type", "fqn"]
+          "required": ["entityType", "fqn"]
         }
       }
     ]
@@ -171,27 +170,13 @@ Content-Type: application/json
 ```
 
 **Sample Response**:
+
 ```json
 {
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
     "prompts": [
-      {
-        "name": "create-greeting",
-        "description": "Generate a customized greeting message",
-        "arguments": [
-          {
-            "name": "name",
-            "description": "Name of the person to greet",
-            "required": true
-          },
-          {
-            "name": "style",
-            "description": "The style of greeting, such as formal, excited, or casual. If not specified casual will be used"
-          }
-        ]
-      },
       {
         "name": "search_metadata",
         "description": "Creates a prompt for Searching metadata in OpenMetadata.",

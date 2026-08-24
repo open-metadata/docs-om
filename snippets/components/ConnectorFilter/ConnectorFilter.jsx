@@ -21,25 +21,32 @@ export const ConnectorFilter = () => {
             const headings = Array.from(page.querySelectorAll(':scope > h2'))
             return headings
                 .map((heading) => {
+                    const type = heading.textContent.replace(/[​-‍﻿]/g, '').trim()
                     const cards = []
+                    const seenCards = new Set()
                     let sibling = heading.nextElementSibling
                     while (sibling && sibling.tagName !== 'H2') {
-                        sibling.querySelectorAll('a[href]').forEach((anchor) => {
-                            const href = anchor.getAttribute('href')
-                            const name = anchor.textContent.replace(/PROD$|BETA$/, '').trim()
-                            const el = anchor.closest('.card') || anchor
-                            if (href && name) cards.push({ href, name, el })
+                        // Mintlify renders a linked Card as `div[role="link"]`,
+                        // so its destination is not available as an anchor href.
+                        sibling.querySelectorAll('.card[role="link"]').forEach((el) => {
+                            if (seenCards.has(el)) return
+
+                            const title = el.querySelector('[data-component-part="card-title"]')
+                            const name = title?.textContent.trim()
+                            if (!name) return
+
+                            seenCards.add(el)
+                            cards.push({ id: `${type}:${name}`, name, el })
                         })
                         sibling = sibling.nextElementSibling
                     }
-                    const type = heading.textContent.replace(/[​-‍﻿]/g, '').trim()
                     return { type, headingEl: heading, cards }
                 })
                 .filter((section) => section.cards.length > 0)
         }
 
         // The CardGroup snippets for each category hydrate asynchronously, so the
-        // links aren't necessarily attached yet on mount. Keep re-scanning until
+        // cards aren't necessarily attached yet on mount. Keep re-scanning until
         // the connector list stops changing.
         let frame = null
         const rescan = () => {
@@ -67,9 +74,9 @@ export const ConnectorFilter = () => {
             const typeMatches = serviceType === ALL || section.type === serviceType
             let visibleCount = 0
 
-            section.cards.forEach(({ href, name, el }) => {
+            section.cards.forEach(({ id, name, el }) => {
                 const visible = typeMatches
-                    && (service === ALL || href === service)
+                    && (service === ALL || id === service)
                     && (!query || name.toLowerCase().includes(query))
                 el.style.display = visible ? '' : 'none'
                 if (visible) visibleCount += 1
@@ -122,7 +129,7 @@ export const ConnectorFilter = () => {
     const selectedServiceName = useMemo(() => {
         if (service === ALL) return 'All Services'
         for (const section of sections) {
-            const card = section.cards.find((c) => c.href === service)
+            const card = section.cards.find((c) => c.id === service)
             if (card) return card.name
         }
         return 'All Services'
@@ -140,8 +147,8 @@ export const ConnectorFilter = () => {
         setOpenField(null)
         if (value === ALL) return
 
-        const owningSection = sections.find((section) => section.cards.some((card) => card.href === value))
-        const card = owningSection?.cards.find((card) => card.href === value)
+        const owningSection = sections.find((section) => section.cards.some((card) => card.id === value))
+        const card = owningSection?.cards.find((card) => card.id === value)
         if (owningSection) setServiceType(owningSection.type)
         requestAnimationFrame(() => {
             card?.el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -243,11 +250,11 @@ export const ConnectorFilter = () => {
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map((card) => (
                         <li
-                            key={card.href}
+                            key={card.id}
                             role="option"
-                            aria-selected={service === card.href}
-                            className={service === card.href ? 'active' : ''}
-                            onClick={() => selectService(card.href)}
+                            aria-selected={service === card.id}
+                            className={service === card.id ? 'active' : ''}
+                            onClick={() => selectService(card.id)}
                         >
                             {card.name}
                         </li>
@@ -258,11 +265,11 @@ export const ConnectorFilter = () => {
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((card) => (
                     <li
-                        key={card.href}
+                        key={card.id}
                         role="option"
-                        aria-selected={service === card.href}
-                        className={service === card.href ? 'active' : ''}
-                        onClick={() => selectService(card.href)}
+                        aria-selected={service === card.id}
+                        className={service === card.id ? 'active' : ''}
+                        onClick={() => selectService(card.id)}
                     >
                         {card.name}
                     </li>

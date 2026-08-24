@@ -1,0 +1,177 @@
+---
+title: Getting Started with Databricks
+description: Register your OpenMetadata MCP Server as a governed Unity Catalog MCP Service so Databricks agents can discover and call its tools.
+sidebarTitle: Databricks
+---
+
+# Getting Started with Databricks
+
+Connect your OpenMetadata instance to Databricks by registering it as an MCP Service in Unity Catalog. Once registered, Databricks agents and AI assistants (including Databricks Assistant and Mosaic AI Agent Framework agents) can discover and call OpenMetadata's MCP tools as a governed, auditable Unity Catalog resource.
+
+Unlike client-side integrations such as Claude or Cursor, Databricks doesn't connect directly to the OpenMetadata MCP endpoint from a local config file. Instead, an admin registers the server once as a Unity Catalog securable, and Databricks proxies and governs every call through its Unity AI Gateway.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- **OpenMetadata v1.8.0+** running.
+- **MCP Server** application installed in OpenMetadata.
+   1. Navigate to **Settings** > **Application** and click **Add Apps**.
+   2. Install **MCP Server** application if not already installed.
+- An OpenMetadata [Personal Access Token](/v2.0.x-SNAPSHOT/how-to-guides/mcp#personal-access-token-pat), or an OpenMetadata user account to sign in with if you want per-user OAuth authentication instead.
+- A **Databricks workspace with Unity Catalog enabled**, in a region that supports Model Serving.
+- A Databricks administrator or service author with these Unity Catalog privileges:
+  - To create the HTTP connection: `CREATE CONNECTION` on the target schema.
+  - To create the MCP Service: `USE CATALOG`, `USE SCHEMA`, and `CREATE SERVICE` on the target schema, plus `USE CONNECTION` on the HTTP connection.
+  - To call the MCP Service: `EXECUTE` on the service, `USE CATALOG` and `USE SCHEMA` on its parent, and workspace access.
+
+## Configure the MCP Service
+
+### Step 1: Create a Unity Catalog HTTP Connection
+
+To create a Unity Catalog HTTP connection in Databricks, follow these steps:
+
+1. Navigate to **Catalog > Connections**.
+2. Click **Create connection**.
+3. Set **Connection type** to `HTTP`.
+4. Set **Host / MCP server URL** to `https://<YOUR-OpenMetadata-SERVER>/mcp`.
+5. Set **Authentication** to `Bearer token`, and paste your OpenMetadata Personal Access Token.
+6. Enable the **Is MCP connection** checkbox so Databricks treats the endpoint as an MCP server rather than a generic HTTP API.
+7. Click **Create** to save the connection.
+
+For per-user OAuth authentication, select **Dynamic Client Registration**. Set the host to `https://<YOUR-OPENMETADATA-SERVER>` and the base path to `/mcp`. Databricks discovers `/.well-known/oauth-authorization-server` and registers its client at `/mcp/register`.
+
+If your policy requires **OAuth U2M** instead, register a confidential client and allowlist `https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html`:
+
+```bash
+curl -sS -X POST "https://<YOUR-OPENMETADATA-SERVER>/mcp/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "Databricks MCP connection",
+    "redirect_uris": ["https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "client_secret_post",
+    "scope": "openid profile email"
+  }'
+```
+
+Configure Databricks with:
+
+- The `client_id` and `client_secret` returned when you register the client.
+- The scopes listed in `/.well-known/oauth-authorization-server`.
+- `https://<YOUR-OPENMETADATA-SERVER>/mcp/authorize` as the authorization endpoint and `https://<YOUR-OPENMETADATA-SERVER>/mcp/token` as the token endpoint.
+- `header_and_body` as the credential exchange method.
+
+OpenMetadata supports only the `authorization_code` and `refresh_token` grants, so don't select OAuth M2M or `client_credentials`. For a shared, non-interactive credential, use a Personal Access Token instead. For more information, see [OAuth 2.0 Authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp/oauth).
+
+If you selected **Dynamic Client Registration** or **OAuth U2M**, each user must authenticate individually before they can call the service:
+
+1. Open the connection's detail page in Catalog Explorer.
+2. Click **Login**.
+3. Complete the OAuth consent flow against your OpenMetadata instance.
+
+Bearer token skips this step: it uses a single shared credential set once, at connection creation, so no per-user login is required.
+
+### Step 2: Register the MCP Service
+
+Register the MCP Service through the Databricks UI or the REST API.
+
+#### Using the Databricks UI
+
+To register the MCP service in Databricks, follow these steps:
+
+1. In the left sidebar, select **AI Gateway > MCPs** > **Register MCP Server**.
+
+    Alternatively, go to **Catalog**, open the target schema, and select **Create > MCP Service**, which opens the same form.
+
+3. Set **Catalog** and **Schema** to where the MCP Service will live as a Unity Catalog securable.
+4. Set **MCP Service name**, for example `openmetadata` (this can't be changed after creation).
+5. Set **Connection** to the HTTP connection you created in Step 1.
+6. Optional: Set **Tools** to the OpenMetadata MCP tools you want to expose. Leave unrestricted to expose all of them. See the [MCP Tools Reference](/v2.0.x-SNAPSHOT/how-to-guides/mcp/reference) for the full list.
+7. Click **Create** to register the service.
+
+#### Using the REST API
+
+Register the service directly with a POST request:
+
+```bash
+databricks api post \
+  "/api/2.1/unity-catalog/mcp-services?parent=schemas/main.default&mcp_service_id=openmetadata" \
+  --json '{
+    "comment": "OpenMetadata MCP Server",
+    "config": {
+      "source_connection": {
+        "name": "connections/main.default.openmetadata_http"
+      },
+      "include_tool_selectors": []
+    }
+  }'
+```
+
+### Step 3: Grant EXECUTE Permission
+
+On the MCP Service's **Permissions** tab, grant **EXECUTE** to the users, groups, or service principals that should be able to call OpenMetadata's tools:
+
+```bash
+databricks api patch \
+  "/api/2.1/unity-catalog/permissions/mcp_service/main.default.openmetadata" \
+  --json '{
+    "changes": [
+      { "principal": "data-team", "add": ["EXECUTE"] }
+    ]
+  }'
+```
+
+<Warning>
+Grant **EXECUTE** on the MCP Service itself. Never grant **USE CONNECTION** on the underlying HTTP connection to end users. That would let them bypass tool selection and call the OpenMetadata MCP endpoint directly with the shared credential.
+</Warning>
+
+### Step 4: Connect an Agent or Client
+
+After getting registered, the MCP Service is reachable at:
+
+```
+https://<YOUR-DATABRICKS-WORKSPACE>/ai-gateway/mcp-services/<catalog>.<schema>.<service-name>
+```
+
+Mosaic AI Agent Framework agents can add it as a tool source directly. To verify the connection manually, authenticate with a Databricks token and list the available tools:
+
+```bash
+TOKEN=$(databricks auth token | jq -r .access_token)
+curl -s -X POST \
+  "https://<YOUR-DATABRICKS-WORKSPACE>/ai-gateway/mcp-services/main.default.openmetadata" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+You should see OpenMetadata's MCP tools (`search_metadata`, `get_entity_details`, and others) in the response. See the [MCP Tools Reference](/v2.0.x-SNAPSHOT/how-to-guides/mcp/reference) for the complete list.
+
+## Try It Out
+
+Once your agent has the OpenMetadata MCP Service attached as a tool source, try prompting it:
+
+> "What tables do you have access to in OpenMetadata?"
+
+> "Find the tables that track customer transactions, engagement metrics, and churn indicators."
+
+## Troubleshooting
+
+If you run into connection issues:
+
+1. **Verify OpenMetadata is running**: `curl <YOUR-OpenMetadata-SERVER>/api/health`.
+2. **Check the MCP endpoint**: `curl <YOUR-OpenMetadata-SERVER>/mcp` (should return `401`).
+3. **Verify MCP Application is installed**: Visit `<YOUR-OpenMetadata-SERVER>/marketplace/apps/McpApplication`.
+4. **Confirm the connection is marked as an MCP connection**: Open the HTTP connection in Catalog Explorer and check that **Is MCP connection** is enabled.
+5. **Confirm EXECUTE is granted**: Check the MCP Service's Permissions tab for the calling user, group, or service principal.
+6. **Token expired**: [Generate a new PAT](/v2.0.x-SNAPSHOT/how-to-guides/guide-for-data-users/personal-access-token) and update the HTTP connection's credentials.
+
+## Additional Resources
+
+- [OpenMetadata MCP Documentation](/v2.0.x-SNAPSHOT/how-to-guides/mcp)
+- [OAuth 2.0 Authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp/oauth)
+- [MCP Tools Reference](/v2.0.x-SNAPSHOT/how-to-guides/mcp/reference)
+- [Databricks: Connect agents to third-party tools with MCP Services](https://docs.databricks.com/aws/en/agents/agent-framework/mcp-services)
+- [Databricks: Register an external MCP server](https://docs.databricks.com/aws/en/ai-gateway/register-mcp-service)
