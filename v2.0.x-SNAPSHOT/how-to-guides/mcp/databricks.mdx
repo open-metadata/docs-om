@@ -20,7 +20,10 @@ Before you begin, ensure you have:
    2. Install **MCP Server** application if not already installed.
 - An OpenMetadata [Personal Access Token](/v2.0.x-SNAPSHOT/how-to-guides/mcp#personal-access-token-pat), or an OpenMetadata user account to sign in with if you want per-user OAuth authentication instead.
 - A **Databricks workspace with Unity Catalog enabled**, in a region that supports Model Serving.
-- Sufficient Unity Catalog privileges to create connections and MCP Services in the target catalog and schema.
+- A Databricks administrator or service author with these Unity Catalog privileges:
+  - To create the HTTP connection: `CREATE CONNECTION` on the target schema.
+  - To create the MCP Service: `USE CATALOG`, `USE SCHEMA`, and `CREATE SERVICE` on the target schema, plus `USE CONNECTION` on the HTTP connection.
+  - To call the MCP Service: `EXECUTE` on the service, `USE CATALOG` and `USE SCHEMA` on its parent, and workspace access.
 
 ## Configure the MCP Service
 
@@ -36,11 +39,18 @@ To create a Unity Catalog HTTP connection in Databricks, follow these steps:
 6. Enable the **Is MCP connection** checkbox so Databricks treats the endpoint as an MCP server rather than a generic HTTP API.
 7. Click **Create** to save the connection.
 
-<Tip>
-If your OpenMetadata deployment authenticates with OAuth 2.0 instead of a PAT, use **OAuth U2M** (per-user login) as the authentication type instead of Bearer token. OpenMetadata's MCP OAuth server only issues `authorization_code` and `refresh_token` grants. It doesn't support `client_credentials` (OAuth M2M), so that option isn't available here. For a shared, non-interactive credential, use a Personal Access Token instead. See [OAuth 2.0 Authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp/oauth) for the values OpenMetadata expects.
-</Tip>
+For per-user OAuth authentication, select **Dynamic Client Registration**. Set the host to `https://<YOUR-OPENMETADATA-SERVER>` and the base path to `/mcp`. Databricks discovers `/.well-known/oauth-authorization-server` and registers its client at `/mcp/register`.
 
-If you selected **OAuth U2M**, each user must authenticate individually before they can call the service:
+If your policy requires **OAuth U2M** instead, register a client through `https://<YOUR-OPENMETADATA-SERVER>/mcp/register` and allowlist `https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html`. Configure Databricks with:
+
+- The `client_id` and `client_secret` returned when you register the client.
+- The scopes listed in `/.well-known/oauth-authorization-server`.
+- `https://<YOUR-OPENMETADATA-SERVER>/mcp/authorize` as the authorization endpoint and `https://<YOUR-OPENMETADATA-SERVER>/mcp/token` as the token endpoint.
+- `header_and_body` as the credential exchange method.
+
+OpenMetadata supports only the `authorization_code` and `refresh_token` grants, so don't select OAuth M2M or `client_credentials`. For a shared, non-interactive credential, use a Personal Access Token instead. For more information, see [OAuth 2.0 Authentication](/v2.0.x-SNAPSHOT/how-to-guides/mcp/oauth).
+
+If you selected **Dynamic Client Registration** or **OAuth U2M**, each user must authenticate individually before they can call the service:
 
 1. Open the connection's detail page in Catalog Explorer.
 2. Click **Login**.
