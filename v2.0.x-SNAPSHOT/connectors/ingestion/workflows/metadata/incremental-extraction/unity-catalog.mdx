@@ -28,20 +28,25 @@ A table that appears in both the changed and deleted sets is kept, not deleted.
 This covers tables that were dropped and recreated within the window, since
 `information_schema` only lists currently existing tables.
 
+<Note>
+  Incremental extraction only runs for catalogs whose name matches
+  `[A-Za-z0-9_]+`. Catalogs with names outside this pattern (for example,
+  quoted names like `cat-a-log`) are skipped with a warning: no changed or
+  deleted tables are returned, and no exception is raised.
+</Note>
+
 ## Prerequisites
 
-Before enabling incremental extraction, ensure the ingestion user has the
-necessary permissions on the Unity Catalog system tables. The following grants
-are the minimum required for each detection mode.
+Before enabling incremental extraction, review the following visibility and
+permission requirements for the Unity Catalog system tables used at runtime.
 
 ### Changed table detection
 
-The ingestion user must have `SELECT` on the catalog's
-`information_schema.tables`:
-
-```sql
-GRANT SELECT ON `<catalog_name>`.information_schema.tables TO `<user>`;
-```
+No explicit grant is required for `information_schema.tables`: Databricks
+automatically scopes its results to objects the querying principal can
+already see through existing Unity Catalog privileges. Ensure the ingestion
+service principal has standard read privileges (`USE CATALOG`, `USE SCHEMA`,
+`SELECT`) on the tables you want incrementally tracked.
 
 ### Deleted table detection (optional)
 

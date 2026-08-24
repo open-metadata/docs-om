@@ -1,0 +1,87 @@
+---
+title: Prefect Connector Troubleshooting Guide | OpenMetadata Support
+description: Resolve Prefect pipeline ingestion issues such as authentication failures, missing flows, rate limits, and lineage gaps.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Prefect-Specific Issues
+
+The following issues are specific to the Prefect connector's REST API integration.
+
+### Authentication Failed on Prefect Cloud
+
+**Issue**: The Test Connection step fails with a 401 (authentication failed) or 403 (access denied) error.
+
+**Cause**: The API key is invalid, expired, or does not belong to the configured Account ID and Workspace ID, or lacks Viewer access to the workspace.
+
+**Solution**: Verify the API key is valid and unexpired in your [Prefect Cloud account settings](https://docs.prefect.io/v3/how-to-guides/cloud/manage-users/api-keys). Confirm the Account ID and Workspace ID by checking the workspace URL: `app.prefect.cloud/account/<accountId>/workspace/<workspaceId>`. If both are correct, confirm the API key belongs to that account and can read that workspace.
+
+### Endpoint Not Found (404) on Prefect Cloud
+
+**Issue**: The Test Connection step fails with a 404 error.
+
+**Cause**: Host and Port, Account ID, and Workspace ID together build the API path Prefect answered 404 for, so one of the three is wrong.
+
+**Solution**: Double-check the Account ID and Workspace ID against the workspace URL, and confirm Host and Port is `https://api.prefect.cloud`.
+
+### Authentication Failed on Self-Hosted Server
+
+**Issue**: The Test Connection step fails with a 401 or 403 error against a self-hosted Prefect Server.
+
+**Cause**: The Basic Auth String does not match the server's `PREFECT_SERVER_API_AUTH_STRING`, or the field was left empty while the server has auth enabled.
+
+**Solution**: Confirm the `user:password` value configured as the Basic Auth String matches the `PREFECT_SERVER_API_AUTH_STRING` environment variable on the server. If the server has no auth enabled, leave the field empty.
+
+### Endpoint Not Found (404) on a Self-Hosted Server
+
+**Issue**: The Test Connection step fails with a 404 error against a self-hosted server.
+
+**Cause**: Host and Port build the API path Prefect answered 404 for, this usually means Host and Port points at the Prefect UI URL instead of the API base URL.
+
+**Solution**: Check Host and Port for typos and confirm it points at the Prefect API base URL (for example `http://localhost:4200`), not the UI.
+
+### Rate Limited (429)
+
+**Issue**: The Test Connection step or a metadata ingestion run fails or is delayed with a 429 error.
+
+**Cause**: Prefect throttled the request.
+
+**Solution**: Retry after a few minutes. If this happens consistently, reduce ingestion frequency or the **Number of Status** value to reduce the number of API calls per run.
+
+### Connection Timed Out or Host Unreachable
+
+**Issue**: The Test Connection step fails with a timeout, or a "cannot reach the host" / connection error.
+
+**Cause**: A firewall or network ACL is blocking egress from where ingestion runs to Host and Port, or Host and Port has a typo and does not resolve.
+
+**Solution**: Confirm Host and Port is correct and reachable from wherever the ingestion agent runs, and that any firewall or network ACL allows egress to it.
+
+### TLS Verification Failed
+
+**Issue**: The Test Connection step fails with an SSL/TLS certificate verification error.
+
+**Cause**: The Prefect server's certificate could not be verified with the current SSL configuration, or a TLS-intercepting proxy sits between the ingestion agent and Prefect.
+
+**Solution**: Provide the CA certificate under **SSL Configuration** with **Verify SSL** set to `validate`, or set **Verify SSL** to `ignore` for a self-signed certificate (not recommended outside of testing). If a TLS-intercepting proxy is present, make sure its certificate is trusted where ingestion runs.
+
+### No Flows Ingested
+
+**Issue**: The connector runs successfully but no Pipeline entities are created in OpenMetadata.
+
+**Cause**: The configured workspace (Cloud) or server (self-hosted) has no flows, or the Pipeline Filter Pattern excludes all of them. Test Connection can succeed even when the workspace has zero flows, since it only proves that authentication and read access to the workspace succeeded.
+
+**Solution**: Confirm flows exist in the target workspace or server. Review the Pipeline Filter Pattern `includes` and `excludes` rules and ensure at least one flow name matches an include rule (or that the filter is left empty to include all).
+
+### No Lineage Between Tables
+
+**Issue**: Flows and their run history are ingested, but no table-to-table lineage edges appear in OpenMetadata.
+
+**Cause**: On Prefect Cloud, the flow's runs have no asset materializations (the flow doesn't use `@materialize` or `asset_deps`). On both Cloud and self-hosted, the fallback lineage tags are missing, malformed, or the **Database Service Name(s)** is not configured in the pipeline service's lineage settings.
+
+**Solution**:
+1. For asset-based lineage (Prefect Cloud only), confirm the flow uses Prefect's [Assets API](https://docs.prefect.io/v3/concepts/assets) with `@materialize` or `asset_deps`.
+2. For tag-based lineage, confirm the tag format is exactly `om-source:<database>.<schema>.<table>` and `om-destination:<database>.<schema>.<table>` (three dot-separated parts). Verify the tagged tables exist in OpenMetadata under the database service(s) configured in the pipeline service's lineage settings.
