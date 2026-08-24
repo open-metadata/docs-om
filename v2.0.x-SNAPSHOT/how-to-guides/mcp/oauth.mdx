@@ -179,7 +179,9 @@ Only requests whose `Origin` header exactly matches an entry in the allowlist re
 
 MCP clients can revoke an access or refresh token directly using the OAuth 2.0 Token Revocation endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)), advertised as `revocation_endpoint` in the OAuth discovery document. Revoking a refresh token prevents future refreshes. Already-issued access tokens are signed JWTs validated statelessly, so they can remain valid until their 10-minute expiry. There is currently no separate admin-side option to revoke an MCP client's access. Revocation is a client-initiated action using its registered credentials.
 
-The revocation endpoint requires client authentication before it processes the request, using the `client_id` and `client_secret` issued during [Dynamic Client Registration](#how-the-connection-works-under-the-hood). Authenticate using either method:
+The revocation endpoint requires the client identity that [Dynamic Client Registration](#how-the-connection-works-under-the-hood) issued. Confidential clients use a `client_id` and `client_secret`. Public clients registered with `token_endpoint_auth_method: none` use their `client_id` without a secret.
+
+For a confidential client, authenticate using either method:
 
 **HTTP Basic authentication** (client credentials in the `Authorization` header):
 ```http
@@ -198,4 +200,13 @@ Content-Type: application/x-www-form-urlencoded
 token=<token>&token_type_hint=access_token&client_id=<client_id>&client_secret=<client_secret>
 ```
 
-`token_type_hint` is optional and can be `access_token` or `refresh_token`. A request without valid client credentials returns `invalid_client`.
+For a public client, include the `client_id` in the form body and omit `client_secret`:
+
+```http
+POST {baseUrl}/mcp/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token&client_id=<client_id>
+```
+
+`token_type_hint` is optional and can be `access_token` or `refresh_token`. A request without the required client identity returns `invalid_client`.

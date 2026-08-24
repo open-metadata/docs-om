@@ -41,7 +41,22 @@ To create a Unity Catalog HTTP connection in Databricks, follow these steps:
 
 For per-user OAuth authentication, select **Dynamic Client Registration**. Set the host to `https://<YOUR-OPENMETADATA-SERVER>` and the base path to `/mcp`. Databricks discovers `/.well-known/oauth-authorization-server` and registers its client at `/mcp/register`.
 
-If your policy requires **OAuth U2M** instead, register a client through `https://<YOUR-OPENMETADATA-SERVER>/mcp/register` and allowlist `https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html`. Configure Databricks with:
+If your policy requires **OAuth U2M** instead, register a confidential client and allowlist `https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html`:
+
+```bash
+curl -sS -X POST "https://<YOUR-OPENMETADATA-SERVER>/mcp/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "Databricks MCP connection",
+    "redirect_uris": ["https://<YOUR-DATABRICKS-WORKSPACE>/login/oauth/http.html"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "client_secret_post",
+    "scope": "openid profile email"
+  }'
+```
+
+Configure Databricks with:
 
 - The `client_id` and `client_secret` returned when you register the client.
 - The scopes listed in `/.well-known/oauth-authorization-server`.
