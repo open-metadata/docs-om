@@ -4,11 +4,7 @@ description: Connect Apache Hive to OpenMetadata with our comprehensive database
 sidebarTitle: Overview
 ---
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
-import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
 import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
@@ -22,29 +18,64 @@ Configure and schedule Hive metadata and profiler workflows from the OpenMetadat
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Data Profiler](/v2.0.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow)
-- [Lineage](/v2.0.x-SNAPSHOT/how-to-guides/data-lineage/workflow)
 - [Data Quality](/v2.0.x-SNAPSHOT/how-to-guides/data-quality-observability/quality)
 - [dbt Integration](/v2.0.x-SNAPSHOT/connectors/database/dbt)
 - [Enable Security](#securing-hive-connection-with-ssl-in-openmetadata)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/database/hive/troubleshooting)
+
 ## Requirements
+
+Before configuring the Hive connector, make sure the following requirements are in place.
+
 ### Metadata
+
 To extract metadata, the user used in the connection needs to be able to perform `SELECT`, `SHOW`, and `DESCRIBE` operations in the database/schema where the metadata needs to be extracted from.
+
 ### Profiler & Data Quality
+
 Executing the profiler workflow or data quality tests, will require the user to have `SELECT` permission on the tables/schemas where the profiler/tests will be executed. More information on the profiler workflow setup can be found [here](/v2.0.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and data quality tests [here](/v2.0.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"Hive"} selectServicePath={"/public/images/connectors/hive/select-service.png"} addNewServicePath={"/public/images/connectors/hive/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/hive/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
+
+To ingest metadata from Hive, you need to create a service connection. The service connects Hive with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Hive** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/hive.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Hive services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/hive.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Hive. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/hive.png)
+
 - **Username**: Specify the User to connect to Hive. It should have enough privileges to read all the metadata.
 - **Password**: Password to connect to Hive.
 - **Host and Port**: This parameter specifies the host and port of the Hive server instance. This should be specified as a string in the format `hostname:port`. For example, you might set the hostPort parameter to `myhivehost:10000`.
@@ -52,27 +83,86 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
 - **Kerberos Service Name**: This parameter specifies the Kerberos service name to use for authentication. This should only be specified if using Kerberos authentication. The default value is `hive`.
 - **Database Schema**: Schema of the data source. This is optional parameter, if you would like to restrict the metadata reading to a single schema. When left blank, OpenMetadata Ingestion attempts to scan all the schemas.
 - **Database Name**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
-#### For MySQL Metastore Connection
+
+**For MySQL Metastore Connection**
+
 You can also ingest the metadata using Mysql metastore. This step is optional if metastore details are not provided then we will query the hive server directly.
+
 - **Username**: Specify the User to connect to MySQL Metastore. It should have enough privileges to read all the metadata.
 - **Password**: Password to connect to MySQL.
 - **Host and Port**: Enter the fully qualified hostname and port number for your MySQL Metastore deployment in the Host and Port field in the format `hostname:port`.
 - **databaseSchema**: Enter the database schema which is associated with the metastore.
-</Step>
-<AdvancedConfiguration />
-#### For Postgres Metastore Connection
+
+**For Postgres Metastore Connection**
+
 You can also ingest the metadata using Postgres metastore. This step is optional if metastore details are not provided then we will query the hive server directly.
+
 - **Username**: Specify the User to connect to Postgres Metastore. It should have enough privileges to read all the metadata.
 - **Password**: Password to connect to Postgres.
 - **Host and Port**: Enter the fully qualified hostname and port number for your Postgres deployment in the Host and Port field in the format `hostname:port`.
 - **Database**: Initial Postgres database to connect to. Specify the name of database associated with metastore instance.
-<AdvancedConfiguration />
-<AdvancedConfiguration />
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
 ## Securing Hive Connection with SSL in OpenMetadata
-To configure SSL for secure connections between OpenMetadata and a Hive database, you need to add `ssl_cert` as a key and the path to the CA certificate as its value under `connectionArguments`. Ensure that the certificate is accessible by the server. If you use a Docker or Kubernetes deployment, update the CA certificate in the Open Metadata server.
+
+To configure SSL for secure connections between OpenMetadata and a Hive database, you need to add `ssl_cert` as a key and the path to the CA certificate as its value under `connectionArguments`. Ensure that the certificate is accessible by the server. If you use a Docker or Kubernetes deployment, update the CA certificate in the OpenMetadata server.
+
 <img src="/public/images/connectors/ssl_argument.png" alt="SSL Configuration" height="450px" />
+
 <Related />

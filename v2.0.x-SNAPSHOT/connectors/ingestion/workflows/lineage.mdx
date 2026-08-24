@@ -30,41 +30,74 @@ Learn how to do so 👇
 
 Once the metadata ingestion runs correctly and we are able to explore the service Entities, we can add Entity Lineage information.
 
-This will populate the Lineage tab from the Table Entity Page.
+This will populate the **Lineage** tab from the Table Entity Page.
 
-<img src="/public/images/features/ingestion/workflows/lineage/table-entity-page.png" alt="table-entity-page" />
+<img src="/public/images/features/ingestion/workflows/lineage/lineage-tab.png" alt="table-entity-page" />
 
+We can create a workflow that will obtain the query log and table creation information from the underlying database and feed it to OpenMetadata. The Lineage Agent will be in charge of obtaining this data.
 
-We can create a workflow that will obtain the query log and table creation information from the underlying database and feed it to OpenMetadata. The Lineage Ingestion will be in charge of obtaining this data.
+### Step 1: Add a Lineage Agent
 
-### 1. Add a Lineage Ingestion
+Navigate to your service and launch the Lineage Agent wizard.
 
-From the Service Page, go to the Ingestions tab to add a new ingestion and click on Add Lineage Ingestion.
+1. Navigate to **Settings** > **Services** and select the service type.
+2. Click the service you have added.
+3. Open the **Agents** tab and click **Add Agent** > **Lineage**.
 
-<img src="/public/images/features/ingestion/workflows/lineage/add-ingestion.png" alt="add-ingestion" />
+    <img src="/public/images/features/ingestion/workflows/lineage/add-lineage-agent.png" alt="Add Lineage Agent" />
 
-### 2. Configure the Lineage Ingestion
+4. Give the agent a recognisable name and click **Next**.
 
-Here you can enter the Lineage Ingestion details:
+### Step 2: Configure the Agent
 
-<img src="/public/images/features/ingestion/workflows/lineage/configure-lineage-ingestion.png" alt="configure-lineage-ingestion" />
+Configure the core parameters for this agent.
 
-### Lineage Options
+<img src="/public/images/features/ingestion/workflows/lineage/configure-lineage-agent.png" alt="Configure the Lineage Agent" />
 
-**Query Log Duration**
+**Agent Setup**
 
-Specify the duration in days for which the lineage should capture lineage data from the query logs. For example, if you specify 2 as the value for the duration, the data lineage will capture lineage information for 48 hours prior to when the ingestion workflow is run.
+| Field | Default | Description |
+|-------|---------|-------------|
+| **Query Log Duration** | `1` | How many days back to look in the query log. |
+| **Query Log File Path** | — | Path to a query log file. Use this instead of reading directly from the database. |
+| **Result Limit** | `1000` | Maximum number of query log rows to process per run. |
+| **Parsing Timeout Limit** | `300` | Timeout in seconds for parsing a single SQL query. |
+| **Query Parser Type** | `Auto` | SQL parser for lineage extraction. **Auto** tries SqlGlot first, then SqlFluff, then SqlParse. **SqlGlot** offers high performance with excellent dialect support. **SqlFluff** provides comprehensive dialect support. |
+| **Filter Condition** | — | SQL condition applied to the query history result set to exclude specific queries. See [Usage Query Filtering](/v2.0.x-SNAPSHOT/connectors/ingestion/workflows/usage/filter-query-set). |
+| **Number of Threads** | `1` | Number of threads to use for parallel lineage ingestion. |
+| **Cross Database Service Names** | — | Names of other OpenMetadata services to search when resolving table references during lineage extraction. List specific service names. The underlying lookup returns a limited number of matches, so `*` can miss the correct service or resolve to the wrong table when many services or tables share names. |
+| **Override View Lineage** | Off | When enabled, overwrites existing view lineage on each run. |
+| **Process View Lineage** | On | Parse view definitions for lineage. |
+| **Process Query Lineage** | On | Parse query logs for lineage. |
+| **Process Stored Procedure Lineage** | On | Parse stored procedure definitions for lineage. |
+| **Process Cross Database Lineage** | Off | Build lineage across tables in different databases or projects (for example, across BigQuery projects). Also set **Cross Database Service Names** when enabling this option. See [Cross Database Lineage](/v2.0.x-SNAPSHOT/how-to-guides/data-lineage/cross-database-lineage). |
+| **Enable Temp Table Lineage** | Off | Handle lineage for Snowflake temporary and transient tables. |
+| **Incremental Lineage Processing** | On | Process only new or changed lineage data on each run. |
 
-**Result Limit**
+**Filter Patterns**
 
-Set the limit for the query log results to be run at a time.
+Apply regex patterns to include or exclude specific databases, schemas, tables, or stored procedures.
 
+**Scope & Behaviour**
 
-### 3. Schedule and Deploy
+| Field | Description |
+|-------|-------------|
+| **Enable Debug Log** | Turn on verbose logging to help troubleshoot ingestion issues. |
 
-After clicking Next, you will be redirected to the Scheduling form. This will be the same as the Metadata Ingestion. Select your desired schedule and click on Deploy to find the lineage pipeline being added to the Service Ingestions.
+### Step 3: Schedule and Deploy
 
-<img src="/public/images/features/ingestion/workflows/lineage/scheule-and-deploy.png" alt="schedule-and-deploy" />
+Choose how the lineage agent should run:
+
+- **Schedule**: Runs repeatedly based on a defined interval. Set the **Frequency** (Hourly, Daily, Weekly, Monthly, or Custom) and the **Time** to run.
+- **On Demand**: Runs once when manually triggered.
+
+Configure the remaining options:
+- **Number of Retries**: How many times to retry if the ingestion fails.
+- **Raise on Error**: Toggle on to surface errors immediately rather than silently skipping them.
+
+Click **Add & Deploy** to save and activate the lineage agent.
+
+<img src="/public/images/features/ingestion/workflows/lineage/deploy-lineage-agent.png" alt="Schedule and Deploy the Lineage Agent" />
 
 ## YAML Configuration
 

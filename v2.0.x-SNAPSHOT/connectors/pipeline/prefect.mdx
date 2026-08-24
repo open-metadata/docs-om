@@ -1,0 +1,156 @@
+---
+title: Prefect Connector | OpenMetadata Pipeline Guide
+description: Connect Prefect to OpenMetadata for comprehensive data lineage tracking, metadata discovery, and pipeline monitoring. Setup guide included.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/prefect.svg'
+  name="Prefect"
+  stage="BETA"
+  availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Tags"]}
+  unavailableFeatures={["Owners", "Usage"]}
+/>
+In this section, we provide guides and references to use the Prefect connector.
+
+The connector ingests **flows** as Pipelines, each flow's **tasks** (from its most recent run) as Tasks, and **flow run history** as Pipeline Status. It connects to either Prefect Cloud or a self-hosted Prefect Server over the Prefect REST API.
+
+Configure and schedule Prefect metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/pipeline/prefect/troubleshooting)
+
+## Requirements
+
+The Prefect connector reads flows, deployments, and run history through the Prefect REST API. The connector requires no database-level grants, access is controlled entirely by the credentials used to call the API.
+
+### Prefect Cloud
+
+The API key must belong to a [service account or user](https://docs.prefect.io/v3/how-to-guides/cloud/manage-users/api-keys) with at least **Viewer** access to the workspace identified by the configured Account ID and Workspace ID. Viewer access is sufficient to list flows and read their deployments, flow runs, task runs, and asset materializations (for lineage).
+
+### Self-Hosted Prefect Server
+
+If the server has Basic Auth enabled via `PREFECT_SERVER_API_AUTH_STRING`, provide the same `user:password` value as the **Basic Auth String**. If the server has no auth enabled, leave the field empty and requests are sent without credentials.
+
+### Lineage
+
+Table-to-table lineage is built from two sources, tried in order:
+
+1. **Assets API** (Prefect Cloud only): exact upstream and downstream table pairs read from a flow run's asset materializations, when the flow uses `@materialize` or `asset_deps`.
+2. **Lineage tags** (Cloud and self-hosted): tag a flow, deployment, or task run with `om-source:<database>.<schema>.<table>` and `om-destination:<database>.<schema>.<table>`. Every detected source is linked to every detected destination. This requires the **Database Service Name(s)** to be configured in the pipeline service's lineage settings so the tagged tables can be resolved to existing OpenMetadata Table entities.
+
+## Metadata Ingestion
+
+To ingest metadata from Prefect, you need to create a service connection. The service connects Prefect with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **Prefect** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/prefect.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Prefect services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/prefect.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Prefect. A help panel displays inline guidance for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/prefect.png)
+
+- **Host and Port** (required): Prefect API base URL. Use `https://api.prefect.cloud` for Prefect Cloud, or your self-hosted server URL, for example `http://localhost:4200`.
+- **Authentication** (required): Choose the authentication type that matches your Prefect deployment:
+  - **Prefect Cloud**:
+    - **Prefect API Key**: API key for Prefect Cloud authentication.
+    - **Account ID**: Found in the URL: `app.prefect.cloud/account/{accountId}`.
+    - **Workspace ID**: Found in the URL after `/workspaces/{workspaceId}`.
+  - **Prefect Server**:
+    - **Basic Auth String** (optional): The `PREFECT_SERVER_API_AUTH_STRING` value in `user:password` format. Leave empty if the server has no auth enabled.
+- **Number of Status** (optional, default `10`, max `100`): Number of past flow run statuses to ingest per flow.
+- **Verify SSL** (optional): Client SSL verification mode for the Prefect API connection. Choose from:
+  - **No SSL** (default): Plain HTTP connection.
+  - **Ignore**: Accept HTTPS without validating the certificate (not recommended outside of testing).
+  - **Validate**: Validate the certificate using the CA cert provided in **SSL Configuration**.
+- **SSL Configuration** (optional): CA certificate (and, for mutual TLS, client certificate and key) used when **Verify SSL** is set to **Validate**.
+- **Default Pipeline Filter Pattern** (optional): Regex pattern to include or exclude flows by name. Supports **includes** and **excludes** arrays.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Prefect service. Filter patterns use regular expressions applied to flow names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all flows available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which flows OpenMetadata ingests from Prefect.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips. An asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

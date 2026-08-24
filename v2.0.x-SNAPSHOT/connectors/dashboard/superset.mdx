@@ -4,12 +4,9 @@ description: Learn how to connect Apache Superset dashboards to OpenMetadata wit
 sidebarTitle: Overview
 ---
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import ConfigureIngestion from '/snippets/connectors/dashboard/configure-ingestion.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
+import MetadataAgentDashboard from '/snippets/connectors/metadata-agent/dashboard.mdx'
 import DashboardLineage from '/snippets/connectors/dashboard/dashboard-lineage.mdx'
-import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
   icon='/public/images/connectors/superset.webp'
@@ -18,36 +15,72 @@ name="Superset"
 availableFeatures={["Dashboards", "Charts", "Lineage", "Owners", "Datamodels", "Column Lineage"]}
   unavailableFeatures={["Tags", "Projects"]} />
 In this section, we provide guides and references to use the Superset connector.
-Configure and schedule Superset metadata and profiler workflows from the OpenMetadata UI:
+Configure and schedule Superset metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Enable Security](#securing-superset-connection-with-ssl-in-openmetadata)
-- [Lineage](#lineage)
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/dashboard/superset/troubleshooting)
+
 ## Requirements
-The ingestion also works with Superset 2.0.0 🎉
-**API Connection**: To extract metadata from Superset via API, user must have at least `can read on Chart` & `can read on Dashboard` permissions.
-**Database Connection**: To extract metadata from Superset via MySQL or Postgres database, database user must have at least `SELECT` privilege on `dashboards` & `slices` tables within superset schema.
+
+The ingestion also works with Superset 2.0.0.
+
+**API Connection**: To extract metadata from Superset via API, the user must have at least `can read on Chart` and `can read on Dashboard` permissions.
+
+**Database Connection**: To extract metadata from Superset via MySQL or Postgres database, the database user must have at least `SELECT` privilege on the `dashboards` and `slices` tables within the Superset schema.
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"Superset"} selectServicePath={"/public/images/connectors/superset/select-service.png"} addNewServicePath={"/public/images/connectors/superset/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/superset/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
-- **Host and Port**: The `Host and Post` parameter is common for all three modes of authentication which specifies the host and port of the Superset instance. This should be specified as a string in the format `http://hostname:port` or `https://hostname:port`. For example, you might set the hostPort parameter to `https://org.superset.com:8088`.
-- **Superset Connection**: Add the connection details to fetch metadata from Superset either through APIs or Database.
+
+To ingest metadata from Superset, you need to create a service connection. The service connects Superset with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Dashboard Services**, then click the **Superset** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Dashboard/select-service/superset.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Superset services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Dashboard/service-name/superset.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Superset. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/superset.png)
+
+- **Host and Port**: The `Host and Port` parameter is common to all three authentication modes and specifies the host and port of the Superset instance. This should be specified as a string in the format `http://hostname:port` or `https://hostname:port`. For example, you might set the hostPort parameter to `https://org.superset.com:8088`.
+- **Superset Connection**: Add the connection details to fetch metadata from Superset either through APIs or a database.
+
 ##### For Superset API Connection
-Superset API connection is the default mode of authentication where we fetch the metadata using [Superset APIs](https://superset.apache.org/docs/api/).
+
+Superset API connection is the default authentication mode. It fetches metadata using the [Superset APIs](https://superset.apache.org/docs/api/).
+
 <Tip>
-Superset only supports basic or ldap authentication through APIs so if you have SSO enabled on your Superset instance then this mode of authentication will not work for you and you can opt for MySQL or Postgres Connection to fetch metadata directly from the database in the backend of Superset.
+Superset only supports basic or LDAP authentication through APIs. If you have SSO enabled on your Superset instance, this authentication mode won't work. Use a MySQL or Postgres connection instead to fetch metadata directly from the Superset database.
 </Tip>
+
 - **Username**: Username to connect to Superset, for ex. `user@organization.com`. This user should have access to relevant dashboards and charts in Superset to fetch the metadata.
 - **Password**: Password of the user account to connect with Superset.
 - **Provider**: Choose between `db`(default) or `ldap` mode of Authentication provider for the Superset service. This parameter is used internally to connect to Superset's REST API.
@@ -57,37 +90,108 @@ Possible values:
   * `validate`: Validate the certificate using the public certificate (recommended).
   * `ignore`: Ignore the certification validation (not recommended for production).
   * `no-ssl`: SSL validation is not needed.
-- **SSL Config**: Client SSL configuration in case we are connection to a host with SSL enabled.
-- **Certificate Path**: CA certificate path in the instance where the ingestion run. E.g., `/path/to/public.cert`. Will be used if Verify SSL is set to `validate`.
-For MySQL Connection
-You can use Mysql Connection when you have SSO enabled and your Superset is backed by Mysql database.
-- **Username**: Specify the User to connect to MySQL. It should have enough privileges to read all the metadata. Make sure the user has select privileges on `dashboards`, `tables` & `slices` tables of superset schema.
+- **SSL Config**: Client SSL configuration in case you are connecting to a host with SSL enabled.
+- **Certificate Path**: CA certificate path in the instance where the ingestion run. For example, `/path/to/public.cert`. Will be used if Verify SSL is set to `validate`.
+
+##### For MySQL Connection
+
+Use a MySQL connection when you have SSO enabled and your Superset instance is backed by a MySQL database.
+
+- **Username**: Specify the user to connect to MySQL. It should have enough privileges to read all the metadata. Make sure the user has select privileges on the `dashboards`, `tables`, and `slices` tables of the Superset schema.
 - **Password**: Password to connect to MySQL.
 - **Host and Port**: Enter the fully qualified hostname and port number for your MySQL deployment in the Host and Port field.
 - **databaseSchema**: Enter the database schema which is associated with the Superset instance.
 - **caCertificate**: Provide the path to ssl ca file.
 - **sslCertificate**: Provide the path to ssl client certificate file (ssl_cert).
 - **sslKey**: Provide the path to ssl client certificate file (ssl_key).
-</Step>
-<AdvancedConfiguration />
-<Step title="For Postgres Connection">
-You can use Postgres Connection when you have SSO enabled and your Superset is backed by Postgres database.
-- **Username**: Specify the User to connect to Postgres. Make sure the user has select privileges on `dashboards`, `tables` & `slices` tables of superset schema.
+
+##### For Postgres Connection
+
+Use a Postgres connection when you have SSO enabled and your Superset instance is backed by a Postgres database.
+
+- **Username**: Specify the user to connect to Postgres. Make sure the user has select privileges on the `dashboards`, `tables`, and `slices` tables of the Superset schema.
 - **Password**: Password to connect to Postgres.
 - **Host and Port**: Enter the fully qualified hostname and port number for your Postgres deployment in the Host and Port field.
-- **Database**: Initial Postgres database to connect to. Specify the name of database associated with Superset instance.
+- **Database**: Initial Postgres database to connect to. Specify the name of the database associated with the Superset instance.
 - **caCertificate**: Provide the path to ssl ca file.
-</Step>
-<AdvancedConfiguration />
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
-## Securing Superset Connection with SSL in OpenMetadata
-1. To establish secure connections between OpenMetadata and Superset, navigate to the `Advanced Config` section. We need to update the `Certificate Path` and ensure that the certificates are accessible from the Airflow Server.
-  <img src="/public/images/connectors/ssl_superset.png" alt="Supertset API SSL Configuration" height="450px" />
-2. To establish secure connections between OpenMetadata and Superset's MySQL database, you need to configure SSL certificates appropriately. If you only require SSL validation, specify the `caCertificate` to use the CA certificate for validating the server's certificate. For mutual authentication, where both client and server need to authenticate each other, you must provide all three parameters: `ssl_key` for the client’s private key, `ssl_cert` for the client’s SSL certificate, and `ssl_ca` for the CA certificate to validate the server’s certificate.
-<img src="/public/images/connectors/ssl_superset_mysql.png" alt="MySQL SSL Configuration" height="450px" />
-3. To establish secure connections between OpenMetadata and Superset's PostgreSQL database, you can configure SSL using different SSL modes provided by PostgreSQL, each offering varying levels of security.Under `PostgresConnection Advanced Config`, specify the SSL mode appropriate for your connection, such as `prefer`, `verify-ca`, `allow`, and others. After selecting the SSL mode, provide the CA certificate used for SSL validation (`caCertificate`). Note that PostgreSQL requires only the CA certificate for SSL validation.
-<img src="/public/images/connectors/ssl_superset_postgres.png" alt="Postgres SSL Configuration" height="450px" />
+
+#### Advanced Configuration
+
+Database Services include an Advanced Configuration section for passing extra arguments to the connector and, if needed, changing the connection scheme. This is only needed for advanced connectivity scenarios or customizations.
+
+- **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+- **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+</Tip>
+
+**Filter Options**
+
+The Dashboard, Chart, and Data Model sections each include the following filter options:
+
+- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
+- **Chart**: Controls which charts within the ingested dashboards are included.
+- **Data Model**: Controls which data models are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDashboard />
+
 <DashboardLineage />
+
+## Securing Superset Connection with SSL in OpenMetadata
+
+1. To establish secure connections between OpenMetadata and Superset, navigate to the `Advanced Config` section. Update the `Certificate Path` and ensure that the certificates are accessible from the Airflow Server.
+
+   <img src="/public/images/connectors/ssl_superset.png" alt="Superset API SSL Configuration" height="450px" />
+
+2. To establish secure connections between OpenMetadata and Superset's MySQL database, configure SSL certificates appropriately. If you only require SSL validation, specify the `caCertificate` to use the CA certificate for validating the server's certificate. For mutual authentication, where both client and server need to authenticate each other, provide all three parameters: `ssl_key` for the client's private key, `ssl_cert` for the client's SSL certificate, and `ssl_ca` for the CA certificate to validate the server's certificate.
+
+   <img src="/public/images/connectors/ssl_superset_mysql.png" alt="MySQL SSL Configuration" height="450px" />
+
+3. To establish secure connections between OpenMetadata and Superset's PostgreSQL database, configure SSL using different SSL modes provided by PostgreSQL, each offering varying levels of security. Under `PostgresConnection Advanced Config`, specify the SSL mode appropriate for your connection, such as `prefer`, `verify-ca`, `allow`, and others. After selecting the SSL mode, provide the CA certificate used for SSL validation (`caCertificate`). PostgreSQL requires only the CA certificate for SSL validation.
+
+   <img src="/public/images/connectors/ssl_superset_postgres.png" alt="Postgres SSL Configuration" height="450px" />
+
+<Related />
