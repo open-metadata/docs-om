@@ -10,10 +10,10 @@ You can find the GitHub release [here](https://github.com/open-metadata/OpenMeta
 - **Cardinality distribution removed from defaults**: Cardinality metrics are no longer collected on every run. If your workflows depend on distinct-value counts (classification, tagging, custom rules), explicitly add cardinality distribution to the relevant profiler configuration.
 - Existing profiler configs are preserved — only pipelines using the default agent config are affected.
 
-### Governance — Custom Intake Forms & Owl Import
+### Governance — Custom Intake Forms & OWL Import
 
 - **Custom Intake Forms**: Define custom forms for governance intake workflows — asset certification, ownership assignment, data classification, or any structured intake process. Forms are configurable per entity type and feed into the existing task and workflow system.
-- **Owl Import**: Import OWL (Web Ontology Language) files to load existing ontologies and classification taxonomies directly into OpenMetadata, reusing industry-standard or enterprise-specific taxonomy assets.
+- **OWL Import**: Import OWL (Web Ontology Language) files to load existing ontologies and classification taxonomies directly into OpenMetadata, reusing industry-standard or enterprise-specific taxonomy assets.
 
 ### Context Center
 
@@ -26,7 +26,7 @@ Activity Feed, Tasks, Workflows, and Announcements are fully compatible with 2.0
 ### Ingestion — Connectors
 
 - **Databricks Pipeline**: Authentication updated from a bare `token` field to a structured `authType` object supporting Personal Access Token, DatabricksOAuth, and Azure AD. Stored connection configs are migrated automatically.
-- **Python 3.12**: Ingestion images now run on Python 3.12 (`python:3.12-slim-trixie`). Custom ingestion images or Airflow environments pinned to Python 3.10 must be rebuilt — `cp310` wheels will not load.
+- **Python 3.12**: Ingestion images now run on Python 3.12 (`python:3.12-slim-trixie`; Airflow upgraded to `apache/airflow:3.3.0-python3.12`). This change first shipped in 1.13.4 — skip if already on 1.13.4.
 - Additional connector stability improvements and bug fixes across the connector library.
 
 ### MCP (Model Context Protocol)
@@ -34,7 +34,7 @@ Activity Feed, Tasks, Workflows, and Announcements are fully compatible with 2.0
 OpenMetadata's MCP server exposes catalog metadata to AI assistants and agents through the Model Context Protocol — any MCP-compatible client (Claude, Cursor, IDE plugins) can query your catalog without custom integrations.
 
 - **Enabled by default**: Starts ready on upgrade; no manual activation needed.
-- **`nextCursor` pagination**: Read tools now use cursor-based paging instead of numeric offsets, preventing skipped results under concurrent writes (see Breaking Changes).
+- **`nextCursor` pagination**: MCP read tools now return a `nextCursor` value alongside results. Pass `cursor` on subsequent calls for stable cursor-based paging. Existing `from`/`size` offset parameters continue to work.
 
 ### SCIM Provisioning
 
@@ -52,15 +52,111 @@ The landing page has been redesigned with an updated navigation structure and cl
 
 ## Breaking Changes
 
-### MCP — `nextCursor` Pagination
+### MCP — Cursor Paging Available (Offset Still Supported)
 
-MCP read tools have moved from offset-based paging to a **`nextCursor`** contract. Offset paging (`from: N, size: M`) is no longer supported on these tools.
+MCP read tools now return a `nextCursor` value in every response. Clients that pass `cursor` on the next call will use stable cursor-based paging, which avoids skipped results under concurrent writes.
 
-**Before:** Clients passed a numeric `from` offset alongside `size` to walk through results.
+The existing `from` and `size` offset parameters **continue to work** — the cursor only takes effect when explicitly passed. No migration is required for existing MCP clients.
 
-**After:** Each response includes a `nextCursor` string. Pass this value as `cursor` on the next call. When `nextCursor` is absent or `null`, the result set is exhausted.
+---
 
-**Action required:** Update any MCP client that pages results by numeric offset. Clients that only read the first page are unaffected.
+### Configuration — `naturalLanguageSearch` and `llmConfiguration`
+
+The LLM configuration has been consolidated. `naturalLanguageSearch` now holds only its own search knobs; provider credentials, models, and embeddings have moved to a new top-level `llmConfiguration` block.
+
+**Before (1.13):**
+```yaml
+naturalLanguageSearch:
+  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
+  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
+  embeddingProvider: ${EMBEDDING_PROVIDER:-bedrock}
+  maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
+  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-io.openmetadata.service.search.nlq.BedrockNLQService}
+  bedrock:
+    awsConfig:
+      region: ${AWS_DEFAULT_REGION:-""}
+      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
+    modelId: ${AWS_BEDROCK_MODEL_ID:-""}
+    embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
+    embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
+    timeoutSeconds: ${NLQ_BEDROCK_TIMEOUT_SECONDS:-15}
+    maxTokens: ${NLQ_BEDROCK_MAX_TOKENS:-256}
+    temperature: ${NLQ_BEDROCK_TEMPERATURE:-0.0}
+  openai:
+    apiKey: ${OPENAI_API_KEY:-""}
+    modelId: ${OPENAI_MODEL_ID:-"gpt-4o-mini"}
+    timeoutSeconds: ${NLQ_OPENAI_TIMEOUT_SECONDS:-30}
+    maxTokens: ${NLQ_OPENAI_MAX_TOKENS:-256}
+    temperature: ${NLQ_OPENAI_TEMPERATURE:-0.0}
+  filterExtractor:
+    cacheMaxSize: ${NLQ_CACHE_MAX_SIZE:-1000}
+    cacheExpiryMinutes: ${NLQ_CACHE_EXPIRY_MINUTES:-5}
+    maxSampleValues: ${NLQ_MAX_SAMPLE_VALUES:-10}
+```
+
+**After (2.0):**
+```yaml
+naturalLanguageSearch:
+  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
+  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
+  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-org.openmetadata.service.search.nlq.NoOpNLQService}
+  filterExtractor:
+    cacheMaxSize: ${NLQ_CACHE_MAX_SIZE:-1000}
+    cacheExpiryMinutes: ${NLQ_CACHE_EXPIRY_MINUTES:-5}
+    maxSampleValues: ${NLQ_MAX_SAMPLE_VALUES:-10}
+    maxTokens: ${NLQ_MAX_TOKENS:-256}
+    temperature: ${NLQ_TEMPERATURE:-0.0}
+    timeoutSeconds: ${NLQ_TIMEOUT_SECONDS:-15}
+
+llmConfiguration:
+  enabled: ${LLM_ENABLED:-false}
+  provider: ${LLM_PROVIDER:-bedrock}   # noop | openai | azureOpenAI | bedrock | google | anthropic
+  maxConcurrentRequests: ${LLM_MAX_CONCURRENT_REQUESTS:-5}
+  bedrock:
+    awsConfig:
+      enabled: ${BEDROCK_AWS_IAM_AUTH_ENABLED:-true}
+      region: ${AWS_DEFAULT_REGION:-""}
+      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
+    modelId: ${LLM_BEDROCK_MODEL_ID:-""}
+    maxTokens: ${LLM_BEDROCK_MAX_TOKENS:-4096}
+  openai:
+    apiKey: ${LLM_OPENAI_API_KEY:-""}
+    modelId: ${LLM_OPENAI_MODEL_ID:-"gpt-4o-mini"}
+    endpoint: ${LLM_OPENAI_ENDPOINT:-""}
+    deploymentName: ${LLM_OPENAI_DEPLOYMENT:-""}
+  embeddings:
+    provider: ${EMBEDDING_PROVIDER:-bedrock}   # bedrock | openai | google | djl
+    maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
+    bedrock:
+      embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
+      embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
+```
+
+**Renamed environment variables:**
+
+| Old (1.13) | New (2.0) |
+|---|---|
+| `AWS_BEDROCK_MODEL_ID` | `LLM_BEDROCK_MODEL_ID` |
+| `OPENAI_API_KEY` | `LLM_OPENAI_API_KEY` |
+| `OPENAI_MODEL_ID` | `LLM_OPENAI_MODEL_ID` |
+| `OPENAI_API_ENDPOINT` | `LLM_OPENAI_ENDPOINT` |
+| `OPENAI_DEPLOYMENT_NAME` | `LLM_OPENAI_DEPLOYMENT` |
+| `OPENAI_API_VERSION` | `LLM_OPENAI_API_VERSION` |
+| `GOOGLE_API_KEY` | `LLM_GOOGLE_API_KEY` |
+| `GOOGLE_MODEL_ID` | `LLM_GOOGLE_MODEL_ID` |
+| `GOOGLE_API_ENDPOINT` | _(removed)_ |
+| `NLQ_BEDROCK_TIMEOUT_SECONDS` | `NLQ_TIMEOUT_SECONDS` |
+| `NLQ_BEDROCK_MAX_TOKENS` | `NLQ_MAX_TOKENS` |
+| `NLQ_BEDROCK_TEMPERATURE` | `NLQ_TEMPERATURE` |
+| `NLQ_OPENAI_TIMEOUT_SECONDS` | `NLQ_TIMEOUT_SECONDS` |
+| `NLQ_OPENAI_MAX_TOKENS` | `NLQ_MAX_TOKENS` |
+| `NLQ_OPENAI_TEMPERATURE` | `NLQ_TEMPERATURE` |
+
+**New:** `LLM_ENABLED` and `LLM_PROVIDER` must both be set for embeddings or any LLM feature to activate. `providerClass` now defaults to `NoOpNLQService` — NLQ filter extraction stays off until `llmConfiguration` is enabled.
+
+**Action required:** Update `naturalLanguageSearch` in your YAML and add the new `llmConfiguration` block. Rename environment variables per the table above.
 
 ---
 
@@ -116,19 +212,21 @@ Ingestion images have moved from Python 3.10 to **Python 3.12** (`python:3.12-sl
 - Remove or replace `cp310` binary wheels — they will fail to import on 3.12 images.
 - If running a custom Airflow environment, upgrade to the 3.12-based Airflow image.
 
+**Note:** This change first shipped in 1.13.4. If you are upgrading from 1.13.4, no action is needed.
+
 ---
 
 ### Chrome Plugin — Trusted Redirect URIs
 
 The Chrome plugin now requires trusted redirect URIs to be explicitly declared. Previously the plugin accepted redirects to any origin.
 
-**Action required:** Add your OpenMetadata instance origin(s) to `additionalTrustedRedirectUris`:
+**Action required:** `additionalTrustedRedirectUris` requires the **full redirect URI** — including scheme, host, port, and path. For the Chrome plugin, add the extension's callback URI:
 
 ```yaml
-additionalTrustedRedirectUris: ${AUTHENTICATION_ADDITIONAL_TRUSTED_REDIRECT_URIS:-[]}
+additionalTrustedRedirectUris: ["https://<your-extension-id>.chromiumapp.org/auth0"]
 ```
 
-If not set, the Chrome plugin login flow will fail with a redirect mismatch error.
+Replace `<your-extension-id>` with the actual Chrome extension ID. Setting only the origin will not satisfy the redirect check and the login flow will fail with a redirect mismatch error.
 
 ---
 
@@ -156,7 +254,7 @@ Airflow will be deprecated as the **internal** orchestration system in 2.1, in f
 
 ### Great Expectations 0.x
 
-Support for Great Expectations 0.x has been **removed** in 2.0. **Action required:** Migrate to Great Expectations 1.x before upgrading. See the [Great Expectations 1.x migration guide](https://docs.greatexpectations.io/docs/guides/miscellaneous/migration_guide).
+Support for Great Expectations 0.x has been **removed** in 2.0. **Action required:** Migrate to Great Expectations `~=1.3` before upgrading. See the [Great Expectations migration guide](https://docs.greatexpectations.io/docs/guides/miscellaneous/migration_guide).
 
 ---
 
@@ -164,14 +262,15 @@ Support for Great Expectations 0.x has been **removed** in 2.0. **Action require
 
 | Area | Action Required |
 |---|---|
-| MCP clients | Update offset-based paging to use the `nextCursor` contract |
+| YAML / env vars | Update `naturalLanguageSearch` and add `llmConfiguration` block; rename env vars per table above |
+| MCP clients | No migration required — pass `cursor` for stable paging; `from`/`size` offset still works |
 | Alerts | After upgrade, widen or remove filters if entity-scoped alerts go quiet |
 | Profiler config | Explicitly add cardinality distribution if downstream features depend on it |
 | Databricks YAML | Update `token: dapi...` to `authType: { token: dapi... }` in external pipeline YAMLs |
-| Custom ingestion images | Rebuild against Python 3.12; remove `cp310` wheel dependencies |
-| Chrome plugin | Set `additionalTrustedRedirectUris` to your instance origin(s) |
+| Custom ingestion images | Rebuild against `python:3.12-slim-trixie`; remove `cp310` wheels. Skip if upgrading from 1.13.4. |
+| Chrome plugin | Set `additionalTrustedRedirectUris` to the full Chrome callback URI (e.g. `https://<extension-id>.chromiumapp.org/auth0`) |
 | Knowledge Center links | Update bookmarks and internal links to Context Center → Articles |
-| Great Expectations | Migrate from 0.x to 1.x before upgrading |
+| Great Expectations | Migrate from 0.x to `~=1.3` before upgrading |
 
 **[View the full changelog](https://github.com/open-metadata/OpenMetadata/compare/1.13.4-release...2.0.0-release)**
 
