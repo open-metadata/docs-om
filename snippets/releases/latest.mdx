@@ -56,6 +56,57 @@ The existing `from` and `size` offset parameters **continue to work** — the cu
 
 ---
 
+### Semantic Search — Embedding Configuration Moved
+
+Embedding settings have moved out of `naturalLanguageSearch` into a new top-level `llmConfiguration.embeddings` block. Semantic search stops working silently on upgrade unless the new block is configured and enabled.
+
+**Before (1.13):**
+```yaml
+naturalLanguageSearch:
+  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
+  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
+  embeddingProvider: ${EMBEDDING_PROVIDER:-bedrock}
+  maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
+  bedrock:
+    awsConfig:
+      region: ${AWS_DEFAULT_REGION:-""}
+      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
+    embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
+    embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
+```
+
+**After (2.0):**
+```yaml
+naturalLanguageSearch:
+  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
+  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
+  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-org.openmetadata.service.search.nlq.NoOpNLQService}
+
+llmConfiguration:
+  enabled: ${LLM_ENABLED:-false}
+  provider: ${LLM_PROVIDER:-bedrock}   # noop | openai | azureOpenAI | bedrock | google | anthropic
+  embeddings:
+    provider: ${EMBEDDING_PROVIDER:-bedrock}
+    maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
+    bedrock:
+      awsConfig:
+        region: ${AWS_DEFAULT_REGION:-""}
+        accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
+        secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
+      embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
+      embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
+```
+
+**Action required:**
+1. Remove `embeddingProvider`, `maxConcurrentRequests`, and the provider sub-blocks from `naturalLanguageSearch`.
+2. Add the `llmConfiguration` block above with your provider settings under `llmConfiguration.embeddings`.
+3. Set `LLM_ENABLED=true` and `LLM_PROVIDER=<your-provider>` — embeddings remain off until both are set.
+
+Environment variables `EMBEDDING_PROVIDER`, `MAX_CONCURRENT_EMBEDDING_REQUESTS`, `AWS_BEDROCK_EMBED_MODEL_ID`, and `AWS_BEDROCK_EMBEDDING_DIMENSION` are **unchanged**.
+
+---
+
 ### Profiler — Default Sampling Change
 
 The Profiler now defaults to **Dynamic Sampling** instead of scanning 100% of rows. Cardinality distribution metrics are **no longer collected by default**.
@@ -147,6 +198,7 @@ Airflow will be deprecated as the **internal** orchestration system in 2.1, in f
 | Area | Action Required |
 |---|---|
 | MCP clients | No migration required — pass `cursor` for stable paging; `from`/`size` offset still works |
+| Semantic search / embeddings | Move embedding config from `naturalLanguageSearch` to `llmConfiguration.embeddings`; set `LLM_ENABLED=true` and `LLM_PROVIDER=<provider>` |
 | Profiler config | Explicitly add cardinality distribution if downstream features depend on it |
 | Databricks YAML | Update `token: dapi...` to `authType: { token: dapi... }` in external pipeline YAMLs |
 | Custom ingestion images | Rebuild against `python:3.12-slim-trixie`; remove `cp310` wheels. Skip if upgrading from 1.13.4. |
