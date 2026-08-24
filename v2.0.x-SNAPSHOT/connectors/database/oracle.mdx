@@ -5,11 +5,7 @@ sidebarTitle: Overview
 ---
 
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
-import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
 import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
@@ -29,8 +25,9 @@ Configure and schedule Oracle metadata and profiler workflows from the OpenMetad
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/database/oracle/troubleshooting)
 
 ## Requirements
-**Note**: To retrieve metadata from an Oracle database, we use the `python-oracledb` library, which provides support for versions 12c, 18c, 19c, and 21c.
-To ingest metadata from oracle user must have `CREATE SESSION` privilege for the user.
+
+**Note**: To retrieve metadata from an Oracle database, OpenMetadata uses the `python-oracledb` library, which provides support for versions 12c, 18c, 19c, and 21c.
+To ingest metadata from Oracle, the user must have `CREATE SESSION` privilege.
 ```sql
 -- CREATE USER
 CREATE USER user_name IDENTIFIED BY admin_password;
@@ -45,7 +42,7 @@ GRANT CREATE SESSION TO new_role;
 --   This allows the role ReadOnly Access to Data Dictionaries
 GRANT SELECT_CATALOG_ROLE TO new_role;
 ```
-If you don't want to create a role, and directly give permissions to the user, you can take a look at an example given below.
+To give permissions directly to the user instead of creating a role, use the following example.
 ```sql
 -- Create a New User
 CREATE USER my_user IDENTIFIED by my_password;
@@ -56,7 +53,7 @@ GRANT CREATE SESSION TO my_user;
 --   This allows the user ReadOnly Access to Data Dictionaries
 GRANT SELECT_CATALOG_ROLE to my_user;
 ```
-**Note**: With just these permissions, your user should be able to ingest the metadata, but not the `Profiler & Data Quality`, you should grant `SELECT` permissions to the tables you are interested in for the `Profiler & Data Quality` features to work.
+**Note**: With just these permissions, the user can ingest metadata, but not run Data Profiler and Data Quality workflows. Grant `SELECT` permissions on the tables to include in profiling and data quality checks.
 ```sql
 -- If you are using a role and do not want to specify a specific table, but any
 GRANT SELECT ANY TABLE TO new_role;
@@ -71,38 +68,125 @@ GRANT SELECT ON {schema}.{table} TO new_role;
 -- if you are not using role, but directly giving permission to the user
 GRANT SELECT ON {schema}.{table} TO my_user;
 ```
-You can find further information [here](https://docs.oracle.com/javadb/10.8.3.0/ref/rrefsqljgrant.html). Note that
-there is no routine out of the box in Oracle to grant SELECT to a full schema.
+For more information, see the [Oracle GRANT statement reference](https://docs.oracle.com/javadb/10.8.3.0/ref/rrefsqljgrant.html). Oracle provides no built-in routine to grant SELECT on a full schema.
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"Oracle"} selectServicePath={"/public/images/connectors/oracle/select-service.png"} addNewServicePath={"/public/images/connectors/oracle/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/oracle/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
+
+To ingest metadata from Oracle, you need to create a service connection. The service connects Oracle with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Oracle** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/oracle.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Oracle services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/oracle.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Oracle. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/oracle.png)
+
 - **Username**: Specify the User to connect to Oracle. It should have enough privileges to read all the metadata.
 - **Password**: Password to connect to Oracle.
 - **Host and Port**: Enter the fully qualified hostname and port number for your Oracle deployment in the Host and Port field.
-- **Database Name**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name. It is recommended to use the database name same as the SID, This ensures accurate results and proper identification of tables during profiling, data quality checks and dbt workflow.
-- **Oracle Connection Type** : Select the Oracle Connection Type. The type can either be `Oracle Service Name` or `Database Schema`
-  - **Oracle Service Name**: The Oracle Service name is the TNS alias that you give when you remotely connect to your database and this Service name is recorded in tnsnames.
+- **Database Name**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name. It is recommended to use the database name same as the SID, this ensures accurate results and proper identification of tables during profiling, data quality checks, and dbt workflow.
+- **Oracle Connection Type**: Select the Oracle Connection Type. The type can either be `Oracle Service Name` or `Database Schema`.
+  - **Oracle Service Name**: The Oracle Service name is the TNS alias that you give when you remotely connect to your database and this service name is recorded in `tnsnames.ora`.
   - **Database Schema**: The name of the database schema available in Oracle that you want to connect with.
 - **Oracle instant client directory**: The directory pointing to where the `instantclient` binaries for Oracle are located. In the ingestion Docker image we
-    provide them by default at `/instantclient`. If this parameter is informed (it is by default), we will run the [thick oracle client](https://python-oracledb.readthedocs.io/en/latest/user_guide/initialization.html#initializing-python-oracledb).
-    We are shipping the binaries for ARM and AMD architectures from [here](https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html)
+    provide them by default at `/instantclient`. If this parameter is informed (it is by default), we will run the [thick Oracle client](https://python-oracledb.readthedocs.io/en/latest/user_guide/initialization.html#initializing-python-oracledb).
+    We ship the binaries for ARM and AMD architectures from [here](https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html)
     and [here](https://www.oracle.com/database/technologies/instant-client/linux-arm-aarch64-downloads.html) for the instant client version 19.
-- **Use DBA Table (toggle)**: When enabled, connector uses `DBA_TABLES` to retrieve metadata for all database objects. This requires the Oracle user to have DBA privileges. When disabled, connector uses  `ALL_TABLES`, which only returns metadata for objects accessible to the current user.
-</Step>
-<AdvancedConfiguration />
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+- **Use DBA Tables**: Enabled by default. When enabled, the connector uses `DBA_TABLES` to retrieve metadata for all database objects, which requires the Oracle user to have DBA privileges. When disabled, the connector uses `ALL_TABLES`, which only returns metadata for objects accessible to the current user.
+
+#### Advanced Configuration
+
+Database Services have an Advanced Configuration section, where you can pass extra arguments to the connector and, if needed, change the connection scheme. This would only be required to handle advanced connectivity scenarios or customizations.
+
+- **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+- **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, Table, and Stored Procedure sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+- **Stored Procedure**: Controls which stored procedures are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose one of the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips. An asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
 
 <Related />

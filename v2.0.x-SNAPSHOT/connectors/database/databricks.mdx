@@ -6,11 +6,7 @@ sidebarTitle: Overview
 
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
 import ExternalIngestionDeployment from '/snippets/v2.0.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
-import TestConnection from '/snippets/connectors/test-connection.mdx'
-import IngestionScheduleAndDeploy from '/snippets/connectors/ingestion-schedule-and-deploy.mdx'
-import ConfigureIngestion from '/snippets/connectors/database/configure-ingestion.mdx'
-import AdvancedConfiguration from '/snippets/connectors/database/advanced-configuration.mdx'
-import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.jsx'
+import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
 import Related from '/snippets/v2.0.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
@@ -26,9 +22,9 @@ In this section, we provide guides and references to use the Databricks connecto
 
 <Info>
 **Supported Authentication Types:**
-- **Personal Access Token** — Token-based workspace authentication generated from User Settings in Databricks
-- **Databricks OAuth** — OAuth2 Machine-to-Machine authentication using Service Principal credentials
-- **Azure AD Setup** — Azure Active Directory authentication using Azure Service Principal (for Azure Databricks workspaces)
+- **Personal Access Token**: Token-based workspace authentication generated from User Settings in Databricks
+- **Databricks OAuth**: OAuth2 Machine-to-Machine authentication using Service Principal credentials
+- **Azure AD Setup**: Azure Active Directory authentication using Azure Service Principal (for Azure Databricks workspaces)
 </Info>
 
 Configure and schedule Databricks metadata and profiler workflows from the OpenMetadata UI:
@@ -43,10 +39,17 @@ Configure and schedule Databricks metadata and profiler workflows from the OpenM
 - [Troubleshooting](/v2.0.x-SNAPSHOT/connectors/database/databricks/troubleshooting)
 
 <ExternalIngestionDeployment />
+
 ## Requirements
+
+Before configuring the Databricks connector, make sure the following requirements are in place.
+
 ### Permission Requirement
+
 To enable full functionality of metadata extraction, profiling, usage, and lineage features in OpenMetadata, the following permissions must be granted to the relevant users in your Databricks environment.
+
 ### Metadata and Profiling Permissions
+
 These permissions are required on the catalogs, schemas, and tables from which metadata and profiling information will be ingested.
 ```sql
 GRANT USE CATALOG ON CATALOG <catalog_name> TO `<user>`;
@@ -54,7 +57,9 @@ GRANT USE SCHEMA ON SCHEMA <schema_name> TO `<user>`;
 GRANT SELECT ON TABLE <table_name> TO `<user>`;
 ```
 Ensure these grants are applied to all relevant tables for metadata ingestion and profiling operations.
+
 ### Usage and Lineage
+
 These permissions enable OpenMetadata to extract query history and construct lineage information.
 ```sql
 -- Query history for usage analytics and SQL-based lineage
@@ -69,12 +74,14 @@ GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
 These permissions allow access to Databricks system tables that track query activity and lineage relationships, enabling lineage and usage statistics generation.
 
 ### View Definitions
+
 To extract view definitions, the user needs access to the information schema:
 ```sql
 GRANT SELECT ON INFORMATION_SCHEMA.VIEWS TO `<user>`;
 ```
 
 ### Tags (Databricks 13.3+)
+
 To extract Databricks tags on catalogs, schemas, tables, and columns, the following permissions are required:
 ```sql
 GRANT SELECT ON `<catalog_name>`.information_schema.catalog_tags TO `<user>`;
@@ -89,36 +96,118 @@ Tag extraction requires Databricks Runtime 13.3 or higher. If your cluster is ru
 <Tip>
 Adjust &lt;user&gt;, &lt;catalog_name&gt;, &lt;schema_name&gt;, and &lt;table_name&gt; according to your specific deployment and security requirements.
 </Tip>
+
 ## Unity Catalog
+
 If you are using Unity Catalog in Databricks, then checkout the [Unity Catalog](/v2.0.x-SNAPSHOT/connectors/database/unity-catalog) connector.
+
 ## Metadata Ingestion
-<MetadataIngestionUi connector={"Databricks"} selectServicePath={"/public/images/connectors/databricks/select-service.png"} addNewServicePath={"/public/images/connectors/databricks/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/databricks/service-connection.png"} />
-# Connection Details
-<Steps>
-<Step title="Connection Details">
-<Tip>
-When using a **Hybrid Ingestion Runner**, any sensitive credential fields—such as passwords, API keys, or private keys—must reference secrets using the following format:
-```
-password: secret:/my/database/password
-```
-This applies **only to fields marked as secrets** in the connection form (these typically mask input and show a visibility toggle icon).
-For a complete guide on managing secrets in hybrid setups, see the [Hybrid Ingestion Runner Secret Management Guide](https://docs.getcollate.io/getting-started/day-1/hybrid-saas/hybrid-ingestion-runner#3.-manage-secrets-securely).
-</Tip>
+
+To ingest metadata from Databricks, you need to create a service connection. The service connects Databricks with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Databricks** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/databricks.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Databricks services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Configure Service](/public/images/connector2.0/metadata-ingestion/Database/service-name/databricks.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Databricks. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/databricks.png)
+
 - **Host and Port**: Enter the fully qualified hostname and port number for your Databricks deployment in the Host and Port field.
 - **Authentication Type**: Choose one of the following authentication methods:
-  - **Personal Access Token** — Provide a `token` generated from User Settings → Developer → Access Tokens in your Databricks workspace.
-  - **Databricks OAuth** — Provide a `clientId` and `clientSecret` for a Service Principal created in your Databricks Account Console.
-  - **Azure AD Setup** — Provide `azureClientId`, `azureClientSecret`, and `azureTenantId` for an Azure Service Principal registered in Azure Active Directory (for Azure Databricks workspaces only).
+  - **Personal Access Token**: Provide a `token` generated from **User Settings** > **Developer** > **Access Tokens** in your Databricks workspace.
+  - **Databricks OAuth**: Provide a `clientId` and `clientSecret` for a Service Principal created in your Databricks Account Console.
+  - **Azure AD Setup**: Provide `azureClientId`, `azureClientSecret`, and `azureTenantId` for an Azure Service Principal registered in Azure Active Directory (for Azure Databricks workspaces only).
 - **HTTP Path**: Databricks compute resources URL.
 - **Connection Timeout**: The maximum amount of time (in seconds) to wait for a successful connection to the data source. If the connection attempt takes longer than this timeout period, an error will be returned.
 - **Catalog**: Catalog of the data source (Example: hive_metastore). This is an optional parameter, if you would like to restrict the metadata reading to a single catalog. When left blank, OpenMetadata Ingestion attempts to scan all the catalogs.
 - **DatabaseSchema**: Database schema of the data source. This is an optional parameter, if you would like to restrict the metadata reading to a single database schema. When left blank, OpenMetadata Ingestion attempts to scan all the database schemas.
 - **Query History Table**: Table name to fetch the query history from. Defaults to `system.query.history`.
-</Step>
-<AdvancedConfiguration />
-<TestConnection />
-<ConfigureIngestion />
-<IngestionScheduleAndDeploy />
-</Steps>
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+**Filter Options**
+
+The Database, Schema, and Table sections each include the following filter options:
+
+- **Database**: Controls which databases OpenMetadata ingests from the source.
+- **Schema**: Controls which schemas within the ingested databases are included.
+- **Table**: Controls which tables and views within the ingested schemas are included.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
 
 <Related />

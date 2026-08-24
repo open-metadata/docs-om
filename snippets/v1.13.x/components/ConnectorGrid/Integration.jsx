@@ -31,7 +31,6 @@ export const Integrations = () => {
                 { name: 'GCS Datalake', image: '/public/images/connectors/gcs.webp', link: '/v1.13.x/connectors/database/gcs-datalake' },
                 { name: 'Databricks', image: '/public/images/connectors/databrick.webp', link: '/v1.13.x/connectors/database/databricks' },
                 { name: 'DB2', image: '/public/images/connectors/ibmdb2.webp', link: '/v1.13.x/connectors/database/db2' },
-                { name: 'dbt', image: '/public/images/connectors/dbtcloud.webp', link: '/v1.13.x/connectors/pipeline/dbtcloud' },
                 { name: 'Domo', image: '/public/images/connectors/domo.webp', link: '/v1.13.x/connectors/database/domo-database' },
                 { name: 'Doris', image: '/public/images/connectors/doris.png', link: '/v1.13.x/connectors/database/doris' },
                 { name: 'DynamoDB', image: '/public/images/connectors/dynamodb.webp', link: '/v1.13.x/connectors/database/dynamodb' },
@@ -61,6 +60,11 @@ export const Integrations = () => {
                 { name: 'Pinot', image: '/public/images/connectors/pinot.webp', link: '/v1.13.x/connectors/database/pinotdb' },
                 { name: 'SAS', image: '/public/images/connectors/sas.webp', link: '/v1.13.x/connectors/database/sas' },
                 { name: 'SQL Lite', image: '/public/images/connectors/sqlite.webp', link: '/v1.13.x/connectors/database/sqlite' },
+                { name: 'BurstIQ', image: '/public/images/connectors/burstiq.webp', link: '/v1.13.x/connectors/database/burstiq' },
+                { name: 'Epic', image: '/public/images/connectors/epic.png', link: '/v1.13.x/connectors/database/epic' },
+                { name: 'QuestDB', image: '/public/images/connectors/questdb.png', link: '/v1.13.x/connectors/database/questdb' },
+                { name: 'StarRocks', image: '/public/images/connectors/starrocks.webp', link: '/v1.13.x/connectors/database/starrocks' },
+                { name: 'IOMETE', image: '/public/images/connectors/iomete.webp', link: '/v1.13.x/connectors/database/iomete' },
             ],
         },
         {
@@ -69,6 +73,7 @@ export const Integrations = () => {
                 { name: 'Kafka', image: '/public/images/connectors/kafka.webp', link: '/v1.13.x/connectors/messaging/kafka' },
                 { name: 'Redpanda', image: '/public/images/connectors/redpanda.webp', link: '/v1.13.x/connectors/messaging/redpanda' },
                 { name: 'Kinesis', image: '/public/images/connectors/kinesis.webp', link: '/v1.13.x/connectors/messaging/kinesis' },
+                { name: 'Pub/Sub', image: '/public/images/connectors/pubsub.svg', link: '/v1.13.x/connectors/messaging/pubsub' },
             ],
         },
         {
@@ -90,6 +95,7 @@ export const Integrations = () => {
                 { name: 'Qlik Cloud', image: '/public/images/connectors/qlikcloud.webp', link: '/v1.13.x/connectors/dashboard/qlikcloud' },
                 { name: 'Qlik Sense', image: '/public/images/connectors/qlik-sense.webp', link: '/v1.13.x/connectors/dashboard/qliksense' },
                 { name: 'QuickSight', image: '/public/images/connectors/quicksight.webp', link: '/v1.13.x/connectors/dashboard/quicksight' },
+                { name: 'Domo Dashboard', image: '/public/images/connectors/domo.webp', link: '/v1.13.x/connectors/dashboard/domo-dashboard' },
             ],
         },
         {
@@ -100,8 +106,11 @@ export const Integrations = () => {
                 { name: 'Dagster', image: '/public/images/connectors/dagster.webp', link: '/v1.13.x/connectors/pipeline/dagster' },
                 { name: 'Databricks Pipeline', image: '/public/images/connectors/databrick.webp', link: '/v1.13.x/connectors/pipeline/databricks-pipeline' },
                 { name: 'dbt Cloud', image: '/public/images/connectors/dbtcloud.webp', link: '/v1.13.x/connectors/pipeline/dbtcloud' },
+                { name: 'Domo Pipeline', image: '/public/images/connectors/domo.webp', link: '/v1.13.x/connectors/pipeline/domo-pipeline' },
                 { name: 'Fivetran', image: '/public/images/connectors/fivetran.webp', link: '/v1.13.x/connectors/pipeline/fivetran' },
                 { name: 'Flink', image: '/public/images/connectors/flink.png', link: '/v1.13.x/connectors/pipeline/flink' },
+                { name: 'Glue Pipeline', image: '/public/images/connectors/glue.webp', link: '/v1.13.x/connectors/pipeline/glue-pipeline' },
+                { name: 'KafkaConnect', image: '/public/images/connectors/kafka.webp', link: '/v1.13.x/connectors/pipeline/kafkaconnect' },
                 { name: 'NiFi', image: '/public/images/connectors/apachenifi.webp', link: '/v1.13.x/connectors/pipeline/nifi' },
                 { name: 'OpenLineage', image: '/public/images/connectors/openlineage.png', link: '/v1.13.x/connectors/pipeline/openlineage' },
                 { name: 'Spline', image: '/public/images/connectors/spline.webp', link: '/v1.13.x/connectors/pipeline/spline' },
@@ -133,6 +142,15 @@ export const Integrations = () => {
             services: [
                 { name: 'AlationSink', image: '/public/images/connectors/alation.webp', link: '/v1.13.x/connectors/metadata/alationsink' },
                 { name: 'Atlas', image: '/public/images/connectors/atlas.webp', link: '/v1.13.x/connectors/metadata/atlas' },
+                { name: 'Amundsen', image: '/public/images/connectors/amundsen.webp', link: '/v1.13.x/connectors/metadata/amundsen' },
+            ],
+        },
+        {
+            connector: 'Drive',
+            services: [
+                { name: 'Custom Drive', image: '/public/images/connectors/googledrive.webp', link: '/v1.13.x/connectors/drive/custom-drive' },
+                { name: 'Google Drive', image: '/public/images/connectors/googledrive.webp', link: '/v1.13.x/connectors/drive/googledrive' },
+                { name: 'SFTP', image: '/public/images/connectors/sftp.webp', link: '/v1.13.x/connectors/drive/sftp' },
             ],
         },
     ];
