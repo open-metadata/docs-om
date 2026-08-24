@@ -65,6 +65,7 @@ jobs:
           RETRY_STATUS_FILE: ${{ runner.temp }}/mint-broken-links-retry-status
           RETRY_URLS_FILE: ${{ runner.temp }}/mint-broken-links-retry-urls
           CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+          MINT_CLI_DIR: ${{ runner.temp }}/mint-cli
           MINT_VERSION: 4.2.797
         run: |
           set -o pipefail
@@ -78,15 +79,19 @@ jobs:
             args+=(--files "$file")
           done < "$CHANGED_FILES"
 
+          # Invoke Mint directly so a large set of --files arguments does not
+          # exceed npm exec's command-string limit on Linux runners.
+          npm install --no-save --package-lock=false --prefix "$MINT_CLI_DIR" \
+            "mint@${MINT_VERSION}" 2>&1 | tee "$LOG_FILE"
+
           # Mint's CLI does not resolve anchors provided by imported MDX components.
           # Mintlify's rendered link validation covers those anchors separately.
-          if npm exec --yes --package="mint@${MINT_VERSION}" -- \
-            mint broken-links \
+          if "$MINT_CLI_DIR/node_modules/.bin/mint" broken-links \
             "${args[@]}" \
             --check-external \
             --check-snippets \
             --check-redirects \
-            2>&1 | tee "$LOG_FILE"; then
+            2>&1 | tee -a "$LOG_FILE"; then
             exit 0
           fi
 
