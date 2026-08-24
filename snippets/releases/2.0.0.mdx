@@ -34,7 +34,7 @@ Activity Feed, Tasks, Workflows, and Announcements are fully compatible with 2.0
 OpenMetadata's MCP server exposes catalog metadata to AI assistants and agents through the Model Context Protocol — any MCP-compatible client (Claude, Cursor, IDE plugins) can query your catalog without custom integrations.
 
 - **Enabled by default**: Starts ready on upgrade; no manual activation needed.
-- **`nextCursor` pagination**: MCP read tools now return a `nextCursor` value alongside results. Pass `cursor` on subsequent calls for stable cursor-based paging. Existing `from`/`size` offset parameters continue to work.
+- **`nextCursor` pagination**: MCP read tools can return a `nextCursor` value alongside results. Pass it as `cursor` on the next call to continue; cursor behavior varies by tool. Existing `from`/`size` offset parameters continue to work.
 
 ### Inbox
 
@@ -50,7 +50,7 @@ The landing page has been redesigned with an updated navigation structure and cl
 
 ### MCP — Cursor Paging Available (Offset Still Supported)
 
-MCP read tools now return a `nextCursor` value in every response. Clients that pass `cursor` on the next call will use stable cursor-based paging, which avoids skipped results under concurrent writes.
+MCP read tools can return a `nextCursor` value when another page is available. Pass it as `cursor` on the next call to continue. Cursor semantics vary by tool, so do not rely on it for concurrent-write consistency.
 
 The existing `from` and `size` offset parameters **continue to work** — the cursor only takes effect when explicitly passed. No migration is required for existing MCP clients.
 
@@ -58,52 +58,76 @@ The existing `from` and `size` offset parameters **continue to work** — the cu
 
 ### Semantic Search — Embedding Configuration Moved
 
-Embedding settings have moved out of `naturalLanguageSearch` into a new top-level `llmConfiguration.embeddings` block. Semantic search stops working silently on upgrade unless the new block is configured and enabled.
+Embedding settings and provider credentials have moved out of `elasticsearch.naturalLanguageSearch`. In 2.0, keep `semanticSearchEnabled` there, select the embedding provider and model under `llmConfiguration.embeddings`, and configure that provider's credentials in the matching `llmConfiguration` provider block.
 
 **Before (1.13):**
 ```yaml
-naturalLanguageSearch:
-  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
-  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
-  embeddingProvider: ${EMBEDDING_PROVIDER:-bedrock}
-  maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
-  bedrock:
-    awsConfig:
-      region: ${AWS_DEFAULT_REGION:-""}
-      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
-      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
-    embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
-    embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
+elasticsearch:
+  naturalLanguageSearch:
+    semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-false}
+    embeddingProvider: ${EMBEDDING_PROVIDER:-bedrock}
+    maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
+    bedrock:
+      awsConfig:
+        enabled: ${BEDROCK_AWS_IAM_AUTH_ENABLED:-false}
+        region: ${AWS_BEDROCK_REGION:-""}
+        accessKeyId: ${AWS_BEDROCK_ACCESS_KEY:-""}
+        secretAccessKey: ${AWS_BEDROCK_SECRET_KEY:-""}
+        sessionToken: ${AWS_BEDROCK_SESSION_TOKEN:-""}
+      embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-""}
+      embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-""}
 ```
 
 **After (2.0):**
 ```yaml
-naturalLanguageSearch:
-  enabled: ${NATURAL_LANGUAGE_SEARCH_ENABLED:-true}
-  semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-true}
-  providerClass: ${NATURAL_LANGUAGE_SEARCH_PROVIDER_CLASS:-org.openmetadata.service.search.nlq.NoOpNLQService}
+elasticsearch:
+  naturalLanguageSearch:
+    semanticSearchEnabled: ${SEMANTIC_SEARCH_ENABLED:-false}
 
 llmConfiguration:
-  enabled: ${LLM_ENABLED:-false}
-  provider: ${LLM_PROVIDER:-bedrock}   # noop | openai | azureOpenAI | bedrock | google | anthropic
+  bedrock:
+    awsConfig:
+      enabled: ${BEDROCK_AWS_IAM_AUTH_ENABLED:-true}
+      region: ${AWS_DEFAULT_REGION:-""}
+      accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
+      sessionToken: ${AWS_SESSION_TOKEN:-""}
   embeddings:
     provider: ${EMBEDDING_PROVIDER:-bedrock}
     maxConcurrentRequests: ${MAX_CONCURRENT_EMBEDDING_REQUESTS:-10}
     bedrock:
-      awsConfig:
-        region: ${AWS_DEFAULT_REGION:-""}
-        accessKeyId: ${AWS_ACCESS_KEY_ID:-""}
-        secretAccessKey: ${AWS_SECRET_ACCESS_KEY:-""}
       embeddingModelId: ${AWS_BEDROCK_EMBED_MODEL_ID:-"amazon.titan-embed-text-v2:0"}
       embeddingDimension: ${AWS_BEDROCK_EMBEDDING_DIMENSION:-512}
 ```
 
 **Action required:**
-1. Remove `embeddingProvider`, `maxConcurrentRequests`, and the provider sub-blocks from `naturalLanguageSearch`.
-2. Add the `llmConfiguration` block above with your provider settings under `llmConfiguration.embeddings`.
-3. Set `LLM_ENABLED=true` and `LLM_PROVIDER=<your-provider>` — embeddings remain off until both are set.
+1. Remove `embeddingProvider`, `maxConcurrentRequests`, and the provider sub-blocks from `elasticsearch.naturalLanguageSearch`.
+2. Move provider credentials to the matching `llmConfiguration` block, and keep the embedding provider and model settings under `llmConfiguration.embeddings`.
+3. Set `SEMANTIC_SEARCH_ENABLED=true` to enable semantic search. `LLM_ENABLED` and `LLM_PROVIDER` configure the platform completion client; they do not enable vector embeddings.
 
-Environment variables `EMBEDDING_PROVIDER`, `MAX_CONCURRENT_EMBEDDING_REQUESTS`, `AWS_BEDROCK_EMBED_MODEL_ID`, and `AWS_BEDROCK_EMBEDDING_DIMENSION` are **unchanged**.
+| Provider | 1.13 location | 2.0 location |
+| --- | --- | --- |
+| Bedrock | `naturalLanguageSearch.bedrock.awsConfig` | `llmConfiguration.bedrock.awsConfig` |
+| OpenAI / Azure OpenAI | `naturalLanguageSearch.openai` | `llmConfiguration.openai` |
+| Google | `naturalLanguageSearch.google` | `llmConfiguration.google` |
+| DJL | `naturalLanguageSearch.djl` | `llmConfiguration.embeddings.djl` |
+
+**Credential environment variables renamed:**
+
+| Old (1.13) | New (2.0) |
+| --- | --- |
+| `AWS_BEDROCK_REGION` | `AWS_DEFAULT_REGION` |
+| `AWS_BEDROCK_ACCESS_KEY` | `AWS_ACCESS_KEY_ID` |
+| `AWS_BEDROCK_SECRET_KEY` | `AWS_SECRET_ACCESS_KEY` |
+| `AWS_BEDROCK_SESSION_TOKEN` | `AWS_SESSION_TOKEN` |
+| `OPENAI_API_KEY` | `LLM_OPENAI_API_KEY` |
+| `OPENAI_API_ENDPOINT` | `LLM_OPENAI_ENDPOINT` |
+| `OPENAI_DEPLOYMENT_NAME` | `LLM_OPENAI_DEPLOYMENT` |
+| `OPENAI_API_VERSION` | `LLM_OPENAI_API_VERSION` |
+| `GOOGLE_API_KEY` | `LLM_GOOGLE_API_KEY` |
+| `GOOGLE_API_ENDPOINT` | *(removed)* |
+
+Environment variables `EMBEDDING_PROVIDER`, `MAX_CONCURRENT_EMBEDDING_REQUESTS`, `DJL_EMBEDDING_MODEL`, and every `*_EMBEDDING_MODEL_ID` / `*_EMBEDDING_DIMENSION` variable are **unchanged**.
 
 ---
 
@@ -197,8 +221,8 @@ Airflow will be deprecated as the **internal** orchestration system in 2.1, in f
 
 | Area | Action Required |
 |---|---|
-| MCP clients | No migration required — pass `cursor` for stable paging; `from`/`size` offset still works |
-| Semantic search / embeddings | Move embedding config from `naturalLanguageSearch` to `llmConfiguration.embeddings`; set `LLM_ENABLED=true` and `LLM_PROVIDER=<provider>` |
+| MCP clients | No migration required — pass `cursor` when a tool returns `nextCursor`; `from`/`size` offset still works |
+| Semantic search / embeddings | Move provider credentials and embedding config from `naturalLanguageSearch` to the matching `llmConfiguration` blocks; set `SEMANTIC_SEARCH_ENABLED=true` |
 | Profiler config | Explicitly add cardinality distribution if downstream features depend on it |
 | Databricks YAML | Update `token: dapi...` to `authType: { token: dapi... }` in external pipeline YAMLs |
 | Custom ingestion images | Rebuild against `python:3.12-slim-trixie`; remove `cp310` wheels. Skip if upgrading from 1.13.4. |
