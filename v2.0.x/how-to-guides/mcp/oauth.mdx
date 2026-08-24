@@ -88,24 +88,22 @@ For detailed instructions on configuring each SSO provider, see the [Security do
 
 OAuth tokens are handled entirely by your MCP client with no manual management needed:
 
-- **Access tokens** are short-lived and automatically refreshed in the background
-- **Sessions stay active** as long as you're using the MCP client regularly
-- **Re-authentication** is only needed if your refresh token expires after an extended period of inactivity (30 days)
+- **Access tokens** expire after 10 minutes. MCP clients use refresh tokens to obtain new access tokens.
+- **Refresh tokens** rotate each time the client uses them.
+- **Re-authenticate** when the current refresh token expires after 30 days of inactivity or is revoked.
 
-To **revoke access** for an MCP client, an administrator can manage active sessions from the OpenMetadata admin settings.
-
-{/* TODO: Add screenshot of token/session management if available in admin UI */}
+To **revoke access** for an MCP client, use the OAuth 2.0 Token Revocation endpoint described under [Revoking Access](#revoking-access) below.
 
 ## Security
 
 OpenMetadata's MCP OAuth implementation follows industry-standard security practices:
 
 - **PKCE (Proof Key for Code Exchange)**: Protects the authorization flow against interception attacks, even on desktop and CLI clients
-- **Encrypted token storage**: All tokens are encrypted at rest in the OpenMetadata database
+- **Encrypted refresh token storage**: Refresh tokens are encrypted at rest in the OpenMetadata database. Access tokens are short-lived signed JWTs and aren't stored by the server.
 - **Short-lived access tokens**: Access tokens expire quickly, limiting exposure if compromised
 - **Automatic token refresh**: Clients seamlessly refresh tokens without user interaction
 - **Rate limiting**: Built-in protection against brute-force and abuse
-- **No secrets in config files**: Unlike PAT-based auth, OAuth does not require storing any secrets on your local machine
+- **No user-managed PAT in config files**: OAuth avoids placing an OpenMetadata PAT in a plain-text config file. MCP clients still manage their own OAuth credentials, including refresh tokens, according to their storage model.
 
 ## Supported MCP Clients
 
@@ -128,3 +126,87 @@ Set up OAuth authentication with your preferred MCP client:
     Connect via Block's open-source AI agent.
   </Card>
 </CardGroup>
+
+## How the Connection Works (Under the Hood)
+
+OpenMetadata's MCP OAuth implementation uses **OAuth 2.0 Dynamic Client Registration** (RFC 7591), so MCP clients connect without any manual app setup:
+
+1. The MCP client fetches OpenMetadata's OAuth discovery document at `/.well-known/oauth-authorization-server` to learn the authorization, token, and registration endpoints.
+2. The client automatically registers itself by posting its metadata to the registration endpoint. OpenMetadata issues a `client_id` in response — no admin action is required.
+3. The client initiates an **Authorization Code flow with PKCE** (SHA-256), opening your browser to sign in via your configured SSO provider or basic auth.
+4. After you sign in, OpenMetadata redirects back to the client with an authorization code.
+5. The client exchanges the code for an access token and a refresh token.
+6. All subsequent MCP tool calls include the access token. When it expires, the client uses the refresh token to get a new one silently.
+
+### Discovery Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /.well-known/oauth-authorization-server` | OAuth 2.0 authorization server metadata (RFC 8414) |
+| `GET /.well-known/openid-configuration` | OAuth metadata compatibility alias — serves the same RFC 8414 metadata as above for clients that only check this OIDC-conventional path (not a true OpenID Connect discovery document) |
+| `POST /mcp/register` | Dynamic client registration |
+
+## Token Lifetimes
+
+OAuth tokens are handled entirely by your MCP client with no manual management needed.
+
+| Token type | Lifetime | Notes |
+|-----------|---------|-------|
+| **Access token** | 10 minutes | Short-lived to limit exposure. Automatically refreshed by the client |
+| **Authorization code** | 10 minutes | Single-use. Expires if the login flow stalls |
+| **Refresh token** | 30 days | Grants new access tokens without re-authentication. Expires after 30 days of inactivity |
+
+Refresh tokens rotate each time the client uses them. Re-authenticate when the current refresh token expires after 30 days of inactivity or is revoked. To **revoke access** for an MCP client, use the OAuth 2.0 Token Revocation endpoint described under [Revoking Access](#revoking-access) below.
+
+## Rate Limits
+
+The MCP OAuth endpoints are rate-limited per IP address to prevent abuse:
+
+| Endpoint | Limit |
+|---------|-------|
+| `/mcp/register` (client registration) | 10 requests per hour |
+| `/mcp/token` (token requests) | 30 requests per minute |
+
+These limits are per-server-instance. In clustered deployments, the effective limit is multiplied by the number of instances.
+
+## Allowed Origins (CORS)
+
+By default, the MCP Server allows CORS requests only from a small set of local development origins (`http://localhost:3000`, `http://localhost:8585`, `http://localhost:9090`) — it does not allow all origins. This allowlist is part of OpenMetadata's MCP settings, stored in the database rather than the static server configuration file. Update it from **Settings** > **Applications** > **MCP Server** > **Configuration** (`<YOUR-OpenMetadata-SERVER>/settings/apps/McpApplication`) or via the `GET`/`PUT /api/v1/system/mcp/config` API (admin only).
+
+Only requests whose `Origin` header exactly matches an entry in the allowlist receive a valid `Access-Control-Allow-Origin` response header — there is no wildcard or prefix matching. This is relevant for browser-based MCP clients or custom integrations that call the MCP endpoint directly from a web page.
+
+## Revoking Access
+
+MCP clients can revoke an access or refresh token directly using the OAuth 2.0 Token Revocation endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)), advertised as `revocation_endpoint` in the OAuth discovery document. Revoking a refresh token prevents future refreshes. Already-issued access tokens are signed JWTs validated statelessly, so they can remain valid until their 10-minute expiry. There is currently no separate admin-side option to revoke an MCP client's access. Revocation is a client-initiated action using its registered credentials.
+
+The revocation endpoint requires the client identity that [Dynamic Client Registration](#how-the-connection-works-under-the-hood) issued. Confidential clients use a `client_id` and `client_secret`. Public clients registered with `token_endpoint_auth_method: none` use their `client_id` without a secret.
+
+For a confidential client, authenticate using either method:
+
+**HTTP Basic authentication** (client credentials in the `Authorization` header):
+```http
+POST {baseUrl}/mcp/revoke
+Authorization: Basic <base64(client_id:client_secret)>
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token
+```
+
+**Form-based authentication** (client credentials in the request body):
+```http
+POST {baseUrl}/mcp/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token&client_id=<client_id>&client_secret=<client_secret>
+```
+
+For a public client, include the `client_id` in the form body and omit `client_secret`:
+
+```http
+POST {baseUrl}/mcp/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token&client_id=<client_id>
+```
+
+`token_type_hint` is optional and can be `access_token` or `refresh_token`. A request without the required client identity returns `invalid_client`.

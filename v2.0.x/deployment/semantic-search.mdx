@@ -1,6 +1,6 @@
 ---
 title: Enable Semantic Search | OpenMetadata Deployment Guide
-description: Configure semantic search with vector embeddings in OpenMetadata to enable natural language queries against your metadata catalog using OpenSearch.
+description: Configure semantic search with vector embeddings in OpenMetadata to enable natural language queries against your metadata catalog using OpenSearch or Elasticsearch.
 sidebarTitle: Enable Semantic Search
 ---
 
@@ -8,7 +8,7 @@ sidebarTitle: Enable Semantic Search
 
 ## Prerequisites
 
-- **OpenSearch** as your search backend (Elasticsearch is not supported)
+- **OpenSearch or Elasticsearch** as your search backend
 - An external embedding provider: **OpenAI** or **AWS Bedrock**, or **DJL** for HuggingFace models.
 - Network access from the OpenMetadata server to the embedding provider API (unless using DJL)
 
@@ -21,7 +21,7 @@ exact words don't appear in the metadata.
 
 <Info>
 
-Semantic Search is currently supported only with **OpenSearch** as the search backend.
+Semantic Search supports both **OpenSearch** and **Elasticsearch** as the search backend. The OpenSearch-specific hybrid search pipeline (which blends keyword and semantic scores server-side) is not available on Elasticsearch. Core vector/KNN search works the same on both backends.
 
 </Info>
 
@@ -38,7 +38,7 @@ metadata catalog.
   </Step>
   <Step title="Embedding Generation & Vector Indexing">
     The text is sent to the configured embedding provider to generate a numerical vector (embedding), which is stored
-    in a dedicated OpenSearch `vector_search_index` using the HNSW algorithm with cosine similarity. At query time,
+    in a dedicated `dataAssetEmbeddings` index (`<clusterAlias>_dataAssetEmbeddings` if you've set a cluster alias) using the HNSW algorithm with cosine similarity. At query time,
     the search text is also embedded and a KNN (K-Nearest Neighbor) similarity search finds the most relevant results.
   </Step>
   <Step title="Automatic Lifecycle Management">
@@ -260,8 +260,8 @@ multiple text chunks.
 
 ### Semantic Search returns no results
 - Verify that `SEMANTIC_SEARCH_ENABLED` is set to `true` and the server has been restarted.
-- Confirm that OpenSearch is your search backend (Elasticsearch is not supported).
-- Check that the `vector_search_index` exists in OpenSearch.
+- Confirm your search backend (OpenSearch or Elasticsearch) is reachable and correctly configured.
+- Check that the `dataAssetEmbeddings` index (or `<clusterAlias>_dataAssetEmbeddings` if you've set a cluster alias) exists in your search backend.
 - Run a Reindex to generate embeddings for existing entities.
 
 ### Embedding generation fails
