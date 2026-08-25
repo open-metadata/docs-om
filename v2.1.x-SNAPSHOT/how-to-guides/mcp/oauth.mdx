@@ -1,0 +1,212 @@
+---
+title: OAuth 2.0 Authentication for MCP Server
+description: Connect to OpenMetadata's MCP Server using OAuth 2.0 with your existing SSO provider. No Personal Access Tokens required.
+sidebarTitle: OAuth 2.0 Authentication
+---
+
+# OAuth 2.0 Authentication for MCP Server
+
+OpenMetadata's MCP Server supports **OAuth 2.0 authentication**, allowing you to connect AI assistants like Claude, Cursor, and VS Code directly using your existing OpenMetadata login. This is the same way you sign in to the OpenMetadata UI. No need to generate, copy, or rotate Personal Access Tokens.
+
+{/* TODO: Add hero image showing OAuth login flow in action */}
+
+## Why OAuth 2.0?
+
+| | Personal Access Token (PAT) | OAuth 2.0 |
+|---|---|---|
+| **Setup** | Generate token, copy into config | Enter server URL, sign in via browser |
+| **Security** | Token stored in plain text config files | No secrets stored locally |
+| **Expiration** | Manual rotation when token expires | Tokens refresh automatically |
+| **Access** | Must generate and manage tokens per user | Uses your existing OpenMetadata login |
+
+<Note>
+
+OAuth 2.0 is the **recommended** way to connect MCP clients. PAT-based authentication remains supported for backward compatibility and environments where browser-based login is not available.
+
+</Note>
+
+## How It Works
+
+Connecting via OAuth is simple:
+
+1. **Add your OpenMetadata MCP Server URL** in your AI client (e.g., `https://your-openmetadata-instance.com/mcp`)
+2. **A browser window opens** prompting you to sign in with your usual OpenMetadata credentials
+3. **You're connected** and tokens are managed automatically in the background
+
+That's it. Your MCP client handles the rest, including refreshing your session when needed.
+
+{/* TODO: Add screenshot showing the browser-based login flow */}
+
+## Supported Authentication Methods
+
+The MCP Server inherits the authentication method configured for your OpenMetadata instance. Whatever SSO provider your organization uses to sign in to OpenMetadata will also be used for MCP connections.
+
+<CardGroup cols={2}>
+  <Card title="Google SSO" href="/v2.1.x-SNAPSHOT/deployment/security/google">
+    Sign in with your Google Workspace account.
+  </Card>
+  <Card title="Azure AD SSO" href="/v2.1.x-SNAPSHOT/deployment/security/azure">
+    Sign in with your Microsoft / Azure AD account.
+  </Card>
+  <Card title="Okta SSO" href="/v2.1.x-SNAPSHOT/deployment/security/okta">
+    Sign in with your Okta account.
+  </Card>
+  <Card title="Auth0 SSO" href="/v2.1.x-SNAPSHOT/deployment/security/auth0">
+    Sign in with your Auth0 account.
+  </Card>
+  <Card title="Amazon Cognito" href="/v2.1.x-SNAPSHOT/deployment/security/amazon-cognito-sso">
+    Sign in with Amazon Cognito.
+  </Card>
+  <Card title="Custom OIDC" href="/v2.1.x-SNAPSHOT/deployment/security/custom-oidc">
+    Sign in with any OIDC-compatible provider.
+  </Card>
+  <Card title="SAML" href="/v2.1.x-SNAPSHOT/deployment/security/saml">
+    Sign in with your SAML identity provider.
+  </Card>
+  <Card title="LDAP" href="/v2.1.x-SNAPSHOT/deployment/security/ldap">
+    Sign in with your LDAP / Active Directory credentials.
+  </Card>
+</CardGroup>
+
+If your instance uses **basic authentication** (username and password), you will see a login form where you can enter your OpenMetadata credentials directly.
+
+## Changing Your Authentication Method
+
+The MCP Server automatically uses the same authentication method configured for your OpenMetadata instance. To change how users authenticate:
+
+1. Navigate to **Settings** in your OpenMetadata instance
+2. Go to the **SSO** configuration section
+3. Update the authentication provider (e.g., switch from basic auth to Google SSO)
+
+Once updated, all MCP client connections will use the new authentication method with no changes needed on the client side.
+
+{/* TODO: Add screenshot of Settings > SSO configuration page */}
+
+For detailed instructions on configuring each SSO provider, see the [Security documentation](/v2.1.x-SNAPSHOT/deployment/security).
+
+## Token Management
+
+OAuth tokens are handled entirely by your MCP client with no manual management needed:
+
+- **Access tokens** expire after 10 minutes. MCP clients use refresh tokens to obtain new access tokens.
+- **Refresh tokens** rotate each time the client uses them.
+- **Re-authenticate** when the current refresh token expires after 30 days of inactivity or is revoked.
+
+To **revoke access** for an MCP client, use the OAuth 2.0 Token Revocation endpoint described under [Revoking Access](#revoking-access) below.
+
+## Security
+
+OpenMetadata's MCP OAuth implementation follows industry-standard security practices:
+
+- **PKCE (Proof Key for Code Exchange)**: Protects the authorization flow against interception attacks, even on desktop and CLI clients
+- **Encrypted refresh token storage**: Refresh tokens are encrypted at rest in the OpenMetadata database. Access tokens are short-lived signed JWTs and aren't stored by the server.
+- **Short-lived access tokens**: Access tokens expire quickly, limiting exposure if compromised
+- **Automatic token refresh**: Clients seamlessly refresh tokens without user interaction
+- **Rate limiting**: Built-in protection against brute-force and abuse
+- **No user-managed PAT in config files**: OAuth avoids placing an OpenMetadata PAT in a plain-text config file. MCP clients still manage their own OAuth credentials, including refresh tokens, according to their storage model.
+
+## Supported MCP Clients
+
+Set up OAuth authentication with your preferred MCP client:
+
+<CardGroup cols={2}>
+  <Card title="Claude Desktop" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp/claude">
+    Connect via Anthropic's AI assistant.
+  </Card>
+  <Card title="Cursor" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp/cursor">
+    Connect via Cursor IDE.
+  </Card>
+  <Card title="VS Code" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp/vscode">
+    Connect via Visual Studio Code.
+  </Card>
+  <Card title="Claude Code" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp/claude-code">
+    Connect via Claude Code CLI.
+  </Card>
+  <Card title="Goose" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp/goose">
+    Connect via Block's open-source AI agent.
+  </Card>
+</CardGroup>
+
+## How the Connection Works (Under the Hood)
+
+OpenMetadata's MCP OAuth implementation uses **OAuth 2.0 Dynamic Client Registration** (RFC 7591), so MCP clients connect without any manual app setup:
+
+1. The MCP client fetches OpenMetadata's OAuth discovery document at `/.well-known/oauth-authorization-server` to learn the authorization, token, and registration endpoints.
+2. The client automatically registers itself by posting its metadata to the registration endpoint. OpenMetadata issues a `client_id` in response — no admin action is required.
+3. The client initiates an **Authorization Code flow with PKCE** (SHA-256), opening your browser to sign in via your configured SSO provider or basic auth.
+4. After you sign in, OpenMetadata redirects back to the client with an authorization code.
+5. The client exchanges the code for an access token and a refresh token.
+6. All subsequent MCP tool calls include the access token. When it expires, the client uses the refresh token to get a new one silently.
+
+### Discovery Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /.well-known/oauth-authorization-server` | OAuth 2.0 authorization server metadata (RFC 8414) |
+| `GET /.well-known/openid-configuration` | OAuth metadata compatibility alias — serves the same RFC 8414 metadata as above for clients that only check this OIDC-conventional path (not a true OpenID Connect discovery document) |
+| `POST /mcp/register` | Dynamic client registration |
+
+## Token Lifetimes
+
+OAuth tokens are handled entirely by your MCP client with no manual management needed.
+
+| Token type | Lifetime | Notes |
+|-----------|---------|-------|
+| **Access token** | 10 minutes | Short-lived to limit exposure. Automatically refreshed by the client |
+| **Authorization code** | 10 minutes | Single-use. Expires if the login flow stalls |
+| **Refresh token** | 30 days | Grants new access tokens without re-authentication. Expires after 30 days of inactivity |
+
+Refresh tokens rotate each time the client uses them. Re-authenticate when the current refresh token expires after 30 days of inactivity or is revoked. To **revoke access** for an MCP client, use the OAuth 2.0 Token Revocation endpoint described under [Revoking Access](#revoking-access) below.
+
+## Rate Limits
+
+The MCP OAuth endpoints are rate-limited per IP address to prevent abuse:
+
+| Endpoint | Limit |
+|---------|-------|
+| `/mcp/register` (client registration) | 10 requests per hour |
+| `/mcp/token` (token requests) | 30 requests per minute |
+
+These limits are per-server-instance. In clustered deployments, the effective limit is multiplied by the number of instances.
+
+## Allowed Origins (CORS)
+
+By default, the MCP Server allows CORS requests only from a small set of local development origins (`http://localhost:3000`, `http://localhost:8585`, `http://localhost:9090`) — it does not allow all origins. This allowlist is part of OpenMetadata's MCP settings, stored in the database rather than the static server configuration file. Update it from **Settings** > **Applications** > **MCP Server** > **Configuration** (`<YOUR-OpenMetadata-SERVER>/settings/apps/McpApplication`) or via the `GET`/`PUT /api/v1/system/mcp/config` API (admin only).
+
+Only requests whose `Origin` header exactly matches an entry in the allowlist receive a valid `Access-Control-Allow-Origin` response header — there is no wildcard or prefix matching. This is relevant for browser-based MCP clients or custom integrations that call the MCP endpoint directly from a web page.
+
+## Revoking Access
+
+MCP clients can revoke an access or refresh token directly using the OAuth 2.0 Token Revocation endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)), advertised as `revocation_endpoint` in the OAuth discovery document. Revoking a refresh token prevents future refreshes. Already-issued access tokens are signed JWTs validated statelessly, so they can remain valid until their 10-minute expiry. There is currently no separate admin-side option to revoke an MCP client's access. Revocation is a client-initiated action using its registered credentials.
+
+The revocation endpoint requires the client identity that [Dynamic Client Registration](#how-the-connection-works-under-the-hood) issued. Confidential clients use a `client_id` and `client_secret`. Public clients registered with `token_endpoint_auth_method: none` use their `client_id` without a secret.
+
+For a confidential client, authenticate using either method:
+
+**HTTP Basic authentication** (client credentials in the `Authorization` header):
+```http
+POST {baseUrl}/mcp/revoke
+Authorization: Basic <base64(client_id:client_secret)>
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token
+```
+
+**Form-based authentication** (client credentials in the request body):
+```http
+POST {baseUrl}/mcp/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token&client_id=<client_id>&client_secret=<client_secret>
+```
+
+For a public client, include the `client_id` in the form body and omit `client_secret`:
+
+```http
+POST {baseUrl}/mcp/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=<token>&token_type_hint=access_token&client_id=<client_id>
+```
+
+`token_type_hint` is optional and can be `access_token` or `refresh_token`. A request without the required client identity returns `invalid_client`.

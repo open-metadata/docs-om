@@ -1,0 +1,254 @@
+---
+title: Breaking Changes - API & Schema | Official Documentation
+description: Removed REST endpoints, changed request and response shapes, tightened validation and enum changes in OpenMetadata 2.0.
+sidebarTitle: API & Schema
+collate: false
+---
+
+# API & Schema Contracts
+
+Across the 1.13 → 2.0 jump the REST surface gains **208 endpoints** and loses **10**. The JSON Schema
+specification gains **86 files**, modifies **107** and removes **3**.
+
+## Removed endpoints
+
+### The Suggestions API is removed
+
+<Warning>
+**Breaking.** Affects API clients, SDKs and automation bots.
+</Warning>
+
+The entire `/v1/suggestions` namespace is gone:
+
+| Removed in 2.0 |
+| --- |
+| `GET /v1/suggestions` |
+| `POST /v1/suggestions` |
+| `GET /v1/suggestions/{id}` |
+| `PUT /v1/suggestions/{id}` |
+| `PUT /v1/suggestions/{id}/accept` |
+| `PUT /v1/suggestions/{id}/reject` |
+| `PUT /v1/suggestions/accept-all` |
+| `PUT /v1/suggestions/reject-all` |
+| `DELETE /v1/suggestions/{suggestionId}` |
+| `DELETE /v1/suggestions/{entityType}/name/{entityFQN}` |
+
+<Tip>
+Replace suggestion calls with `/v1/tasks` filtered by `type=Suggestion` (`category=MetadataUpdate`).
+Accept and reject become `POST /v1/tasks/{id}/resolve` and `PUT /v1/tasks/{id}/suggestion/apply`.
+Existing suggestions are migrated into `task_entity` by the 2.0.0 migration. See
+[Collaboration](/v2.0.x/deployment/upgrade/breaking-changes/collaboration).
+</Tip>
+
+## Changed request contracts
+
+### `search_after` is now a repeated query parameter
+
+<Warning>
+**Breaking.** Affects anyone paginating `/v1/search/query`.
+</Warning>
+
+Each sort value is carried as its own parameter so values containing a comma — for example a glossary
+term fully qualified name — are safe.
+
+<Tabs>
+  <Tab title="1.13">
+    ```http
+    GET /api/v1/search/query?q=*&index=table&search_after=1712345678000,abc-123
+    ```
+  </Tab>
+  <Tab title="2.0">
+    ```http
+    GET /api/v1/search/query?q=*&index=table&search_after=1712345678000&search_after=abc-123
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+Split the cursor on the client and emit one `search_after` parameter per sort value.
+</Tip>
+
+### The `deleted` search parameter is deprecated
+
+<Note>
+**Deprecated.** `deleted` on `/v1/search/query` is annotated for removal in 2.0. Express
+deleted-entity filtering through `query_filter` instead.
+</Note>
+
+### `testCaseStatus` accepts multiple values
+
+`GET /v1/dataQuality/testCases` binds `testCaseStatus` as a repeated parameter:
+
+```http
+GET /api/v1/dataQuality/testCases?testCaseStatus=Failed&testCaseStatus=Aborted
+```
+
+Values are validated against the `TestCaseStatus` enum, and an unknown value now returns
+`400 Bad Request` naming the allowed values. A single-value call is unchanged.
+
+## Validation changes
+
+### Entity name validation is tightened
+
+<Warning>
+**Breaking.** Affects every write path, ingestion connectors and CSV import.
+</Warning>
+
+`entityName` and `testCaseEntityName` change pattern:
+
+```diff
+- "pattern": "^((?!::).)*$"
++ "pattern": "^((?!::)[^>\"\\x00-\\x1f])*$"
+```
+
+In addition to the existing `::` restriction, names may no longer contain:
+
+- `>` (greater-than)
+- `"` (double quote)
+- any ASCII control character (`\x00`–`\x1f`)
+
+<Warning>
+Entities already stored with these characters are not rewritten by the migration, but the next `PUT`
+or `PATCH` that revalidates the name will fail. Audit source systems whose object names can contain
+quotes or angle brackets before upgrading.
+</Warning>
+
+## Enum changes
+
+### Removed enum values
+
+<Warning>
+**Breaking.**
+</Warning>
+
+| Schema | Enum | Removed values |
+| --- | --- | --- |
+| `entity/applications/app.json` | `agentType` | `CollateAI`, `CollateAITierAgent`, `CollateAIQualityAgent` |
+
+Only `Metadata` remains. The corresponding application configuration schemas were deleted:
+
+- `entity/applications/configuration/external/collateAIQualityAgentAppConfig.json`
+- `entity/applications/configuration/external/collateAITierAgentAppConfig.json`
+- `entity/applications/configuration/private/internal/collateAITierAgentAppPrivateConfig.json`
+
+### Added enum values
+
+<Info>
+**Additive** — but clients doing exhaustive `switch` or pattern matching on these enums need new
+branches.
+</Info>
+
+| Schema | Enum | Added values |
+| --- | --- | --- |
+| `resourceDescriptor.json` | `operation` | `CreateTask`, `EditTask`, `ResolveTask`, `CloseTask`, `ReassignTask` |
+| `type/changeEventType.json` | — | `taskCreated`, `taskUpdated`, `entityLineageAdded`, `entityLineageDeleted`, `entityLineageUpdated` |
+| `type/entityRelationship.json` | `relationshipType` | `assignedTo` |
+| `type/workflowTriggerFields.json` | — | `entityStatus` |
+| `settings/settings.json` | `settingType` | `appConfiguration` |
+| `nodeSubType.json` | — | `policyAgentTask`, `createAndRunAIAutomationTask` |
+| `jobs/backgroundJob.json` | `jobType` | `CSV_IMPORT`, `CSV_EXPORT`, `AUDIT_EXPORT` |
+| `jobs/backgroundJob.json` | `status` | `CANCELLED` |
+| `ingestionPipeline.json` | `pipelineType` | `policyAgent` |
+| `entity/data/table.json` | `tableType` | `SemanticView` |
+| `entity/data/metric.json` | `metricType` | `SIMPLE`, `CUMULATIVE`, `DERIVED`, `CONVERSION` |
+| `databaseService.json` | `databaseServiceType` | `SapBw4Hana` |
+| `dashboardService.json` | `dashboardServiceType` | `Omni` |
+| `pipelineService.json` | `pipelineServiceType` | `Prefect`, `SapBw4HanaPipeline` |
+
+## Default value changes
+
+<Note>
+**Behavioural.** Affects deployments that never set these explicitly.
+</Note>
+
+| Schema | Field | 1.13 | 2.0 |
+| --- | --- | --- | --- |
+| `rdfConfiguration.json` | `bulkEntityBatchSize` | `50` | `100` |
+| `rdfConfiguration.json` | `bulkRelationshipSourceBatchSize` | `25` | `100` |
+| `rdfConfiguration.json` | `inferenceEnabled` | `true` | **`false`** |
+| `workflowSettings.json` | `executorConfiguration.asyncJobAcquisitionInterval` | `10000` ms | `1000` ms |
+
+The 2.0.0 post-data migration also lowers `timerJobAcquisitionInterval` to `5000` ms and the
+`WorkflowEventConsumer` poll interval from 10 s to 1 s, so governance workflows fire near-real-time.
+
+<Warning>
+RDF inference is off by default in 2.0. If you relied on inferred triples in SPARQL queries, set
+`RDF_INFERENCE_ENABLED=true` explicitly.
+</Warning>
+
+### Connector filter-pattern defaults
+
+<Note>
+**Behavioural.** Applies to new **and** existing ingestion runs.
+</Note>
+
+| Connector | Field | New default excludes |
+| --- | --- | --- |
+| Redshift | `tableFilterPattern` | `^(?:.*\.)?mv_tbl__.*__\d+$` |
+| Kafka | `topicFilterPattern` | `^__.*`, `^_schemas$`, `^_confluent.*` |
+| Redpanda | `topicFilterPattern` | `^__.*`, `^_schemas$`, `^_confluent.*` |
+
+<Tip>
+If you deliberately ingest Redshift materialised-view backing tables or Kafka internal topics,
+override the filter pattern explicitly — the default now excludes them.
+</Tip>
+
+## Schema reference relocations
+
+<Note>
+**Behavioural.** Affects code generated from the specification and JSON Schema validators.
+</Note>
+
+Chart `function` and `kpiDetails` definitions moved out of `dataInsightCustomChart.json` into a new
+`dataInsight/custom/chartFunctions.json`:
+
+```diff
+- "$ref": "dataInsightCustomChart.json#/definitions/function"
++ "$ref": "chartFunctions.json#/definitions/function"
+```
+
+Affected files: `formulaHolder.json`, `lineChart.json`, `summaryCard.json` and
+`dataInsightCustomChartResultList.json`. Similarly, `entity/data/table.json` extracts the inline
+`columnProfile.cardinalityDistribution` object into a named definition. The wire shape is unchanged —
+only the pointer moved.
+
+<Tip>
+Regenerate any client models built from the JSON Schema. If you resolve `$ref` pointers by hand,
+update the paths.
+</Tip>
+
+## Notable new endpoint groups
+
+<Info>
+**Additive.** These do not break anything, but they replace patterns you may currently implement
+client-side.
+</Info>
+
+| Namespace | Purpose | Replaces |
+| --- | --- | --- |
+| `/v1/tasks/**` | First-class Task entity (22 endpoints) | `/v1/feed/tasks/*`, `/v1/suggestions/*` |
+| `/v1/announcements/**` | Standalone Announcement entity | `/v1/feed?type=Announcement` |
+| `/v1/activity/**` | Ephemeral activity stream | System-generated `/v1/feed` threads |
+| `/v1/csvAsyncJobs/**` | CSV import/export job status and result download | WebSocket-only job tracking |
+| `/v1/csv/documentation/{entityType}` | Machine-readable CSV column documentation | Hard-coded column lists |
+| `/v1/services/overview` | One call for per-type and per-connector service counts | N per-service `GET` calls |
+| `/v1/lineage/hydrate` | Batch-hydrate up to 200 lineage nodes | N per-node entity `GET` calls |
+| `/v1/{entityType}/deleteStale` | Connector-driven stale-entity cleanup | Manual delete loops |
+| `/v1/search/export/async` | Queue a CSV export as a background job | Synchronous `/v1/search/export` |
+| `/v1/columns/name/{fqn}` | Fetch a single column by fully qualified name | Fetching the whole table |
+| `/v1/personas/{id}/context`, `/v1/personas/me/context` | Persona-scoped AI context | — |
+| `/v1/contextCenter/**`, `/v1/attachments/**` | Knowledge and Context Center, plus file assets | — |
+| `/v1/aiGovernance/**` and related | AI Governance Studio | — |
+
+`deleteStale` is available on 18 entity types: `tables`, `databases`, `databaseSchemas`,
+`storedProcedures`, `dashboards`, `charts`, `dashboard/datamodels`, `pipelines`, `topics`, `mlmodels`,
+`searchIndexes`, `containers`, `apiCollections`, `apiEndpoints`, `drives/directories`, `drives/files`,
+`drives/spreadsheets` and `drives/worksheets`.
+
+## Deprecations to plan for
+
+| Item | Status in 2.0 | Replacement |
+| --- | --- | --- |
+| `GET /v1/search/query?deleted=` | Deprecated for removal | `query_filter` |
+| `authenticationConfiguration.oidcConfiguration.sessionExpiry` | Deprecated fallback | `authenticationConfiguration.sessionExpiry` |
+| `EntityResource.patchInternal(uriInfo, ctx, id, patch)` (Java) | Deprecated | Overload taking `ChangeSource` |

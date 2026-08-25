@@ -1,0 +1,130 @@
+---
+title: Spline Connector | OpenMetadata Data Lineage Integration
+description: Connect Spline data lineage to OpenMetadata with our pipeline connector. Track data flow, automate metadata ingestion, and enhance governance seamlessly.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/spline.webp'
+name="Spline"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Usage"]}
+unavailableFeatures={["Owners", "Tags", "Lineage"]} />
+In this section, we provide guides and references to use the Spline connector.
+Configure and schedule Spline metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/pipeline/spline/troubleshooting)
+
+## Requirements
+
+The Spline connector supports lineage of data source of type `jdbc` or `dbfs`; that is, it can extract lineage if the data source is either a jdbc connection or a Databricks instance.
+
+<Tip>
+Currently, we do not support data source of type AWS S3 or any other cloud storage, which also means that the lineage for external tables from Databricks will not be extracted.
+</Tip>
+
+You can refer [this](https://github.com/AbsaOSS/spline-getting-started/tree/main/spline-on-databricks) documentation on how to configure Databricks with Spline.
+
+## Metadata Ingestion
+
+To ingest metadata from Spline, you need to create a service connection. The service connects Spline with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **Spline** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/spline.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Spline services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/spline.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Spline. A help panel displays inline guidance for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/spline.png)
+
+- **Spline REST Server Host & Port**: OpenMetadata uses Spline REST Server APIs to extract the execution details from Spline to generate lineage. This should be specified as a URI string in the format `scheme://hostname:port`. For example, `http://localhost:8080`, `http://host.docker.internal:8080`.
+- **Spline UI Host & Port**: Spline UI Host & Port is an optional field which is used for generating a redirection URL from OpenMetadata to the Spline Portal. This should be specified as a URI string in the format `scheme://hostname:port`. For example, `http://localhost:9090`, `http://host.docker.internal:9090`.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Spline service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which pipelines OpenMetadata ingests from Spline.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

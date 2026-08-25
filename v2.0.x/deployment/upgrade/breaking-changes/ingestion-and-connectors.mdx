@@ -1,0 +1,371 @@
+---
+title: Breaking Changes - Ingestion & Connectors | Official Documentation
+description: pipelineStatuses shape change, Databricks Pipeline authentication, Great Expectations 1.x, the log-stream SSE contract and new connectors in OpenMetadata 2.0.
+sidebarTitle: Ingestion & Connectors
+collate: false
+---
+
+# Ingestion & Connectors
+
+Four hard breaks here — the `pipelineStatuses` shape, the Databricks Pipeline connection, the
+log-stream payload and the progress payload — plus a Great Expectations major-version jump.
+
+## `pipelineStatuses` is now an array
+
+<Warning>
+**Breaking.** Affects every client reading ingestion pipelines: dashboards, health checks and SDK
+users.
+</Warning>
+
+```diff
+  "pipelineStatuses": {
+-   "description": "Last of executions and status for the Pipeline.",
+-   "$ref": "#/definitions/pipelineStatus"
++   "description": "List of the most recent executions and status for the Pipeline.",
++   "type": "array",
++   "items": { "$ref": "#/definitions/pipelineStatus" }
+  }
+```
+
+The list endpoint now returns the **last five** statuses per pipeline, which also removes an N+1 query.
+
+<Tabs>
+  <Tab title="1.13 response">
+    ```json
+    { "name": "my_pipeline", "pipelineStatuses": { "runId": "…", "pipelineState": "success" } }
+    ```
+  </Tab>
+  <Tab title="2.0 response">
+    ```json
+    { "name": "my_pipeline",
+      "pipelineStatuses": [ { "runId": "…", "pipelineState": "success" },
+                            { "runId": "…", "pipelineState": "failed" } ] }
+    ```
+  </Tab>
+</Tabs>
+
+Strongly-typed clients throw on the type change. Loosely-typed scripts reading
+`pipelineStatuses.pipelineState` silently get `undefined` or `None`.
+
+The migration also strips any stale single-object `pipelineStatuses` value that a `GET → PUT`
+round-trip may have persisted into stored entity JSON.
+
+<Tip>
+Read `pipelineStatuses[0]` for the latest run, and regenerate SDK models.
+</Tip>
+
+## Databricks Pipeline connection requires `authType`
+
+<Warning>
+**Breaking.** Affects Databricks Pipeline services created via API or infrastructure-as-code.
+</Warning>
+
+```diff
+- "required": ["hostPort", "token"]
++ "required": ["hostPort", "authType"]
+```
+
+<Tabs>
+  <Tab title="1.13">
+    ```json
+    { "hostPort": "…", "token": "dapi…" }
+    ```
+  </Tab>
+  <Tab title="2.0">
+    ```json
+    { "hostPort": "…", "authType": { "token": "dapi…" } }
+    ```
+  </Tab>
+</Tabs>
+
+`authType` accepts three variants: **Personal Access Token**, **DatabricksOAuth** and **Azure AD**.
+
+<Warning>
+Stored service configurations are migrated automatically. **External ingestion YAMLs are not** — any
+YAML you keep in source control, in a CI job, or on a hybrid runner must be updated by hand or the
+run fails validation.
+</Warning>
+
+<Tip>
+Update Terraform, Ansible and scripted service creation, plus any ingestion YAML that sets `token` at
+the top level.
+</Tip>
+
+## Log stream payload changed
+
+<Warning>
+**Breaking.** `GET /v1/services/ingestionPipelines/logs/{fqn}/stream/{runId}` now emits **one JSON
+event per frame** instead of one raw log line.
+</Warning>
+
+```json
+{
+  "eventType": "logs | complete | error",
+  "runId": "scheduled__2026-08-01T00:00:00+00:00",
+  "logs": "…appended log content…",
+  "after": "opaque-cursor",
+  "replay": false,
+  "endReason": "runFinished | idleTimeout | maxDuration | maxBytes"
+}
+```
+
+- `after` is an opaque resume cursor — pass it back as the `after` query parameter to resume without
+  re-reading delivered content.
+- `endReason` is set **only** on a `complete` event. A stream that ends without one was cut short —
+  reconnect from the last cursor.
+- `replay: true` marks chunks replayed from the server buffer because the stream was already running
+  when the client connected.
+- The path now accepts an id **or** fully qualified name, and `runId` is a free-form string, so
+  Airflow's `scheduled__<ts>` run ids no longer 404.
+
+<Tip>
+Clients parsing `data:` as log text must parse it as JSON and read `event.logs`.
+</Tip>
+
+## Ingestion progress payload changed
+
+<Warning>
+**Breaking.** Affects consumers of `GET /v1/services/ingestionPipelines/progress/{fqn}/stream/{runId}`.
+</Warning>
+
+Progress changes from a flat per-entity-type map to a **hierarchical tree**. Each node counts its
+direct children — the root counts databases, a database counts schemas, a schema counts tables.
+
+<Tabs>
+  <Tab title="1.13">
+    Progress by entity type. Keys are entity types, values contain `total`, `processed` and
+    `estimatedRemainingSeconds`.
+  </Tab>
+  <Tab title="2.0">
+    ```json
+    {
+      "label": "",
+      "entityType": "Database",
+      "processed": 3,
+      "expected": 12,
+      "active": true,
+      "overflow": 0,
+      "children": [ /* active or relevant child nodes only */ ]
+    }
+    ```
+    `expected` is `null` when the producer was iterated lazily.
+  </Tab>
+</Tabs>
+
+A new service-level stream is added at
+`GET /v1/services/ingestionPipelines/progress/service/{serviceType}/{serviceFqn}/stream`, so the
+Services page can show live progress across all agents for a service.
+
+Coverage added in 2.0: database connectors generally (plus Databricks and Unity Catalog explicitly),
+Airflow REST and dbt Cloud pipeline totals, Looker and Tableau via manual progress mode, and the
+profiler and auto-classification workflows.
+
+## Ingestion images move to Python 3.12
+
+<Warning>
+**Breaking.** Affects anyone who builds a custom ingestion image or installs the ingestion package
+into their own Python environment.
+</Warning>
+
+| | Released 1.13.x | 2.0 |
+| --- | --- | --- |
+| Ingestion image | `apache/airflow:3.2.x-python3.10` | `apache/airflow:3.3.0-python3.12` |
+| Operator image | `python:3.10-bookworm` | `python:3.12-slim-trixie` |
+
+<Warning>
+**`cp310` wheels will not load.** Any custom connector, driver or dependency pinned to a CPython 3.10
+wheel must be rebuilt or repinned for CPython 3.12.
+</Warning>
+
+<Tip>
+Rebuild every custom ingestion image, and re-resolve any private requirements file, before pointing
+agents at 2.0. If you run the ingestion package directly, move the virtualenv to Python 3.12.
+</Tip>
+
+<Note>
+The 3.12 move was also backported into the 1.13 maintenance line after 1.13.3. If you are already
+running a 1.13.4 build you have made this jump; upgrading from **1.13.0 – 1.13.3** you have not.
+</Note>
+
+## Great Expectations 1.3 or later is required
+
+<Warning>
+**Breaking.** Affects the `great-expectations` plugin.
+</Warning>
+
+```diff
+- "great-expectations": "great-expectations~=0.18.0",
+- "great-expectations-1xx": "great-expectations~=1.0",
++ "great-expectations": "great-expectations~=1.3",
+```
+
+**Great Expectations 0.x is no longer supported**, and the separate `great-expectations-1xx` extra is **removed**. 1.3 is the floor because Great
+Expectations only gained the validation-action registry there — on 1.0–1.2 `Checkpoint.actions` is a
+closed union that rejects the OpenMetadata action outright.
+
+If you adopted the interim 1.x module during 1.13, rename it in your checkpoint —
+`metadata.great_expectations.action1xx` and `OpenMetadataValidationAction1xx` have been removed:
+
+```python
+# Before
+from metadata.great_expectations.action1xx import OpenMetadataValidationAction1xx
+
+# After
+from metadata.great_expectations.action import OpenMetadataValidationAction
+```
+
+Checkpoints that already reference `metadata.great_expectations.action` and
+`OpenMetadataValidationAction` keep those names, but the surrounding checkpoint definition still has
+to move to the 1.x API: pass actions as objects to `Checkpoint(actions=[...])` rather than as an
+`action_list` of dictionaries, and call `checkpoint.run()` instead of
+`great_expectations checkpoint run`.
+
+<Warning>
+Test case results now report **row counts only** — `unexpected_count`, `missing_count`,
+`element_count` and `observed_value`. The percentage values (`unexpected_percent`,
+`unexpected_percent_total`, `missing_percent` and `success_rate`) are no longer sent, because
+OpenMetadata charts every result value of a test case on a single axis and percentages plotted next to
+row counts were unreadable. Percentages remain derivable as `unexpected_count / element_count`.
+</Warning>
+
+<Tip>
+Replace `pip install "openmetadata-ingestion[great-expectations-1xx]"` with
+`pip install "openmetadata-ingestion[great-expectations]"`.
+</Tip>
+
+## Other dependency floors raised
+
+<Note>
+**Behavioural.** Affects pinned and air-gapped installations.
+</Note>
+
+| Package | 1.13 | 2.0 | Why |
+| --- | --- | --- | --- |
+| `requests` | `>=2.23` | `>=2.32.4` | security |
+| `sqlalchemy_exasol` | `>=6,<7` | `>=7.1.1,<8` | Exasol connector |
+| `sqlalchemy-pytds` | `~=0.3` | `~=1.0` | 0.3.x raises `AttributeError` on every server-side cursor fetch with python-tds 1.x |
+| `gitpython` | `~=3.1.34` | `>=3.1.50` | security |
+| `paramiko` | — | `>=3.5,<6` | new `sftp` plugin |
+
+New plugin extras: **`prefect`** and **`sftp`**.
+
+## New connectors
+
+<Info>
+**Additive.**
+</Info>
+
+| Type | Connector | Service type value |
+| --- | --- | --- |
+| Database | SAP BW/4HANA | `SapBw4Hana` |
+| Dashboard | Omni | `Omni` |
+| Pipeline | Prefect (Cloud and Server auth) | `Prefect` |
+| Pipeline | SAP BW/4HANA | `SapBw4HanaPipeline` |
+
+## Connector configuration changes
+
+### Default filter patterns now exclude system objects
+
+<Warning>
+**Behavioural.** Applies to existing services too.
+</Warning>
+
+| Connector | Field | New default excludes |
+| --- | --- | --- |
+| Redshift | `tableFilterPattern` | `^(?:.*\.)?mv_tbl__.*__\d+$` |
+| Kafka | `topicFilterPattern` | `^__.*`, `^_schemas$`, `^_confluent.*` |
+| Redpanda | `topicFilterPattern` | `^__.*`, `^_schemas$`, `^_confluent.*` |
+
+<Warning>
+If you deliberately catalogued Redshift materialised-view backing tables or Kafka internal topics, set
+an explicit filter pattern — the next ingestion run will otherwise skip them and, with stale deletion
+enabled, soft-delete them.
+</Warning>
+
+### SSIS `databaseConnection` is now optional
+
+<Info>
+**Relaxed requirement**, supporting file-only SSIS mode. Existing configurations are unaffected.
+</Info>
+
+### Snowflake
+
+| Change | Detail |
+| --- | --- |
+| `includeSemanticViews` | New, default `false`; `tableType` gains `SemanticView` |
+| Access-history lineage | New opt-in path |
+| `policyAgentConfig` | Declared with defaults and backfilled onto existing services — see [Data Governance](/v2.0.x/deployment/upgrade/breaking-changes/data-governance) |
+
+### Other connector changes
+
+| Connector | Change |
+| --- | --- |
+| Unity Catalog | Incremental metadata extraction; `policyAgentConfig` added |
+| Databricks | Partner user-agent for telemetry attribution; `policyAgentConfig` defaults |
+| Postgres | `policyAgentConfig` **removed** from the schema and stripped from stored rows |
+| MySQL | Custom `queryHistoryTable` for usage and lineage |
+| ADLS | `containerName` field on the storage connection |
+| Exasol | Comment access and query usage support |
+| PowerBI | Datamart support; per-workspace cache scoping |
+| dbt | `includeMetrics` toggle for semantic-layer metrics |
+| Pipeline metadata | `ownershipUpdateMode` (`replace` or `append`) controls how source owners merge with existing pipeline owners |
+| Storage | Compressed archive support; auto-classification for containers |
+| Kafka Connect | Lineage for `EventRouter` and `RegexRouter` routed topics |
+
+## Stale-entity cleanup API
+
+<Info>
+**New pattern for connectors.**
+</Info>
+
+```http
+DELETE /v1/tables/deleteStale
+```
+
+```json
+{
+  "scopeFqn": "service.database.schema",
+  "scopeEntityType": "databaseSchema",
+  "seenFqns": ["…", "…"],
+  "dryRun": false,
+  "hardDelete": false,
+  "recursive": true
+}
+```
+
+Entities inside the scope that are **not** in `seenFqns` are considered stale and soft-deleted by
+default. Available on 18 entity types.
+
+<Warning>
+A `seenFqns` list truncated by a partial connector run will mark everything else stale. Always
+exercise `dryRun` first when wiring this into custom connectors.
+</Warning>
+
+## Ingestion pipeline management
+
+| Change | Class | Detail |
+| --- | --- | --- |
+| `agentType` list filter | Additive | `GET /v1/services/ingestionPipelines?agentType=metadata\|application` |
+| Queued-status polling | Behavioural | The server no longer polls orchestrators for queued status, reducing Airflow API load |
+| `queuedStatusTimeoutSeconds` | Additive | Default `3600`; how long a `queued` status stays visible before being treated as stale |
+| Force delete | Additive | Admins can force-delete ingestion pipelines |
+| `policyAgent` pipeline type | Additive | New pipeline type |
+
+## Connector framework internals
+
+<Note>
+**Behavioural.** Affects **custom connector authors only.**
+</Note>
+
+- mlmodel, metadata, messaging, storage, search and drive connectors migrated to `BaseConnection`.
+- `get_connection_dict` dropped from `BaseConnection`; data-diff gated via a protocol.
+- Duplicated test-connection helpers consolidated; Athena migrated to the declarative test-connection
+  framework; a shared `GetPipelines` step added to the pipeline test-connection vertical.
+- A `ClassifiableEntityAdapter` replaces scattered `isinstance` checks, and a `TagRegistry` domain
+  layer is introduced.
+- `ConnectionsRouterClassBase` enables pluggable connection routing in the UI.
+
+<Tip>
+Rebuild and re-test custom connectors against the 2.0 ingestion package before upgrading production
+agents.
+</Tip>

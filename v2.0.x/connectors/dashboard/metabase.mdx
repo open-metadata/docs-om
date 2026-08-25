@@ -1,0 +1,148 @@
+---
+title: Metabase Connector | OpenMetadata Dashboard Integration
+description: Connect Metabase dashboards to OpenMetadata. Complete setup guide, configuration steps, and metadata extraction.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDashboard from '/snippets/connectors/metadata-agent/dashboard.mdx'
+import DashboardLineage from '/snippets/connectors/dashboard/dashboard-lineage.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+  icon='/public/images/connectors/metabase.webp'
+name="Metabase"
+  stage="PROD"
+availableFeatures={["Dashboards", "Charts", "Lineage", "Projects", "Owners"]}
+  unavailableFeatures={["Tags", "Datamodels"]} />
+In this section, we provide guides and references to use the Metabase connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Basic Auth** — Connect using a Metabase account email and password. The connector obtains a session token automatically.
+- **API Token** — Connect using a Metabase API key. Recommended when basic authentication is disabled (for example, SSO-enforced environments).
+</Info>
+
+Configure and schedule Metabase metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/dashboard/metabase/troubleshooting)
+
+## Requirements
+
+The Metabase account or API key used to connect must have view access to all dashboards and charts you want to ingest.
+
+To ingest **owner information**, the account must also have visibility of Metabase user profiles. This is available to admin accounts and accounts in groups with the appropriate permissions.
+
+**Note:** OpenMetadata has been tested with Metabase versions `0.42.4` and `0.43.4`.
+
+## Metadata Ingestion
+
+To ingest metadata from Metabase, you need to create a service connection. The service connects Metabase with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Dashboard Services**, then click the **Metabase** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Dashboard/select-service/metabase.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Metabase services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Dashboard/service-name/metabase.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Metabase. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/metabase.png)
+
+- **Host and Port**: URL of your Metabase instance, in the format `http://hostname:port` or `https://hostname:port`. For example: `https://org.metabase.com:3000`.
+
+Metabase supports two authentication methods. Provide credentials for **one** of the following:
+
+**Option 1 — Basic Authentication**
+- **Username**: Email address of the Metabase account, for example `user@organization.com`. The account must have view access to the dashboards and charts you want to ingest.
+- **Password**: Password for the Metabase account.
+
+**Option 2 — API Token**
+- **API Token**: API key for Metabase. Use this instead of username and password when basic authentication is disabled, for example in SSO-enforced environments. Generate the key in the Metabase Admin panel under **Settings > Authentication > API Keys**.
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+</Tip>
+
+**Filter Options**
+
+The Dashboard, Chart, and Data Model sections each include the following filter options:
+
+- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
+- **Chart**: Controls which charts within the ingested dashboards are included.
+- **Data Model**: Controls which data models are included in metadata ingestion.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDashboard />
+
+<DashboardLineage />
+
+<Related />

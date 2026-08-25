@@ -1,0 +1,151 @@
+---
+title: Breaking Changes 1.13 to 2.0 | Official Documentation
+description: Complete component-level breakdown of the API, schema, ingestion, configuration and UI breaking changes between OpenMetadata 1.13 and 2.0.
+sidebarTitle: Overview
+collate: false
+---
+
+# Breaking Changes: 1.13 → 2.0
+
+OpenMetadata 2.0 is a major release. It retires the thread-backed collaboration model, replaces the
+Explore experience, moves LLM and embedding configuration out of the search block, adds a
+database-backed session store, and reshapes several API contracts.
+
+This section documents every change that can break an existing client, script, deployment or user
+workflow — broken out by component so you only have to read the parts that apply to you.
+
+<Warning>
+Take a full database backup before upgrading. The 2.0.0 migration renames `thread_entity`, creates
+more than fifteen new tables, and rewrites application, service-connection and tag rows in place.
+There is no automated downgrade.
+</Warning>
+
+## How to read this section
+
+Every entry is classified so you can triage quickly.
+
+| Class | Meaning |
+| --- | --- |
+| **Breaking** | Existing callers or configurations fail outright. Action is required before or during the upgrade. |
+| **Behavioural** | Requests still succeed, but the result, ordering or side effect differs. |
+| **Deprecated** | Still works in 2.0, scheduled for removal. Migrate at your convenience. |
+| **Additive** | New surface only. Listed where it replaces something you may currently be using. |
+
+Each entry states **what changed**, **who is affected** and **what to do**.
+
+## The changes most likely to break you
+
+| # | Change | Component | Class |
+| --- | --- | --- | --- |
+| 1 | `/v1/suggestions/*` removed — suggestions are now Tasks | [Collaboration](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration) | Breaking |
+| 2 | Announcements removed from `/v1/feed`, now `/v1/announcements` | [Collaboration](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration) | Breaking |
+| 3 | `ingestionPipeline.pipelineStatuses` is now an **array** | [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 4 | Embedding and NLQ provider config moved to top-level `llmConfiguration` | [Platform & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) | Breaking |
+| 5 | `searchIndexingAppConfig.recreateIndex` and `useDistributedIndexing` removed | [Applications & Automation](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation) | Breaking |
+| 6 | Explore URL params `page`/`size` → `currentPage`/`pageSize`, plus a new `browsePath` | [Discovery & Search](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search) | Breaking |
+| 7 | `search_after` is a repeated parameter, not a comma-joined string | [API & Schema](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema) | Breaking |
+| 8 | Databricks Pipeline connection requires `authType` instead of `token` | [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 9 | Great Expectations 1.3+ required; the `great-expectations-1xx` extra is gone | [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 10 | `maxActiveSessionsPerUser` defaults to 5; sessions are database-backed | [Platform & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) | Behavioural |
+| 11 | Ingestion images move from **Python 3.10 to 3.12** | [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+
+## Deprecation notices
+
+These are not 2.0 breaking changes, but they change what you should build on now.
+
+<Warning>
+**Airflow as the internal orchestrator is deprecated and will be removed in a future release.**
+The native Kubernetes Orchestrator released in 1.12 is its replacement. New deployments should
+standardise on the Kubernetes Orchestrator; existing Airflow-based deployments keep working in 2.0
+but should plan a migration.
+</Warning>
+
+<Warning>
+**Great Expectations 0.x is no longer supported.** 2.0 requires Great Expectations 1.3 or later. See
+[Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+</Warning>
+
+## Browse by component
+
+<CardGroup cols={2}>
+  <Card title="API & Schema Contracts" icon="code" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema">
+    Removed endpoints, changed request and response shapes, tightened validation, enum and default changes.
+  </Card>
+  <Card title="Discovery & Search (Explore)" icon="magnifying-glass" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search">
+    The redesigned Explore page, the browse-and-filter query bar, changed URL parameters, facet scoping and staged ranking.
+  </Card>
+  <Card title="Collaboration" icon="users" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration">
+    Task redesign, removal of the Suggestions API, standalone Announcements, the Activity Stream and alert filters.
+  </Card>
+  <Card title="Data Governance" icon="shield-halved" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance">
+    Policies and new task operations, glossary and ontology, classification, governance workflows and the Policy Agent.
+  </Card>
+  <Card title="Data Quality & Observability" icon="circle-check" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality">
+    Incidents as Tasks, inlined incident status, auto-close, multi-status filters and the removed Data Insights DQ module.
+  </Card>
+  <Card title="Lineage" icon="diagram-project" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/lineage">
+    FQN-based edge APIs, batch hydration, time-window traversal semantics and new lineage change events.
+  </Card>
+  <Card title="Ingestion & Connectors" icon="database" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors">
+    `pipelineStatuses`, Databricks Pipeline auth, Great Expectations 1.x, log-stream SSE and new connectors.
+  </Card>
+  <Card title="Applications & Automation" icon="grid-2" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation">
+    Search Indexing and RDF app config, Data Insights modules, MCP tool contracts and CSV background jobs.
+  </Card>
+  <Card title="Platform, Config & Security" icon="server" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security">
+    `llmConfiguration`, session management, `openmetadata.yaml` changes and the 2.0.0 database migration.
+  </Card>
+  <Card title="UI, Personas & Customization" icon="palette" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ui-and-customization">
+    Design-system consolidation, App Mode, persona preferences and removed UI components.
+  </Card>
+</CardGroup>
+
+## Upgrade checklist
+
+<Steps>
+  <Step title="Inventory your API clients">
+    Search scripts, dashboards, Terraform and CI jobs for `/v1/suggestions`, `/v1/feed`,
+    `search_after=`, `pipelineStatuses` and `recreateIndex`.
+  </Step>
+  <Step title="Diff your openmetadata.yaml against the 2.0 template">
+    The `elasticsearch.naturalLanguageSearch.*` provider blocks no longer exist. Port them to
+    `llmConfiguration` before you upgrade.
+  </Step>
+  <Step title="Record your application configurations">
+    `SearchIndexingApplication`, `DataInsightsApplication`, `RdfIndexApp` and `McpApplication`
+    configurations are all rewritten by the migration.
+  </Step>
+  <Step title="Check entity names for newly-invalid characters">
+    `>`, `"` and ASCII control characters are rejected by `entityName` validation in 2.0.
+  </Step>
+  <Step title="Back up the database and run the upgrade">
+    Expect these data migrations: suggestions → `task_entity`, thread tasks → `task_entity`,
+    system feed threads → `activity_stream`, announcements → `announcement_entity`, and
+    `thread_entity` renamed to `thread_entity_legacy`.
+  </Step>
+  <Step title="Allow a full search reindex">
+    Reindexing in 2.0 always recreates the index. There is no incremental mode, and the ranking
+    configuration is backfilled into `searchSettings` during the migration.
+  </Step>
+  <Step title="Verify after upgrade">
+    Check Explore result ordering, alert subscriptions that relied on partial FQN matching,
+    Snowflake/Databricks/Unity Catalog `policyAgentConfig` defaults, and whether any user routinely
+    exceeds five concurrent sessions.
+  </Step>
+</Steps>
+
+## Version scope
+
+| | |
+| --- | --- |
+| **From** | OpenMetadata 1.13 line (1.13.0 – 1.13.4) |
+| **To** | OpenMetadata 2.0.0 |
+| **Schema spec** | 86 new schema files, 107 modified, 3 removed |
+| **REST surface** | 208 endpoints added, 10 removed |
+
+<Note>
+A few entries reference capabilities that ship in Collate rather than OpenMetadata OSS — AI
+Governance Studio, the Policy Agent, Context Center and AI Mode. They are documented here because
+their schemas and REST namespaces are part of the 2.0 specification and appear in the OpenAPI
+surface either way.
+</Note>

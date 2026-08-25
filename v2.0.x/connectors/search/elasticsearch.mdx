@@ -1,0 +1,165 @@
+---
+title: Elasticsearch Connector | OpenMetadata Search Services
+description: Connect Elasticsearch to OpenMetadata with our comprehensive connector guide. Step-by-step setup, configuration, and integration instructions for seamless search.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentSearch from '/snippets/connectors/metadata-agent/search.mdx'
+import Related from '/snippets/v2.0.x/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/elasticsearch.webp'
+name="Elasticsearch"
+stage="PROD"
+availableFeatures={["Search Indexes", "Sample Data"]}
+unavailableFeatures={[]} />
+In this section, we provide guides and references to use the Elasticsearch connector.
+Configure and schedule Elasticsearch metadata workflow from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.0.x/connectors/search/elasticsearch/troubleshooting)
+
+## Requirements
+
+OpenMetadata supports Elasticsearch 7.0 and above and extracts Elasticsearch's metadata by using its [API](https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html). To run this ingestion, you need a user with read permissions to all the assets (indexes, indices, data streams) that you want to access in OpenMetadata.
+
+**Required Permissions:**
+- Read access to all Elasticsearch resources you want to ingest
+- The built-in `viewer` role in Elasticsearch should be sufficient for this purpose
+
+## Metadata Ingestion
+
+To ingest metadata from ElasticSearch, you need to create a service connection. The service connects ElasticSearch with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Search Services**, then click the **ElasticSearch** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Search/select-service/elasticsearch.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other ElasticSearch services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Search/service-name/elasticsearch.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for ElasticSearch. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Search/connection-details/elasticsearch.png)
+
+**Connection**
+- **Host and Port**: This parameter specifies the host and port of the Elasticsearch instance. This should be specified as a URI string in the format `http://hostname:port` or `https://hostname:port`. For example, you might set it to `https://localhost:9200`.
+- **Connection Timeout in Seconds**: Connection timeout configuration for communicating with Elasticsearch APIs.
+
+**Authentication**
+- **Basic Authentication**:
+    - Username: Username to connect to Elasticsearch required when Basic Authentication is enabled on Elasticsearch.
+    - Password: Password of the user account to connect with Elasticsearch.
+- **API Key Authentication**:
+    - API Key: API Key to connect to Elasticsearch required when API Key Authentication is enabled on Elasticsearch.
+    - API Key Id: Enter API Key ID in case of API Key Authentication if there is any API Key ID associated with the API Key, otherwise this field can be left blank.
+
+**Advanced Config** *(SSL options; most connections don't need these)*
+- **SSL Certificates By Path**:
+    - CA Certificate Path: This field specifies the path of the CA certificate required for authentication.
+    - Client Certificate Path: This field specifies the path of the client certificate required for authentication.
+    - Private Key Path: This field specifies the path of the client key/private key required for authentication.
+- **SSL Certificates By Value**:
+    - CA Certificate Value: This field specifies the value of the CA certificate required for authentication.
+    - Client Certificate Value: This field specifies the value of the client certificate required for authentication.
+    - Private Key Value: This field specifies the value of the client key/private key required for authentication.
+    - Staging Directory Path: This field specifies the path to a temporary staging directory where the certificates are stored during the ingestion process. The directory is cleared once the ingestion job completes.
+
+    When using the "By Value" approach, make sure you pass the key in the correct format. If your certificate looks like this:
+    ```
+    -----BEGIN CERTIFICATE-----
+    MII..
+    MBQ...
+    CgU..
+    8Lt..
+    ...
+    h+4=
+    -----END CERTIFICATE-----
+    ```
+    Replace new lines with `\n` so the final value looks like this:
+    ```
+    -----BEGIN CERTIFICATE-----\nMII..\nMBQ...\nCgU..\n8Lt..\n...\nh+4=\n-----END CERTIFICATE-----\n
+    ```
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your search service. Filter patterns use regular expressions applied to index names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all search indexes available in the source.
+</Tip>
+
+**Filter Options**
+
+The Search Index section includes the following filter options:
+
+- **Search Index**: Controls which search indexes (Elasticsearch indexes, OpenSearch indexes, or equivalent) OpenMetadata ingests from the source.
+
+Each section provides the following controls:
+
+- **Scan Mode**: You can choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentSearch />
+
+<Related />

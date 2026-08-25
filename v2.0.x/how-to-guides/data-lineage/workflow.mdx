@@ -1,0 +1,86 @@
+---
+title: How to Deploy a Lineage Workflow
+description: Build data lineage using workflows to extract upstream and downstream dependencies.
+sidebarTitle: How to Deploy a Lineage Workflow
+---
+
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+
+# How to Deploy a Lineage Workflow
+
+Lineage data can be ingested from your data sources right from the OpenMetadata UI. Currently, the lineage workflow is supported for a limited set of connectors, like [BigQuery](/v2.0.x/connectors/database/bigquery), [Snowflake](/v2.0.x/connectors/database/snowflake), [MSSQL](/v2.0.x/connectors/database/mssql), [Redshift](/v2.0.x/connectors/database/redshift), [Clickhouse](/v2.0.x/connectors/database/clickhouse), [PostgreSQL](/v2.0.x/connectors/database/postgres), [Databricks](/v2.0.x/connectors/database/databricks).
+
+<Tip>
+**Tip:** Trace the upstream and downstream dependencies with Lineage.
+</Tip>
+
+## View Lineage from Metadata Ingestion
+Once the metadata ingestion runs correctly, and we are able to explore the service Entities, we can add the view lineage information for the data assets. This will populate the Lineage tab in the data asset page. During the Metadata Ingestion workflow we differentiate if a Table is a View. For those sources, where we can obtain the query that generates the View, we bring in the view lineage along with the metadata. After all Tables have been ingested in the workflow, it's time to parse all the queries generating Views. During the query parsing, we will obtain the source and target tables, search if the Tables exist in OpenMetadata, and finally create the lineage relationship between the involved Entities.
+
+If the database has views, then the view lineage would be generated automatically, along with the column-level lineage. In such a case, the table type is **View** as shown in the example below.
+ <img src="/public/images/how-to-guides/lineage/view.png" alt="View Lineage through Metadata Ingestion" />
+
+## Lineage Agent from UI
+Apart from the Metadata ingestion, we can create a workflow that will obtain the query log and table creation information from the underlying database and feed it to OpenMetadata. The Lineage Agent will be in charge of obtaining this data. The metadata ingestion will only bring in the View lineage queries, whereas the Lineage Agent workflow will be bring in all those queries that can be used to generate lineage information.
+
+### 1. Add a Lineage Agent
+
+Navigate to **Settings >> Services >> Databases**. Select the required service
+ <img src="/public/images/how-to-guides/lineage/wkf1.png" alt="Select a Service" />
+
+ <img src="/public/images/how-to-guides/lineage/wkf1.1.png" alt="Click on Databases" />
+
+ <img src="/public/images/how-to-guides/lineage/wkf1.2.png" alt="Select the Database" />
+
+1. Go to the **Agents** tab.
+2. Select **Add Agent**.
+3. Select **Add Lineage Agent**.
+ <img src="/public/images/how-to-guides/lineage/wkf2.png" alt="Add a Lineage Agent" />
+
+### 2. Configure the Lineage Agent
+
+Here you can enter the Lineage Agent details:
+ <img src="/public/images/how-to-guides/lineage/wkf3.png" alt="Configure the Lineage Agent" />
+
+#### Lineage Options
+
+- **Query Log Duration**: Specify the duration in days to look back in the query logs when capturing lineage data. For example, if you specify 2 as the value for the duration, the Lineage Agent captures lineage information for 2 **days** or 48 hours prior to when the ingestion workflow is run.
+
+- **Parsing Timeout Limit**: Specify the timeout limit, in **seconds**, for parsing SQL queries during lineage analysis.
+
+- **Result Limit**: Set the maximum number of query-log rows to process at a time.
+
+- **Filter Condition**: Enter a SQL condition to filter the data source's query-history results before OpenMetadata analyzes them for lineage and usage. For more information, see [Usage Query Filtering](/v2.0.x/connectors/ingestion/workflows/usage/filter-query-set).
+
+- **Process Cross Database Lineage**: Enable this toggle to build lineage across tables in different databases or projects (for example, across BigQuery projects or databases in other supported connectors). Also set **Cross Database Service Names** when enabling this option.
+
+- **Cross Database Service Names**: Names of other services to search when resolving table references during lineage extraction. Use this when a query, view, or stored procedure references tables in a different service than the one currently being ingested—for example, when BigQuery projects are configured as separate services. List the specific service names to search. The underlying search returns a limited number of matches per lookup, so `*` can resolve to the wrong table or miss the correct service when many services or tables share names. This applies to query, view, and stored-procedure lineage when the corresponding processing options are enabled.
+
+### 3. Schedule and Deploy
+
+1. Select **Next** to open the Scheduling form used for Metadata Ingestion.
+2. Select the desired schedule.
+3. Select **Deploy** to add the lineage pipeline under the **Agents** tab.
+ <img src="/public/images/how-to-guides/lineage/wkf4.png" alt="Schedule and Deploy the Lineage Agent" />
+
+## Run Lineage Workflow Externally
+
+<Lineage connector="bigquery" />
+
+## dbt Ingestion
+
+We can also generate lineage through [dbt ingestion](/v2.0.x/connectors/database/dbt/configure-dbt-workflow). The dbt workflow can fetch queries that carry lineage information. For a dbt ingestion pipeline, the path to the Catalog and Manifest files must be specified. We also fetch the column level lineage through dbt.
+
+You can learn more about [lineage ingestion here](/v2.0.x/connectors/ingestion/lineage).
+
+## Query Logs using CSV File
+
+Lineage ingestion is supported for a few connectors as mentioned earlier. For the unsupported connectors, you can set up [Lineage Workflows using Query Logs](/v2.0.x/connectors/ingestion/workflows/lineage/lineage-workflow-query-logs) using a CSV file.
+
+## Manual Lineage
+
+Lineage can also be added and edited manually in OpenMetadata. Refer for more information on [adding lineage manually](/v2.0.x/how-to-guides/data-lineage/manual).
+
+<Card title="Explore the Lineage View" href="/v2.0.x/how-to-guides/data-lineage/explore" >
+    Explore the rich lineage view in OpenMetadata.
+  </Card>

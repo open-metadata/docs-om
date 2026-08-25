@@ -1,0 +1,1146 @@
+---
+title: MCP Tools Reference
+sidebarTitle: MCP Tools Reference
+---
+
+# OpenMetadata MCP Tools Reference
+
+All OpenMetadata MCP tools, with parameters and examples.
+
+## Available Tools
+
+Tools are labeled **Read** (retrieve data only) or **Write** (create or modify data).
+
+| Category | Tools |
+|---|---|
+| **Discover** | [search_metadata](#search_metadata), [semantic_search](#semantic_search), [search_company_context](#search_company_context) |
+| **Inspect** | [get_entity_details](#get_entity_details), [get_company_context](#get_company_context) |
+| **Context** | [get_user_context](#get_user_context), [get_persona_context](#get_persona_context), [get_asset_context](#get_asset_context), [find_context](#find_context), [get_knowledge_content](#get_knowledge_content) |
+| **Lineage & Impact** | [get_entity_lineage](#get_entity_lineage), [create_lineage](#create_lineage), [root_cause_analysis](#root_cause_analysis) |
+| **Knowledge** | [create_glossary](#create_glossary), [create_glossary_term](#create_glossary_term), [create_context_memory](#create_context_memory) |
+| **Govern & Classify** | [create_classification](#create_classification), [create_tag](#create_tag), [create_domain](#create_domain), [create_data_product](#create_data_product), [patch_entity](#patch_entity) |
+| **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
+| **Metrics** | [create_metric](#create_metric) |
+
+## Discover
+
+Search and find data assets across your catalog using keyword, semantic, or natural language queries.
+
+### search_metadata
+
+**Description**: Find data assets and business terms by keyword. Use when you know specific names, owners, tags, tiers, services, or column names.
+
+**Use Cases**:
+- Discover tables containing specific data
+- Find dashboards related to business areas
+- Search for glossary terms
+- Locate pipelines by name or description
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | No | Keywords to search for |
+| `entityType` | string | No | Filter by entity type (see list below) |
+| `size` | integer | No | Max results to return (default: 10, max: 50) |
+| `from` | integer | No | Offset for pagination (default: 0) |
+| `fields` | string | No | Comma-separated additional fields to include |
+| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query |
+| `includeDeleted` | boolean | No | Include deleted entities (default: false) |
+| `includeAggregations` | boolean | No | Include aggregation/facet data (default: false) |
+| `maxAggregationBuckets` | integer | No | Max buckets per aggregation (default: 10, max: 50) |
+
+**Entity Types**
+- **Service Entities**: `databaseService`, `messagingService`, `apiService`, `dashboardService`, `pipelineService`, `storageService`, `mlmodelService`, `metadataService`, `searchService`
+- **Data Asset Entities**: `apiCollection`, `apiEndpoint`, `table`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `dashboardDataModel`, `pipeline`, `chart`, `topic`, `searchIndex`, `mlmodel`, `container`
+- **User Entities**: `user`, `team`
+- **Domain Entities**: `domain`, `dataProduct`
+- **Governance Entities**: `metric`, `glossary`, `glossaryTerm`
+- **Data Quality Entities**: `testCase`, `testSuite`, `testCaseResult`
+
+**Examples**
+
+**Basic Search**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "sales"
+    }
+  }
+}
+```
+
+**Search for a Specific Entity Type**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "customer",
+      "entityType": "table",
+      "size": 15
+    }
+  }
+}
+```
+
+**Search with Additional Fields**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "order",
+      "entityType": "table",
+      "fields": "columns,queries,upstreamLineage",
+      "size": 5
+    }
+  }
+}
+```
+
+**Sample Response**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Found 5 results matching 'sales':\n\n**Tables:**\n1. **sales_transactions** (mysql_prod.ecommerce.public.sales_transactions)\n   - Description: Daily sales transaction records\n   - Service: mysql_prod (MySQL)\n   - Owners: sales-team, john.doe@company.com\n   - Tags: PII, Financial\n\n2. **sales_reports** (postgresql_analytics.reporting.main.sales_reports)\n   - Description: Aggregated sales reporting data\n   - Service: postgresql_analytics (PostgreSQL)\n\n**Dashboards:**\n3. **Sales Performance Dashboard** (looker_prod.sales.sales_performance)\n   - Description: Real-time sales KPI dashboard\n   - Charts: 8 charts"
+      }
+    ]
+  }
+}
+```
+
+<Note>
+Results include a `similarityScore` field for each entity whenever the search backend returns a relevance score for that hit. This is the backend's raw, opaque score (not a value normalized to a 0.0–1.0 range), so absolute values vary by query and are not comparable across searches — only relative ordering within the same result set is meaningful. Higher scores indicate stronger relevance.
+</Note>
+
+### semantic_search
+
+**Description**: Find data assets by meaning using vector search ([setup guide](../../deployment/semantic-search#enable-semantic-search)). Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
+
+**Use Cases**:
+- Explore data when you don't know exact table names
+- Find assets related to a concept (e.g., "customer spending behavior")
+- Discover hidden relationships across services
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Natural language description of what you're looking for |
+| `filters` | object | No | Optional filters: `entityType`, `service`, `tags` (each an array of strings) |
+| `size` | integer | No | Number of results to return (default: 10, max: 50) |
+| `k` | integer | No | KNN neighbor count for tuning result quality (default: 100) |
+| `threshold` | number | No | Minimum similarity score 0.0–1.0 (default: 0.0) |
+
+**Examples**
+
+**Conceptual Search**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "semantic_search",
+    "arguments": {
+      "query": "tables tracking customer purchase history and lifetime value"
+    }
+  }
+}
+```
+
+**Search with Filters and Threshold**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "semantic_search",
+    "arguments": {
+      "query": "revenue forecasting and financial reporting",
+      "filters": {
+        "entityType": ["table", "dashboard"],
+        "service": ["BigQuery"]
+      },
+      "threshold": 0.5,
+      "size": 5
+    }
+  }
+}
+```
+
+### search_company_context
+
+**Description**: Semantic search over company context knowledge pills from the Context Center. Returns matching pills with their title, question, answer, summary, and source file. Use this to answer questions from company documents, runbooks, FAQs, and policies.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Natural-language question or topic to find relevant company knowledge for |
+| `size` | integer | No | Number of pills to return. Default is 10, maximum is 50 |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "search_company_context",
+    "arguments": {
+      "query": "data retention policy",
+      "size": 5
+    }
+  }
+}
+```
+
+## Inspect
+
+Retrieve detailed information about specific entities and company knowledge pills.
+
+### get_entity_details
+
+**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually. The response includes an `extension` field containing any custom properties defined for the entity type.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity (e.g., `table`, `dashboard`, `topic`, `pipeline`) |
+| `fqn` | string | Yes | Fully qualified name — use the exact value from `search_metadata` or `semantic_search` results |
+
+**Examples**
+
+**Get Table Details**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_details",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders"
+    }
+  }
+}
+```
+
+**Get Dashboard Details**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_details",
+    "arguments": {
+      "entityType": "dashboard",
+      "fqn": "superset_prod.sales.quarterly_revenue"
+    }
+  }
+}
+```
+
+**Sample Response**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "## Table: customer_orders\n\n**FQN**: mysql_prod.ecommerce.public.customer_orders\n**Service**: mysql_prod (MySQL)\n**Database**: ecommerce | **Schema**: public\n**Description**: Stores all customer order transactions\n\n**Owners**: ecommerce-team, sarah.johnson@company.com\n**Tags**: PII, Financial, Customer-Data | **Tier**: Tier1\n\n**Columns** (5):\n- order_id (BIGINT) - Primary key\n- customer_id (BIGINT) - FK to customer table\n- order_date (TIMESTAMP)\n- total_amount (DECIMAL)\n- status (VARCHAR)"
+      }
+    ]
+  }
+}
+```
+
+### get_company_context
+
+**Description**: Fetch a single company context knowledge pill by its fully qualified name. Returns the full title, question, answer, summary, and source file. Use the `fullyQualifiedName` or `name` returned by `search_company_context`.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fqn` | string | Yes | The `fullyQualifiedName` or `name` of the knowledge pill from a `search_company_context` result. Pass it verbatim |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_company_context",
+    "arguments": {
+      "fqn": "data-retention-policy.gdpr-rules"
+    }
+  }
+}
+```
+
+## Context
+
+Retrieve context knowledge associated with the current user, a persona, or a specific data asset. Context tools are all **Read** operations.
+
+### get_user_context
+
+**Type**: Read
+
+**Description**: Returns context about the currently authenticated user — identity (ID, name, display name, email, admin/bot flags), team memberships, roles (direct and team-inherited), domains, active persona, and lightweight summaries of entities the user owns and follows. Use this to answer identity questions such as "what is my role?" or "what do I own?" before asking the user for details. The user is resolved from the authenticated request — there is no parameter to look up another user.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `includeOwnedSummary` | boolean | No | Include a summary of entities owned by the user and their teams (default: `true`) |
+| `includeFollowedSummary` | boolean | No | Include a summary of entities the user follows (default: `true`) |
+| `ownedLimit` | integer | No | Max owned entities to return, 1–100 (default: 20) |
+| `followedLimit` | integer | No | Max followed entities to return, 1–100 (default: 20) |
+| `ownedFilter` | string | No | Narrow owned entities to ones worth surfacing: `NONE` (default, all owned), `MISSING_DESCRIPTION`, `MISSING_TIER`, or `ANY_GAP`. Gap filters apply to data-asset entity types only |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_user_context",
+    "arguments": {
+      "ownedFilter": "ANY_GAP"
+    }
+  }
+}
+```
+
+**Sample Response**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "## Current User\n\n**Name**: Jane Doe\n**Email**: jane.doe@company.com\n**Persona**: Data Analyst\n**Teams**: analytics-team, data-platform\n**Roles**: DataSteward"
+      }
+    ]
+  }
+}
+```
+
+### get_persona_context
+
+**Type**: Read
+
+**Description**: Returns the shared AI context document curated for a persona — preferences, use cases, and runbook entries scoped to that persona's role. With no `personaName`, returns context for the caller's active persona. The document can span multiple parts. Call again with an incremented `part` while the response's `hasMore` is `true`. Access is limited to persona members, admins, and bots.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `personaName` | string | No | Fully qualified name of the persona. Omit to use the caller's active persona |
+| `format` | string | No | `markdown` (default) or `json` |
+| `part` | integer | No | One-based document part to fetch. Start at 1 and continue while `hasMore` is `true` (default: 1) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_persona_context",
+    "arguments": {
+      "personaName": "Data Analyst"
+    }
+  }
+}
+```
+
+### get_asset_context
+
+**Type**: Read
+
+**Description**: Returns the full AI context for a single data asset in one call: the business knowledge attached to it (approved glossary term definitions, Context Center articles) plus type-specific structural context. For tables this includes the column schema, primary key, foreign keys (with the referenced columns and cardinality), and the columns most frequently joined with other tables. Prefer this over `get_entity_details` once you've selected an asset and need its business rules and join keys. Use the `fullyQualifiedName` and `entityType` values directly from search results.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of the asset (e.g., `table`, `dashboard`, `pipeline`) |
+| `fqn` | string | Yes | Fully qualified name of the asset — use the exact value from search results |
+| `format` | string | No | `markdown` (default) returns a compact, LLM-friendly document. `json` returns the structured AIContext object |
+| `query` | string | No | The user's question. When set, each truncated knowledge item is excerpted to the passage most relevant to this question instead of its opening |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_asset_context",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders"
+    }
+  }
+}
+```
+
+### find_context
+
+**Type**: Read
+
+**Description**: For a business question where no specific asset has been chosen yet, semantically searches the company-knowledge layer — glossary term definitions, metric definitions, and Context Center articles — and returns the matching definitions plus the candidate data assets each concept points to (glossary terms → the tables tagged with them, metrics → the assets they apply to, and articles → the assets they're about). Use this to bootstrap a data question from business concepts into candidate tables, then call `get_asset_context` on those FQNs. This is a semantic search over company knowledge, not a keyword search over asset or persona memories.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Natural-language question or business terms to find relevant company knowledge and candidate assets for |
+| `size` | integer | No | Number of knowledge items to return (default: 10, max: 50) |
+| `format` | string | No | `markdown` (default) returns definitions and candidate assets as an LLM-friendly document. `json` returns the structured result |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "find_context",
+    "arguments": {
+      "query": "PII handling policy",
+      "size": 5
+    }
+  }
+}
+```
+
+### get_knowledge_content
+
+**Type**: Read
+
+**Description**: `get_asset_context` and `find_context` return bounded excerpts of long glossary definitions, metric definitions, and Context Center articles. When you need the full detail of one specific item, call this tool with that item's `entityType` and `fqn`. Without a `query`, the tool returns the full body. With a `query`, it returns only the passages most relevant to that query.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Knowledge item type: `glossaryTerm`, `metric`, `page`, or `contextMemory` |
+| `fqn` | string | Yes | Fully qualified name of the knowledge item, as returned by `get_asset_context` or `find_context` |
+| `query` | string | No | When set, return only the passages most relevant to this query instead of the full body |
+| `size` | integer | No | Number of relevant passages to return when `query` is set (default: 3, max: 10) |
+| `format` | string | No | `markdown` (default) or `json` |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_knowledge_content",
+    "arguments": {
+      "entityType": "page",
+      "fqn": "company-wiki.data-policies.pii-handling"
+    }
+  }
+}
+```
+
+## Lineage & Impact
+
+Explore data dependencies, trace upstream sources, and analyze downstream impact.
+
+### get_entity_lineage
+
+**Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity |
+| `fqn` | string | Yes | Fully qualified name of the entity |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `includeColumnLineage` | boolean | No | Include column-level lineage mappings. Default is `false` (table-level only) |
+
+**Examples**
+
+**Get Full Lineage**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 3,
+      "downstreamDepth": 3
+    }
+  }
+}
+```
+
+**Downstream-Focused Impact Analysis**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity_lineage",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.sales_transactions",
+      "upstreamDepth": 1,
+      "downstreamDepth": 5
+    }
+  }
+}
+```
+
+### create_lineage
+
+**Description**: Create a lineage relationship between two entities. Requires the `id` (UUID) and `type` of both the source and destination entities.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fromEntity` | object | Yes | Source entity with `type` (string) and `id` (UUID string) |
+| `toEntity` | object | Yes | Destination entity with `type` (string) and `id` (UUID string) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_lineage",
+    "arguments": {
+      "fromEntity": {
+        "type": "table",
+        "id": "3a1b2c3d-4e5f-6789-abcd-ef0123456789"
+      },
+      "toEntity": {
+        "type": "table",
+        "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+      }
+    }
+  }
+}
+```
+
+> **Tip**: Retrieve entity UUIDs from `get_entity_details` results before calling `create_lineage`.
+
+### root_cause_analysis
+
+**Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fqn` | string | Yes | FQN of the entity where failure was detected |
+| `entityType` | string | Yes | Entity type to analyze (for example, `table`) |
+| `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
+| `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
+| `queryFilter` | string | No | Optional OpenSearch DSL filter JSON |
+| `includeDeleted` | boolean | No | Include deleted entities in traversal (default: false) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "tools/call",
+  "params": {
+    "name": "root_cause_analysis",
+    "arguments": {
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "entityType": "table",
+      "upstreamDepth": 4,
+      "downstreamDepth": 1,
+      "includeDeleted": false
+    }
+  }
+}
+```
+
+## Knowledge
+
+Create and manage glossaries, terms, and reusable context memories.
+
+### create_glossary
+
+**Description**: Create a new glossary to organize business terms. Set `mutuallyExclusive: true` to restrict entities to a single term from the glossary at a time.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the glossary |
+| `description` | string | Yes | Description of the glossary's purpose |
+| `mutuallyExclusive` | boolean | Yes | If `true`, only one term from this glossary can tag an entity at a time |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+
+**Examples**
+
+**Create a Business Glossary**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary",
+    "arguments": {
+      "name": "Marketing Terms",
+      "description": "Marketing-related terms used across campaigns, analytics, and reporting",
+      "owners": ["marketing-team", "alice.smith@company.com"],
+      "reviewers": ["data-governance-team"],
+      "mutuallyExclusive": false
+    }
+  }
+}
+```
+
+**Create a Mutually Exclusive Technical Glossary**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary",
+    "arguments": {
+      "name": "Data Quality Metrics",
+      "description": "Standardized definitions for data quality measurements and KPIs",
+      "owners": ["data-quality-team"],
+      "mutuallyExclusive": true
+    }
+  }
+}
+```
+
+**Sample Response**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "✅ Successfully created glossary: **Marketing Terms**\n\n- Owners: marketing-team, alice.smith@company.com\n- Reviewers: data-governance-team\n- Mutually Exclusive: No\n- Status: Active"
+      }
+    ]
+  }
+}
+```
+
+### create_glossary_term
+
+**Description**: Create a new term within an existing glossary. Supports hierarchical parent–child relationships between terms.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `glossary` | string | Yes | FQN of the parent glossary |
+| `name` | string | Yes | Name of the term |
+| `description` | string | Yes | Definition of the term |
+| `parentTerm` | string | No | FQN of the parent term (for nested/hierarchical terms) |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+
+**Examples**
+
+**Create a Root-Level Term**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary_term",
+    "arguments": {
+      "glossary": "marketing-terms",
+      "name": "Customer Acquisition Cost",
+      "description": "The total cost of acquiring a new customer, including marketing and sales expenses divided by the number of customers acquired in a specific period",
+      "owners": ["marketing-team", "finance-team"]
+    }
+  }
+}
+```
+
+**Create a Child Term**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "tools/call",
+  "params": {
+    "name": "create_glossary_term",
+    "arguments": {
+      "glossary": "marketing-terms",
+      "parentTerm": "marketing-terms.customer-acquisition-cost",
+      "name": "Organic CAC",
+      "description": "Customer acquisition cost for customers acquired through organic channels (SEO, word of mouth) without paid advertising",
+      "owners": ["marketing-team"]
+    }
+  }
+}
+```
+
+### create_context_memory
+
+**Description**: Save a reusable piece of knowledge to the Context Center — a preference, instruction, runbook step, or FAQ answer the assistant should retain across conversations. Use this when the user explicitly asks you to remember, note, or store something.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Stable, unique system name. Reusing an existing name updates that memory |
+| `question` | string | Yes | The canonical question or instruction this memory represents |
+| `answer` | string | Yes | The canonical answer or guidance to retain |
+| `title` | string | No | Short human-readable title shown in the Context Center |
+| `summary` | string | No | One-line summary of the memory |
+| `memoryType` | string | No | `Preference`, `UseCase`, `Note`, `Runbook`, or `Faq`. Defaults to `Note` |
+| `memoryScope` | string | No | `UserGlobal` (broad) or `EntityScoped` (tied to a specific entity) |
+| `owners` | array | No | OpenMetadata usernames or team names |
+| `tags` | array | No | Tag FQNs to apply |
+| `domains` | array | No | Domain FQNs this memory belongs to |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_context_memory",
+    "arguments": {
+      "name": "finance-warehouse-preference",
+      "title": "Finance Dashboard Warehouse",
+      "question": "Which warehouse should finance dashboards query?",
+      "answer": "Always query the FINANCE_PROD warehouse for finance dashboards.",
+      "memoryType": "Preference",
+      "memoryScope": "UserGlobal",
+      "domains": ["Finance"]
+    }
+  }
+}
+```
+
+## Govern & Classify
+
+Define and apply classifications, tags, domains, data products, and entity updates.
+
+### create_classification
+
+**Description**: Create a new Classification in OpenMetadata. A Classification is a top-level container that groups related Tags (e.g., `PII`, `Tier`). The `name` becomes the root segment of every tag FQN under it. The `mutuallyExclusive` flag is immutable once the classification exists.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the classification. Becomes the root segment of tag FQNs (e.g., `PII` → `PII.Sensitive`). Must be unique. |
+| `description` | string | Yes | Description of the classification in Markdown format. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, an entity can only carry one tag from this classification at a time. Immutable after creation. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this classification belongs to. Each domain must already exist. |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_classification",
+    "arguments": {
+      "name": "PII",
+      "description": "Tags for classifying Personally Identifiable Information across data assets.",
+      "mutuallyExclusive": false,
+      "owners": ["data-governance-team"],
+      "reviewers": ["privacy-team"]
+    }
+  }
+}
+```
+
+### create_tag
+
+**Description**: Create a new Tag inside a Classification in OpenMetadata. The tag FQN is `Classification.TagName` (e.g., `PII.Sensitive`). At least one of `classification` or `parent` must be provided.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the tag (the leaf segment, e.g., `Sensitive`). Must be unique within its parent. |
+| `description` | string | Yes | Description of the tag in Markdown format. |
+| `classification` | string | No | Name of the classification this tag belongs to (e.g., `PII`). Must already exist. Optional if `parent` is provided. |
+| `parent` | string | No | FQN of the parent tag for a nested tag (e.g., `PII.PersonalData`). Must already exist. Omit for a top-level tag. |
+| `displayName` | string | No | Human-readable display name. |
+| `mutuallyExclusive` | boolean | No | If `true`, child tags under this tag are mutually exclusive on an entity. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `domains` | array | No | FQNs of domains this tag belongs to. Each domain must already exist. |
+
+**Examples**
+
+**Create a top-level tag**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_tag",
+    "arguments": {
+      "name": "Sensitive",
+      "description": "Data that contains sensitive personal information requiring strict access controls.",
+      "classification": "PII"
+    }
+  }
+}
+```
+
+**Create a nested tag**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_tag",
+    "arguments": {
+      "name": "Email",
+      "description": "Email addresses — a subset of sensitive personal data.",
+      "parent": "PII.Sensitive"
+    }
+  }
+}
+```
+
+### create_domain
+
+**Description**: Create a new Domain in OpenMetadata. A Domain is a top-level governance grouping of data assets. To create a child domain, set `parent` to the FQN of an existing parent domain. `domainType` defaults to `Aggregate` if omitted.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the domain. Must be unique. |
+| `description` | string | Yes | Description of the domain in Markdown format. |
+| `domainType` | string | No | Type of domain: `Source-aligned`, `Consumer-aligned`, or `Aggregate` (default). |
+| `parent` | string | No | FQN of an existing parent domain when creating a child domain. Omit for a top-level domain. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of domain experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this domain (e.g., `Tier.Tier1`). |
+
+**Examples**
+
+**Create a top-level domain**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_domain",
+    "arguments": {
+      "name": "Finance",
+      "description": "Domain for all finance and accounting data assets.",
+      "domainType": "Consumer-aligned",
+      "experts": ["jane.doe"],
+      "owners": ["finance-team"]
+    }
+  }
+}
+```
+
+**Create a child domain**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_domain",
+    "arguments": {
+      "name": "Revenue",
+      "description": "Sub-domain covering revenue tracking and forecasting.",
+      "domainType": "Aggregate",
+      "parent": "Finance"
+    }
+  }
+}
+```
+
+### create_data_product
+
+**Description**: Create a new Data Product in OpenMetadata. A Data Product groups data assets that deliver business value and must belong to at least one Domain. All referenced domain FQNs must already exist.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the data product. Must be unique. |
+| `description` | string | Yes | Description of the data product in Markdown format. |
+| `domains` | array | Yes | FQNs of the domains this data product belongs to (e.g., `Finance`). At least one required; each must already exist. |
+| `displayName` | string | No | Human-readable display name. |
+| `experts` | array | No | OpenMetadata login names of data product experts (e.g., `john.doe`). Each must already exist. |
+| `owners` | array | No | OpenMetadata usernames or team names to set as owners. Each must already exist. |
+| `reviewers` | array | No | OpenMetadata usernames or team names to set as reviewers. Each must already exist. |
+| `tags` | array | No | Tag FQNs to apply to this data product (e.g., `Tier.Tier1`, `PII.Sensitive`). |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_data_product",
+    "arguments": {
+      "name": "customer_360",
+      "displayName": "Customer 360",
+      "description": "Unified view of customer data including orders, support history, and lifetime value.",
+      "domains": ["Finance", "Marketing"],
+      "experts": ["alice.smith"],
+      "owners": ["data-platform-team"],
+      "tags": ["Tier.Tier1"]
+    }
+  }
+}
+```
+
+### patch_entity
+
+**Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | Type of entity to patch (e.g., `table`, `glossaryTerm`) |
+| `fqn` | string | Yes | Fully qualified name of the entity to patch |
+| `patch` | string | Yes | JSON Patch operations array as a JSON string. Each operation has `op` (`add`/`remove`/`replace`), `path`, and `value` |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "patch_entity",
+    "arguments": {
+      "entityType": "table",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "patch": "[{\"op\":\"replace\",\"path\":\"/description\",\"value\":\"Updated description for customer orders table.\"}]"
+    }
+  }
+}
+```
+
+## Data Quality
+
+Access test definitions and create test cases to validate your data assets.
+
+### get_test_definitions
+
+**Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | `TABLE` for table-level tests or `COLUMN` for column-level tests |
+| `limit` | integer | No | Max results to return (default: 10) |
+| `after` | string | No | Pagination cursor — use `nextCursor` from the previous response |
+| `testPlatform` | string | No | Filter by platform: `OpenMetadata`, `GreatExpectations`, `DBT`, `Deequ`, `Soda`, `Other` (default: `OpenMetadata`) |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_test_definitions",
+    "arguments": {
+      "entityType": "COLUMN",
+      "limit": 20
+    }
+  }
+}
+```
+
+### create_test_case
+
+**Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the test case |
+| `fqn` | string | Yes | FQN of the target entity (typically the table FQN) |
+| `testDefinitionName` | string | Yes | Name of the test definition returned by `get_test_definitions` |
+| `parameterValues` | array | Yes | List of test parameter objects (`name` + `value`) required by the test definition |
+| `columnName` | string | No | Column name for column-level test cases |
+| `entityType` | string | No | Target OpenMetadata entity type (default: `table`). For column-level tests, keep `entityType` as `table` and set `columnName`. |
+| `description` | string | No | Optional description of the test case |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "tools/call",
+  "params": {
+    "name": "create_test_case",
+    "arguments": {
+      "name": "customer_id_not_null",
+      "fqn": "mysql_prod.ecommerce.public.customer_orders",
+      "columnName": "customer_id",
+      "entityType": "table",
+      "testDefinitionName": "columnValuesToBeNotNull",
+      "description": "Ensures customer_id is always populated for downstream joins",
+      "parameterValues": []
+    }
+  }
+}
+```
+
+## Metrics
+
+Define and track measurable business and technical KPIs.
+
+### create_metric
+
+**Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Name of the metric |
+| `description` | string | No | Description of the metric in Markdown format |
+| `displayName` | string | No | Human-readable display name for the metric |
+| `metricExpressionLanguage` | string | Yes | Expression language used for the metric (for example, `SQL`) |
+| `metricExpressionCode` | string | Yes | Metric formula/expression in the selected language |
+| `metricType` | string | No | Metric type such as `COUNT`, `SUM`, `AVERAGE`, `RATIO`, or `OTHER` |
+| `granularity` | string | No | Time granularity such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR` |
+| `unitOfMeasurement` | string | No | Unit of measurement such as `COUNT`, `DOLLARS`, `PERCENTAGE`, or `OTHER` |
+| `customUnitOfMeasurement` | string | No | Custom unit string, required when `unitOfMeasurement` is `OTHER` |
+| `owners` | array | No | List of owner usernames or emails |
+| `reviewers` | array | No | List of reviewer usernames or emails |
+| `relatedMetrics` | array | No | List of related metric FQNs |
+| `tags` | array | No | List of tags to apply |
+| `domains` | array | No | List of domains to associate |
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "tools/call",
+  "params": {
+    "name": "create_metric",
+    "arguments": {
+      "name": "monthly_recurring_revenue",
+      "displayName": "Monthly Recurring Revenue",
+      "description": "Monthly recurring revenue from active subscriptions.",
+      "metricExpressionLanguage": "SQL",
+      "metricExpressionCode": "SUM(subscription_amount)",
+      "metricType": "SUM",
+      "granularity": "MONTH",
+      "unitOfMeasurement": "DOLLARS",
+      "owners": ["finance-team"],
+      "reviewers": ["data-governance-team"],
+      "tags": ["Finance", "KPI"],
+      "domains": ["Revenue"]
+    }
+  }
+}
+```

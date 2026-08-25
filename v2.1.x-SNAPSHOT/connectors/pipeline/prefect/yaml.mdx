@@ -1,0 +1,147 @@
+---
+title: Run the Prefect Connector Externally
+description: Use YAML to ingest metadata from Prefect Cloud or a self-hosted Prefect Server, including flows, tasks, run history, and lineage.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/prefect.svg'
+name="Prefect"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Tags"]}
+unavailableFeatures={["Owners", "Usage"]} />
+In this section, we provide guides and references to use the Prefect connector.
+
+The connector ingests **flows** as Pipelines, each flow's **tasks** (from its most recent run) as Tasks, and **flow run history** as Pipeline Status. It connects to either Prefect Cloud or a self-hosted Prefect Server over the Prefect REST API.
+
+Configure and schedule Prefect metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+
+The Prefect connector reads flows, deployments, and run history through the Prefect REST API. It requires no database-level grants, access is controlled entirely by the credentials used to call the API.
+
+On Prefect Cloud, the API key must belong to a [service account or user](https://docs.prefect.io/v3/how-to-guides/cloud/manage-users/api-keys) with at least **Viewer** access to the workspace identified by the Account ID and Workspace ID. On a self-hosted Prefect Server, if `PREFECT_SERVER_API_AUTH_STRING` is set, provide the same `user:password` value as the Basic Auth String; if the server has no auth enabled, leave it empty.
+
+### Python Requirements
+<PythonRequirements />
+Prefect only depends on the `requests` library, which already ships with the base package. To run the Prefect ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/prefectConnection.json)
+you can find the structure to create a connection to Prefect.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Prefect:
+<CodePreview>
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Prefect connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="hostPort" lines="7">
+
+**hostPort**: Prefect API base URL. Use `https://api.prefect.cloud` for Prefect Cloud, or your self-hosted server's URL, for example, `http://localhost:4200`.
+
+</ContentSection>
+
+<ContentSection id={3} title="authType" lines="8-11">
+
+**authType**: Choose the authentication type that matches your Prefect deployment:
+- **Prefect Cloud**: `apiKey`, `accountId`, and `workspaceId` are all required. The Account ID and Workspace ID can be found in the workspace URL: `app.prefect.cloud/account/<accountId>/workspace/<workspaceId>`.
+- **Prefect Server**: `authString` holds the `PREFECT_SERVER_API_AUTH_STRING` value in `user:password` format. Leave it empty if the server has no auth enabled.
+
+</ContentSection>
+
+<ContentSection id={4} title="numberOfStatus" lines="12">
+
+**numberOfStatus** (Optional): Number of past flow run statuses to ingest per flow. Default: `10`, maximum `100`.
+
+</ContentSection>
+
+<ContentSection id={5} title="verifySSL and sslConfig" lines="13-14">
+
+**verifySSL** (Optional): Client SSL verification mode for the Prefect API connection: `no-ssl` (default), `ignore`, or `validate`.
+**sslConfig** (Optional): CA certificate (and, for mutual TLS, client certificate and key) used when `verifySSL` is set to `validate`.
+
+</ContentSection>
+
+<ContentSection id={6} title="pipelineFilterPattern" lines="15-18">
+
+**pipelineFilterPattern** (Optional): Regex to only include/exclude flows that match the pattern.
+
+</ContentSection>
+
+<ContentSection id={7} title="Source Config" lines="19-58">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Sink Configuration" lines="59-61">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={9} title="Workflow Configuration" lines="62-78">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+<CodePanel fileName="prefect_config.yaml">
+
+```yaml
+source:
+  type: prefect
+  serviceName: prefect_source
+  serviceConnection:
+    config:
+      type: Prefect
+      hostPort: https://api.prefect.cloud  # REQUIRED - or your self-hosted server URL, for example, http://localhost:4200
+      authType:
+        apiKey: <apiKey>  # REQUIRED for Prefect Cloud
+        accountId: <accountId>  # REQUIRED for Prefect Cloud
+        workspaceId: <workspaceId>  # REQUIRED for Prefect Cloud
+        # #
+        # authString: "<user>:<password>"  # Prefect Server (PREFECT_SERVER_API_AUTH_STRING); leave empty if no auth
+      # numberOfStatus: 10
+      # verifySSL: no-ssl
+      # pipelineFilterPattern:
+      #   includes:
+      #     - <pipeline name>
+      #   excludes:
+      #     - <pipeline name>
+```
+
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

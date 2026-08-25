@@ -1,0 +1,244 @@
+---
+title: Run the MSSQL Connector Externally
+description: Configure MSSQL metadata ingestion using YAML for profiling, table structure extraction, and lineage syncing.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/v2.1.x-SNAPSHOT/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/mssql.webp'
+name="MSSQL"
+stage="PROD"
+availableFeatures={["Metadata", "Query Usage", "Data Profiler", "Data Quality", "dbt", "Lineage", "Column-level Lineage", "Stored Procedures", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Owners", "Tags", "SSIS packages"]} />
+In this section, we provide guides and references to use the MSSQL connector.
+Configure and schedule MSSQL metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+
+<ExternalIngestionDeployment />
+## Requirements
+MSSQL User must grant `SELECT` privilege to fetch the metadata of tables and views.
+```sql
+-- Create a new user
+-- More details https://learn.microsoft.com/en-us/sql/t-sql/statements/create-user-transact-sql?view=sql-server-ver16
+CREATE USER Mary WITH PASSWORD = '********';
+-- Grant SELECT on table
+GRANT SELECT TO Mary;
+```
+### View Definitions
+
+<Warning>
+**View lineage requires** the `VIEW DEFINITION` (database-level) or `VIEW ANY DEFINITION` (server-level) permission. Without it, SQL Server returns each view's definition as `NULL` and raises no error, so views are ingested without their SQL and **no view lineage is created**. Table metadata is not affected.
+</Warning>
+
+```sql
+-- Database-level: grant to the database user, in every database you ingest
+GRANT VIEW DEFINITION TO Mary;
+-- Or server-level: grant to the login (not the contained user) to cover all databases
+GRANT VIEW ANY DEFINITION TO [login_name];
+```
+### Usage & Lineage consideration
+To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) when it is enabled on a database. Query Store exposes this history through `sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan`, and `sys.query_store_runtime_stats`. Query Store keeps a durable, on-disk record of executed queries. The plan-cache Dynamic Management Views (DMVs) (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats`, and `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
+
+Query Store is auto-detected per database. No configuration is needed. When `ingestAllDatabases` is enabled, each database is read from its own best source independently: databases with Query Store use it, and the rest fall back to the plan-cache DMVs, so one database without Query Store never downgrades the others.
+
+<Tip>
+**Tip:** Enable Query Store on the databases you ingest, for reliable and durable Usage and Lineage history.
+</Tip>
+
+To check whether Query Store is enabled on a database, and how it is currently operating:
+```sql
+SELECT actual_state_desc, query_capture_mode_desc, size_based_cleanup_mode_desc
+FROM sys.database_query_store_options;
+```
+To enable it:
+```sql
+ALTER DATABASE [YourDatabase] SET QUERY_STORE = ON
+(
+    QUERY_CAPTURE_MODE = ALL,
+    CLEANUP_POLICY = ( STALE_QUERY_THRESHOLD_DAYS = 30 )
+);
+```
+The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which can skip queries that only run a few times, such as a one-off data migration statement. Setting it to `ALL` ensures every query is captured for lineage. Set `STALE_QUERY_THRESHOLD_DAYS` to cover at least your ingestion lookback window, so queries are not purged before they are read. Query Store's default `SIZE_BASED_CLEANUP_MODE` purges the oldest queries to stay within `MAX_STORAGE_SIZE_MB`, which reduces the risk of Query Store switching to read-only. Under heavy write load, cleanup can still fall behind, and Query Store can switch to read-only temporarily until it catches up.
+
+<Warning>
+Query Store needs two permissions together. The database-level grant below lets `sys.database_query_store_options` and Query Store's other metadata views succeed, but the query text comes from `sys.query_store_query_text`, which needs the server-level grant. Without the server-level grant, usage and lineage queries can run without error while returning no query text.
+</Warning>
+
+Database-level, for Query Store metadata: `VIEW DATABASE STATE` (SQL Server 2016-2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW DATABASE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+```
+Server-level, for the query text and the plan-cache DMV fallback: `VIEW SERVER STATE` (SQL Server 2019 and earlier) or `VIEW SERVER PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW SERVER STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW SERVER PERFORMANCE STATE TO YourUser;
+```
+Exact grant names and tiers can differ on Azure SQL Database and Azure SQL Managed Instance. Check `sys.database_query_store_options` and the [Microsoft documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-query-text-transact-sql) for your instance.
+### Python Requirements
+<PythonRequirements />
+To run the MSSQL ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[mssql]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/mssqlConnection.json)
+you can find the structure to create a connection to MSSQL.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+This is a sample config for MSSQL:
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your MSSQL connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Scheme" lines="4-14">
+
+**scheme**: Defines how to connect to MSSQL. We support `mssql+pytds`, `mssql+pyodbc`, and `mssql+pymssql`.
+
+</ContentSection>
+
+<ContentSection id={3} title="Username" lines="7">
+
+**username**: Specify the User to connect to MSSQL. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={4} title="Password" lines="8">
+
+**password**: Password to connect to MSSQL.
+
+</ContentSection>
+
+<ContentSection id={5} title="Host Port" lines="9">
+
+**hostPort**: Enter the fully qualified hostname and port number for your MSSQL deployment in the Host and Port field.
+
+</ContentSection>
+
+<ContentSection id={6} title="Database" lines="10">
+
+**database**: The initial database to establish a connection to the data source.
+
+</ContentSection>
+
+<ContentSection id={7} title="Ingest All Databases" lines="15-58">
+
+**ingestAllDatabases**: If you need to ingest multiple databases - aside from the initial one above - you can enable this option.
+
+</ContentSection>
+
+<ContentSection id={8} title="URI String" lines="59-61">
+
+**uriString**: In case of a `pyodbc` connection.
+
+</ContentSection>
+
+<ContentSection id={9} title="Connection Options" lines="62-77">
+
+#### Advanced Configuration
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={10} title="Connection Arguments" lines="78">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={11} title="Source Config" lines="15-58">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={12} title="Sink Configuration" lines="59-61">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={13} title="Workflow Configuration" lines="62-78">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="mssql_config.yaml">
+
+```yaml
+source:
+  type: mssql
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: Mssql
+      username: <username>
+      password: <password>
+      hostPort: <hostPort>
+      database: <database>  # REQUIRED - database name
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<QueryUsage connector="mssql" />
+<Lineage connector="mssql" />
+<DataProfiler connector="mssql" />
+<AutoClassification connector="mssql" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/v2.1.x-SNAPSHOT/connectors/database/dbt).
