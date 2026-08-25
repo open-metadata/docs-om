@@ -35,12 +35,40 @@ While working in a third-party tool that's integrated with OpenMetadata, click t
 - Lineage
 - Custom properties and more
 
-<Note>
+## Single Sign-On (SSO) Configuration
 
-**Note**: If your OpenMetadata instance uses Single Sign-On (SSO), add the following URL to your SSO redirect list:
+If your OpenMetadata instance uses Single Sign-On (SSO), the extension's redirect URI must be registered as a **trusted redirect URI**. OpenMetadata validates login redirects against an exact-match allowlist, so any URI that isn't registered is rejected with a `400 Bad Request` and the extension can't complete sign-in.
+
+The redirect URI follows this pattern, where `<extension-id>` is the ID of your installed extension:
+
+`https://<extension-id>.chromiumapp.org/auth0`
+
+For the OpenMetadata Chrome Extension published on the Chrome Web Store, this is:
 
 `https://pakbbdhbbiclnceabdmnghamabjloofc.chromiumapp.org/auth0`
 
-For more information about adding a URL to your SSO redirect list, see [Enable Security](/v2.0.x/deployment/security).
+Register the redirect URI in one of two ways.
+
+### Option 1: Configure in the UI
+
+In OpenMetadata, go to **Settings → Single Sign-On**, open your provider (for example, Google), and switch to the **Configure** tab. Add the extension redirect URI under **Additional Trusted Redirect Uris**.
+
+<img src="/public/images/how-to-guides/user-guide-for-data-stewards/additional-trusted-redirect-uris.png" alt="Adding the extension redirect URI under Additional Trusted Redirect Uris in SSO settings" />
+
+### Option 2: Configure via Environment Variable
+
+Set the `AUTHENTICATION_ADDITIONAL_TRUSTED_REDIRECT_URIS` environment variable to a JSON array of redirect URIs:
+
+```bash
+AUTHENTICATION_ADDITIONAL_TRUSTED_REDIRECT_URIS: '["https://<extension-id>.chromiumapp.org/auth0"]'
+```
+
+This maps to `authenticationConfiguration.additionalTrustedRedirectUris` in the server configuration. It applies to both OIDC and SAML login flows, and no database migration is required.
+
+<Note>
+
+Matching is **exact** — scheme, host, port, path, and query must all match. Wildcard hosts (for example, `*.chromiumapp.org`) are not supported by design, since that would let any browser extension receive an OpenMetadata token. The list defaults to empty (`[]`), so existing deployments are unchanged until you opt in.
+
+For more information about SSO and redirect configuration, see [Enable Security](/v2.0.x/deployment/security).
 
 </Note>
