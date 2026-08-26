@@ -5,9 +5,15 @@ on:
     types: [opened, synchronize]
     paths:
       - "**/*.mdx"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review (manual test run only)"
+        required: true
+        type: string
 
 concurrency:
-  group: doc-review-auto-${{ github.event.pull_request.number }}
+  group: doc-review-auto-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -26,10 +32,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          use_sticky_comment: "true"
+          use_sticky_comment: ${{ github.event_name == 'pull_request' }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+            TRIGGERED MANUALLY: ${{ github.event_name == 'workflow_dispatch' }}
 
             Read .ai/doc-review/instructions.md and .ai/doc-review/references/checklist.md
             in this repo. Run `gh pr diff <PR NUMBER>` to get this PR's changes, and review
@@ -43,13 +50,19 @@ jobs:
             maintainer will select which findings to act on. Comment `/content-review` for
             a fresh on-demand pass at any time.**"
 
-            Return the Review Report as your final response — do not call `gh pr comment`
-            or any other command to post it yourself. This action automatically publishes
-            your final response as the PR comment, and calling `gh pr comment` in addition
-            would post a duplicate.
+            If TRIGGERED MANUALLY is "true": this is a manual test run, not a real
+            `pull_request` event, so sticky-comment tracking is not active. Post the
+            Review Report yourself with `gh pr comment <PR NUMBER> --body "..."`, prefixed
+            additionally with "**[Manual test run — not a real automatic trigger]**" on its
+            own line before the draft-review notice.
+
+            If TRIGGERED MANUALLY is "false": return the Review Report as your final
+            response — do not call `gh pr comment` or any other command to post it
+            yourself. This action automatically publishes your final response as the PR
+            comment, and calling `gh pr comment` in addition would post a duplicate.
 
             Do not attempt to create inline review comments or submit a formal PR review —
-            only the one summary comment.
+            only the one summary comment, tracked or manually posted as instructed above.
 
           claude_args: |
-            --allowedTools "Bash(gh pr diff:*),Read"
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr comment:*),Read"
