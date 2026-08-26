@@ -84,6 +84,7 @@ List 2–4 specific things the content does correctly. Be concrete — cite actu
 | Accessibility | PASS/WARN/FAIL | 0 |
 | OpenMetadata Branding | PASS/WARN/FAIL | 0 |
 | Global / Localization | PASS/WARN/FAIL/N/A | 0 |
+| Technical & Logical Accuracy | PASS/WARN/FAIL | 0 |
 
 Status key: PASS = no issues, WARN = minor issues only, FAIL = major or critical issues, N/A = category does not apply
 
