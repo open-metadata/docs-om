@@ -1,0 +1,105 @@
+---
+title: Metric Versions
+description: List and retrieve historical versions of a metric
+sidebarTitle: Metric Versions
+api: GET /v1/metrics/{id}/versions
+---
+
+# Metric Versions
+
+Every change to a metric creates a new version. Use these endpoints to inspect its version history or retrieve the metric as it existed at a specific version.
+
+## List Versions
+
+<ParamField path="id" type="string" required>
+  UUID of the metric.
+</ParamField>
+
+## Get a Specific Version
+
+Use `GET /v1/metrics/{id}/versions/{version}` to retrieve a specific version.
+
+<ParamField path="id" type="string" required>
+  UUID of the metric.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Version number to retrieve, such as `0.1`.
+</ParamField>
+
+<RequestExample dropdown>
+```python GET /v1/metrics/{id}/versions
+from metadata.sdk import configure
+from metadata.sdk.entities import Metrics
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+metric_id = "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10"
+
+# List the stored version snapshots, newest first.
+versions = Metrics.get_versions(metric_id)
+for snapshot in versions:
+    print(snapshot)
+
+# Retrieve one version.
+original = Metrics.get_specific_version(metric_id, "0.1")
+print(original.description)
+```
+
+```java GET /v1/metrics/{id}/versions
+// client is an initialized OpenMetadataClient.
+var metricId = "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10";
+
+// List the serialized snapshots in the version history.
+var history = client.metrics().getVersionList(metricId);
+for (var snapshot : history.getVersions()) {
+    System.out.println(snapshot);
+}
+
+// Retrieve one version as a Metric.
+var original = client.metrics().getVersion(metricId, 0.1);
+System.out.println(original.getDescription());
+```
+
+```bash GET /v1/metrics/{id}/versions
+# List all versions.
+curl \
+  "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10/versions" \
+  -H "Authorization: Bearer {access_token}"
+
+# Retrieve version 0.1.
+curl \
+  "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10/versions/0.1" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (List Versions)
+{
+  "entityType": "metric",
+  "versions": [
+    "{\"id\":\"b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10\",\"name\":\"customer_retention_rate\",\"displayName\":\"Monthly Customer Retention Rate\",\"fullyQualifiedName\":\"customer_retention_rate\",\"version\":0.2,\"metricType\":\"RATIO\",\"unitOfMeasurement\":\"PERCENTAGE\",\"granularity\":\"MONTH\"}",
+    "{\"id\":\"b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10\",\"name\":\"customer_retention_rate\",\"displayName\":\"Customer Retention Rate\",\"fullyQualifiedName\":\"customer_retention_rate\",\"version\":0.1,\"metricType\":\"RATIO\",\"unitOfMeasurement\":\"PERCENTAGE\",\"granularity\":\"MONTH\"}"
+  ]
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+The list endpoint returns an `EntityHistory` object whose `versions` array contains serialized metric snapshots, newest first. The specific-version endpoint returns a complete metric entity for that version.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `404` | `NOT_FOUND` | Metric or requested version does not exist |

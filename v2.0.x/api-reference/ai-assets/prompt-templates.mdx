@@ -1,0 +1,81 @@
+---
+title: Prompt Templates
+description: Catalog, version, and govern reusable prompt templates through the REST API and Java SDK
+sidebarTitle: Prompt Templates
+---
+
+# Prompt Templates
+
+A **Prompt Template** stores reusable prompt content, variables, and examples. It also records evaluation metadata. AI Applications reference prompt templates to make prompt ownership and change history visible in the catalog.
+
+Prompt Template names are globally unique. The fully qualified name is the template name, such as `summarize_support_cases`.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/promptTemplates` | List prompt templates |
+| `GET` | `/v1/promptTemplates/{id}` | Retrieve a template by ID |
+| `GET` | `/v1/promptTemplates/name/{fqn}` | Retrieve a template by fully qualified name |
+| `POST` | `/v1/promptTemplates` | Create a template |
+| `PUT` | `/v1/promptTemplates` | Create or update a template |
+| `PATCH` | `/v1/promptTemplates/{id}` | Patch a template by ID |
+| `PATCH` | `/v1/promptTemplates/name/{fqn}` | Patch a template by fully qualified name |
+| `PUT` | `/v1/promptTemplates/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/promptTemplates/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/promptTemplates/{id}/versions` | List versions |
+| `GET` | `/v1/promptTemplates/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/promptTemplates/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/promptTemplates/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/promptTemplates/name/{fqn}` | Soft-delete or hard-delete by fully qualified name |
+| `PUT` | `/v1/promptTemplates/restore` | Restore a soft-deleted template |
+
+The required create fields are `name` and `templateContent`. Prompt metadata includes `systemPrompt`, `variables`, `examples`, and `templateVersion`. Governance metadata includes `owners`, `domains`, and `dataProducts`. Valid `templateType` values are `ChatCompletion`, `TextGeneration`, `CodeGeneration`, `Embedding`, `Classification`, `Extraction`, and `Custom`.
+
+## Create a Prompt Template
+
+The Java example assumes a configured `OpenMetadataClient` named `client`.
+
+<RequestExample dropdown>
+```java Java SDK
+import org.openmetadata.schema.api.ai.CreatePromptTemplate;
+
+var template = client.promptTemplates().create(
+    new CreatePromptTemplate()
+        .withName("summarize_support_cases")
+        .withDisplayName("Summarize Support Cases")
+        .withDescription("Summarizes open cases for a support handoff")
+        .withTemplateContent("Summarize the open support cases for {{account_name}}")
+        .withTemplateVersion("1.0")
+);
+
+System.out.println(template.getFullyQualifiedName());
+```
+
+```bash REST API
+curl -X POST "{base_url}/api/v1/promptTemplates" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "summarize_support_cases",
+    "displayName": "Summarize Support Cases",
+    "description": "Summarizes open cases for a support handoff",
+    "templateContent": "Summarize the open support cases for {{account_name}}",
+    "templateType": "TextGeneration",
+    "templateVersion": "1.0",
+    "variables": [
+      {
+        "name": "account_name",
+        "dataType": "String",
+        "required": true
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+The v2.0 Java SDK exposes prompt templates through the direct client. The v2.0 Python core SDK has no typed route for this resource, so use the REST API.
+
+## Update and Delete
+
+Send an RFC 6902 JSON Patch document with `Content-Type: application/json-patch+json` to a PATCH endpoint. Set `hardDelete=true` on a DELETE request for permanent deletion. Restore a soft-deleted template by sending its `id` to `/v1/promptTemplates/restore`.

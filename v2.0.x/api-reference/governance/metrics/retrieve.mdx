@@ -1,0 +1,210 @@
+---
+title: Retrieve a Metric
+description: Get a metric by ID or fully qualified name
+sidebarTitle: Retrieve a Metric
+api: GET /v1/metrics/{id}
+---
+
+# Retrieve a Metric
+
+Get a metric by its UUID or fully qualified name. Because metrics use a global namespace, the fully qualified name is the metric name.
+
+## Get by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the metric to retrieve.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated fields to include: `owners`, `reviewers`, `relatedMetrics`, `followers`, `tags`, `extension`, `domains`, and `dataProducts`.
+</ParamField>
+
+<ParamField query="include" type="string" default="non-deleted">
+  Include `all`, `deleted`, or `non-deleted` metrics.
+</ParamField>
+
+<ParamField query="includeRelations" type="string">
+  Per-relation include settings in `field:value` form, such as `owners:non-deleted,followers:all`.
+</ParamField>
+
+## Get by Fully Qualified Name
+
+Use `GET /v1/metrics/name/{fqn}` to retrieve a metric by name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the metric, such as `customer_retention_rate`.
+</ParamField>
+
+The `fields`, `include`, and `includeRelations` query parameters are also supported by the name endpoint.
+
+<RequestExample dropdown>
+```python GET /v1/metrics/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Metrics
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# Get by ID.
+metric = Metrics.retrieve("b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10")
+print(f"{metric.fullyQualifiedName}: {metric.displayName}")
+
+# Get by ID with relationship fields.
+metric = Metrics.retrieve(
+    "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+    fields=["owners", "reviewers", "relatedMetrics", "domains", "dataProducts"]
+)
+
+# Get by fully qualified name.
+metric = Metrics.retrieve_by_name(
+    "customer_retention_rate",
+    fields=["owners", "tags", "domains"]
+)
+```
+
+```java GET /v1/metrics/{id}
+// client is an initialized OpenMetadataClient.
+var metric = client.metrics().get(
+    "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+    "owners,reviewers,relatedMetrics,domains,dataProducts");
+
+var metricByName = client.metrics().getByName(
+    "customer_retention_rate",
+    "owners,tags,domains");
+
+System.out.println(metricByName.getDisplayName());
+```
+
+```bash GET /v1/metrics/{id}
+# Get by ID.
+curl "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by ID with relationship fields.
+curl "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10?fields=owners,reviewers,relatedMetrics,domains,dataProducts" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get by fully qualified name.
+curl "{base_url}/api/v1/metrics/name/customer_retention_rate?fields=owners,tags,domains" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "name": "customer_retention_rate",
+  "displayName": "Customer Retention Rate",
+  "fullyQualifiedName": "customer_retention_rate",
+  "description": "Percentage of customers retained during the month.",
+  "metricExpression": {
+    "language": "SQL",
+    "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)"
+  },
+  "metricType": "RATIO",
+  "unitOfMeasurement": "PERCENTAGE",
+  "granularity": "MONTH",
+  "version": 0.1,
+  "updatedAt": 1787760000000,
+  "updatedBy": "admin",
+  "href": "https://your-company.open-metadata.org/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "deleted": false,
+  "owners": [],
+  "reviewers": [],
+  "relatedMetrics": [],
+  "tags": [],
+  "domains": [],
+  "dataProducts": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the metric with the requested fields populated.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique metric identifier in UUID format.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Globally unique metric name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name. For a metric, this is the same value as `name`.
+</ResponseField>
+
+<ResponseField name="metricExpression" type="object" optional>
+  Expression language and code used to calculate the metric.
+</ResponseField>
+
+<ResponseField name="metricType" type="string" optional>
+  Type of calculation represented by the metric.
+</ResponseField>
+
+<ResponseField name="unitOfMeasurement" type="string" optional>
+  Unit used to report the metric value.
+</ResponseField>
+
+<ResponseField name="granularity" type="string" optional>
+  Time granularity of the metric.
+</ResponseField>
+
+<ResponseField name="dimensions" type="array" optional>
+  Dimensions available for grouping or slicing the metric.
+</ResponseField>
+
+<ResponseField name="measures" type="array" optional>
+  Measures used by the metric.
+</ResponseField>
+
+<ResponseField name="filters" type="array" optional>
+  Filters applied to the metric calculation.
+</ResponseField>
+
+<ResponseField name="assets" type="array" optional>
+  Data assets the metric is calculated from or applies to.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  Owners included when requested through `fields`.
+</ResponseField>
+
+<ResponseField name="reviewers" type="array" optional>
+  Reviewers included when requested through `fields`.
+</ResponseField>
+
+<ResponseField name="relatedMetrics" type="array" optional>
+  Related metrics included when requested through `fields`.
+</ResponseField>
+
+<ResponseField name="domains" type="array" optional>
+  Domain references included when requested through `fields`.
+</ResponseField>
+
+<ResponseField name="dataProducts" type="array" optional>
+  Data product references included when requested through `fields`.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Current metadata version of the metric.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid ID, field, or include value |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view this metric |
+| `404` | `NOT_FOUND` | Metric with the given ID or FQN does not exist |

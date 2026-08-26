@@ -1,0 +1,284 @@
+---
+title: Create a Metric
+description: Create a governed business metric or key performance indicator
+sidebarTitle: Create a Metric
+api: POST /v1/metrics
+---
+
+# Create a Metric
+
+Create a metric with its business definition, calculation expression, unit, granularity, and governance relationships.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Globally unique name of the metric.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the metric.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of what the metric measures and how it should be used, in Markdown format.
+</ParamField>
+
+<ParamField body="metricExpression" type="object">
+  Expression used to calculate the metric.
+
+  <Expandable title="properties">
+    <ParamField body="language" type="string">
+      Expression language: `SQL`, `Java`, `JavaScript`, `Python`, or `External`.
+    </ParamField>
+
+    <ParamField body="code" type="string">
+      Code or external expression that calculates the metric.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="metricType" type="string">
+  Metric type: `COUNT`, `SUM`, `AVERAGE`, `RATIO`, `PERCENTAGE`, `MIN`, `MAX`, `MEDIAN`, `MODE`, `STANDARD_DEVIATION`, `VARIANCE`, `SIMPLE`, `CUMULATIVE`, `DERIVED`, `CONVERSION`, or `OTHER`.
+</ParamField>
+
+<ParamField body="unitOfMeasurement" type="string">
+  Unit: `COUNT`, `DOLLARS`, `PERCENTAGE`, `TIMESTAMP`, `SIZE`, `REQUESTS`, `EVENTS`, `TRANSACTIONS`, or `OTHER`.
+</ParamField>
+
+<ParamField body="customUnitOfMeasurement" type="string">
+  Custom unit name when `unitOfMeasurement` is `OTHER`.
+</ParamField>
+
+<ParamField body="granularity" type="string">
+  Time granularity: `SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`.
+</ParamField>
+
+<ParamField body="dimensions" type="array">
+  Dimensions that can be used to group or slice the metric.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Dimension name.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Dimension type: `CATEGORICAL` or `TIME`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the dimension.
+    </ParamField>
+
+    <ParamField body="expression" type="string">
+      Expression used to calculate the dimension.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="measures" type="array">
+  Measures used by the metric.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Measure name.
+    </ParamField>
+
+    <ParamField body="aggregation" type="string">
+      Aggregation function, such as `SUM`, `COUNT`, or `AVERAGE`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the measure.
+    </ParamField>
+
+    <ParamField body="expression" type="string">
+      Expression used to calculate the measure.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="filters" type="array">
+  Filters applied when calculating the metric.
+
+  <Expandable title="properties">
+    <ParamField body="where" type="string" required>
+      SQL `WHERE` clause for the filter.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="relatedMetrics" type="array">
+  Fully qualified names of related metrics.
+</ParamField>
+
+<ParamField body="assets" type="array">
+  Entity references for data assets this metric is calculated from or applies to.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  User or team references that own the metric.
+</ParamField>
+
+<ParamField body="reviewers" type="array">
+  User or team references responsible for reviewing the metric.
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Classification tags to apply to the metric.
+</ParamField>
+
+<ParamField body="domains" type="array">
+  Fully qualified names of domains the metric belongs to.
+</ParamField>
+
+<ParamField body="dataProducts" type="array">
+  Fully qualified names of data products that include the metric.
+</ParamField>
+
+<ParamField body="extension" type="object">
+  Custom property values defined by your organization's metadata schema.
+</ParamField>
+
+<ParamField body="provider" type="string" default="user">
+  Entity provider: `system`, `user`, or `automation`.
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/metrics
+from metadata.sdk import configure
+from metadata.sdk.entities import Metrics
+from metadata.generated.schema.api.data.createMetric import CreateMetricRequest
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+request = CreateMetricRequest(
+    name="customer_retention_rate",
+    displayName="Customer Retention Rate",
+    description="Percentage of customers retained during the month.",
+    metricExpression={
+        "language": "SQL",
+        "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)",
+    },
+    metricType="RATIO",
+    unitOfMeasurement="PERCENTAGE",
+    granularity="MONTH",
+    domains=["Customer"]
+)
+
+metric = Metrics.create(request)
+print(f"Created: {metric.fullyQualifiedName}")
+```
+
+```java POST /v1/metrics
+import org.openmetadata.schema.api.data.CreateMetric;
+import org.openmetadata.schema.api.data.MetricExpression;
+import org.openmetadata.schema.type.MetricExpressionLanguage;
+import org.openmetadata.schema.type.MetricGranularity;
+import org.openmetadata.schema.type.MetricType;
+import org.openmetadata.schema.type.MetricUnitOfMeasurement;
+import org.openmetadata.sdk.fluent.Metrics;
+
+var request = new CreateMetric()
+    .withName("customer_retention_rate")
+    .withDisplayName("Customer Retention Rate")
+    .withDescription("Percentage of customers retained during the month.")
+    .withMetricExpression(
+        new MetricExpression()
+            .withLanguage(MetricExpressionLanguage.SQL)
+            .withCode("retained_customers * 100.0 / NULLIF(total_customers, 0)"))
+    .withMetricType(MetricType.RATIO)
+    .withUnitOfMeasurement(MetricUnitOfMeasurement.PERCENTAGE)
+    .withGranularity(MetricGranularity.MONTH);
+
+// Metrics uses the client registered with OM.init(client).
+var metric = Metrics.create(request);
+System.out.println("Created: " + metric.getFullyQualifiedName());
+```
+
+```bash POST /v1/metrics
+curl -X POST "{base_url}/api/v1/metrics" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customer_retention_rate",
+    "displayName": "Customer Retention Rate",
+    "description": "Percentage of customers retained during the month.",
+    "metricExpression": {
+      "language": "SQL",
+      "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)"
+    },
+    "metricType": "RATIO",
+    "unitOfMeasurement": "PERCENTAGE",
+    "granularity": "MONTH",
+    "domains": ["Customer"]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "name": "customer_retention_rate",
+  "displayName": "Customer Retention Rate",
+  "fullyQualifiedName": "customer_retention_rate",
+  "description": "Percentage of customers retained during the month.",
+  "metricExpression": {
+    "language": "SQL",
+    "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)"
+  },
+  "metricType": "RATIO",
+  "unitOfMeasurement": "PERCENTAGE",
+  "granularity": "MONTH",
+  "version": 0.1,
+  "updatedAt": 1787760000000,
+  "updatedBy": "admin",
+  "href": "https://your-company.open-metadata.org/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "deleted": false,
+  "owners": [],
+  "reviewers": [],
+  "relatedMetrics": [],
+  "tags": [],
+  "followers": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created metric with system-generated fields such as `id`, `fullyQualifiedName`, `version`, and `href`.
+
+## Create or Update (PUT)
+
+Use `PUT /v1/metrics` to upsert a metric. If a metric with the same name exists, OpenMetadata updates it; otherwise, it creates a new metric. The request body is the same as for `POST`.
+
+## Bulk Create or Update
+
+Use `PUT /v1/metrics/bulk` with an array of create requests. Add `?async=true` to process the request asynchronously.
+
+```bash
+curl -X PUT "{base_url}/api/v1/metrics/bulk?async=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"name": "customer_retention_rate", "metricType": "RATIO"},
+    {"name": "monthly_recurring_revenue", "metricType": "SUM"}
+  ]'
+```
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create metrics |
+| `409` | `ENTITY_ALREADY_EXISTS` | A metric with the same name already exists (POST only) |
