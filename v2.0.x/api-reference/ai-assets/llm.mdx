@@ -1,0 +1,121 @@
+---
+title: Large Language Models
+description: Catalog large language model services and models through the REST API and Java SDK
+sidebarTitle: LLMs
+---
+
+# Large Language Models
+
+The large language model (LLM) catalog uses a service-and-model hierarchy:
+
+```text
+LLM Service
+└── LLM Model
+```
+
+An **LLM Service** represents a provider or deployment boundary. Common types include OpenAI, Anthropic, and Amazon Bedrock. Other types cover Vertex AI, Ollama, and custom providers. An **LLM Model** captures identity, specifications, and evaluation results. It also tracks deployment, cost, and governance status.
+
+An LLM service name is globally unique. An LLM model uses the fully qualified name `service.model`, such as `openai_production.gpt_5`.
+
+## LLM Service Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/services/llmServices` | List LLM services |
+| `GET` | `/v1/services/llmServices/{id}` | Retrieve a service by ID |
+| `GET` | `/v1/services/llmServices/name/{name}` | Retrieve a service by name |
+| `POST` | `/v1/services/llmServices` | Create a service |
+| `PUT` | `/v1/services/llmServices` | Create or update a service |
+| `PATCH` | `/v1/services/llmServices/{id}` | Patch a service by ID |
+| `PATCH` | `/v1/services/llmServices/name/{fqn}` | Patch a service by name |
+| `PUT` | `/v1/services/llmServices/{id}/testConnectionResult` | Store a connection test result |
+| `PUT` | `/v1/services/llmServices/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/services/llmServices/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/services/llmServices/{id}/versions` | List versions |
+| `GET` | `/v1/services/llmServices/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/services/llmServices/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/services/llmServices/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/services/llmServices/name/{name}` | Soft-delete or hard-delete by name |
+| `PUT` | `/v1/services/llmServices/restore` | Restore a soft-deleted service |
+
+The required create fields are `name` and `serviceType`. Valid service types are `OpenAI`, `Anthropic`, `AzureOpenAI`, `Bedrock`, `VertexAI`, `Ollama`, `HuggingFace`, and `CustomLLM`.
+
+## LLM Model Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/llmModels` | List models, optionally filtered by `service` |
+| `GET` | `/v1/llmModels/{id}` | Retrieve a model by ID |
+| `GET` | `/v1/llmModels/name/{fqn}` | Retrieve a model by fully qualified name |
+| `POST` | `/v1/llmModels` | Create a model |
+| `PUT` | `/v1/llmModels` | Create or update a model |
+| `PATCH` | `/v1/llmModels/{id}` | Patch a model by ID |
+| `PATCH` | `/v1/llmModels/name/{fqn}` | Patch a model by fully qualified name |
+| `PUT` | `/v1/llmModels/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/llmModels/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/llmModels/{id}/versions` | List versions |
+| `GET` | `/v1/llmModels/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/llmModels/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/llmModels/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/llmModels/name/{fqn}` | Soft-delete or hard-delete by fully qualified name |
+| `PUT` | `/v1/llmModels/restore` | Restore a soft-deleted model |
+
+The required create fields are `name`, `baseModel`, and the parent service's fully qualified name in `service`. Optional metadata covers `modelVersion`, `modelProvider`, and `modelSpecifications`. Evaluation, cost, and deployment fields track operations. Regulatory compliance, ownership, domains, and data products add governance context.
+
+## Create a Service and Model
+
+The Java example assumes a configured `OpenMetadataClient` named `client`.
+
+<RequestExample dropdown>
+```java Java SDK
+import org.openmetadata.schema.api.ai.CreateLLMModel;
+import org.openmetadata.schema.api.services.CreateLLMService;
+
+var service = client.llmServices().create(
+    new CreateLLMService()
+        .withName("openai_production")
+        .withDisplayName("OpenAI Production")
+        .withServiceType(CreateLLMService.LlmServiceType.fromValue("OpenAI"))
+);
+
+var model = client.llmModels().create(
+    new CreateLLMModel()
+        .withName("gpt_5")
+        .withDisplayName("GPT-5")
+        .withBaseModel("gpt-5")
+        .withModelProvider("OpenAI")
+        .withService(service.getFullyQualifiedName())
+);
+
+System.out.println(model.getFullyQualifiedName());
+```
+
+```bash REST API
+curl -X POST "{base_url}/api/v1/services/llmServices" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "openai_production",
+    "displayName": "OpenAI Production",
+    "serviceType": "OpenAI"
+  }'
+
+curl -X POST "{base_url}/api/v1/llmModels" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "gpt_5",
+    "displayName": "GPT-5",
+    "baseModel": "gpt-5",
+    "modelProvider": "OpenAI",
+    "service": "openai_production",
+    "governanceStatus": "Approved"
+  }'
+```
+</RequestExample>
+
+The v2.0 Java SDK exposes both resources through the direct client. The v2.0 Python core SDK has no typed routes for LLM services or models, so use the REST API.
+
+## Update and Delete
+
+Send an RFC 6902 JSON Patch document with `Content-Type: application/json-patch+json` to a PATCH endpoint. Set `hardDelete=true` on a DELETE request for permanent deletion. Restore a soft-deleted entity by sending its `id` to the corresponding `/restore` endpoint.
