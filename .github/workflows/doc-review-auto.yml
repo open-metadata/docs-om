@@ -1,0 +1,55 @@
+name: AI Documentation Review (automatic)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**/*.mdx"
+
+concurrency:
+  group: doc-review-auto-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  doc-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: "true"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Read .ai/doc-review/instructions.md and .ai/doc-review/references/checklist.md
+            in this repo. Run `gh pr diff <PR NUMBER>` to get this PR's changes, and review
+            the changed .mdx content against every applicable checklist item, exactly as
+            instructed.
+
+            Produce the Review Report in the exact format instructions.md specifies,
+            including every finding regardless of severity (Critical, Major, and Minor).
+
+            Prefix it with: "**Automatic draft review — not all suggestions may apply. A
+            maintainer will select which findings to act on. Comment `/content-review` for
+            a fresh on-demand pass at any time.**"
+
+            Return the Review Report as your final response — do not call `gh pr comment`
+            or any other command to post it yourself. This action automatically publishes
+            your final response as the PR comment, and calling `gh pr comment` in addition
+            would post a duplicate.
+
+            Do not attempt to create inline review comments or submit a formal PR review —
+            only the one summary comment.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr diff:*),Read"
