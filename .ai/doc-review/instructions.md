@@ -22,22 +22,28 @@ verification, and link check together as one pass, not separate requests.
 2. Read the checklist at `.ai/doc-review/references/checklist.md`.
 3. Run every applicable checklist item against the content.
 4. **Verify factual/technical claims against source — don't just flag
-   them as needing verification.** For every claim caught by §12 "Claims
-   match reality" (a version number, a named API/config option, a
-   described product behavior, an "as of version X" statement), actually
-   check it before finalizing the report:
-   - Check the real source in the `OpenMetadata` repo (the `../OpenMetadata`
-     sibling checkout referenced elsewhere in this repo's tooling, or via
-     `gh api` against `open-metadata/OpenMetadata`) — the relevant
-     Dockerfile, source code, JSON schema, or an actual build/release
-     workflow run. Not another doc page, not your own assumption.
+   them as needing verification.** For every specific, checkable claim in
+   the reviewed content (a version number, a named API/config option, a
+   described product behavior, or an "as of version X" statement), actually
+   check it before finalizing the report. Do this for every such claim, not
+   only the ones that initially read as suspicious:
+   - Core OpenMetadata features → the `OpenMetadata` source. In the
+     automated workflow, use `.review-sources/OpenMetadata`; in a local
+     review, use the `../OpenMetadata` sibling checkout or a trusted
+     repository checkout.
+   - Check the real source — the relevant Dockerfile, source code, config
+     schema, or an actual build/release workflow run — not another doc
+     page and not your own assumption.
+   - If the relevant source is not available, record `Unable to verify`
+     and why. Do not clone, authenticate to, or infer private source; an
+     unavailable source is not evidence that the claim is correct.
    - If reviewing a PR that already has review comments, verify the
      *reviewer's* claims too, not just the author's content — a comment
      being present doesn't make it correct.
-   - Record the verdict either way: confirmed correct (don't list as an
-     issue — but do log it in Source & Link Verification, see below),
-     confirmed wrong (list as an issue with the source citation as
-     evidence), or genuinely unable to verify (say so explicitly, don't
+   - Record the verdict for every claim considered: confirmed correct
+     (don't list as an issue — but do log it in Source & Link Verification,
+     see below), confirmed wrong (list as an issue with the source citation
+     as evidence), or genuinely unable to verify (say so explicitly, don't
      guess).
 5. **Check that links resolve.** For a PR, internal broken links are
    already covered by this repo's separate `mint-broken-links` CI job —
@@ -99,10 +105,11 @@ Present every issue as a row in this table. One row per issue — do not combine
 
 #### Source & Link Verification
 
-Every factual/technical claim and link actually checked against source, with
-the result — including the ones that passed. This is separate from Issues
-Found (which only lists problems) so the review shows its work rather than
-asserting "looks fine" without evidence.
+Every checkable factual/technical claim considered and every link checked,
+with the result — including claims that passed and claims that could not be
+verified because the relevant source was unavailable. This is separate from
+Issues Found (which only lists problems) so the review shows its work rather
+than asserting "looks fine" without evidence.
 
 | Claim / Link | Checked Against | Result |
 |---|---|---|

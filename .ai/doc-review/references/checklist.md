@@ -315,4 +315,4 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 
 - [ ] **No illogical or out-of-order steps** — Flag anything technically wrong, misleading, contradictory, or sequenced incorrectly (e.g. referencing a setting before it's created, a step that depends on a later step).
 - [ ] **No code bugs** — Flag missing imports, undefined variables, or syntax errors in code samples.
-- [ ] **Claims match reality** — If a sentence makes a specific, checkable claim (a version number, a named API/config option, "as of version X this changed") and something about it reads off, flag it as a claim to verify against source rather than trusting or rewriting it silently.
+- [ ] **Claims match reality** — For every specific, checkable claim (a version number, a named API/config option, or "as of version X this changed"), verify it against an authoritative source. Record a confirmed-correct, confirmed-wrong, or unable-to-verify result; do not limit verification to claims that initially read off.
