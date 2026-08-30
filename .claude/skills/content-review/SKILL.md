@@ -32,8 +32,10 @@ review this PR" means run the full process below, not style alone.
 
 1. **Determine the target** from the argument:
    - A number → treat as a PR number. Run `gh pr diff <n>` to get its
-     changed content, and `gh pr view <n> --comments` to see any existing
-     review comments (their claims get verified too — see step 3 below).
+     changed content, `gh pr view <n> --comments` for the discussion, and
+     the read-only `gh api repos/<owner>/<repo>/pulls/<n>/comments --paginate`
+     endpoint for inline review comments. Verify their claims too — see step
+     3 below.
    - A file path → read that file directly.
    - Pasted text in the request itself → review it as given.
    - No argument → ask the user what to review, then stop.

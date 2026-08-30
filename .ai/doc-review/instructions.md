@@ -18,7 +18,10 @@ copy sounds right or on-brand; or asks to check a draft against the style guide.
 verification, and link check together as one pass, not separate requests.
 
 1. Read the content the user wants reviewed. If it's a PR, pull its diff
-   (`gh pr diff <n>`).
+   (`gh pr diff <n>`) and inspect both the PR discussion and inline review
+   comments. Use `gh pr view <n> --comments` for the discussion and the
+   read-only `gh api repos/<owner>/<repo>/pulls/<n>/comments --paginate`
+   endpoint for inline review comments.
 2. Read the checklist at `.ai/doc-review/references/checklist.md`.
 3. Run every applicable checklist item against the content.
 4. **Verify factual/technical claims against source — don't just flag
