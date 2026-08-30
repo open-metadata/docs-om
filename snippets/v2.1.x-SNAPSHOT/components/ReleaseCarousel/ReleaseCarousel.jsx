@@ -48,6 +48,7 @@ export const ReleaseCarousel = () => {
     const [isPaused, setIsPaused] = useState(false)
     const [isLightboxOpen, setIsLightboxOpen] = useState(false)
     const timerRef = useRef(null)
+    const imageTriggerRef = useRef(null)
 
     const slide = SLIDES[index]
 
@@ -62,9 +63,13 @@ export const ReleaseCarousel = () => {
         // hot-reload) so this effect never stacks a second one.
         document.querySelectorAll('.release-carousel-lightbox').forEach((el) => el.remove())
 
+        const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
         const overlay = document.createElement('div')
         overlay.className = 'release-carousel-lightbox'
-        overlay.setAttribute('role', 'presentation')
+        overlay.setAttribute('role', 'dialog')
+        overlay.setAttribute('aria-modal', 'true')
+        overlay.setAttribute('aria-label', `Expanded image: ${slide.alt}`)
+        overlay.tabIndex = -1
 
         const closeButton = document.createElement('button')
         closeButton.type = 'button'
@@ -83,15 +88,26 @@ export const ReleaseCarousel = () => {
 
         const close = () => setIsLightboxOpen(false)
         closeButton.addEventListener('click', close)
+        closeButton.focus()
 
         const onKeyDown = (e) => {
             if (e.key === 'Escape') close()
+            if (e.key === 'Tab') {
+                e.preventDefault()
+                closeButton.focus()
+            }
         }
-        document.addEventListener('keydown', onKeyDown)
+        overlay.addEventListener('keydown', onKeyDown)
 
         return () => {
-            document.removeEventListener('keydown', onKeyDown)
+            overlay.removeEventListener('keydown', onKeyDown)
+            closeButton.removeEventListener('click', close)
             overlay.remove()
+            if (previousActiveElement?.isConnected) {
+                previousActiveElement.focus()
+            } else {
+                imageTriggerRef.current?.focus()
+            }
         }
     }, [isLightboxOpen, index])
 
@@ -124,17 +140,25 @@ export const ReleaseCarousel = () => {
             className="release-banner release-carousel"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
+            onFocus={() => setIsPaused(true)}
+            onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setIsPaused(false)
+            }}
+            onTouchStart={() => setIsPaused(true)}
+            onTouchEnd={() => setIsPaused(false)}
+            onTouchCancel={() => setIsPaused(false)}
         >
             <div className="release-carousel-viewport">
                 <div
                     className={`release-banner-content release-carousel-content slide-${direction}`}
-                    key={index}
+                    key={slide.header}
                 >
                     <div>
                         <img
                             src={slide.image}
                             alt={slide.alt}
                             className="release-carousel-image"
+                            ref={imageTriggerRef}
                             role="button"
                             tabIndex={0}
                             onClick={() => setIsLightboxOpen(true)}
