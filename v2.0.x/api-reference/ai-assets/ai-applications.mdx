@@ -1,0 +1,92 @@
+---
+title: AI Applications
+description: Catalog and govern AI applications through the REST API and Java SDK
+sidebarTitle: AI Applications
+---
+
+# AI Applications
+
+An **AI Application** represents a deployed or planned AI system. It connects models and prompt templates in one catalog entity. It also records tools, data sources, and governance metadata. Evaluation metrics and ownership complete the system record.
+
+AI Application names are globally unique. The fully qualified name is the application name, such as `customer_support_agent`.
+
+## Application Types
+
+Set `applicationType` to one of these values:
+
+`Chatbot`, `Agent`, `Copilot`, `Assistant`, `RAG`, `CodeGenerator`, `DataAnalyst`, `AutomationBot`, `MultiAgent`, or `Custom`.
+
+The `RAG` value represents a retrieval-augmented generation application.
+
+Use `Agent` or `MultiAgent` to catalog an AI agent. For the distinction between cataloged agents, execution records, and AI Studio agents, see [AI Agents](/v2.0.x/api-reference/ai-assets/ai-agents).
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/aiApplications` | List applications |
+| `GET` | `/v1/aiApplications/{id}` | Retrieve an application by ID |
+| `GET` | `/v1/aiApplications/name/{fqn}` | Retrieve an application by fully qualified name |
+| `POST` | `/v1/aiApplications` | Create an application |
+| `PUT` | `/v1/aiApplications` | Create or update an application |
+| `PATCH` | `/v1/aiApplications/{id}` | Patch an application by ID |
+| `PATCH` | `/v1/aiApplications/name/{fqn}` | Patch an application by fully qualified name |
+| `PUT` | `/v1/aiApplications/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/aiApplications/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/aiApplications/{id}/versions` | List versions |
+| `GET` | `/v1/aiApplications/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/aiApplications/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/aiApplications/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/aiApplications/name/{fqn}` | Soft-delete or hard-delete by fully qualified name |
+| `PUT` | `/v1/aiApplications/restore` | Restore a soft-deleted application |
+
+List and retrieve requests accept `fields=owners,followers,tags,extension,domains,reviewers`. List requests also support cursor pagination through `before` and `after`.
+
+## Create an AI Application
+
+The Java example assumes a configured `OpenMetadataClient` named `client`.
+
+`name` and `applicationType` are required. Lifecycle and model fields include `developmentStage`, `primaryModel`, and `modelConfigurations`. Tooling metadata includes `promptTemplates` and `tools`. Data relationships use `dataSources` and `knowledgeBases`. Governance metadata includes evaluation metrics, `owners`, `domains`, and `dataProducts`.
+
+<RequestExample dropdown>
+```java Java SDK
+import org.openmetadata.schema.entity.ai.ApplicationType;
+import org.openmetadata.sdk.OM;
+import org.openmetadata.sdk.fluent.AIApplications;
+
+OM.init(client);
+
+var application = AIApplications.create()
+    .name("customer_support_agent")
+    .withApplicationType(ApplicationType.fromValue("Agent"))
+    .withDisplayName("Customer Support Agent")
+    .withDescription("Answers support questions using governed product data")
+    .execute();
+
+System.out.println(application.getFullyQualifiedName());
+```
+
+```bash REST API
+curl -X POST "{base_url}/api/v1/aiApplications" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customer_support_agent",
+    "displayName": "Customer Support Agent",
+    "description": "Answers support questions using governed product data",
+    "applicationType": "Agent",
+    "developmentStage": "Production",
+    "primaryModel": "openai_production.gpt_5"
+  }'
+```
+</RequestExample>
+
+The v2.0 Java SDK supports AI applications through both the direct and fluent clients. The v2.0 Python core SDK has no typed route for this resource, so use the REST API.
+
+## Update and Delete
+
+Send an RFC 6902 JSON Patch document with `Content-Type: application/json-patch+json` to either PATCH endpoint. Set `hardDelete=true` on a DELETE request for permanent deletion. Restore a soft-deleted application with this body:
+
+```json
+{"id": "2dde4b53-a577-424b-bbaa-18ac32eca8a9"}
+```

@@ -1,0 +1,182 @@
+---
+title: Model Context Protocol
+description: Catalog Model Context Protocol services and servers through the REST API, Python SDK, and Java SDK
+sidebarTitle: MCP
+---
+
+# Model Context Protocol
+
+The Model Context Protocol (MCP) catalog uses a service-and-server hierarchy:
+
+```text
+MCP Service
+└── MCP Server
+```
+
+An **MCP Service** groups related servers. An **MCP Server** records its tools, resources, and prompts. It also records transport and deployment details. Security, governance, and data-access fields complete the server record.
+
+An MCP service name is globally unique. An MCP server uses the fully qualified name `service.server`, such as `mcp_registry.warehouse_tools`.
+
+## MCP Service Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/services/mcpServices` | List MCP services |
+| `GET` | `/v1/services/mcpServices/{id}` | Retrieve a service by ID |
+| `GET` | `/v1/services/mcpServices/name/{name}` | Retrieve a service by name |
+| `POST` | `/v1/services/mcpServices` | Create a service |
+| `PUT` | `/v1/services/mcpServices` | Create or update a service |
+| `PATCH` | `/v1/services/mcpServices/{id}` | Patch a service by ID |
+| `PATCH` | `/v1/services/mcpServices/name/{fqn}` | Patch a service by name |
+| `PUT` | `/v1/services/mcpServices/{id}/testConnectionResult` | Store a connection test result |
+| `PUT` | `/v1/services/mcpServices/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/services/mcpServices/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/services/mcpServices/{id}/versions` | List versions |
+| `GET` | `/v1/services/mcpServices/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/services/mcpServices/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/services/mcpServices/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/services/mcpServices/name/{name}` | Soft-delete or hard-delete by name |
+| `PUT` | `/v1/services/mcpServices/restore` | Restore a soft-deleted service |
+
+The required create fields are `name` and `serviceType`. Set `serviceType` to `Mcp`.
+
+## MCP Server Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/mcpServers` | List MCP servers |
+| `GET` | `/v1/mcpServers/{id}` | Retrieve a server by ID |
+| `GET` | `/v1/mcpServers/name/{fqn}` | Retrieve a server by fully qualified name |
+| `POST` | `/v1/mcpServers` | Create a server |
+| `PUT` | `/v1/mcpServers` | Create or update a server |
+| `PATCH` | `/v1/mcpServers/{id}` | Patch a server by ID |
+| `PATCH` | `/v1/mcpServers/name/{fqn}` | Patch a server by fully qualified name |
+| `PUT` | `/v1/mcpServers/{id}/followers` | Add the authenticated user as a follower |
+| `DELETE` | `/v1/mcpServers/{id}/followers/{userId}` | Remove a follower |
+| `GET` | `/v1/mcpServers/{id}/versions` | List versions |
+| `GET` | `/v1/mcpServers/{id}/versions/{version}` | Retrieve a version |
+| `DELETE` | `/v1/mcpServers/{id}` | Soft-delete or hard-delete by ID |
+| `DELETE` | `/v1/mcpServers/async/{id}` | Delete asynchronously |
+| `DELETE` | `/v1/mcpServers/name/{fqn}` | Soft-delete or hard-delete by fully qualified name |
+| `PUT` | `/v1/mcpServers/restore` | Restore a soft-deleted server |
+
+The required create fields are `name`, `serverType`, and the parent service's fully qualified name in `service`. Valid server types are `DataAccess`, `FileSystem`, `WebAPI`, `Database`, `Cloud`, `Security`, `Development`, `Communication`, and `Custom`. Valid transport types are `Stdio`, `SSE`, and `StreamableHTTP`.
+
+## Create a Service and Server
+
+The Python example assumes a configured generic `OpenMetadata` client named `metadata`. For client setup, see the [Python SDK guide](/v2.0.x/api-reference/sdk/python/overview). The Java example assumes a configured `OpenMetadataClient` named `client`.
+
+<RequestExample dropdown>
+```python Python SDK
+from metadata.generated.schema.api.ai.createMcpServer import CreateMcpServerRequest
+from metadata.generated.schema.api.services.createMcpService import CreateMcpServiceRequest
+
+service = metadata.create_or_update(
+    CreateMcpServiceRequest(
+        name="mcp_registry",
+        displayName="MCP Registry",
+        serviceType="Mcp",
+    )
+)
+
+server = metadata.create_or_update(
+    CreateMcpServerRequest(
+        name="warehouse_tools",
+        displayName="Warehouse Tools",
+        description="Governed tools for warehouse metadata",
+        service=service.fullyQualifiedName,
+        serverType="DataAccess",
+        transportType="StreamableHTTP",
+    )
+)
+
+print(server.fullyQualifiedName)
+```
+
+```java Java SDK
+import org.openmetadata.schema.api.ai.CreateMcpServer;
+import org.openmetadata.schema.entity.ai.McpServerType;
+import org.openmetadata.schema.entity.ai.McpTransportType;
+
+var server = client.mcpServers().create(
+    new CreateMcpServer()
+        .withName("warehouse_tools")
+        .withDisplayName("Warehouse Tools")
+        .withService("mcp_registry")
+        .withServerType(McpServerType.fromValue("DataAccess"))
+        .withTransportType(McpTransportType.fromValue("StreamableHTTP"))
+);
+
+System.out.println(server.getFullyQualifiedName());
+```
+
+```bash REST API
+curl -X POST "{base_url}/api/v1/services/mcpServices" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mcp_registry",
+    "displayName": "MCP Registry",
+    "serviceType": "Mcp"
+  }'
+
+curl -X POST "{base_url}/api/v1/mcpServers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "warehouse_tools",
+    "displayName": "Warehouse Tools",
+    "description": "Governed tools for warehouse metadata",
+    "service": "mcp_registry",
+    "serverType": "DataAccess",
+    "transportType": "StreamableHTTP"
+  }'
+```
+</RequestExample>
+
+The v2.0 Java SDK supports MCP servers but doesn't expose an MCP service client. Create the parent service through REST or the Python SDK first.
+
+For connecting external assistants to OpenMetadata's own MCP endpoint, see the [MCP integration guide](/v2.0.x/how-to-guides/mcp).
+
+## MCP Execution Endpoints
+
+An **MCP Execution** records runtime activity for a cataloged MCP server. It captures tool calls, resource access, and prompt use. It also tracks data access, compliance checks, and performance metrics.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/mcpExecutions` | List executions for a server and time range |
+| `GET` | `/v1/mcpExecutions/{id}` | Retrieve an execution by ID |
+| `POST` | `/v1/mcpExecutions` | Create an execution record |
+| `DELETE` | `/v1/mcpExecutions/{serverId}/{timestamp}` | Delete the record for a server and timestamp |
+| `DELETE` | `/v1/mcpExecutions/{id}` | Soft-delete or hard-delete a record by ID |
+
+The list endpoint accepts `serverId`, `startTs`, `endTs`, and `limit`. Supply `startTs` and `endTs` together. Required create fields are `server`, `serverId`, `timestamp`, and `status`. Valid statuses are `Running`, `Success`, `Failed`, `Timeout`, and `Cancelled`.
+
+<RequestExample dropdown>
+```bash REST API
+curl -X POST "{base_url}/api/v1/mcpExecutions" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "server": {
+      "id": "7f47e5f6-92bc-4a61-9cab-6bcc34b36c51",
+      "type": "mcpServer",
+      "name": "warehouse_tools",
+      "fullyQualifiedName": "mcp_registry.warehouse_tools"
+    },
+    "serverId": "7f47e5f6-92bc-4a61-9cab-6bcc34b36c51",
+    "timestamp": 1787702400000,
+    "endTimestamp": 1787702400850,
+    "durationMs": 850,
+    "status": "Success",
+    "executedBy": "customer_support_agent",
+    "environment": "Production"
+  }'
+```
+</RequestExample>
+
+The v2.0 Python and Java core SDKs have no typed MCP Execution client. Use the REST API to write or query execution records.
+
+## Update and Delete
+
+Send an RFC 6902 JSON Patch document with `Content-Type: application/json-patch+json` to a PATCH endpoint. Set `hardDelete=true` on a DELETE request for permanent deletion. Restore a soft-deleted entity by sending its `id` to the corresponding `/restore` endpoint.
