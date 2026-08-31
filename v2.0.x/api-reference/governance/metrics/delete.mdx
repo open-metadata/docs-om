@@ -1,0 +1,158 @@
+---
+title: Delete a Metric
+description: Delete a metric by ID or name, with soft and hard delete options
+sidebarTitle: Delete a Metric
+api: DELETE /v1/metrics/{id}
+---
+
+# Delete a Metric
+
+Delete a metric by UUID or fully qualified name. By default, the API soft-deletes the metric for later restoration. A hard delete permanently removes it.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the metric to delete.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the metric. If `false`, the metric is soft-deleted and can be restored.
+</ParamField>
+
+## Delete by Fully Qualified Name
+
+Use `DELETE /v1/metrics/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the metric, such as `customer_retention_rate`.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Permanently delete the metric.
+</ParamField>
+
+## Delete Asynchronously
+
+Use `DELETE /v1/metrics/async/{id}` when deletion should run in the background. The endpoint accepts the same `hardDelete` query parameter and returns `202 Accepted` with a job identifier.
+
+## Restore a Soft-Deleted Metric
+
+Use `PUT /v1/metrics/restore` with the metric UUID in the request body.
+
+<ParamField body="id" type="string" required>
+  UUID of the soft-deleted metric to restore.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/metrics/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Metrics
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+metric_id = "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10"
+
+# Soft delete by ID.
+Metrics.delete(metric_id)
+
+# Restore a soft-deleted metric.
+restored = Metrics.restore(metric_id)
+print(restored.fullyQualifiedName)
+
+# Permanently delete by ID.
+Metrics.delete(metric_id, hard_delete=True)
+```
+
+```java DELETE /v1/metrics/{id}
+import java.util.Map;
+
+// client is an initialized OpenMetadataClient.
+var metricId = "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10";
+
+// Soft delete by ID.
+client.metrics().delete(metricId);
+
+// Restore a soft-deleted metric.
+var restored = client.metrics().restore(metricId);
+System.out.println(restored.getFullyQualifiedName());
+
+// Permanently delete by ID.
+client.metrics().delete(metricId, Map.of("hardDelete", "true"));
+```
+
+```bash DELETE /v1/metrics/{id}
+# Soft delete by ID.
+curl -X DELETE \
+  "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10" \
+  -H "Authorization: Bearer {access_token}"
+
+# Hard delete by fully qualified name.
+curl -X DELETE \
+  "{base_url}/api/v1/metrics/name/customer_retention_rate?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Start an asynchronous soft delete.
+curl -X DELETE \
+  "{base_url}/api/v1/metrics/async/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10" \
+  -H "Authorization: Bearer {access_token}"
+
+# Restore a soft-deleted metric.
+curl -X PUT "{base_url}/api/v1/metrics/restore" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Soft Delete)
+{
+  "id": "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "name": "customer_retention_rate",
+  "displayName": "Customer Retention Rate",
+  "fullyQualifiedName": "customer_retention_rate",
+  "metricType": "RATIO",
+  "unitOfMeasurement": "PERCENTAGE",
+  "granularity": "MONTH",
+  "version": 0.2,
+  "updatedAt": 1787760600000,
+  "updatedBy": "admin",
+  "href": "https://your-company.open-metadata.org/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "deleted": true
+}
+```
+
+```json Response (Asynchronous Delete)
+{
+  "jobId": "be87dcc9-cf29-4df0-a14e-bc80df332999",
+  "message": "Delete operation initiated for customer_retention_rate",
+  "entityName": "customer_retention_rate",
+  "hardDelete": false,
+  "recursive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+The synchronous REST endpoints return the deleted metric. A soft-deleted metric has `deleted: true`. An asynchronous delete returns a job descriptor. Restore returns the restored metric. The Python and Java SDK delete methods do not return a value.
+
+<Warning>
+A hard-deleted metric cannot be restored.
+</Warning>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | The metric is not soft-deleted when a restore is requested |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete or restore this metric |
+| `404` | `NOT_FOUND` | Metric with the given ID or FQN does not exist |

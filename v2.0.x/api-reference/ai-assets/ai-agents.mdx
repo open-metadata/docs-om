@@ -1,0 +1,75 @@
+---
+title: AI Agents
+description: Catalog AI agents, invoke AI Studio agents, and record agent executions
+sidebarTitle: AI Agents
+---
+
+# AI Agents
+
+OpenMetadata represents an AI agent in three related ways. Choose the interface that matches the task.
+
+| Task | Resource or Client | Purpose |
+|------|--------------------|---------|
+| Catalog and govern an agent | AI Application with `applicationType: Agent` or `MultiAgent` | Stores ownership, models, tools, data sources, governance metadata, and lifecycle state |
+| Build and invoke an executable assistant | AI SDK | Manages AI Studio personas and agents, then invokes or streams responses |
+| Record runtime activity | Agent Execution REST API | Stores status, model calls, tool calls, data access, metrics, and compliance checks |
+
+AI Studio agents and cataloged AI Applications aren't the same resource. An integration can create both and relate operational activity to the cataloged application through the `agent` reference in each execution record.
+
+## Agent Execution Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/agentExecutions` | List executions for an agent and time range |
+| `GET` | `/v1/agentExecutions/{id}` | Retrieve an execution by ID |
+| `POST` | `/v1/agentExecutions` | Create an execution record |
+| `DELETE` | `/v1/agentExecutions/{agentId}/{timestamp}` | Delete the record for an agent and timestamp |
+| `DELETE` | `/v1/agentExecutions/{id}` | Soft-delete or hard-delete a record by ID |
+
+The list endpoint accepts `agentId`, `startTs`, `endTs`, and `limit`. Required create fields are `agent`, `agentId`, `timestamp`, and `status`. Valid statuses are `Running`, `Success`, `Failed`, `Timeout`, `Cancelled`, and `PartialSuccess`.
+
+## Record an Execution
+
+<RequestExample dropdown>
+```bash REST API
+curl -X POST "{base_url}/api/v1/agentExecutions" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": {
+      "id": "7f47e5f6-92bc-4a61-9cab-6bcc34b36c51",
+      "type": "aiApplication",
+      "name": "customer_support_agent",
+      "fullyQualifiedName": "customer_support_agent"
+    },
+    "agentId": "7f47e5f6-92bc-4a61-9cab-6bcc34b36c51",
+    "timestamp": 1787702400000,
+    "endTimestamp": 1787702402400,
+    "status": "Success",
+    "input": "Summarize open support cases",
+    "output": "Five support cases remain open",
+    "executedBy": "support-automation",
+    "environment": "Production"
+  }'
+```
+</RequestExample>
+
+The v2.0 Python and Java core SDKs have no typed Agent Execution client. Use the REST API to write or query execution records.
+
+## Invoke an AI Studio Agent
+
+Install the Python AI SDK with `pip install data-ai-sdk`, then configure `AI_SDK_HOST` and `AI_SDK_TOKEN`.
+
+```python Python AI SDK
+from ai_sdk import AISdk, AISdkConfig
+
+client = AISdk.from_config(AISdkConfig.from_env())
+response = client.agent("DataQualityPlannerAgent").call(
+    "Recommend data quality tests for the customers table"
+)
+
+print(response.response)
+print(response.tools_used)
+```
+
+For persona and agent creation, TypeScript and Java examples, streaming, and multi-turn conversations, see the [AI SDK guide](/v2.0.x/sdk/ai-sdk).

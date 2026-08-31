@@ -1,0 +1,151 @@
+---
+title: Update a Metric
+description: Update metric properties using JSON Patch
+sidebarTitle: Update a Metric
+api: PATCH /v1/metrics/{id}
+---
+
+# Update a Metric
+
+Update a metric using an [RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902). Address the metric by UUID or fully qualified name.
+
+## Update by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the metric to update.
+</ParamField>
+
+## Update by Fully Qualified Name
+
+Use `PATCH /v1/metrics/name/{fqn}` to update by name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the metric, such as `customer_retention_rate`.
+</ParamField>
+
+## Body Parameters
+
+Send an array of JSON Patch operations with the `application/json-patch+json` content type.
+
+<ParamField body="op" type="string" required>
+  Patch operation, such as `add`, `replace`, or `remove`.
+</ParamField>
+
+<ParamField body="path" type="string" required>
+  JSON Pointer path of the field to change, such as `/description` or `/metricExpression/code`.
+</ParamField>
+
+<ParamField body="value" type="JSON value">
+  New value for `add` and `replace` operations. Omit it for `remove`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PATCH /v1/metrics/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Metrics
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# The SDK calculates and submits JSON Patch from the changed entity.
+metric = Metrics.retrieve("b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10")
+metric.description = "Percentage of active customers retained month over month."
+metric.displayName = "Monthly Customer Retention Rate"
+
+updated = Metrics.update(metric)
+print(f"Updated to version {updated.version}")
+```
+
+```java PATCH /v1/metrics/{id}
+// client is an initialized OpenMetadataClient.
+var metricId = "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10";
+var metric = client.metrics().get(metricId);
+
+metric.setDescription(
+    "Percentage of active customers retained month over month.");
+metric.setDisplayName("Monthly Customer Retention Rate");
+
+// update() calculates and submits JSON Patch from the fetched snapshot.
+var updated = client.metrics().update(metricId, metric);
+System.out.println("Updated to version " + updated.getVersion());
+```
+
+```bash PATCH /v1/metrics/{id}
+# Update by ID.
+curl -X PATCH "{base_url}/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {
+      "op": "replace",
+      "path": "/description",
+      "value": "Percentage of active customers retained month over month."
+    },
+    {
+      "op": "replace",
+      "path": "/displayName",
+      "value": "Monthly Customer Retention Rate"
+    }
+  ]'
+
+# Update by fully qualified name.
+curl -X PATCH "{base_url}/api/v1/metrics/name/customer_retention_rate" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {
+      "op": "replace",
+      "path": "/metricExpression/code",
+      "value": "active_retained_customers * 100.0 / NULLIF(active_customers, 0)"
+    }
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "name": "customer_retention_rate",
+  "displayName": "Monthly Customer Retention Rate",
+  "fullyQualifiedName": "customer_retention_rate",
+  "description": "Percentage of active customers retained month over month.",
+  "metricExpression": {
+    "language": "SQL",
+    "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)"
+  },
+  "metricType": "RATIO",
+  "unitOfMeasurement": "PERCENTAGE",
+  "granularity": "MONTH",
+  "version": 0.2,
+  "updatedAt": 1787760600000,
+  "updatedBy": "admin",
+  "href": "https://your-company.open-metadata.org/api/v1/metrics/b8a9d6e4-2f7c-4f3a-9c1e-6d5b8a7f2e10",
+  "deleted": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated metric with an incremented version.
+
+<Note>
+Fetch relationship fields before modifying them with an SDK. This gives the SDK a complete baseline from which to calculate additions and removals.
+</Note>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid JSON Patch document or field value |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this metric |
+| `404` | `NOT_FOUND` | Metric with the given ID or FQN does not exist |
+| `409` | `CONFLICT` | Concurrent modification or naming conflict |

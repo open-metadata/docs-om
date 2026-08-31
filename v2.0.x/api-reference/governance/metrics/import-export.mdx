@@ -1,0 +1,221 @@
+---
+title: Import and Export Metrics
+description: Bulk import and export governed metrics as comma-separated values with direct endpoints and client libraries
+sidebarTitle: Import / Export
+api: GET /v1/metrics/name/{name}/export
+---
+
+# Import and Export Metrics
+
+Export one metric or all metrics in the global collection as comma-separated values (CSV). Import a CSV file to create or update metrics in bulk. Synchronous routes return data immediately. Asynchronous routes return a job identifier for large collections.
+
+Use the literal `*` as `{name}` to process all metrics. A metric's fully qualified name is the same as its globally unique name.
+
+## Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/metrics/documentation/csv` | Retrieve CSV column documentation |
+| `GET` | `/v1/metrics/name/{name}/export` | Export one metric or all metrics |
+| `GET` | `/v1/metrics/name/{name}/exportAsync` | Start an asynchronous export |
+| `PUT` | `/v1/metrics/name/{name}/import` | Validate or apply a CSV import |
+| `PUT` | `/v1/metrics/name/{name}/importAsync` | Start an asynchronous import |
+
+## CSV Format
+
+Call `GET /v1/metrics/documentation/csv` to retrieve the supported columns, required fields, and field descriptions.
+
+Metric CSV files include definition and governance metadata:
+
+| Category | Columns |
+|----------|---------|
+| Definition | Calculation expression, type, unit, and granularity |
+| Relationships | Related metrics, domains, and data products |
+| Stewardship | Tags, owners, reviewers, entity status, and custom properties |
+
+## Export to CSV
+
+`GET /v1/metrics/name/{name}/export`
+
+<ParamField path="name" type="string" required>
+  Metric name to export. Use `*` to export all metrics.
+</ParamField>
+
+The synchronous endpoint returns CSV text.
+
+## Import from CSV
+
+`PUT /v1/metrics/name/{name}/import`
+
+<ParamField path="name" type="string" required>
+  Metric import scope. Use `*` for a collection import.
+</ParamField>
+
+<ParamField query="dryRun" type="boolean" default="true">
+  When `true`, validate the CSV without changing metrics. Set to `false` to apply the import.
+</ParamField>
+
+Send the CSV as `text/plain; charset=UTF-8`.
+
+<Warning>
+  Validate every import with `dryRun=true` before applying it with `dryRun=false`.
+</Warning>
+
+## Export Asynchronously
+
+`GET /v1/metrics/name/{name}/exportAsync` starts an export job and returns its identifier.
+
+## Import Asynchronously
+
+`PUT /v1/metrics/name/{name}/importAsync` starts an import job and returns its identifier. The `dryRun` query parameter has the same behavior as the synchronous import route.
+
+## Software Development Kit (SDK) Examples
+
+The Python SDK for 2.0 does not support Metric CSV operations through the typed `Metrics` class. Use the configured SDK transport shown below. The Java SDK provides fluent `Metrics.exportCsv` and `Metrics.importCsv` operations.
+
+<RequestExample dropdown>
+```python GET /v1/metrics/name/{name}/export
+from pathlib import Path
+
+from metadata.sdk import configure
+
+sdk = configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+transport = sdk.ometa.client
+
+csv_data = transport.get_raw("/metrics/name/*/export").text
+Path("metrics.csv").write_text(csv_data, encoding="utf-8")
+
+# Validate before applying changes.
+dry_run = transport.put(
+    "/metrics/name/*/import?dryRun=true",
+    data=csv_data,
+    headers={"Content-Type": "text/plain; charset=UTF-8"},
+)
+print(dry_run)
+
+result = transport.put(
+    "/metrics/name/*/import?dryRun=false",
+    data=csv_data,
+    headers={"Content-Type": "text/plain; charset=UTF-8"},
+)
+print(result)
+
+# Use asynchronous operations for large collections.
+export_job = transport.get("/metrics/name/*/exportAsync")
+import_job = transport.put(
+    "/metrics/name/*/importAsync?dryRun=false",
+    data=csv_data,
+    headers={"Content-Type": "text/plain; charset=UTF-8"},
+)
+print(export_job["jobId"], import_job["jobId"])
+```
+
+```java GET /v1/metrics/name/{name}/export
+import org.openmetadata.sdk.fluent.Metrics;
+
+String csvData = Metrics.exportCsv("*").execute();
+
+// Validate before applying changes.
+String dryRunResult = Metrics.importCsv("*")
+    .withData(csvData)
+    .dryRun()
+    .execute();
+
+String importResult = Metrics.importCsv("*")
+    .withData(csvData)
+    .execute();
+
+// Use asynchronous operations for large collections.
+String exportJob = Metrics.exportCsv("*")
+    .async()
+    .execute();
+String importJob = Metrics.importCsv("*")
+    .withData(csvData)
+    .async()
+    .execute();
+```
+
+```bash GET /v1/metrics/name/{name}/export
+curl "{base_url}/api/v1/metrics/documentation/csv" \
+  -H "Authorization: Bearer {access_token}"
+
+curl "{base_url}/api/v1/metrics/name/*/export" \
+  -H "Authorization: Bearer {access_token}" \
+  --output metrics.csv
+
+curl "{base_url}/api/v1/metrics/name/customer_retention_rate/export" \
+  -H "Authorization: Bearer {access_token}"
+
+# Validate before applying changes.
+curl -X PUT "{base_url}/api/v1/metrics/name/*/import?dryRun=true" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain; charset=UTF-8" \
+  --data-binary @metrics.csv
+
+curl -X PUT "{base_url}/api/v1/metrics/name/*/import?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain; charset=UTF-8" \
+  --data-binary @metrics.csv
+
+# Use asynchronous operations for large collections.
+curl "{base_url}/api/v1/metrics/name/*/exportAsync" \
+  -H "Authorization: Bearer {access_token}"
+
+curl -X PUT "{base_url}/api/v1/metrics/name/*/importAsync?dryRun=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: text/plain; charset=UTF-8" \
+  --data-binary @metrics.csv
+```
+</RequestExample>
+
+<ResponseExample>
+```csv Export response
+name*,displayName,description,metricType,unitOfMeasurement,customUnitOfMeasurement,granularity,expressionLanguage,expressionCode,relatedMetrics,tags,glossaryTerms,tiers,owners,reviewers,domains,dataProducts,entityStatus,extension
+monthly_recurring_revenue,Monthly Recurring Revenue,Total recurring revenue,SUM,DOLLARS,,MONTH,SQL,SUM(subscription_amount),,,,,,,,,Approved,
+```
+
+```json Dry-run import response
+{
+  "dryRun": true,
+  "status": "success",
+  "numberOfRowsProcessed": 1,
+  "numberOfRowsPassed": 1,
+  "numberOfRowsFailed": 0
+}
+```
+
+```json Asynchronous response
+{
+  "jobId": "3a5f2190-513a-43fd-a72f-93f718b82ca6",
+  "message": "Export initiated successfully."
+}
+```
+</ResponseExample>
+
+## Track Asynchronous Jobs
+
+Use the returned `jobId` with the CSV job endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/csvAsyncJobs/{jobId}` | Retrieve job status |
+| `GET` | `/v1/csvAsyncJobs/{jobId}/result` | Download a completed export |
+| `PUT` | `/v1/csvAsyncJobs/{jobId}/cancel` | Request job cancellation |
+
+## Returns
+
+- A synchronous export returns CSV text.
+- A synchronous import returns row counts, status, and a result CSV with validation or processing details.
+- An asynchronous request returns a job identifier and status message.
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid CSV, unsupported field value, or incomplete export job |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view or edit metrics |
+| `404` | `NOT_FOUND` | Metric or asynchronous job was not found |
