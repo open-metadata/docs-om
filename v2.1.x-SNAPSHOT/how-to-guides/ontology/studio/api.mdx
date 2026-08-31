@@ -1,0 +1,195 @@
+---
+title: Ontology API Reference | OpenMetadata
+description: REST endpoints for ontology authoring — relationship types, axioms, change sets, patterns, subsets, structure merge, impact analysis, packs, bulk jobs, and AI proposals.
+sidebarTitle: API Reference
+---
+
+# Ontology API Reference
+
+Ontology authoring runs over ordinary OpenMetadata REST APIs. **None of these require the RDF triple store** — the relational model is authoritative.
+
+```bash
+export OM_HOST=http://localhost:8585
+export TOKEN=<your-personal-access-token>
+```
+
+## Relationship Types
+
+Governed OWL object properties. `/api/v1/relationshipTypes`
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/` | List. |
+| `GET` | `/{id}`, `/name/{fqn}` | Fetch one. |
+| `POST` | `/` | Create. |
+| `PUT` | `/` | Create or update. |
+| `PATCH` | `/{id}` | JSON Patch. |
+| `DELETE` | `/{id}` | Delete a custom type. |
+| `PUT` | `/restore` | Restore a deleted type. |
+| `GET` | `/{id}/versions`, `/{id}/versions/{version}` | Version history. |
+
+Related: `GET /api/v1/glossaryTerms/relationTypes/usage` returns usage counts per type.
+
+## Ontology Axioms
+
+Governed OWL axioms. `/api/v1/ontologyAxioms`
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/` | List. |
+| `GET` | `/{id}`, `/name/{fqn}` | Fetch one. |
+| `POST` | `/` | Create. |
+| `POST` | `/validate` | Validate an axiom without saving. |
+| `PUT` | `/` | Create or update. |
+| `PATCH` | `/{id}` | JSON Patch. |
+| `DELETE` | `/{id}` | Delete. |
+| `PUT` | `/restore` | Restore. |
+| `GET` | `/{id}/versions`, `/{id}/versions/{version}` | Version history. |
+
+Axiom types: `SUBCLASS_OF`, `EQUIVALENT_CLASS`, `DISJOINT_WITH`, `CLASS_ASSERTION`, `OBJECT_PROPERTY_ASSERTION`, `DATA_PROPERTY_ASSERTION`.
+
+## Change Sets
+
+Durable authoring sessions with typed, reversible operations. `/api/v1/ontologyChangeSets`
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/` | List. |
+| `GET` | `/{id}` | Fetch one. |
+| `POST` | `/` | Create a change set. |
+| `PUT` | `/{id}/operations` | Replace draft operations. |
+| `POST` | `/{id}/undo`, `/{id}/redo` | Move the draft cursor. |
+| `POST` | `/{id}/submit` | Submit for review (creates a review task). |
+| `POST` | `/{id}/apply` | Apply active operations. |
+| `POST` | `/{id}/discard` | Discard. |
+| `DELETE` | `/{id}` | Delete. |
+| `PUT` | `/restore` | Restore. |
+| `GET` | `/{id}/versions`, `/{id}/versions/{version}` | Version history. |
+
+States: `DRAFT`, `SUBMITTED`, `APPLIED`, `APPLY_FAILED`, `DISCARDED`.
+
+Operation types: `CREATE_TERM`, `UPDATE_TERM`, `DELETE_TERM`, `ADD_RELATIONSHIP`, `UPDATE_RELATIONSHIP`, `DELETE_RELATIONSHIP`, `UPSERT_ATTRIBUTE`, `DELETE_ATTRIBUTE`, `UPSERT_MAPPING`, `DELETE_MAPPING`, `UPSERT_AXIOM`, `DELETE_AXIOM`. Each carries a `baseVersion` for optimistic concurrency.
+
+## Editing Leases
+
+`/api/v1/ontologyEditLocks`
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/acquire` | Acquire a lease (10–300 seconds). |
+| `PUT` | `/renew` | Renew. |
+| `GET` | `/{resourceType}/{resourceId}` | Read the active lease. |
+| `DELETE` | `/{resourceType}/{resourceId}` | Release. |
+
+## Modeling Tools
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/ontology/modeling/iris/preview` | Preview the IRI a governed concept would receive. |
+| `GET` | `/api/v1/ontology/patterns` | List modeling patterns. |
+| `POST` | `/api/v1/ontology/patterns/instantiate` | Instantiate a pattern as a draft change set. |
+| `POST` | `/api/v1/ontology/subsets` | Build an application-ontology subset as a draft. |
+| `POST` | `/api/v1/ontology/structure/diff` | Diff two ontology structures. |
+| `POST` | `/api/v1/ontology/structure/merge` | Merge structures into a draft change set. |
+| `POST` | `/api/v1/ontology/reasoning/explanations` | Explain which inference rules produced a derived relation. |
+
+Patterns available: `REGULATORY_CONTROL`, `MEASURED_KPI`, `PRODUCT_HIERARCHY`.
+
+## Impact Analysis
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/ontology/impacts/glossaryTerms/{id}/delete` | Preview the impact of deleting a concept. |
+| `POST` | `/api/v1/ontology/impacts/glossaryTerms/{id}/delete` | Apply the delete using the preview's signed token. |
+
+The report includes children, removed relationships, bound assets (sampled up to 100, with a total count and truncation flag), lost concept mappings, and whether SHACL revalidation is required. The `impactToken` is bound to the principal and the exact snapshot and expires after **two minutes**.
+
+## Ontology Packs
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/ontologyPacks` | List library packs. |
+| `GET` | `/api/v1/ontologyPacks/{packId}` | Manifest: modules, dependencies, counts, SHA-256 checksums, license. |
+| `POST` | `/api/v1/ontologyPacks/{packId}/install` | Dry-run or install selected modules into a target glossary. |
+
+## Bulk Authoring
+
+`/api/v1/ontology/bulk`
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/template` | Download a CSV template for the operation. |
+| `POST` | `/` | Submit a bulk job (supports dry run). |
+| `GET` | `/jobs` | List the caller's jobs. |
+| `GET` | `/jobs/{jobId}` | Job status. |
+| `PUT` | `/jobs/{jobId}/cancel` | Cancel. |
+| `GET` | `/jobs/{jobId}/artifact` | Download the result artifact. |
+
+## AI Proposals
+
+`/api/v1/ontology/ai` — requires `RDF_ASK_COLLATE_ENABLED=true` and a configured LLM provider. Every route authorizes `ViewBasic` on the target glossary.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/relationships/suggestions` | Propose typed relationships for isolated concepts. |
+| `POST` | `/mappings/suggestions` | Propose external concept mappings. |
+| `POST` | `/sparql` | Generate visible read-only SPARQL from a natural-language question. |
+| `POST` | `/drafts` | Generate a reviewable change-set draft for a described domain. |
+
+## Glossary and Term Endpoints Used by the Studio
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/glossaryTerms/studio/summary` | Bounded Ontology Studio health summary. `limit` 1–20, default 5. |
+| `GET` | `/api/v1/glossaryTerms/studio/data` | Bounded page of Studio data clusters. `limit` 1–12, default 12. |
+| `GET` | `/api/v1/glossaryTerms/{id}/studioAssets` | Bounded page of detailed assets for a concept. `limit` 1–100, default 6. |
+| `GET` | `/api/v1/glossaryTerms/assets/counts` | Asset counts for a set of concepts. |
+| `GET` | `/api/v1/glossaryTerms/{id}/relationsGraph` | Relation graph for a concept, to a depth, optionally filtered by relation type. |
+| `POST` | `/api/v1/glossaryTerms/{id}/relations` | Add a typed relation. |
+| `PUT`/`DELETE` | `/api/v1/glossaryTerms/{id}/relations/{toTermId}` | Update or remove a relation by target. |
+| `PUT`/`DELETE` | `/api/v1/glossaryTerms/{id}/relations/id/{relationshipId}` | Update or remove a relation by id. |
+| `PUT` | `/api/v1/glossaries/name/{name}/importRdf` | Import an OWL/SKOS ontology. |
+| `GET` | `/api/v1/glossaries/{id}/exportOntology` | Export a glossary as an ontology. |
+| `POST` | `/api/v1/glossaries/{id}/sparql` | Glossary-scoped read-only SPARQL. |
+
+## Example: Create a Custom Relationship Type
+
+```bash
+curl -X POST "$OM_HOST/api/v1/relationshipTypes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "regulatedBy",
+    "displayName": "Regulated By",
+    "description": "The concept is subject to this regulation.",
+    "category": "CUSTOM",
+    "rdfPredicate": "https://example.com/ontology/regulatedBy",
+    "characteristics": [],
+    "crossGlossaryAllowed": true,
+    "paletteKey": "AMBER"
+  }'
+```
+
+## Example: Dry-run an Ontology Import
+
+```bash
+curl -X PUT "$OM_HOST/api/v1/glossaries/name/BusinessTerms/importRdf?format=turtle&dryRun=true" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: text/turtle" \
+  --data-binary @domain.ttl | jq '{
+    termsCreated, termsUpdated, relationsAdded,
+    relationTypesRegistered, conceptMappingsAdded,
+    customPropertiesCreated, messages
+  }'
+```
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Knowledge Graph API" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/api">
+    Endpoints under `/api/v1/rdf`.
+  </Card>
+  <Card title="Full API reference" href="/v2.1.x-SNAPSHOT/api-reference">
+    The generated OpenAPI documentation.
+  </Card>
+</CardGroup>

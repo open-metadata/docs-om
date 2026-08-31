@@ -1,0 +1,220 @@
+---
+title: Ontology & Knowledge Graph for AI Agents | OpenMetadata
+description: The MCP tools that let an AI agent traverse the OpenMetadata knowledge graph — sparql_query, entity_neighborhood, find_by_tag, shacl_validate, and ontology_describe — with agent recipes.
+sidebarTitle: For AI Agents
+---
+
+# Ontology & Knowledge Graph for AI Agents
+
+An agent with search can find candidates. An agent with a knowledge graph can find *the answer* — and show its work.
+
+OpenMetadata exposes the graph to AI assistants through its [MCP Server](/v2.1.x-SNAPSHOT/how-to-guides/mcp), so any MCP client — Claude, Cursor, VS Code, Goose, or your own agent — can traverse it directly.
+
+## Why This Changes What an Agent Can Do
+
+Three ways an agent can look for something, in increasing order of reliability:
+
+| Approach | What it returns | Failure mode |
+|---|---|---|
+| **Keyword search** | Assets whose text matches | `revenue` returns fourteen tables and no basis for choosing |
+| **Semantic search** | Assets whose embedding is close | The most *similar* table is not necessarily the *governed* one |
+| **Graph traversal** | The exact set of nodes reachable by named edges | Returns nothing when your assumption was wrong — which is the correct behavior |
+
+The third is the only one where the agent's answer is checkable. When an assistant says "these six dashboards depend on this column," it can hand you the SPARQL and the triples. When it says it from memory, you cannot tell the difference between a correct answer and a fluent one.
+
+Grounding agents in a graph converts a **trust** problem into an **auditing** problem — which is a much better problem to have.
+
+## The Tools
+
+Five MCP tools cover the graph.
+
+<Info>
+
+**Access model.** All five require an **administrator principal** — they return 403 for ordinary users *and* for bot tokens. Four of them (`sparql_query`, `entity_neighborhood`, `find_by_tag`, `shacl_validate`) are **not advertised at all** when RDF is disabled, so a client never sees a tool it cannot call. `ontology_describe` is always advertised, because its default path serves the bundled ontology document from the classpath and works with RDF off.
+
+</Info>
+
+### `ontology_describe` — Start Here
+
+Returns the OpenMetadata ontology: the full canonical document, or a SPARQL `DESCRIBE` for a single class or property URI.
+
+| Parameter | Notes |
+|---|---|
+| `resource` | Optional. Full URI of a class or property, for example `https://open-metadata.org/ontology/Column`. Omit for the whole ontology. |
+| `format` | `turtle` (default), `jsonld`, `ntriples`, `rdfxml`. |
+| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+
+The full ontology is roughly 65 KB, so prefer a focused `DESCRIBE`.
+
+<Tip>
+
+**Make this the agent's first call.** An LLM asked to write SPARQL against an unfamiliar schema will invent predicate names that sound right — `om:hasOwnerName`, `om:parentTable` — and get zero rows with no error. One `ontology_describe` call replaces that guessing with the actual declarations. Put it in your system prompt.
+
+</Tip>
+
+### `sparql_query`
+
+Read-only SPARQL (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledge graph.
+
+| Parameter | Notes |
+|---|---|
+| `query` | Required. Use `https://open-metadata.org/ontology/` as the `om:` prefix. |
+| `format` | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle` (recommended), `jsonld`, `ntriples`, `rdfxml`. |
+| `inferenceLevel` | `none` (default), `rdfs`, `owl`, `custom`. |
+| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+
+`UPDATE`, `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE` are rejected. `SERVICE` clauses against external endpoints are rejected unless the target is on the federation allowlist — which is empty and disabled by default, so in a stock deployment this tool never reaches outside the local graph.
+
+Two response fields matter for agent behavior:
+
+- **`truncated: true`** with a `byteCount` when the body exceeds `maxBytes`. Narrow the query with `LIMIT` rather than raising `maxBytes` — values above the maximum are clamped, because a larger body is discarded wholesale by the response budget.
+- **`warning`** when the requested `inferenceLevel` could not be applied because the graph was too large. **Results are then NOT inferred.** An agent that ignores this field will confidently report an incomplete answer.
+
+### `entity_neighborhood`
+
+The *n*-hop neighborhood of one entity: `hasColumn`, `belongsToSchema`, `hasTag`, owners, lineage, and so on. Ontology and SHACL definition graphs are excluded so schema triples do not consume result slots.
+
+| Parameter | Notes |
+|---|---|
+| `entityId` | Required. The entity's `id` UUID. |
+| `entityType` | Required. Singular — `table`, `dashboard`, `pipeline`, `glossaryTerm`, … |
+| `depth` | 1–3, default 2. |
+| `limit` | Solution rows **per traversal branch share**, not a triple count. Default 200, max 2,000. |
+
+Returns the full 1..depth-hop subgraph as Turtle in `triples`, plus an `edges` array that is a flat **direct (1-hop) adjacency summary of the start entity only** — direction, predicate, neighbor URI, neighbor label. For second- and third-hop traversal, parse `triples`, not `edges`.
+
+Each traversal branch gets its own share of `limit`, so deeper hops are always represented rather than being crowded out by a high-degree start node.
+
+### `find_by_tag`
+
+Every entity carrying a classification tag or glossary term, walking `om:hasTag` and `om:hasGlossaryTerm`.
+
+| Parameter | Notes |
+|---|---|
+| `tagFqn` | Required. For example `PII.Sensitive` or `BusinessTerms.Customer`. |
+| `entityType` | Optional filter. |
+| `limit` | Default 50, max 500. |
+| `offset` | Default 0. |
+
+This is the "show me everything classified PII" tool, and it is a single call rather than a SPARQL round trip.
+
+### `shacl_validate`
+
+SHACL validation of a single entity's subgraph or the whole dataset.
+
+| Parameter | Notes |
+|---|---|
+| `entityId` + `entityType` | Scope to one entity. |
+| `entityUri` | Alternative full URI. |
+| `fullGraph` | Must be `true` to validate the entire dataset when no scope is given. Opt-in because it is expensive. |
+| `format` | `turtle` (default) or `jsonld`. |
+| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+
+`conforms` and `violationCount` are always returned in full even when the report body is truncated — so an agent can act on the verdict without parsing a partial report. Read-only; never blocks writes.
+
+## Complementary Tools
+
+The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/how-to-guides/mcp/reference). The ones that pair best:
+
+| Tool | Use it for |
+|---|---|
+| `semantic_search` | Meaning-based discovery when you do not know exact names. Good first step; hand results to the graph tools to confirm. |
+| `find_context` | Semantic search over the company-knowledge layer — glossary definitions, metric definitions, Context Center notes — when no asset has been chosen yet. |
+| `get_entity_lineage` | A compact lineage graph without writing SPARQL. |
+| `get_entity_details` | Full entity payloads once the graph has identified them. |
+
+<Tip>
+
+**The pattern that works:** semantic search to *find candidates*, graph traversal to *decide between them*, entity details to *read the winner*. Search is recall; the graph is precision.
+
+</Tip>
+
+## Agent Recipes
+
+<AccordionGroup>
+  <Accordion title="Impact analysis before a schema change">
+    1. `search_metadata` or `get_entity_details` → resolve the table and column IDs.
+    2. `entity_neighborhood` at depth 2 → immediate structural context.
+    3. `sparql_query` with `prov:wasDerivedFrom+` → the full downstream set at any depth.
+    4. `find_by_tag` on any tier or PII tag found → who needs to be told.
+
+    Ask the agent to return the query alongside the answer. That is the artifact a reviewer checks.
+  </Accordion>
+  <Accordion title="Privacy review: where did this sensitive data end up?">
+    1. `find_by_tag` with `PII.Sensitive` → the asserted set.
+    2. `sparql_query` with `inferenceLevel: custom` → the propagated set, if the PII-propagation rule is materialized.
+    3. Diff the two → columns that are sensitive by inference but not yet tagged. That diff is the remediation list.
+  </Accordion>
+  <Accordion title="Answering a business question correctly">
+    1. `find_context` → which concept the question is actually about.
+    2. `sparql_query` following `om:hasGlossaryTerm` → the assets that realize it.
+    3. Filter by tier, owner, or contract → the *governed* one, not merely a matching one.
+
+    This is the flow that stops an agent from answering a revenue question off `revenue_v2_final_DONOTUSE`.
+  </Accordion>
+  <Accordion title="Catalog health audit">
+    1. `sparql_query` → tables with no owner, no description, no glossary term.
+    2. `shacl_validate` with `fullGraph: true` → structural violations.
+    3. `sparql_query` → concepts with no realization (ontology debt).
+
+    Three queries, one report, no dashboard to build.
+  </Accordion>
+</AccordionGroup>
+
+## Prompting Notes
+
+Things that measurably improve results:
+
+- **Force schema discovery first.** "Before writing any SPARQL, call `ontology_describe` for the classes involved." Predicate hallucination is the dominant failure mode and this eliminates most of it.
+- **Always scope the named graph.** Tell the agent to wrap instance patterns in `GRAPH <https://open-metadata.org/graph/knowledge> { … }`. Unscoped queries return ontology triples and confuse the model about its own results.
+- **Require the query in the answer.** "Show the SPARQL you ran." Cheap, and it makes every answer auditable.
+- **Teach it to read `truncated` and `warning`.** An agent that ignores these reports partial results as complete.
+- **Budget with `LIMIT`, not `maxBytes`.** `maxBytes` is clamped at 80,000; the fix for a large result is a narrower query.
+
+## Setting It Up
+
+<Steps>
+  <Step title="Enable RDF and index the graph">
+    See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable). Until the initial index runs, the tools return empty results.
+  </Step>
+  <Step title="Connect an MCP client">
+    Follow [Connect Your MCP Client](/v2.1.x-SNAPSHOT/how-to-guides/mcp/connect). OAuth 2.0 is recommended; a Personal Access Token works where browser login is unavailable.
+  </Step>
+  <Step title="Authenticate as an administrator">
+    The graph tools require an admin principal and reject bot tokens. If the tools are missing from the client's tool list, that is the gating working — check `GET /api/v1/rdf/status` and your principal.
+  </Step>
+  <Step title="Verify">
+    Ask the assistant to call `ontology_describe` with no arguments. If it returns the ontology, the wiring is correct.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The graph tools do not appear in my client">
+    Expected when `rdf.enabled` is false — the four RDF-dependent tools are withheld rather than advertised and failing. Check `GET /api/v1/rdf/status`. `ontology_describe` should still be listed.
+  </Accordion>
+  <Accordion title="403 on every graph tool">
+    The principal is not an administrator, or it is a bot token. Both are rejected by design.
+  </Accordion>
+  <Accordion title="Queries return zero rows">
+    Usually a missing `GRAPH` clause or an invented predicate. Have the agent call `ontology_describe` and re-derive the query.
+  </Accordion>
+  <Accordion title="Results look incomplete">
+    Check for `truncated: true` and for a `warning` saying inference could not be applied. Both mean the answer is partial.
+  </Accordion>
+  <Accordion title="Query capacity or timeout errors">
+    The admission guard allows 8 concurrent queries globally and 2 per principal, with a 30-second timeout. Narrow the query, or materialize the traversal as an [inference rule](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning).
+  </Accordion>
+</AccordionGroup>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="MCP Server" href="/v2.1.x-SNAPSHOT/how-to-guides/mcp">
+    Installation, authentication, and clients.
+  </Card>
+  <Card title="SPARQL cookbook" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql#cookbook">
+    Queries worth putting in an agent's prompt.
+  </Card>
+</CardGroup>

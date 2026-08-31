@@ -1,0 +1,197 @@
+---
+title: Enabling Ontology & Knowledge Graph | OpenMetadata
+description: What works out of the box, what needs a triple store, and the full configuration surface for RDF, inference, SHACL, federation, and the Ontology Studio AI assistant.
+sidebarTitle: Enabling It
+---
+
+# Enabling Ontology & Knowledge Graph
+
+Ontology and the knowledge graph are two different things with two different requirements. Knowing which is which saves a lot of unnecessary infrastructure.
+
+## What Works with No Extra Infrastructure
+
+The **ontology** is stored relationally. Everything below works on a stock OpenMetadata deployment:
+
+- Ontology Studio **View** mode — graph, tree, filters, health, inspector
+- Ontology Studio **Edit** mode — concepts, typed relations, attributes, axioms, mappings, patterns, subsets, merges, change sets, impact previews
+- **Relationship type** management
+- **Ontology Library** pack installation
+- Ontology **import and export** (OWL, Turtle, N-Triples, JSON-LD, SKOS, CSV)
+- **Glossary-scoped SPARQL** (`POST /api/v1/glossaries/{id}/sparql`)
+- The `ontology_describe` MCP tool
+
+## What Needs the RDF Triple Store
+
+- Ontology Studio **Query** mode and the standalone **SPARQL Playground**
+- The **3D Knowledge Graph** tab on tables
+- Catalog-wide SPARQL, graph exploration, and graph export
+- **Inference** and **SHACL validation** over the catalog
+- **Graph insights** — importance, centrality, communities, paths, recommendations, tag analytics
+- The `sparql_query`, `entity_neighborhood`, `find_by_tag`, and `shacl_validate` **MCP tools**
+- **Linked Open Data** IRI dereferencing
+
+## What Needs an LLM Provider
+
+- Ontology Studio **AI** mode — relationship, mapping, SPARQL, and domain-draft proposals
+
+Requires `RDF_ASK_COLLATE_ENABLED=true` **and** a configured LLM provider.
+
+## Turning on RDF
+
+<Warning>
+
+The RDF knowledge graph is **Beta** and **disabled by default**. Turning it on for a large existing catalog adds meaningful load while the initial index runs. Test in a non-production environment first and schedule the initial index for a low-traffic window.
+
+</Warning>
+
+Full deployment instructions — Docker, Kubernetes, Helm, sizing, and troubleshooting — are in [Enable RDF (Knowledge Graph)](/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph). The short version:
+
+<Steps>
+  <Step title="Run Apache Jena Fuseki">
+    Reachable from the OpenMetadata server. The repository ships one at `docker/rdf-store`.
+  </Step>
+  <Step title="Set the environment variables on both containers">
+    The **migrations container** loads the ontology and shapes graphs and registers `RdfIndexApp`; the **server container** does everything else. If only one has RDF configured, installation fails with `RdfRepository not initialized`.
+
+    ```bash
+    RDF_ENABLED=true
+    RDF_STORAGE_TYPE=FUSEKI
+    RDF_ENDPOINT=http://fuseki:3030/openmetadata
+    RDF_DATASET=openmetadata
+    RDF_REMOTE_USERNAME=admin
+    RDF_REMOTE_PASSWORD=<password>
+    RDF_BASE_URI=https://open-metadata.org/
+    ```
+  </Step>
+  <Step title="Run the initial index">
+    **Settings → Applications → RDF Knowledge Graph Indexing → Run Now**, or:
+
+    ```bash
+    curl -X POST "$OM_HOST/api/v1/apps/trigger/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    curl "$OM_HOST/api/v1/rdf/status" -H "Authorization: Bearer $TOKEN"
+    ```
+
+    Expect `enabled: true` and `projectionState: READY`. `REBUILDING` means the index is still running; `DEGRADED` means something needs attention.
+  </Step>
+</Steps>
+
+### Trying It Locally
+
+The repository ships a startup script that brings up the whole stack with RDF and Fuseki enabled:
+
+```bash
+./docker/run_local_docker_rdf.sh -m ui -d mysql -f true
+```
+
+It sets sensible development defaults, including materialized inference and `CUSTOM` as the default inference level.
+
+## Configuration Reference
+
+All settings live under `rdf:` in `openmetadata.yaml` and are overridable by environment variable.
+
+### Core
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RDF_ENABLED` | `false` | Master switch. Every RDF code path is a no-op until true. |
+| `RDF_STORAGE_TYPE` | `FUSEKI` | Backend. `QLEVER` is defined in the schema but **not implemented** — setting it fails at startup. |
+| `RDF_ENDPOINT` | `http://localhost:3030/openmetadata` | Full URL ending in the dataset name. `RDF_REMOTE_ENDPOINT` is a deprecated fallback. |
+| `RDF_DATASET` | `openmetadata` | Dataset name. Must match the path segment in `RDF_ENDPOINT`. |
+| `RDF_REMOTE_USERNAME` / `RDF_REMOTE_PASSWORD` | `admin` / `admin` | Basic-auth credentials. |
+| `RDF_BASE_URI` | `https://open-metadata.org/` | Base URI for minted resource IRIs. |
+
+### Connection and Write Tuning
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RDF_CONNECT_TIMEOUT_MS` | `2000` | Connection timeout. |
+| `RDF_REQUEST_TIMEOUT_MS` | `60000` | Per-request timeout. |
+| `RDF_WRITE_MAX_RETRIES` | `2` | Retries for idempotent writes after the first attempt. |
+| `RDF_WRITE_RETRY_INITIAL_BACKOFF_MS` | `250` | Initial retry backoff. |
+| `RDF_WRITE_RETRY_MAX_BACKOFF_MS` | `2000` | Maximum retry backoff. |
+| `RDF_BULK_ENTITY_BATCH_SIZE` | `100` | Entity models per bulk write. |
+| `RDF_BULK_RELATIONSHIP_SOURCE_BATCH_SIZE` | `100` | Relationship sources per bulk write. |
+| `RDF_BULK_LINEAGE_EDGE_BATCH_SIZE` | `50` | Lineage edges per SPARQL update. |
+
+### Inference
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RDF_INFERENCE_ENABLED` | `false` | Enable inference on SPARQL queries. |
+| `RDF_DEFAULT_INFERENCE_LEVEL` | `NONE` | `NONE`, `RDFS`, `OWL_LITE`, `OWL_DL`, or `CUSTOM`. |
+| `RDF_MATERIALIZED_INFERENCE_ENABLED` | `false` | Use durable per-rule inferred named graphs instead of in-memory Jena models. **Recommended past a small catalog.** |
+| `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES` | `100000` | Above this store size, inference requests fall back to direct execution — with a `warning`, and **without** inference. |
+| `RDF_CACHE_INFERRED_TRIPLES` | `false` | Cache bounded in-memory inference models for 60 seconds. |
+
+### Validation and Profile
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RDF_SHACL_VALIDATION_MODE` | `REPORT` | `OFF`, `REPORT`, or `ENFORCE_IMPORTS`. Never blocks entity writes. |
+| `RDF_STRICT_OWL_PROFILE` | `true` | Reject authored axioms outside the supported OWL 2 DL profile. |
+
+### Linked Data, AI, Federation
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RDF_DEREFERENCEABLE_IRIS` | `false` | Authenticated content-negotiated redirects for minted IRIs (`/api/v1/lod/entity/...`). |
+| `RDF_ASK_COLLATE_ENABLED` | `false` | Expose the Ontology Studio AI mode. Manual authoring is unaffected. |
+| `RDF_FEDERATION_ENABLED` | `false` | Master switch for `SERVICE` clauses to external SPARQL endpoints. |
+| `RDF_FEDERATION_ALLOWED_ENDPOINTS` | `[]` | Allowlisted external endpoint URIs. Compared **verbatim** — trailing slashes matter. |
+
+<Warning>
+
+**Federation is a data-exfiltration surface.** A `SERVICE` clause sends parts of your query — and potentially your data — to a third-party endpoint. It is disabled by default, and the allowlist is empty. Enable it only for endpoints you control or explicitly trust.
+
+</Warning>
+
+### Indexing Application
+
+`RdfIndexApp` configuration (**Settings → Applications**):
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `entities` | `[]` (all supported) | Restrict the reindex to specific entity types. |
+| `recreateIndex` | `true` | Clear the store before indexing. |
+| `batchSize` | `100` | Entities per batch. |
+| `producerThreads` / `consumerThreads` | `2` / `3` | Non-distributed reindex parallelism. |
+| `queueSize` | `5000` | Internal queue size for non-distributed reindexing. |
+| `useDistributedIndexing` | `true` | Partition-coordinated indexing across servers. |
+| `partitionSize` | `10000` | Entities per partition. Smaller values create more partitions. |
+
+Only one reindex job can be active per cluster at a time.
+
+## Verifying the Whole Thing
+
+```bash
+# 1. RDF is on and the projection is ready
+curl "$OM_HOST/api/v1/rdf/status" -H "Authorization: Bearer $TOKEN"
+
+# 2. The graph has data
+curl -X POST "$OM_HOST/api/v1/rdf/sparql" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"SELECT (COUNT(*) AS ?n) WHERE { GRAPH <https://open-metadata.org/graph/knowledge> { ?s ?p ?o } }"}'
+
+# 3. Inference rules are registered
+curl "$OM_HOST/api/v1/rdf/rules" -H "Authorization: Bearer $TOKEN"
+
+# 4. Shapes are loaded and the graph conforms
+curl "$OM_HOST/api/v1/rdf/validate" -H "Authorization: Bearer $TOKEN" -D - -o /dev/null | grep OM-SHACL-Conforms
+```
+
+In the UI: **Govern → Ontology Studio** should show a **Query** tab, and any table should show a **Knowledge Graph** tab.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Deployment guide" href="/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph">
+    Docker, Kubernetes, Helm, sizing, and troubleshooting.
+  </Card>
+  <Card title="Knowledge Graph" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph">
+    What you get once it is on.
+  </Card>
+</CardGroup>
