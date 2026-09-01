@@ -99,7 +99,24 @@ Rules run in **priority order** (lower first; ties broken by name), which matter
 
 All admin-only.
 
-**Dirty tracking**: when source RDF changes after a successful materialization, the rule is flagged `dirty`. The scheduled RDF inference application materializes dirty rules; `force: true` re-materializes everything, and `ruleName` runs a single rule on demand.
+**Dirty tracking**: when source RDF changes after a successful materialization, the rule is flagged `dirty`, and `GET /api/v1/rdf/rules` reports that flag alongside `tripleCount` and `lastMaterializedAt`. Staleness is therefore always visible rather than silent.
+
+### Running the Materializer
+
+Materialization is done by an application, not by the query path. **RDF Inference Materialization** (`RdfInferenceApp`) appears under **Settings → Applications** once RDF is enabled.
+
+- **Schedule** — every **5 minutes** by default. It picks up rules whose dirty flag is set and rebuilds only those.
+- **Execution** — each rule runs as a SPARQL `CONSTRUCT` *inside* Fuseki, writing to that rule's named graph. No triples pass through the OpenMetadata JVM, so materialization cost does not scale with server heap.
+- **Configuration** — `force: true` re-materializes every enabled rule even when its dirty flag is clear; `ruleName` runs one rule on demand.
+
+Trigger it by hand when you have just changed a rule and do not want to wait:
+
+```bash
+curl -X POST "$OM_HOST/api/v1/apps/trigger/RdfInferenceApp" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+`POST /api/v1/rdf/rules/materialize` does the same thing through the RDF API.
 
 ### Writing Your Own Rule
 
