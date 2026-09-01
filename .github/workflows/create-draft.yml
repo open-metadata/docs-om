@@ -1,0 +1,95 @@
+name: Create Draft PR from Issue (on demand)
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  create-draft:
+    if: |
+      github.event.issue.pull_request == null &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      contains(github.event.comment.body, '/create-draft')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "/create-draft"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+
+            Someone has explicitly asked, by commenting `/create-draft` on
+            this issue, for a first-pass documentation draft. This issue
+            was filed by the Daily Watcher (or manually in its format) and
+            contains one or more source PR links from
+            open-metadata/OpenMetadata, plus hidden
+            `<!-- daily-watcher:pr-<number> -->` markers.
+
+            ## 1. Read the issue
+
+            gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json title,body
+
+            Extract every source PR number referenced (from the marker
+            comments and/or the linked URLs).
+
+            ## 2. Read the real source, not just the issue summary
+
+            For each source PR number:
+            gh pr view <number> --repo open-metadata/OpenMetadata --json title,body,files
+            gh pr diff <number> --repo open-metadata/OpenMetadata
+
+            The issue body is a starting pointer, not the source of truth —
+            base the actual doc content on what you read here, not on the
+            issue's summary text.
+
+            ## 3. Find or create the right doc page
+
+            Use this repo's existing structure and conventions (see
+            CLAUDE.md) to find the correct page(s) to update — most likely
+            under a version directory's `connectors/`, `how-to-guides/`, or
+            similar. If a connector is involved, follow the same pattern
+            `connector-doc-review`/`connector-doc-create` already use for
+            structure and the `ConnectorDetailsHeader` feature matrix. If
+            no existing page is a clear fit, say so in the PR description
+            rather than guessing a new file location.
+
+            ## 4. Write the draft, verifying every claim
+
+            Write the doc content. For every factual claim, confirm it
+            against the real PR diff/description you already read — never
+            state something the diff doesn't actually support. Anything
+            you cannot confirm this way, mark explicitly and visibly at
+            the top of the PR description under a "Needs verification"
+            heading — do not silently omit it and do not silently assume
+            it.
+
+            ## 5. Branch, commit, open the PR — always draft
+
+            - Branch name: docs/issue-${{ github.event.issue.number }}
+            - Commit message prefixed "Docs:" per this repo's convention
+            - Open the PR with `gh pr create --draft`, title summarizing
+              the change, body containing:
+              - Any "Needs verification" callout from step 4, first
+              - `Closes #${{ github.event.issue.number }}`
+              - Links to the source PR(s)
+            - Never mark the PR ready for review yourself — draft only,
+              always. A human decides when it's ready.
+
+            ## 6. Report back
+
+            Comment on the original issue with a link to the new draft PR.
+
+          claude_args: |
+            --allowedTools "Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr create:*),Bash(gh issue comment:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Read,Write,Edit,Grep,Glob"
