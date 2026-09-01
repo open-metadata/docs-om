@@ -1,0 +1,131 @@
+---
+title: Knowledge Graph | OpenMetadata
+description: How OpenMetadata projects your whole catalog into an RDF knowledge graph, what lives in it, and why that matters for humans and AI agents.
+sidebarTitle: Overview
+---
+
+# Knowledge Graph
+
+<span style={{ display: "inline-block", padding: "2px 10px", borderRadius: "9999px", backgroundColor: "var(--primary-background-color)", color: "var(--primary-color)", fontSize: "0.875rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Beta</span>
+
+The **Knowledge Graph** is everything in OpenMetadata — every table, column, dashboard, pipeline, ML model, glossary term, tag, owner, test case, data product, and lineage edge — represented as one connected RDF graph, addressable by stable IRIs and queryable with SPARQL.
+
+The [ontology](/v2.1.x-SNAPSHOT/how-to-guides/ontology/concepts) is the schema. The knowledge graph is the schema **plus every instance**.
+
+## Why a Graph, on Top of Everything Else
+
+OpenMetadata already has a relational database (source of truth), a search index (discovery), and a lineage store. The graph is not a replacement for any of them. It exists because a specific class of question is awkward or impossible in the others:
+
+| Question | Why search and SQL struggle |
+|---|---|
+| *"Every table whose columns feed, at any depth, into a dashboard the Risk team owns."* | Unbounded-depth traversal. SQL needs a recursive CTE per shape; search cannot traverse at all. |
+| *"Everything classified PII that crosses a service boundary."* | Joins tags, containment, and lineage in one pass. |
+| *"Which concepts in my ontology have no realization in the warehouse?"* | Needs the semantic layer and the physical layer in the same query. |
+| *"If I drop this column, what breaks — including things two hops away?"* | Impact is a graph reachability problem. |
+| *"Show me assets similar to this one, where 'similar' means shared concepts, owners, and upstreams."* | Similarity over graph structure, not over text. |
+
+A graph answers all of those with the same query language and no per-question schema work.
+
+## What Is in the Graph
+
+### Named Graphs
+
+The dataset is partitioned so schema, shapes, instances, and inferences never contaminate one another:
+
+| Named graph | Contents |
+|---|---|
+| `https://open-metadata.org/graph/knowledge` | Instance data — every entity and relationship in the catalog. |
+| `https://open-metadata.org/graph/ontology` | The canonical OpenMetadata ontology (`om:` classes and properties). |
+| `https://open-metadata.org/graph/shapes` | SHACL shapes used for validation. |
+| `https://open-metadata.org/graph/metadata` | Dataset-level bookkeeping. |
+| `https://open-metadata.org/graph/inferred/{rule}` | One durable graph per materialized inference rule. |
+
+Because inferred triples live in their own graphs, "what did a rule derive?" and "what did a human assert?" are always separable — and you can drop and rebuild inferences without touching asserted data.
+
+### Identity
+
+Every entity gets a stable IRI:
+
+```
+https://open-metadata.org/entity/{entityType}/{uuid}
+```
+
+With `RDF_DEREFERENCEABLE_IRIS=true`, those IRIs resolve: `GET /api/v1/lod/entity/{entityType}/{id}` performs authenticated, content-negotiated redirection so a linked-data client can follow them. That turns your catalog into a proper Linked Open Data endpoint — inside your perimeter, behind your auth.
+
+### Vocabulary
+
+The `om:` ontology (`https://open-metadata.org/ontology/`) declares roughly 80 classes and 200 properties covering services, databases, schemas, tables, columns, stored procedures, queries, dashboards, charts, reports, metrics, pipelines, tasks, topics, ML models, containers, search indexes, API collections and endpoints, directories, files, spreadsheets, worksheets, LLM models, AI applications, MCP servers, agent executions, prompt templates, glossaries and terms, classifications and tags, data contracts, data products, domains, teams, users, bots, roles, policies, test definitions and cases, threads and posts.
+
+It is not a private vocabulary. It aligns with **DCAT** (`om:DataAsset owl:equivalentClass dcat:Dataset`), **PROV-O** for derivation, **SKOS** for concept schemes, **Dublin Core Terms**, **DQV** for quality, **FOAF**, **ODRL**, and **CSVW** — so a DCAT-aware or PROV-aware consumer can read your catalog without a custom adapter.
+
+Key relationships include `om:belongsToSchema`, `om:belongsToDatabase`, `om:belongsToService`, `om:hasColumn`, `om:hasTag`, `om:hasGlossaryTerm`, `om:hasOwner`, `om:upstream` / `om:downstream`, `prov:wasDerivedFrom`, `om:testedBy`, `om:appliedTo`, and the full set of typed glossary relations.
+
+### How It Stays Current
+
+- **Incremental**: entity create, update, and delete write through to the triple store, the same way they write through to the search index.
+- **Bulk**: the **RDF Knowledge Graph Indexing** application (`RdfIndexApp`) performs the initial and any full rebuild, with distributed partitioning across servers.
+- **Inference**: the RDF inference application materializes rule-derived triples into their own named graphs on a schedule.
+
+`GET /api/v1/rdf/status` reports `projectionState` as `DISABLED`, `READY`, `REBUILDING`, or `DEGRADED` — the honest answer to "can I trust what this graph tells me right now."
+
+<Warning>
+
+The knowledge graph is a **derived index**, not a source of truth. It can always be rebuilt from the relational database. Never treat a SPARQL `UPDATE` against it as a way to change your catalog — the next reindex will discard it. Write through the entity APIs.
+
+</Warning>
+
+## What You Can Do with It
+
+<CardGroup cols={2}>
+  <Card title="Explore in 3D" icon="cube" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/explore">
+    The Knowledge Graph tab on a table — asset, product, and domain levels, technical and ontology lenses.
+  </Card>
+  <Card title="Query with SPARQL" icon="terminal" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql">
+    Named graphs, the vocabulary, limits, and a cookbook of real queries.
+  </Card>
+  <Card title="Reason & validate" icon="brain" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning">
+    Inference levels, materialized rules, and SHACL validation.
+  </Card>
+  <Card title="Graph insights" icon="chart-network" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/insights">
+    PageRank importance, Louvain communities, shortest paths, recommendations.
+  </Card>
+  <Card title="Give it to an agent" icon="robot" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    Five MCP tools that let an assistant traverse the graph directly.
+  </Card>
+  <Card title="API reference" icon="code" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/api">
+    Every endpoint under `/api/v1/rdf`.
+  </Card>
+</CardGroup>
+
+## Why This Matters for AI Agents
+
+An LLM agent working against a Context Platform has three ways to find things, and they are not equally good:
+
+1. **Keyword search** — fast, brittle. `revenue` returns fourteen tables and no way to choose.
+2. **Semantic search** — better recall on vague questions, but similarity is not authority. The most semantically similar table is not necessarily the governed one.
+3. **Graph traversal** — exact. "Follow `om:hasGlossaryTerm` to *Recognized Revenue*, then `om:appliedTo` back to assets, filtered to Tier 1" returns a set, not a guess.
+
+The third only exists if the graph exists. OpenMetadata exposes it to agents through MCP tools — `sparql_query`, `entity_neighborhood`, `find_by_tag`, `shacl_validate`, and `ontology_describe` — with `ontology_describe` acting as the schema-discovery call so an agent can learn the vocabulary before querying it, rather than hallucinating predicate names.
+
+A second, subtler benefit: **a graph answer is verifiable**. When an agent says "these six dashboards depend on this column," it can hand you the query and the triples. When it says it from memory, you have no way to check. Grounding agents in a graph converts a trust problem into an auditing problem.
+
+See [Ontology & Knowledge Graph for AI Agents](/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents).
+
+## Getting It Running
+
+<Steps>
+  <Step title="Deploy a triple store">
+    Apache Jena Fuseki, reachable from the OpenMetadata server and the migrations container.
+  </Step>
+  <Step title="Enable RDF">
+    Set `RDF_ENABLED=true` and the endpoint/credential variables on **both** containers.
+  </Step>
+  <Step title="Run the initial index">
+    Trigger **RDF Knowledge Graph Indexing** from **Settings → Applications**, during a low-traffic window.
+  </Step>
+  <Step title="Verify">
+    `GET /api/v1/rdf/status` should report `enabled: true` and `projectionState: READY`.
+  </Step>
+</Steps>
+
+Full instructions: [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable) and [Enable RDF (Deployment)](/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph).
