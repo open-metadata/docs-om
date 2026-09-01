@@ -1,0 +1,304 @@
+---
+title: Querying the Knowledge Graph with SPARQL | OpenMetadata
+description: Named graphs, the OpenMetadata RDF vocabulary, endpoints, limits, and a cookbook of SPARQL queries over your knowledge graph.
+sidebarTitle: SPARQL
+---
+
+# Querying with SPARQL
+
+SPARQL is to a graph what SQL is to tables. If you can write a `SELECT` with joins, you can write SPARQL — the shape is `SELECT ?vars WHERE { pattern }` where the pattern is a set of subject–predicate–object triples that share variables.
+
+## Where to Run Queries
+
+| Surface | Endpoint | Access |
+|---|---|---|
+| **SPARQL Playground** (`/governance/sparql`) | `GET \| POST /api/v1/rdf/sparql` | Admin |
+| **Ontology Studio → Query**, glossary selected | `POST /api/v1/glossaries/{id}/sparql` | `ViewAll` on that glossary |
+| **Ontology Studio → Query**, All glossaries | `GET \| POST /api/v1/rdf/sparql` | Admin |
+| **MCP** `sparql_query` tool | Same as above | Admin principal (not bots) |
+
+Glossary-scoped SPARQL runs against the database-primary glossary model — it works with RDF storage off, and cannot reach other assets, external datasets, or `SERVICE` endpoints. Catalog-wide SPARQL runs against the triple store and is admin-only.
+
+## Named Graphs
+
+Always scope instance-data queries to the knowledge graph. Ontology and shapes triples live elsewhere, so an unscoped `?s ?p ?o` returns schema noise.
+
+| Graph | Contents |
+|---|---|
+| `https://open-metadata.org/graph/knowledge` | Instance data — every entity and relationship. |
+| `https://open-metadata.org/graph/ontology` | The `om:` ontology. |
+| `https://open-metadata.org/graph/shapes` | SHACL shapes. |
+| `https://open-metadata.org/graph/metadata` | Dataset bookkeeping. |
+| `https://open-metadata.org/graph/inferred/{rule}` | One graph per materialized inference rule. |
+
+## Prefixes
+
+The console pre-populates these; include them in API calls yourself.
+
+```sparql
+PREFIX om:    <https://open-metadata.org/ontology/>
+PREFIX dcat:  <http://www.w3.org/ns/dcat#>
+PREFIX dct:   <http://purl.org/dc/terms/>
+PREFIX prov:  <http://www.w3.org/ns/prov#>
+PREFIX skos:  <http://www.w3.org/2004/02/skos/core#>
+PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:   <http://www.w3.org/2001/XMLSchema#>
+PREFIX dqv:   <http://www.w3.org/ns/dqv#>
+```
+
+## The Vocabulary You Will Use Most
+
+**Entity IRIs** follow `https://open-metadata.org/entity/{entityType}/{uuid}`.
+
+| Predicate | Meaning |
+|---|---|
+| `om:fullyQualifiedName`, `om:description`, `om:name` | Core literals present on every entity. |
+| `om:belongsToService`, `om:belongsToDatabase`, `om:belongsToSchema` | Containment upward. |
+| `om:hasColumn` | Table → column. |
+| `om:hasTag` | Entity → classification tag. |
+| `om:hasGlossaryTerm` | Entity → glossary term (concept). |
+| `om:hasTier` | Entity → tier tag. |
+| `om:hasOwner`, `prov:wasAttributedTo` | Ownership. |
+| `om:belongsToDomain`, `om:hasDataProduct` | Domain and data-product membership. |
+| `prov:wasDerivedFrom` | Lineage: **downstream `wasDerivedFrom` upstream**. |
+| `prov:wasInfluencedBy` | The `downstream` relationship direction. |
+| `om:UPSTREAM` | OpenMetadata's own lineage predicate, written alongside `prov:wasDerivedFrom`. |
+| `om:hasLineageDetails`, `om:hasColumnLineage`, `om:fromColumn`, `om:toColumn` | Column-level lineage detail. |
+| `om:testedBy` | Entity → test case. |
+| `skos:broader`, `skos:narrower`, `skos:exactMatch` | Concept hierarchy and equivalence. |
+| `om:relatedTo`, `om:partOf`, `om:hasPart`, `om:calculatedFrom`, `om:usedToCalculate`, `om:antonym` | Typed concept relations. |
+
+<Tip>
+
+**Discover the schema instead of guessing it.** `GET /api/v1/rdf/ontology` returns the full ontology; the MCP tool `ontology_describe` does the same for agents and accepts a `resource` URI for a focused `DESCRIBE`. Reading the actual class and property declarations beats guessing predicate names — for you and for an LLM.
+
+</Tip>
+
+## Limits
+
+Every read runs behind an admission guard:
+
+| Limit | Value |
+|---|---|
+| Default / maximum result rows | 1,000 / 10,000 |
+| Maximum query length | 100,000 characters |
+| Maximum output | 10 MB |
+| Query timeout | 30 s |
+| Global / per-principal concurrency | 8 / 2 |
+
+Writes (`INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, `CREATE`) are rejected on the read endpoints. `POST /api/v1/rdf/sparql/update` exists for admins, but see the warning below.
+
+**Federation** (`SERVICE` clauses to external endpoints) is **disabled by default**. When enabled, target URIs must appear verbatim in an allowlist — trailing slashes matter.
+
+<Warning>
+
+Do not use SPARQL `UPDATE` to change your catalog. The graph is a derived index; the next reindex discards anything written directly. Write through the entity APIs.
+
+</Warning>
+
+## Cookbook
+
+### Discovery
+
+```sparql
+# What classes exist in the graph, and how many of each?
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?type (COUNT(?s) AS ?count) WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> { ?s a ?type }
+}
+GROUP BY ?type
+ORDER BY DESC(?count)
+```
+
+```sparql
+# Everything asserted about one entity
+DESCRIBE <https://open-metadata.org/entity/table/8d9b1a34-0f11-4c2e-9b1a-6f2d1c4e7a90>
+```
+
+### Governance
+
+```sparql
+# Every table carrying a PII tag, with its service
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?fqn ?tag ?service WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?t a om:Table ;
+       om:fullyQualifiedName ?fqn ;
+       om:hasTag ?tag .
+    OPTIONAL { ?t om:belongsToService ?service }
+    FILTER(CONTAINS(STR(?tag), "PII"))
+  }
+}
+ORDER BY ?fqn
+LIMIT 200
+```
+
+```sparql
+# Tier-1 tables with no owner — the governance backlog, in one query
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?fqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?t a om:Table ;
+       om:fullyQualifiedName ?fqn ;
+       om:hasTier ?tier .
+    FILTER(CONTAINS(STR(?tier), "Tier1"))
+    FILTER NOT EXISTS { ?t om:hasOwner ?o }
+  }
+}
+```
+
+```sparql
+# Coverage gap: tables with no glossary term at all
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?fqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?t a om:Table ; om:fullyQualifiedName ?fqn .
+    FILTER NOT EXISTS { ?t om:hasGlossaryTerm ?term }
+  }
+}
+LIMIT 500
+```
+
+### Lineage
+
+```sparql
+# All upstream tables of one dashboard, at any depth
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT DISTINCT ?upstreamFqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    <https://open-metadata.org/entity/dashboard/{uuid}> prov:wasDerivedFrom+ ?u .
+    ?u a om:Table ; om:fullyQualifiedName ?upstreamFqn .
+  }
+}
+```
+
+```sparql
+# Blast radius: everything downstream of one column
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT DISTINCT ?downstream ?type WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?d prov:wasDerivedFrom+ <https://open-metadata.org/entity/column/{uuid}> .
+    ?d om:fullyQualifiedName ?downstream ; a ?type .
+  }
+}
+```
+
+<Info>
+
+`prov:wasDerivedFrom+` is a property path — SPARQL's transitive traversal operator. It is the single feature that makes graph queries worth the switch, and it has no clean SQL equivalent. If you enable the **transitive lineage closure** inference rule, the closure is materialized and you can drop the `+`.
+
+</Info>
+
+### The Ontology, Applied
+
+```sparql
+# Every asset realizing a concept and its narrower concepts
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?assetFqn ?conceptFqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?concept skos:broader* <https://open-metadata.org/entity/glossaryTerm/{uuid}> ;
+             om:fullyQualifiedName ?conceptFqn .
+    ?asset om:hasGlossaryTerm ?concept ;
+           om:fullyQualifiedName ?assetFqn .
+  }
+}
+```
+
+```sparql
+# Concepts modeled but never realized — ontology debt
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?conceptFqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?c a om:GlossaryTerm ; om:fullyQualifiedName ?conceptFqn .
+    FILTER NOT EXISTS { ?asset om:hasGlossaryTerm ?c }
+  }
+}
+ORDER BY ?conceptFqn
+```
+
+```sparql
+# Two assets that share a business concept but have no technical lineage
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT DISTINCT ?a ?b ?conceptFqn WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?x om:hasGlossaryTerm ?c ; om:fullyQualifiedName ?a .
+    ?y om:hasGlossaryTerm ?c ; om:fullyQualifiedName ?b .
+    ?c om:fullyQualifiedName ?conceptFqn .
+    FILTER(STR(?a) < STR(?b))
+    FILTER NOT EXISTS { ?x prov:wasDerivedFrom ?y }
+    FILTER NOT EXISTS { ?y prov:wasDerivedFrom ?x }
+  }
+}
+LIMIT 100
+```
+
+### Structure
+
+```sparql
+# Foreign-key style references between columns
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?fromCol ?toCol WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?details om:fromColumn ?f ; om:toColumn ?t .
+    ?f om:fullyQualifiedName ?fromCol .
+    ?t om:fullyQualifiedName ?toCol .
+  }
+}
+LIMIT 200
+```
+
+```sparql
+# Assets owned by a team, grouped by type
+PREFIX om: <https://open-metadata.org/ontology/>
+SELECT ?type (COUNT(?asset) AS ?count) WHERE {
+  GRAPH <https://open-metadata.org/graph/knowledge> {
+    ?asset om:hasOwner ?team ; a ?type .
+    ?team om:fullyQualifiedName "Data Platform" .
+  }
+}
+GROUP BY ?type
+ORDER BY DESC(?count)
+```
+
+## Calling the API
+
+```bash
+# POST (preferred for anything non-trivial)
+curl -X POST "$OM_HOST/api/v1/rdf/sparql" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT ?s ?p ?o WHERE { GRAPH <https://open-metadata.org/graph/knowledge> { ?s ?p ?o } } LIMIT 10"}'
+
+# GET with format and inference
+curl -G "$OM_HOST/api/v1/rdf/sparql" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'query=SELECT ?s WHERE { ?s a <https://open-metadata.org/ontology/Table> } LIMIT 5' \
+  --data-urlencode 'format=csv' \
+  --data-urlencode 'inference=none'
+```
+
+Result formats: `json` (default), `xml`, `csv`, `tsv` for `SELECT`/`ASK`; `turtle`, `jsonld`, `ntriples`, `rdfxml` for `CONSTRUCT`/`DESCRIBE`.
+
+## Performance Notes
+
+- **Always scope to the named graph.** Unscoped patterns scan schema and shapes as well.
+- **`LIMIT` early.** The guard truncates you at 1,000 rows by default anyway; be explicit.
+- **Bind the most selective triple first.** Start from a specific IRI or an indexed literal like `om:fullyQualifiedName`, not from `?s a om:Table`.
+- **Property paths are powerful and expensive.** `+` and `*` over a large lineage graph can hit the 30-second timeout. If you run one regularly, materialize it as an inference rule instead.
+- **Prefer `FILTER NOT EXISTS` over `OPTIONAL` + `!BOUND`.** Same result, better plan.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Reasoning & Validation" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning">
+    Materialize the closures you keep re-computing.
+  </Card>
+  <Card title="Graph Insights" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/insights">
+    Pre-computed importance, communities, and paths.
+  </Card>
+</CardGroup>

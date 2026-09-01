@@ -20,6 +20,13 @@ RDF Knowledge Graph is an optional feature, **disabled by default**. Turning it 
 
 </Warning>
 
+<Info>
+
+This page covers **deploying** the triple store. For what the knowledge graph is, what you can do with it, and how
+Ontology Studio uses it, see [Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology).
+
+</Info>
+
 ## Prerequisites
 
 Before enabling RDF, make sure the following are in place.
@@ -40,27 +47,88 @@ RDF support layers on top of your existing OpenMetadata deployment in three step
 
 ## Configuration
 
-RDF is configured in `openmetadata.yaml` under the `rdf` section. All settings can be overridden with environment variables.
+RDF is configured in `openmetadata.yaml` under the `rdf` section. Every setting can be overridden with an environment variable.
+
+### Core
 
 | Environment Variable | Default | Description |
 |---|---|---|
 | `RDF_ENABLED` | `false` | Master switch. Every RDF code path is a no-op until this is `true`. |
-| `RDF_STORAGE_TYPE` | `FUSEKI` | Triplestore backend. `FUSEKI` is the only implemented option today (see warning below). |
-| `RDF_ENDPOINT` | `http://localhost:3030/openmetadata` | The full URL OpenMetadata uses to reach Fuseki, ending in the dataset name -- for example, `.../openmetadata`. Keep this in sync with `RDF_DATASET` below; OpenMetadata reads the dataset name back out of this URL. |
+| `RDF_STORAGE_TYPE` | `FUSEKI` | Triplestore backend. `FUSEKI` is the only implemented option (see warning below). |
+| `RDF_ENDPOINT` | `http://localhost:3030/openmetadata` | The full URL OpenMetadata uses to reach Fuseki, ending in the dataset name. `RDF_REMOTE_ENDPOINT` is a deprecated fallback used only when this is unset. |
+| `RDF_DATASET` | `openmetadata` | Fuseki dataset name. Must match the path segment in `RDF_ENDPOINT`. |
 | `RDF_REMOTE_USERNAME` | `admin` | Fuseki basic-auth username. |
 | `RDF_REMOTE_PASSWORD` | `admin` | Fuseki basic-auth password. |
-| `RDF_BASE_URI` | `https://open-metadata.org/` | Base URI used when minting RDF resource URIs. |
-| `RDF_DATASET` | `openmetadata` | Fuseki dataset name. Must match the path segment in `RDF_ENDPOINT`. |
+| `RDF_BASE_URI` | `https://open-metadata.org/` | Base URI used when minting RDF resource IRIs. |
+
+### Connection and write tuning
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `RDF_CONNECT_TIMEOUT_MS` | `2000` | Connection timeout. |
+| `RDF_REQUEST_TIMEOUT_MS` | `60000` | Per-request timeout. |
+| `RDF_WRITE_MAX_RETRIES` | `2` | Retries for idempotent write requests after the initial attempt. |
+| `RDF_WRITE_RETRY_INITIAL_BACKOFF_MS` | `250` | Initial retry backoff. |
+| `RDF_WRITE_RETRY_MAX_BACKOFF_MS` | `2000` | Maximum retry backoff. |
+| `RDF_BULK_ENTITY_BATCH_SIZE` | `100` | Entity models per bulk write. |
+| `RDF_BULK_RELATIONSHIP_SOURCE_BATCH_SIZE` | `100` | Relationship sources per bulk write. |
+| `RDF_BULK_LINEAGE_EDGE_BATCH_SIZE` | `50` | Detailed lineage edges per SPARQL update. |
+
+### Inference and reasoning
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `RDF_INFERENCE_ENABLED` | `false` | Enable inference on SPARQL queries. |
+| `RDF_DEFAULT_INFERENCE_LEVEL` | `NONE` | Default reasoning level: `NONE`, `RDFS`, `OWL_LITE`, `OWL_DL`, or `CUSTOM`. `CUSTOM` applies OpenMetadata's own rules — transitive lineage, tag propagation, domain inheritance. |
+| `RDF_MATERIALIZED_INFERENCE_ENABLED` | `false` | Use durable per-rule inferred named graphs produced inside the triplestore instead of building an in-memory Jena model. **Recommended for anything past a small catalog.** |
+| `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES` | `100000` | Above this store size, in-process inference falls back to direct execution — with a `warning` in the response, and **without** inference applied. |
+| `RDF_CACHE_INFERRED_TRIPLES` | `false` | Cache bounded in-memory inference models for 60 seconds. |
+
+### Validation and OWL profile
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `RDF_SHACL_VALIDATION_MODE` | `REPORT` | `OFF`, `REPORT`, or `ENFORCE_IMPORTS`. Never blocks entity writes; `ENFORCE_IMPORTS` additionally rejects ontology imports that fail validation. |
+| `RDF_STRICT_OWL_PROFILE` | `true` | Reject authored axioms outside the supported OWL 2 DL profile. Keeps reasoning decidable. |
+
+### Linked data, AI, and federation
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `RDF_DEREFERENCEABLE_IRIS` | `false` | Expose authenticated, content-negotiated redirects for OpenMetadata-minted IRIs at `/api/v1/lod/entity/...`. |
+| `RDF_ASK_COLLATE_ENABLED` | `false` | Expose the optional AI-assisted Ontology Studio flows. Manual authoring is unaffected. |
+| `RDF_FEDERATION_ENABLED` | `false` | Master switch for federated SPARQL (`SERVICE` clauses to external endpoints). |
+| `RDF_FEDERATION_ALLOWED_ENDPOINTS` | `[]` | External SPARQL endpoint URIs permitted in `SERVICE` clauses. Compared **verbatim** — trailing slashes matter. |
 
 ```yaml
 rdf:
   enabled: ${RDF_ENABLED:-false}
   baseUri: ${RDF_BASE_URI:-"https://open-metadata.org/"}
   storageType: ${RDF_STORAGE_TYPE:-"FUSEKI"}
-  remoteEndpoint: ${RDF_ENDPOINT:-"http://localhost:3030/openmetadata"}
+  remoteEndpoint: ${RDF_ENDPOINT:-${RDF_REMOTE_ENDPOINT:-"http://localhost:3030/openmetadata"}}
+  connectTimeoutMs: ${RDF_CONNECT_TIMEOUT_MS:-2000}
+  requestTimeoutMs: ${RDF_REQUEST_TIMEOUT_MS:-60000}
+  writeMaxRetries: ${RDF_WRITE_MAX_RETRIES:-2}
+  writeRetryInitialBackoffMs: ${RDF_WRITE_RETRY_INITIAL_BACKOFF_MS:-250}
+  writeRetryMaxBackoffMs: ${RDF_WRITE_RETRY_MAX_BACKOFF_MS:-2000}
+  bulkEntityBatchSize: ${RDF_BULK_ENTITY_BATCH_SIZE:-100}
+  bulkRelationshipSourceBatchSize: ${RDF_BULK_RELATIONSHIP_SOURCE_BATCH_SIZE:-100}
+  bulkLineageEdgeBatchSize: ${RDF_BULK_LINEAGE_EDGE_BATCH_SIZE:-50}
+  maxInMemoryInferenceTriples: ${RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES:-100000}
+  materializedInferenceEnabled: ${RDF_MATERIALIZED_INFERENCE_ENABLED:-false}
   username: ${RDF_REMOTE_USERNAME:-"admin"}
   password: ${RDF_REMOTE_PASSWORD:-"admin"}
   dataset: ${RDF_DATASET:-"openmetadata"}
+  inferenceEnabled: ${RDF_INFERENCE_ENABLED:-false}
+  defaultInferenceLevel: ${RDF_DEFAULT_INFERENCE_LEVEL:-"NONE"}
+  cacheInferredTriples: ${RDF_CACHE_INFERRED_TRIPLES:-false}
+  shaclValidationMode: ${RDF_SHACL_VALIDATION_MODE:-"REPORT"}
+  dereferenceableIris: ${RDF_DEREFERENCEABLE_IRIS:-false}
+  strictOwlProfile: ${RDF_STRICT_OWL_PROFILE:-true}
+  askCollateEnabled: ${RDF_ASK_COLLATE_ENABLED:-false}
+  federation:
+    enabled: ${RDF_FEDERATION_ENABLED:-false}
+    allowedEndpoints: ${RDF_FEDERATION_ALLOWED_ENDPOINTS:-[]}
 ```
 
 <Warning>
@@ -70,11 +138,18 @@ not implemented -- setting it will fail at startup.
 
 </Warning>
 
+<Warning>
+
+**Federation is a data-exfiltration surface.** A `SERVICE` clause sends part of your query -- and potentially your data -- to a third-party
+endpoint. It is disabled by default and the allowlist is empty. Enable it only for endpoints you control or explicitly trust.
+
+</Warning>
+
 <Info>
 
 **Note**: Some RDF settings that appear in `docker-compose` override files you may find in the OpenMetadata repository -- for
 example `RDF_JSONLD_ENABLED`, `RDF_SPARQL_ENABLED`, `RDF_AUTO_GENERATE`, `RDF_SYNC_BATCH_SIZE` -- are not wired to any
-configuration key and have no effect. Only the environment variables in the table above are read by the server. If
+configuration key and have no effect. Only the environment variables in the tables above are read by the server. If
 you're copying an example compose file, verify it sets `RDF_ENDPOINT` (not `RDF_REMOTE_ENDPOINT`).
 
 </Info>

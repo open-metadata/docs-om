@@ -1,0 +1,155 @@
+---
+title: Graph Insights | OpenMetadata Knowledge Graph
+description: Importance ranking, PageRank centrality, Louvain communities, shortest lineage paths, similarity recommendations, and tag analytics over the knowledge graph.
+sidebarTitle: Graph Insights
+---
+
+# Graph Insights
+
+Once your catalog is a graph, graph algorithms become available to it. OpenMetadata exposes a set of them under `/api/v1/rdf/insights` — the kind of analysis that is trivial on a graph and painful on tables.
+
+All insight endpoints are **admin-only** and require RDF to be enabled.
+
+## Importance
+
+```
+GET /api/v1/rdf/insights/important?entityType=table&window=daily&limit=20
+```
+
+Ranks entities of one type by a composite importance score that blends two signals:
+
+- **Usage percentile** — real query activity from OpenMetadata's usage data (weight 0.6).
+- **Downstream lineage edge count** — graph topology (weight 0.4).
+
+Parameters: `entityType` (required, singular — `table`, `dashboard`, `pipeline`, `mlmodel`, …), `window` (`daily`, `weekly`, `monthly`; default `daily`), `limit` (1–100, default 20). Results are SPARQL JSON with usage percentile, downstream count, and the composite score.
+
+<Tip>
+
+Blending both signals is deliberate. Usage alone over-ranks the dashboard everyone opens out of habit; topology alone over-ranks a staging table nothing reads. Something that is both queried *and* heavily depended on is what you actually want to protect with a contract, an owner, and a test.
+
+</Tip>
+
+## Centrality (PageRank)
+
+```
+POST /api/v1/rdf/insights/recompute-centrality?entityType=table
+```
+
+Walks lineage, tagging, and containment edges for the entity type, runs **weighted PageRank**, and persists scores to the named graph `om:insights/centrality/{entityType}`. Importance ranking blends these scores in for entities that have no query-usage data.
+
+Expensive by design — intended to run on a schedule, exposed for manual triggering.
+
+## Communities (Louvain)
+
+```
+POST /api/v1/rdf/insights/recompute-communities?entityType=table&graphType=lineage
+GET  /api/v1/rdf/insights/communities?entityType=table&graphType=lineage
+```
+
+Extracts the lineage or tag-co-occurrence graph for the entity type, runs **Louvain modularity optimization**, and persists the partition to `om:insights/communities/{graphType}/{entityType}`. Each community is an `om:Community` resource with `om:hasMember` triples and a modularity score.
+
+`graphType` is `lineage` (default) or `tagCoOccurrence`.
+
+Communities surface the *de facto* structure of your platform — clusters of assets that move together — which is often not the structure your org chart or your domain model claims. Comparing the discovered partition against your declared domains is one of the more useful audits available.
+
+## Shortest Lineage Path
+
+```
+GET /api/v1/rdf/insights/path?from={uri}&to={uri}&direction=upstream&maxHops=6
+```
+
+Breadth-first search over the lineage graph (`prov:wasDerivedFrom`, `om:upstream`, `om:downstream`) returning the shortest path between two entity URIs.
+
+| Parameter | Notes |
+|---|---|
+| `from`, `to` | Absolute entity URIs. Required. |
+| `direction` | `upstream` (default), `downstream`, or `both`. |
+| `maxHops` | 1–25, default 6. |
+
+Each hop returns the URI, the predicate that connected it, and the entity's `om:*` types. When no path exists within `maxHops`, the response says `found: false` rather than returning an empty list you have to interpret.
+
+This is the endpoint behind "how does this dashboard actually get its numbers" — and the honest answer to an incident review.
+
+## Recommendations
+
+```
+GET /api/v1/rdf/insights/recommendations?entityUri={uri}&limit=10
+```
+
+Ranks every other entity by **graph-topology similarity** to a seed: overlap on tags, glossary terms, and direct lineage neighbors.
+
+```
+score = 1.0 · tagOverlap + 1.5 · glossaryOverlap + 2.0 · lineageOverlap
+```
+
+Pure SPARQL, no precomputation — so it is always current, and it costs something. `limit` is 1–50, default 10.
+
+Note the weighting: shared lineage counts double a shared tag. Two tables that share a tag might merely both be `PII`; two tables that share an upstream are genuinely about the same thing.
+
+<Info>
+
+This is a different notion of "similar" from [semantic search](/v2.1.x-SNAPSHOT/how-to-guides/mcp/semantic-search), which compares embeddings of names and descriptions. Structural similarity finds assets that *behave* alike; semantic similarity finds assets that *read* alike. They disagree usefully.
+
+</Info>
+
+## Tag Analytics
+
+```
+GET /api/v1/rdf/insights/tag-popularity?limit=20
+GET /api/v1/rdf/insights/tag-cooccurrence?minCount=2&limit=20
+GET /api/v1/rdf/insights/glossary-reach?minDomains=2&limit=20
+```
+
+| Endpoint | Answers |
+|---|---|
+| **Tag popularity** | Which tags are actually applied, and to how many entities. |
+| **Tag co-occurrence** | Which pairs of tags land on the same entities. `minCount` sets the minimum shared entities (default 2). |
+| **Glossary reach** | Which glossary terms span the most domains. `minDomains` sets the threshold (default 2). |
+
+Co-occurrence is a classification-hygiene tool: two tags that almost always appear together are usually one tag with a naming problem. Glossary reach identifies your genuinely cross-cutting concepts — the ones where a definition change is an organization-wide event rather than a team-local one.
+
+## Semantic Search over the Graph
+
+```
+GET /api/v1/rdf/search/semantic?query=...
+GET /api/v1/rdf/search/similar/{entityType}/{id}
+GET /api/v1/rdf/search/recommendations/{userId}
+```
+
+Vector-based search delegating to OpenSearch's vector capabilities.
+
+<Warning>
+
+These endpoints require **OpenSearch**, not Elasticsearch. Core RDF indexing, SPARQL, graph exploration, and every other insight endpoint work with either.
+
+</Warning>
+
+## SQL → SPARQL Translation
+
+```
+POST /api/v1/rdf/sql/translate
+POST /api/v1/rdf/sql/query
+```
+
+Translate a SQL statement into the equivalent SPARQL against the knowledge graph, or translate and execute in one call. Useful as an on-ramp for teams fluent in SQL, and as a way to see how a familiar query maps onto graph patterns.
+
+## Linked Open Data
+
+With `RDF_DEREFERENCEABLE_IRIS=true`:
+
+```
+GET /api/v1/lod/entity/{entityType}/{id}
+```
+
+Performs authenticated, content-negotiated redirection for OpenMetadata-minted IRIs, so a linked-data client can follow an entity IRI and get RDF back. This is what makes the IRIs in your exports *resolvable* rather than merely unique.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Knowledge Graph API" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/api">
+    The complete endpoint reference.
+  </Card>
+  <Card title="For AI Agents" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    Hand these capabilities to an assistant.
+  </Card>
+</CardGroup>

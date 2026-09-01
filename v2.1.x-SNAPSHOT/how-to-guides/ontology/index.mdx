@@ -1,0 +1,157 @@
+---
+title: Ontology & Knowledge Graph | OpenMetadata
+description: Understand what an ontology is, why it matters in the AI era, and how OpenMetadata turns your glossary into a governed semantic model and a queryable knowledge graph.
+sidebarTitle: Overview
+---
+
+# Ontology & Knowledge Graph
+
+Telling you *what* exists is the easy part: this table has these columns, this dashboard reads that table. A **Context Platform** has to tell you *what it means*: that `cust_acct_bal_amt` is a **Customer Account Balance**, that a Customer Account Balance is calculated from **Transactions**, that Transactions are regulated by **AML**, and that anything regulated by AML must be retained for seven years.
+
+That second kind of knowledge is what an **ontology** captures — and once it is captured, OpenMetadata projects it, together with every asset in your catalog, into a single **knowledge graph** that people and AI agents can query.
+
+<CardGroup cols={2}>
+  <Card title="Ontology Studio" icon="sitemap" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio">
+    Author, explore, and query your business ontology from one workspace.
+  </Card>
+  <Card title="Knowledge Graph" icon="share-nodes" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph">
+    Every asset, relationship, tag, and lineage edge as one RDF graph.
+  </Card>
+  <Card title="For AI Agents" icon="robot" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    MCP tools that let an agent traverse the graph instead of guessing.
+  </Card>
+  <Card title="Enable It" icon="toggle-on" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable">
+    What works out of the box, and what needs a triple store.
+  </Card>
+</CardGroup>
+
+## What Is an Ontology?
+
+An **ontology** is a formal, machine-readable model of the concepts in a domain, the properties those concepts have, and the relationships between them.
+
+A glossary tells you that "Churn Rate" exists and gives you a paragraph of prose. An ontology tells you, in a form software can act on:
+
+- **Churn Rate** is a *Metric*.
+- It is **calculated from** *Active Subscriptions* and *Cancelled Subscriptions*.
+- It is **part of** the *Retention* concept.
+- It has the attributes `unit = percentage` and `grain = monthly`.
+- It is **exactly equivalent to** `fibo-fnd:CustomerAttritionRate` in an external standard.
+- **calculatedFrom** is *not* symmetric, so nothing can silently infer the reverse.
+
+The difference matters because the second version is *computable*. Ask "what breaks if the Cancelled Subscriptions definition changes?" and you get an answer, because the derivation is written down as data rather than described in a paragraph.
+
+<Info>
+
+**Ontology, taxonomy, glossary, knowledge graph — the short version**
+
+| | What it gives you | Example |
+|---|---|---|
+| **Glossary** | Agreed names and definitions | "Churn Rate: the share of customers who cancel in a period." |
+| **Taxonomy** | A single hierarchy | Retention → Churn → Voluntary Churn |
+| **Ontology** | Many *typed* relationships, properties, and rules — the schema of your business | Churn Rate `calculatedFrom` Cancelled Subscriptions; `partOf` Retention |
+| **Knowledge graph** | The ontology *plus the actual instances* — your real tables, columns, dashboards, owners, and lineage, connected | `db.prod.subscriptions.cancelled_at` → *Cancelled Subscriptions* → *Churn Rate* → `dash.exec_kpis` |
+
+In OpenMetadata, the ontology is the blueprint and the knowledge graph is the building.
+
+</Info>
+
+## Why Ontologies Matter Now
+
+Ontologies are a decades-old idea from the semantic web. They are having a moment for a specific and practical reason: **LLMs are extremely good at language and extremely bad at knowing which table you meant.**
+
+### Retrieval Is Not the Bottleneck; Disambiguation Is
+
+Ask an agent "what was revenue last quarter?" and it will happily find fourteen tables with a `revenue` column. Semantic search narrows that down by similarity — but similarity cannot tell you that *Recognized Revenue* is the one Finance signs off on, that it is calculated from *Booked Revenue* minus *Deferred Revenue*, and that the `revenue_v2_final` table is deprecated. Only a model of the business can.
+
+An ontology gives the agent a small, dense, human-curated map of the domain to reason over, instead of asking it to reconstruct that map from thousands of column names on every request.
+
+### Graph Shape Beats Chunk Shape
+
+RAG over text chunks answers "what does the docs say about X." Enterprise questions are usually multi-hop and structural:
+
+- *"Which dashboards would break if we drop this column?"*
+- *"Everything classified PII that flows into a system outside the EU."*
+- *"Which of my Tier-1 tables have no owner and no data contract?"*
+
+Those are graph traversals, not similarity lookups. A knowledge graph answers them exactly, in one query, with no hallucination surface — because the answer is a set of edges, not a generation.
+
+### Agents Need Guardrails They Can Read
+
+An agent acting on your data needs to know not just *where* the data is but *what it is allowed to conclude*. Typed relationships carry logical characteristics — symmetric, transitive, functional — and OWL axioms carry constraints like disjointness. That is a contract the agent can consult and that OpenMetadata can validate against, rather than a convention living in someone's head.
+
+### Semantics Outlive Pipelines
+
+Tables get renamed, warehouses get migrated, dbt models get refactored. The concept *Customer* does not. Modeling meaning separately from storage is what lets the catalog survive a re-platform — and what lets two systems that disagree about column names still agree about concepts.
+
+<Tip>
+
+**The one-line case.** Search tells an agent what *exists*. Lineage tells it what *flows*. An ontology tells it what things *mean* — and a knowledge graph is the only place where all three are queryable together.
+
+</Tip>
+
+## How OpenMetadata Implements It
+
+OpenMetadata does not ask you to stand up a separate semantic-modeling tool and then reconcile it with your catalog. The ontology is built **on top of the glossary you already have**.
+
+| Ontology concept | OpenMetadata entity | Standard it maps to |
+|---|---|---|
+| Ontology / concept scheme | **Glossary** | `owl:Ontology`, `skos:ConceptScheme` |
+| Concept | **Glossary Term** | `owl:Class`, `skos:Concept` |
+| Typed relationship | **Relationship Type** on a term relation | `owl:ObjectProperty` |
+| Attribute | **Ontology Attribute** on a term | `owl:DatatypeProperty` |
+| Logical axiom | **Ontology Axiom** | `rdfs:subClassOf`, `owl:equivalentClass`, `owl:disjointWith`, … |
+| External crosswalk | **Concept Mapping** | `skos:exactMatch`, `closeMatch`, `broadMatch`, … |
+| Instance data | Tables, columns, dashboards, pipelines, … | `om:Table`, `om:Column`, `dcat:Dataset`, … |
+
+Two consequences worth understanding before you go further:
+
+1. **Your relational database stays authoritative.** Concepts, relationships, attributes, axioms, and mappings are stored as ordinary OpenMetadata entities with versioning, ownership, reviewers, and change events. Authoring, import/export, impact analysis, and even glossary-scoped SPARQL all work with **no triple store deployed**.
+2. **The RDF knowledge graph is a projection.** When you enable RDF, OpenMetadata mirrors the ontology *and every other entity in the catalog* into an Apache Jena Fuseki triple store as a derived index — the same way it mirrors entities into Elasticsearch/OpenSearch for search. That projection is what unlocks catalog-wide SPARQL, reasoning, SHACL validation, graph insights, and the knowledge-graph MCP tools.
+
+<Warning>
+
+The RDF knowledge graph is a **Beta** feature and is **disabled by default**. Ontology Studio's authoring and exploration surfaces work without it; Query mode, the AI assistant, the 3D Knowledge Graph tab, and the knowledge-graph MCP tools require it. See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable).
+
+</Warning>
+
+## The Pieces
+
+<Steps>
+  <Step title="Model your domain in Ontology Studio">
+    Author concepts, typed relationships, attributes, and OWL axioms in a purpose-built workspace — or install a standards-aligned starter pack (FIBO, HL7 FHIR, GS1, EPCIS, ISA-95, HR Open) and adapt it.
+
+    [Ontology Studio →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio)
+  </Step>
+  <Step title="Attach concepts to real assets">
+    Assign glossary terms to tables, columns, dashboards, and pipelines the way you already do. This is the join between the blueprint and the building.
+
+    [Glossary assets →](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/glossary/assets)
+  </Step>
+  <Step title="Project it into the knowledge graph">
+    Enable RDF and run the indexing application. Every entity, tag, owner, and lineage edge becomes triples in a queryable named graph.
+
+    [Knowledge Graph →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph)
+  </Step>
+  <Step title="Query it — as a human or as an agent">
+    Ask graph-shaped questions in the SPARQL console, or let an AI assistant call the knowledge-graph MCP tools directly.
+
+    [SPARQL →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql) · [AI agents →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents)
+  </Step>
+</Steps>
+
+## Where to Go Next
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/concepts">
+    Concepts, relationship types, attributes, axioms, IRIs, and the standards behind them.
+  </Card>
+  <Card title="Ontology Studio" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio">
+    A tour of View, Edit, Query, and AI modes.
+  </Card>
+  <Card title="Knowledge Graph" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph">
+    What OpenMetadata projects, and what you can ask of it.
+  </Card>
+  <Card title="Ontology & KG for AI Agents" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    The MCP tool surface and agent recipes.
+  </Card>
+</CardGroup>
