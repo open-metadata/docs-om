@@ -1,0 +1,206 @@
+---
+title: Reasoning & Validation | OpenMetadata Knowledge Graph
+description: Inference levels, materialized SPARQL CONSTRUCT rules, custom ontology extensions, and SHACL validation over the OpenMetadata knowledge graph.
+sidebarTitle: Reasoning & Validation
+---
+
+# Reasoning & Validation
+
+A knowledge graph earns its keep when it can tell you things nobody explicitly wrote down — and refuse to accept things that contradict the model. Those are the two halves of this page: **inference** (derive) and **SHACL validation** (check).
+
+## Inference Levels
+
+Every SPARQL query can request a reasoning level:
+
+| Level | What it derives |
+|---|---|
+| `NONE` | Nothing. Only asserted triples. The default. |
+| `RDFS` | RDFS entailment — subclass and subproperty closure, domain/range typing. |
+| `OWL_LITE` / `OWL_DL` | OWL entailment at the corresponding profile: inverse properties, transitivity, symmetry, equivalence. |
+| `CUSTOM` | OpenMetadata's own rule set — transitive lineage traversal, tag propagation, domain inheritance. |
+
+Configure the default with `RDF_DEFAULT_INFERENCE_LEVEL`, and enable inference at all with `RDF_INFERENCE_ENABLED`. Callers can override per query (`inference=` on the REST endpoint, `inferenceLevel` on the MCP tool).
+
+`GET /api/v1/rdf/status` reports which levels are available and what the default is.
+
+### Two Execution Strategies
+
+**In-process inference** builds a Jena inference model over the dataset in memory at query time. Accurate for any level, but bounded: if the store exceeds `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES` (default 100,000), the query silently falls back to direct execution **without** inference and returns a `warning` field saying so. Enable `cacheInferredTriples` to reuse bounded in-memory models for 60 seconds.
+
+**Materialized inference** (`RDF_MATERIALIZED_INFERENCE_ENABLED=true`) runs each rule as a SPARQL `CONSTRUCT` inside the triple store and writes the results to a durable named graph, one per rule. Queries then read materialized triples with no in-memory model at all.
+
+<Tip>
+
+**Use materialized inference for anything past a small catalog.** In-process inference does not scale past the triple limit, and a silent fallback that returns un-inferred results is worse than no inference at all — you get an answer that looks right and is incomplete. Materialization has the opposite failure mode: staleness, which is visible as a `dirty` flag.
+
+</Tip>
+
+## Materialized Inference Rules
+
+A rule is a SPARQL `CONSTRUCT` query with a name, priority, and enabled flag. Its output lands in `https://open-metadata.org/graph/inferred/{rule}`.
+
+### The Starter Pack
+
+Four rules ship and are always present:
+
+<AccordionGroup>
+  <Accordion title="transitive-lineage-closure — priority 100, tag: lineage">
+    Materializes indirect lineage by walking `prov:wasDerivedFrom` transitively, so SPARQL can answer "all upstream tables of dashboard X" without users writing property paths.
+
+    ```sparql
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    PREFIX om:   <https://open-metadata.org/ontology/>
+    CONSTRUCT { ?x om:transitivelyDerivedFrom ?y }
+    WHERE {
+      ?x prov:wasDerivedFrom+ ?y .
+      FILTER(?x != ?y)
+    }
+    ```
+  </Accordion>
+  <Accordion title="pii-propagation-via-lineage — priority 200, tags: security, lineage">
+    If a column carries a `PII.*` tag and another column receives data from it via column-level lineage, propagate the tag downstream. The derived tag is marked with `om:inferredTagSource` pointing at the upstream column, so a propagated tag is always distinguishable from a curated one.
+
+    ```sparql
+    PREFIX om: <https://open-metadata.org/ontology/>
+    CONSTRUCT {
+      ?downstream om:hasTag ?piiTag .
+      ?downstream om:inferredTagSource ?upstream
+    }
+    WHERE {
+      ?upstream om:hasTag ?piiTag .
+      ?piiTag om:tagFQN ?fqn .
+      FILTER(STRSTARTS(?fqn, "PII."))
+      ?colLineage om:fromColumn ?upstream ; om:toColumn ?downstream .
+    }
+    ```
+
+    This is the rule that turns "we tagged the source" into "we know every downstream column that is now also sensitive" — the question most privacy reviews actually ask.
+  </Accordion>
+  <Accordion title="schema-tag-inheritance — priority 300, tag: governance">
+    Propagates tags down the containment hierarchy: a tag on a `DatabaseSchema` is inherited by every `Table` in it, and a tag on a `Table` by every `Column`. Inferred tags carry `om:inferredTagSource`.
+  </Accordion>
+  <Accordion title="domain-membership-inheritance — priority 400, tag: governance">
+    If a `Table` belongs to a `Domain`, every `Column` of that table inherits the membership — so `om:belongsToDomain` queries return both table- and column-level results without a separate lookup.
+  </Accordion>
+</AccordionGroup>
+
+Rules run in **priority order** (lower first; ties broken by name), which matters: schema→table→column tag inheritance at priority 300 runs after PII propagation at 200, so inherited tags do not feed back into the propagation pass in the same run.
+
+### Managing Rules
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/rdf/rules` | List rules with materialization state: `dirty`, `graphUri`, `tripleCount`, `lastMaterializedAt`, `lastError`, `systemRule`. |
+| `GET /api/v1/rdf/rules/{name}` | One rule. |
+| `PUT /api/v1/rdf/rules/{name}` | Create or update a custom rule. Saving marks it dirty. |
+| `DELETE /api/v1/rdf/rules/{name}` | Delete a custom rule and drop its materialized graph. System rules cannot be deleted. |
+| `POST /api/v1/rdf/rules/validate` | Validate a rule body without saving. |
+| `POST /api/v1/rdf/rules/materialize` | Materialize now. |
+
+All admin-only.
+
+**Dirty tracking**: when source RDF changes after a successful materialization, the rule is flagged `dirty`. The scheduled RDF inference application materializes dirty rules; `force: true` re-materializes everything, and `ruleName` runs a single rule on demand.
+
+### Writing Your Own Rule
+
+```json
+{
+  "name": "contract-coverage",
+  "displayName": "Tables governed by a data contract",
+  "description": "Marks any table that has an attached data contract, so coverage can be queried directly.",
+  "ruleType": "CONSTRUCT",
+  "priority": 500,
+  "enabled": true,
+  "tags": ["governance"],
+  "ruleBody": "PREFIX om: <https://open-metadata.org/ontology/>\nCONSTRUCT { ?t om:hasGovernedContract true }\nWHERE { ?c a om:DataContract ; om:appliedTo ?t }"
+}
+```
+
+```bash
+curl -X PUT "$OM_HOST/api/v1/rdf/rules/contract-coverage" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @rule.json
+```
+
+<Warning>
+
+A `CONSTRUCT` whose `WHERE` clause is expensive is expensive **every time it materializes**, over the whole graph. Validate it, then run it against a non-production dataset before enabling it in production. Unbounded property paths combined with unbound subjects are the usual culprit.
+
+</Warning>
+
+### Explaining an Inference
+
+When materialized inference is on, the Ontology Studio relation panel shows an **inference explanation** for a derived relation — which rules contributed, how many triples each produced, and when they last ran. `POST /api/v1/ontology/reasoning/explanations` exposes the same thing over the API.
+
+This matters more than it sounds. An inferred PII tag that nobody can explain is a compliance problem, not a feature.
+
+## Custom Ontology Extensions
+
+Extend the canonical ontology with your own classes and properties without forking it. Extensions live in a reserved namespace — `https://open-metadata.org/ontology-extension/` — so a custom class can never collide with a core `om:` term or be mistaken for one.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/rdf/ontology/extensions` | List extensions. |
+| `GET /api/v1/rdf/ontology/extensions/{name}` | Fetch one. |
+| `PUT /api/v1/rdf/ontology/extensions/{name}` | Create or update. |
+| `DELETE /api/v1/rdf/ontology/extensions/{name}` | Remove. |
+| `POST /api/v1/rdf/ontology/extensions/validate` | Validate without saving. |
+
+Each extension declares custom OWL classes and properties (object or datatype) with a description explaining why they are needed. Validation rejects URIs outside the extension namespace.
+
+<Info>
+
+Prefer modeling in the **ontology** (concepts and relationship types) over extending the **catalog vocabulary**. Extensions are for describing kinds of *metadata* OpenMetadata does not have — not for describing your business, which is what the ontology is for.
+
+</Info>
+
+## SHACL Validation
+
+SHACL (Shapes Constraint Language) is the graph equivalent of a schema check. OpenMetadata ships canonical shapes at `rdf/shapes/openmetadata-shapes.ttl`, loaded into `https://open-metadata.org/graph/shapes`, covering base entity constraints (every entity has exactly one id, one name matching `^[a-zA-Z0-9_-]+$`, one FQN, at most one description, a positive version) plus per-class shapes for tables, columns, and the rest.
+
+### Running It
+
+```bash
+# Whole dataset (expensive — admin only)
+curl "$OM_HOST/api/v1/rdf/validate" -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# Scoped to one entity
+curl "$OM_HOST/api/v1/rdf/validate?entityUri=https://open-metadata.org/entity/table/{uuid}&format=jsonld" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+The response is a standard `sh:ValidationReport` in Turtle (default) or JSON-LD. An `OM-SHACL-Conforms` response header carries the boolean verdict, so CI can gate on it without parsing the body.
+
+Agents call the same thing through the `shacl_validate` MCP tool, which additionally returns `conforms` and `violationCount` in full even when the report body is truncated.
+
+### Validation Modes
+
+`RDF_SHACL_VALIDATION_MODE` controls the policy:
+
+| Mode | Behavior |
+|---|---|
+| `OFF` | No validation. |
+| `REPORT` | Validate and report. Never blocks. **The default.** |
+| `ENFORCE_IMPORTS` | Additionally reject ontology **imports** that fail validation. |
+
+<Info>
+
+**Validation never blocks the write path.** SHACL here is a diagnostic, not a gate on entity creation — a platform that refuses to ingest a table because of a shape violation is worse than one that ingests it and tells you. `ENFORCE_IMPORTS` is the one place strictness is opt-in, because a malformed imported ontology corrupts a model rather than one row.
+
+</Info>
+
+## OWL Profile Guardrails
+
+`RDF_STRICT_OWL_PROFILE=true` (the default) makes OpenMetadata reject authored axioms outside the supported OWL 2 DL profile. This is not pedantry: OWL Full is undecidable, and a reasoner over an undecidable ontology can run forever. The guardrail is what keeps `OWL_DL` inference a bounded operation.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Graph Insights" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/insights">
+    Centrality, communities, and paths over the materialized graph.
+  </Card>
+  <Card title="Knowledge Graph API" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/api">
+    Every endpoint, with parameters.
+  </Card>
+</CardGroup>

@@ -1,0 +1,93 @@
+---
+title: Ontology AI Assistant | OpenMetadata
+description: Generate reviewable relationship, mapping, SPARQL, and domain-draft proposals for your ontology — never applied without review.
+sidebarTitle: AI Assistant
+---
+
+# Ontology AI Assistant
+
+Modeling an ontology is mostly a blank-page problem. You know the domain; turning it into typed concepts and edges is tedious. The **AI mode** in Ontology Studio proposes structure — and stops there.
+
+<Info>
+
+**Nothing the assistant produces is applied.** Every proposal lands as a **reviewable Draft** (an ontology change set) or as **visible SPARQL text**. Applying a Draft is a separate, permissioned, audited action. Manual authoring stays fully available whether or not this feature is enabled.
+
+</Info>
+
+## Enabling It
+
+The AI tab is hidden unless **both** are true:
+
+1. `RDF_ASK_COLLATE_ENABLED=true` on the server (`rdf.askCollateEnabled` in `openmetadata.yaml`).
+2. An LLM provider is configured for the deployment — proposals are generated through OpenMetadata's LLM completion client.
+
+`GET /api/v1/rdf/status` reports `askCollateEnabled`, which is what the UI checks.
+
+Scope AI proposals by selecting **one** glossary in the studio header. The assistant authorizes against that glossary (`ViewBasic`) and uses it as the modeling context.
+
+## The Four Panels
+
+### Relationships
+
+Proposes typed relationships for **isolated concepts** — the ones with no edges at all.
+
+Requires at least two concepts and one relationship type in the selected model. Each suggestion names the source concept, the target concept, and the relationship type, with a rationale. Accepting suggestions builds a Draft.
+
+`POST /api/v1/ontology/ai/relationships/suggestions`
+
+### Mappings
+
+Proposes **external concept mappings** — crosswalks from your concepts to a standard. You supply the standards to align against as a comma-separated list, for example `FIBO, FHIR, schema.org`.
+
+Requires at least one concept in the selected glossary. Each suggestion carries the external IRI and a proposed match type.
+
+`POST /api/v1/ontology/ai/mappings/suggestions`
+
+### Query
+
+Ask a question about the model in natural language — *"Which concepts are isolated from the rest of this ontology?"* — and get **read-only SPARQL** back.
+
+The generated query is always shown before it can be run: read it, edit it, and only then open it in the console. No path exists where a generated query executes without a human seeing it first.
+
+`POST /api/v1/ontology/ai/sparql`
+
+### Domain Draft
+
+Describe a business domain — its vocabulary, boundaries, and important hierarchy — and get a typed concept hierarchy back as a Draft payload. The panel previews how many concept operations were generated before you create the Draft.
+
+This is the blank-page tool: useful for standing up the first eighty concepts of a domain you then curate down, not for producing a finished model.
+
+`POST /api/v1/ontology/ai/drafts`
+
+## Reviewing a Proposal
+
+Every accepted proposal becomes an ontology change set in `DRAFT` state with typed operations. From there it follows the normal path:
+
+1. Inspect the typed operations, and undo/redo through them.
+2. **Submit** for review — this creates a review task.
+3. A reviewer **applies** it, and the application result is recorded on the change set.
+
+Drafts created from AI proposals are marked as such in their description, so a reviewer always knows the provenance of what they are approving.
+
+See [Change sets](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author#change-sets) for the full lifecycle.
+
+## What to Expect
+
+<Warning>
+
+Treat proposals as a **first draft from someone who has read your glossary but does not work at your company**. They are good at plausible structure — hierarchy, obvious part-of relationships, likely standard alignments. They cannot know which of two similar concepts your Finance team actually signs off on, and they will occasionally propose an `EXACT_MATCH` where a `CLOSE_MATCH` is honest.
+
+Review mapping types especially carefully: `skos:exactMatch` is a strong claim that downstream consumers will act on.
+
+</Warning>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Author (Edit mode)" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author">
+    Where Drafts are reviewed and applied.
+  </Card>
+  <Card title="Ontology & KG for AI Agents" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    The other direction — agents *consuming* the ontology.
+  </Card>
+</CardGroup>

@@ -1,0 +1,140 @@
+---
+title: Relationship Types | OpenMetadata Ontology
+description: Govern the vocabulary of edges in your ontology — categories, RDF predicates, OWL characteristics, cardinality, property chains, and disjointness.
+sidebarTitle: Relationship Types
+---
+
+# Relationship Types
+
+A **relationship type** defines one kind of edge between concepts. It is the difference between "these two terms are somehow related" and "*Churn Rate* is `calculatedFrom` *Cancelled Subscriptions*, `calculatedFrom` is not symmetric, and it maps to `om:calculatedFrom` in RDF."
+
+Relationship types are **admin-governed and global**. Manage them at **Settings → Governance → Glossary Term Relations**.
+
+<img src="/public/images/how-to-guides/ontology/relationship-types-settings.png" alt="Glossary Term Relations settings page" />
+
+## The List
+
+Each row shows the type's **Name**, **Display Name**, **Category**, **Characteristics**, **Cross Glossary** flag, **Cardinality**, and **Color**. System-defined types carry a lock icon: they can be updated but never deleted, and their edit and delete actions are disabled.
+
+`GET /api/v1/glossaryTerms/relationTypes/usage` returns each type with the number of relations currently using it — check this before removing a custom type.
+
+## Creating a Type
+
+Click **Add Relation Type** and fill in the panel.
+
+### Identity
+
+| Field | Notes |
+|---|---|
+| **Name** | Required, unique, immutable API key. Starts with a letter; letters and numbers only. |
+| **Display name** | Required. The label drawn on graph edges and badges. |
+| **Description** | What the relationship means and when to use it. |
+
+### Category
+
+| Category chip | Use for |
+|---|---|
+| **Core** | OpenMetadata's built-in semantic relationships — `relatedTo`, `partOf`, `hasPart`, `calculatedFrom`, `usedToCalculate`, `antonym`. |
+| **OWL / SKOS** | Types whose meaning is defined by a W3C standard — `broader`, `narrower`, `synonym`, `seeAlso`, `subClassOf`, `superClassOf`. |
+| **Custom · Admin-defined** | Everything you add for your own domain, including types auto-registered by an ontology import. |
+
+### Behavior
+
+**Characteristics** are OWL property characteristics. They are not labels — reasoners and the inference engine act on them.
+
+| Characteristic | Meaning |
+|---|---|
+| `SYMMETRIC` | If A→B then B→A. |
+| `ASYMMETRIC` | If A→B then never B→A. |
+| `TRANSITIVE` | If A→B and B→C then A→C. |
+| `FUNCTIONAL` | Each source has at most one target. |
+| `INVERSE_FUNCTIONAL` | Each target has at most one source. |
+| `REFLEXIVE` | Every concept relates to itself. |
+| `IRREFLEXIVE` | No concept relates to itself. |
+
+**Cardinality** constrains how many concepts can sit on each end: one-to-one, one-to-many, many-to-one, many-to-many, or **Custom** with explicit source and target maxima (blank means unlimited).
+
+**Cross-glossary** controls whether the type can connect concepts belonging to different glossaries. Turn it off for types that only make sense inside a single model.
+
+### Semantics and Mapping
+
+| Field | Notes |
+|---|---|
+| **Inverse relation** | The type that represents this one in reverse — `broader` ↔ `narrower`. Symmetric types reference themselves. Used when exporting `owl:inverseOf` and when the "include inverse relationships" export option is on. |
+| **RDF predicate** | The predicate emitted for authored edges, for example `http://www.w3.org/2004/02/skos/core#broader`. OpenMetadata warns if another type already claims it. |
+| **IRI** | The IRI identifying the OWL object property itself. |
+| **Domain / range** | Which concepts can appear on the source and target ends. |
+| **Property chain** | An ordered chain of relationship types whose composition implies this one — for example `partOf ∘ partOf ⇒ partOf`. |
+| **Disjoint with** | Types that can never co-occur on the same pair of concepts. |
+| **Color** | Palette key for edges and badges. |
+
+### Lifecycle
+
+| Field | Notes |
+|---|---|
+| **Replaced by** | Points at a successor when a type is deprecated, so consumers can follow the migration. |
+| **System-defined** | Set on shipped types. Updatable, never deletable. |
+| **Entity status**, **owners**, **reviewers** | Relationship types are versioned entities like any other, with full history. |
+
+<Warning>
+
+The **RDF predicate** is the identity of this relationship in the knowledge graph and in every exported ontology. Changing it after edges exist changes what downstream consumers see. Pick it when you create the type.
+
+</Warning>
+
+## Types Shipped by Default
+
+| Name | Category | RDF predicate | Characteristics |
+|---|---|---|---|
+| `relatedTo` | Core | `om:relatedTo` | Symmetric |
+| `antonym` | Core | `om:antonym` | Symmetric |
+| `partOf` | Core | `om:partOf` | — |
+| `hasPart` | Core | `om:hasPart` | — |
+| `calculatedFrom` | Core | `om:calculatedFrom` | — |
+| `usedToCalculate` | Core | `om:usedToCalculate` | — |
+| `synonym` | OWL / SKOS | `skos:exactMatch` | Symmetric |
+| `broader` | OWL / SKOS | `skos:broader` | Transitive |
+| `narrower` | OWL / SKOS | `skos:narrower` | Transitive |
+| `seeAlso` | OWL / SKOS | `rdfs:seeAlso` | Symmetric |
+| `subClassOf` | OWL / SKOS | `rdfs:subClassOf` | Transitive |
+| `superClassOf` | OWL / SKOS | `om:superClassOf` | Transitive |
+
+## Design Guidance
+
+<AccordionGroup>
+  <Accordion title="Prefer a few well-defined types over many similar ones">
+    Every type is a decision modelers must make correctly on every edge. Three types used consistently beat twelve used approximately. Add a type when it unlocks a query you cannot express without it.
+  </Accordion>
+  <Accordion title="Set characteristics deliberately">
+    `TRANSITIVE` is what lets the transitive-closure rule answer "every ancestor" in one hop. `SYMMETRIC` is what stops the graph from storing both directions. Leaving these unset because you are unsure means the reasoner cannot help you.
+  </Accordion>
+  <Accordion title="Reuse a standard predicate when one exists">
+    Mapping to `skos:broader` rather than a bespoke `om:isUnder` makes your export intelligible to every SKOS-aware tool on the planet, for zero extra effort.
+  </Accordion>
+  <Accordion title="Deprecate, don't delete">
+    Set **Replaced by** and leave the old type in place. Deleting a type that edges still reference destroys information no one can reconstruct.
+  </Accordion>
+</AccordionGroup>
+
+## API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/relationshipTypes` | List types. |
+| `GET /api/v1/relationshipTypes/{id}`, `/name/{fqn}` | Fetch one. |
+| `POST` / `PUT` / `PATCH /api/v1/relationshipTypes` | Create, upsert, patch. |
+| `DELETE /api/v1/relationshipTypes/{id}` | Delete a custom type. |
+| `PUT /api/v1/relationshipTypes/restore` | Restore a deleted type. |
+| `GET /api/v1/relationshipTypes/{id}/versions` | Version history. |
+| `GET /api/v1/glossaryTerms/relationTypes/usage` | Usage counts per type. |
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Author (Edit mode)" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author">
+    Use these types to draw relations.
+  </Card>
+  <Card title="Reasoning & Validation" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning">
+    How characteristics drive inference.
+  </Card>
+</CardGroup>

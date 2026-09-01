@@ -1,0 +1,124 @@
+---
+title: Explore the Knowledge Graph in 3D | OpenMetadata
+description: Navigate an asset's neighborhood in the 3D Knowledge Graph — levels, relationship filters, coverage gaps, depth, and derived ontology relationships.
+sidebarTitle: 3D Explorer
+---
+
+# The 3D Knowledge Graph
+
+Every table in OpenMetadata carries a **Knowledge Graph** tab that renders its neighborhood as an interactive 3D force-directed graph. It is the fastest way to see, rather than query, how one asset sits in the wider catalog.
+
+<img src="/public/images/how-to-guides/ontology/knowledge-graph-3d.png" alt="3D Knowledge Graph tab on a table" />
+
+<Info>
+
+The tab is **hidden unless RDF is enabled**, and is marked **Beta**. It reads from `GET /api/v1/rdf/graph/explore`, which is admin-only.
+
+</Info>
+
+Drag to orbit, scroll to zoom, click a node to select it. The graph starts focused on the asset you opened it from.
+
+A caption above the canvas states the current level, the node count, and what that level shows — for example *"Data Asset Level · 125 nodes · Tables, columns, owners and queries — and the lineage between assets."*
+
+## Levels
+
+The **Level** control changes what kind of thing the graph is about. It is not a filter — it is a different question.
+
+| Level | Shows |
+|---|---|
+| **Data Asset** | Tables, columns, owners, and queries — and the lineage between assets. The default. |
+| **Data Product** | Data products and how they depend on one another and share business concepts. |
+| **Domain** | Domains and how they relate through shared data products and business concepts. |
+
+Zooming out from asset to domain is the difference between "what feeds this table" and "which parts of the business are coupled, and through what."
+
+## Relationships
+
+The **Relationships** control changes which *kind of edge* is drawn:
+
+| Option | Shows |
+|---|---|
+| **All** | Both technical and ontology relationships. |
+| **Knowledge Graph** | Only structural relations — containment, lineage, ownership, tagging. |
+| **Ontology** | Only assets connected through their glossary-term relationships, with the assigned concept laid over each asset. |
+
+The **Ontology** option is the interesting one. It hides the plumbing and draws the business model *as applied to real data*: two tables appear connected not because a pipeline links them, but because the concepts they carry are related. Each node shows its primary glossary term (with a `+N` badge when it carries more), and the caption summarizes `N linked assets · M derived relationships`.
+
+<img src="/public/images/how-to-guides/ontology/knowledge-graph-ontology-lens.png" alt="3D Knowledge Graph in Ontology mode: three assets linked through the Order concept" />
+
+### Derived Relationships
+
+Ontology-lens edges between two assets are **derived** — inferred by overlaying glossary terms, not read from a direct technical link. Selecting one explains exactly how it was derived:
+
+| Kind | Meaning |
+|---|---|
+| **Same** | Both assets are mapped to the same concept. |
+| **Siblings** | Both concepts sit under the same parent concept. |
+| **Subtype** | One asset's concept is a subtype of the other's. |
+| **Related** | The two concepts are joined by a typed relation. |
+
+The panel shows the full derivation chain as names — for example `savings_account → Savings Account → Accounts → Checking Account → checking_account` — so a derived edge is never a black box.
+
+## Coverage Gaps
+
+The **Highlight coverage gaps** toggle marks, in red, tables with **no glossary-term mapping at all**.
+
+This is the most actionable view in the product for a governance team. It answers "where is my ontology *not* applied?" visually, on real assets, instead of as a number on a dashboard. The gaps are where an AI agent will guess, because nothing has told it what that table means.
+
+## Other Controls
+
+| Control | Effect |
+|---|---|
+| **Show columns / Show fields** | Expand the focus asset's columns (or data-model / message-schema fields) as nodes. The label adapts to the asset type. |
+| **Depth** | Traversal depth, `1`–`5`. Higher fetches more of the neighborhood; the tab opens at depth 1. |
+| **Reset view** | Re-fit the camera. |
+| **Export** | Download the current scene as a PNG. |
+| **Legend** | Node types and link kinds, with colours (bottom-left of the stage). |
+| **Fullscreen** | Expands the stage and re-fits the camera (bottom-right of the stage). |
+
+Selecting a node opens a details panel with its type, description, mapped concepts, and neighbors — with **Focus on node** to re-center. Selecting a link opens an edge panel describing the relationship.
+
+## Reading the Picture
+
+Node color encodes entity type and node size encodes importance at the current level; the primary type for the level is emphasized so the thing you asked about stands out. Technical links are drawn blue, ontology links amber, coverage gaps red.
+
+When the server had to bound the result, the caption says so explicitly — *"Showing a partial graph — some relationships were omitted for performance."* A truncated graph is labeled rather than silently misleading.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The tab is not there">
+    RDF is disabled on this server, or you are not looking at a table. The tab is registered for tables and hidden when `rdfEnabled` is false.
+  </Accordion>
+  <Accordion title="No knowledge graph data available">
+    RDF is enabled but the graph has not been populated. Run the **RDF Knowledge Graph Indexing** application from **Settings → Applications**.
+  </Accordion>
+  <Accordion title="3D rendering is not available">
+    The browser does not support WebGL, or it is disabled. Check `chrome://gpu` or the equivalent, and hardware-acceleration settings.
+  </Accordion>
+  <Accordion title="The graph is dense and hard to read">
+    Drop **Depth** to 1, switch **Relationships** to Knowledge Graph or Ontology to halve the edges, and turn off **Show columns**.
+  </Accordion>
+</AccordionGroup>
+
+## Exporting the Underlying Graph
+
+The scene export produces a PNG. To take the *data* with you, use the export endpoint the tab reads from:
+
+```bash
+curl "$OM_HOST/api/v1/rdf/graph/explore/export?entityId={id}&entityType=table&depth=2&format=turtle" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`format` accepts `turtle` or `jsonld`. `entityTypes` and `relationshipTypes` accept comma-separated filters.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Querying with SPARQL" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql">
+    When clicking is not enough.
+  </Card>
+  <Card title="Graph Insights" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/insights">
+    Importance, communities, and paths computed over the whole graph.
+  </Card>
+</CardGroup>
