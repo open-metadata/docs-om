@@ -130,13 +130,17 @@ Choose one of the following embedding providers and configure it accordingly.
     shared with the platform's chat completion config; the embedding model and dimension live under
     `llmConfiguration.embeddings.bedrock`.
 
+    Static credentials always take priority: if `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are both set,
+    OpenMetadata uses them regardless of `BEDROCK_AWS_IAM_AUTH_ENABLED`. To actually authenticate with the
+    server's IAM role, leave both of those empty.
+
     | Environment Variable | Default | Description |
     |----------------------------------------------|---------|-------------|
-    | `BEDROCK_AWS_IAM_AUTH_ENABLED` | `true` | Use the server's IAM role instead of static credentials |
+    | `BEDROCK_AWS_IAM_AUTH_ENABLED` | `true` | Use the server's IAM role instead of static credentials. Only takes effect when `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are both empty — a static key pair always overrides it |
     | `AWS_DEFAULT_REGION` | `""` | AWS region |
-    | `AWS_ACCESS_KEY_ID` | `""` | AWS access key (only needed when IAM auth is disabled) |
-    | `AWS_SECRET_ACCESS_KEY` | `""` | AWS secret access key (only needed when IAM auth is disabled) |
-    | `AWS_SESSION_TOKEN` | `""` | AWS session token (only needed when IAM auth is disabled) |
+    | `AWS_ACCESS_KEY_ID` | `""` | AWS access key. Must be left empty for IAM auth to be used |
+    | `AWS_SECRET_ACCESS_KEY` | `""` | AWS secret access key. Must be left empty for IAM auth to be used |
+    | `AWS_SESSION_TOKEN` | `""` | AWS session token (only used alongside static access key/secret) |
     | `AWS_BEDROCK_EMBED_MODEL_ID` | `amazon.titan-embed-text-v2:0` | Bedrock embedding model ID |
     | `AWS_BEDROCK_EMBEDDING_DIMENSION` | `512` | Embedding vector dimension |
 
@@ -286,12 +290,15 @@ Every Reindex operation computes embeddings taking a fingerprint into account --
 has not changed since its last embedding, the embedding is not recomputed. This avoids unnecessary calls to the
 embedding provider and makes re-indexing efficient even for large catalogs.
 
-For a faster, dedicated alternative to a full Reindex, use the `reembed` CLI command to drop and recreate the vector
-index and re-embed every entity:
+**OpenSearch only:** as a faster, dedicated alternative to a full Reindex, use the `reembed` CLI command to drop
+and recreate the vector index and re-embed every entity:
 
 ```bash
 ./bin/openmetadata-ops.sh reembed --batch-size 100 --producer-threads 2 --consumer-threads 4
 ```
+
+This command is implemented against OpenSearch specifically and doesn't run on an Elasticsearch backend. On
+Elasticsearch, use the full Reindex from the UI described above instead.
 
 ## API Reference
 
