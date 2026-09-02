@@ -209,7 +209,7 @@ export const ReleaseCarousel = () => {
                     <button
                         type="button"
                         key={s.header}
-                        className={`carousel-dot ${i === index ? 'active' : ''}`}
+                        className={['carousel-dot', i === index ? 'active' : ''].filter(Boolean).join(' ')}
                         onClick={() => goTo(i)}
                         aria-label={`Go to ${s.header}`}
                     />
