@@ -290,8 +290,11 @@ Every Reindex operation computes embeddings taking a fingerprint into account --
 has not changed since its last embedding, the embedding is not recomputed. This avoids unnecessary calls to the
 embedding provider and makes re-indexing efficient even for large catalogs.
 
-**OpenSearch only:** as a faster, dedicated alternative to a full Reindex, use the `reembed` CLI command to drop
-and recreate the vector index and re-embed every entity:
+**OpenSearch only:** as a faster, dedicated alternative to a full Reindex, use the `reembed` CLI command. It
+initializes the vector service and processes entities in batches, applying the same fingerprint check described
+above -- entities whose content hasn't changed are skipped, and the existing vector index is not dropped or
+recreated. The speedup over a UI Reindex comes from running as a standalone, multithreaded batch job with
+configurable batch size and producer/consumer thread counts:
 
 ```bash
 ./bin/openmetadata-ops.sh reembed --batch-size 100 --producer-threads 2 --consumer-threads 4
