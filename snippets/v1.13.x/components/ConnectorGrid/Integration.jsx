@@ -215,12 +215,10 @@ export const Integrations = () => {
 
                 {/* Sidebar */}
                 <aside
-                    className={`integrations-sidebar ${isDropdownOpen ? 'open' : ''
-                        }`}
+                    className={['integrations-sidebar', isDropdownOpen ? 'open' : ''].filter(Boolean).join(' ')}
                 >
                     <button
-                        className={`sidebar-item ${selectedTab === 'All Connectors' ? 'active' : ''
-                            }`}
+                        className={['sidebar-item', selectedTab === 'All Connectors' ? 'active' : ''].filter(Boolean).join(' ')}
                         onClick={() => handleTabClick('All Connectors')}
                     >
                         All Connectors
@@ -229,8 +227,7 @@ export const Integrations = () => {
                     {INTEGRATION_SERVICES.map((item) => (
                         <button
                             key={item.connector}
-                            className={`sidebar-item ${selectedTab === item.connector ? 'active' : ''
-                                }`}
+                            className={['sidebar-item', selectedTab === item.connector ? 'active' : ''].filter(Boolean).join(' ')}
                             onClick={() => handleTabClick(item.connector)}
                         >
                             {item.connector}
