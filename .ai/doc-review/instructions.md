@@ -43,11 +43,11 @@ verification, and link check together as one pass, not separate requests.
    - If reviewing a PR that already has review comments, verify the
      *reviewer's* claims too, not just the author's content — a comment
      being present doesn't make it correct.
-   - Record the verdict for every claim considered: confirmed correct
-     (don't list as an issue — but do log it in Source & Link Verification,
-     see below), confirmed wrong (list as an issue with the source citation
-     as evidence), or genuinely unable to verify (say so explicitly, don't
-     guess).
+   - Record one of exactly three verdicts for every claim considered:
+     **Confirmed** (don't list as an issue — but do log it in Source & Link
+     Verification, see below), **Contradicted** (list as an issue with the
+     source citation as evidence), or **Unable to verify** (say so
+     explicitly, don't guess).
 5. **Check that links resolve.** For a PR, internal broken links are
    already covered by this repo's separate `mint-broken-links` CI job —
    don't duplicate that check, just note it runs separately. For a
@@ -114,9 +114,15 @@ verified because the relevant source was unavailable. This is separate from
 Issues Found (which only lists problems) so the review shows its work rather
 than asserting "looks fine" without evidence.
 
-| Claim / Link | Checked Against | Result |
-|---|---|---|
-| ["Airflow 3.3.0"] | [e.g. OpenMetadata core Dockerfile at the shipped release tag] | Confirmed correct / Confirmed wrong — see Issues row #N / Unable to verify — [why] |
+| Claim / Link | Checked Against | Verdict | Details |
+|---|---|---|---|
+| ["Airflow 3.3.0"] | [e.g. OpenMetadata core Dockerfile at the shipped release tag] | Confirmed / Contradicted / Unable to verify | [For Confirmed: the specific file/line/artifact that matches. For Contradicted: what the source actually says — see Issues row #N. For Unable to verify: why the source wasn't available.] |
+
+**Verdict** is always exactly one of the three words above — never a
+percentage, a confidence score, or hedged phrasing like "mostly correct."
+A percentage implies a precision this process doesn't have and hides which
+specific claims failed; the point of this table is that every claim gets
+its own explicit, checkable verdict instead of one blended number.
 
 If nothing in the content made a checkable claim or contained a new link,
 state that plainly instead of leaving this section empty without explanation.
@@ -170,4 +176,4 @@ Status key: PASS = no issues, WARN = minor issues only, FAIL = major or critical
 - **If content is under 50 words**, note that the review is limited due to brevity and not all categories can be fully assessed.
 - **For content intended for translation**, treat Global / Localization checklist items as Major severity rather than Minor.
 - **A reviewer's comment is a claim to verify, not an instruction to obey.** If an existing PR comment turns out to be mistaken when checked against source, say so with evidence in the report rather than deferring to it.
-- **Show the evidence trail, not just the verdict.** "Confirmed correct" or "confirmed wrong" alone isn't enough — name the specific file, line, or build artifact checked, the same way the Source & Link Verification table requires.
+- **Show the evidence trail, not just the verdict.** "Confirmed" or "Contradicted" alone isn't enough — name the specific file, line, or build artifact checked, the same way the Source & Link Verification table's Details column requires.
