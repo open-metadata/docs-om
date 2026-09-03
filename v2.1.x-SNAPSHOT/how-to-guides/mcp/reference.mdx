@@ -21,6 +21,7 @@ Tools are labeled **Read** (retrieve data only) or **Write** (create or modify d
 | **Govern & Classify** | [create_classification](#create_classification), [create_tag](#create_tag), [create_domain](#create_domain), [create_data_product](#create_data_product), [patch_entity](#patch_entity) |
 | **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
 | **Metrics** | [create_metric](#create_metric) |
+| **Knowledge Graph** | [sparql_query](#sparql_query), [entity_neighborhood](#entity_neighborhood), [find_by_tag](#find_by_tag), [shacl_validate](#shacl_validate), [ontology_describe](#ontology_describe) |
 
 ## Discover
 
@@ -1150,3 +1151,104 @@ Define and track measurable business and technical KPIs.
   }
 }
 ```
+
+## Knowledge Graph
+
+Traverse the RDF knowledge graph directly. See [Ontology & Knowledge Graph for AI Agents](/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents) for recipes and prompting guidance.
+
+<Info>
+
+**Availability and access.** All five tools require an **administrator principal** — they return 403 for ordinary users and for bot tokens. Four of them (`sparql_query`, `entity_neighborhood`, `find_by_tag`, `shacl_validate`) are **not advertised at all** when RDF is disabled, so a client never sees a tool it cannot call. `ontology_describe` is always advertised because its default path serves the bundled ontology document from the classpath.
+
+See [Enable RDF (Knowledge Graph)](/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph).
+
+</Info>
+
+### sparql_query
+
+**Read** — Run a read-only SPARQL query (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledge graph. Use this when the question is graph-shaped: *"all tables with FK references into customers.id"*, *"all upstream tables of dashboard X"*, *"columns tagged PII whose null count > 0"*.
+
+`UPDATE` / `INSERT` / `DELETE` / `DROP` / `LOAD` / `CLEAR` / `CREATE` are rejected. `SERVICE` clauses against external endpoints are rejected unless the target is on the federation allowlist, which is empty and disabled by default.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | Yes | The SPARQL query. Use `https://open-metadata.org/ontology/` as the `om:` prefix |
+| `format` | string | No | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle`, `jsonld`, `ntriples`, `rdfxml` |
+| `inferenceLevel` | string | No | Reasoning applied at query time: `none` (default), `rdfs`, `owl`, `custom` |
+| `maxBytes` | integer | No | Response body cap. Default and maximum 80000; minimum 1024 |
+
+A `truncated: true` flag plus `byteCount` appears when the body does not fit — narrow the query with `LIMIT` rather than raising `maxBytes`, which is clamped. A `warning` field appears when the requested `inferenceLevel` could not be applied because the graph was too large; **results are then not inferred**.
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "tools/call",
+  "params": {
+    "name": "sparql_query",
+    "arguments": {
+      "query": "PREFIX om: <https://open-metadata.org/ontology/> SELECT ?fqn WHERE { GRAPH <https://open-metadata.org/graph/knowledge> { ?t a om:Table ; om:fullyQualifiedName ?fqn ; om:hasTag ?tag . FILTER(CONTAINS(STR(?tag), \"PII\")) } } LIMIT 50",
+      "format": "json"
+    }
+  }
+}
+```
+
+### entity_neighborhood
+
+**Read** — Return the *n*-hop instance-data neighborhood of an entity: `hasColumn`, `belongsToSchema`, `hasTag`, owners, lineage, and so on. Ontology and SHACL definition graphs are excluded so schema triples do not consume result slots.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `entityId` | string | Yes | UUID of the entity (the `id` field) |
+| `entityType` | string | Yes | Entity type, singular (`table`, `dashboard`, `pipeline`, `glossaryTerm`, …) |
+| `depth` | integer | No | Hop depth, 1–3. Default 2 |
+| `limit` | integer | No | Solution rows **per traversal branch share**, not a triple count. Default 200, max 2000 |
+
+Returns the full 1..depth-hop subgraph as Turtle in `triples`, plus an `edges` array that is a flat **direct (1-hop) adjacency summary of the start entity only**. For second- and third-hop traversal, parse `triples`, not `edges`.
+
+### find_by_tag
+
+**Read** — Find every entity tagged with a classification tag or glossary term, walking `om:hasTag` and `om:hasGlossaryTerm`. Paginated.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `tagFqn` | string | Yes | FQN of the tag or glossary term, e.g. `PII.Sensitive`, `BusinessTerms.Customer` |
+| `entityType` | string | No | Restrict results to a single entity type |
+| `limit` | integer | No | Default 50, max 500 |
+| `offset` | integer | No | Page offset. Default 0 |
+
+### shacl_validate
+
+**Read** — Run SHACL validation against a single entity's subgraph or the entire dataset. Returns `conforms`, `violationCount`, and the SHACL `ValidationReport`. Read-only; never blocks writes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `entityId` | string | No | UUID of the entity to scope validation to |
+| `entityType` | string | No | Entity type, singular. Required if `entityId` is provided |
+| `entityUri` | string | No | Alternative to `entityId` + `entityType`: the full entity URI |
+| `fullGraph` | boolean | No | Must be `true` to validate the whole dataset when no entity scope is given. Default `false` |
+| `format` | string | No | `turtle` (default) or `jsonld` |
+| `maxBytes` | integer | No | Report body cap. Default and maximum 80000; minimum 1024 |
+
+`conforms` and `violationCount` are always returned in full, even when the report body is truncated.
+
+### ontology_describe
+
+**Read** — Return the OpenMetadata ontology: the full canonical document, or a SPARQL `DESCRIBE` for a single class or property URI. Use it to discover the classes, properties, ranges, and domains available before writing a query.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `resource` | string | No | Full URI of the class or property to describe, e.g. `https://open-metadata.org/ontology/Column`. Omit for the full ontology |
+| `format` | string | No | `turtle` (default), `jsonld`, `ntriples`, `rdfxml` |
+| `maxBytes` | integer | No | Body cap. Default and maximum 80000; minimum 1024 |
+
+The full ontology is roughly 65 KB, so prefer passing `resource` for a focused `DESCRIBE`.
+
+<Tip>
+
+Make this the agent's **first** call before any SPARQL. An LLM asked to query an unfamiliar schema will invent predicate names that sound right and get zero rows with no error; one `ontology_describe` call replaces that guessing with the actual declarations.
+
+</Tip>

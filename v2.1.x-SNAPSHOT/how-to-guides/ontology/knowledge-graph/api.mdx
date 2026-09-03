@@ -1,0 +1,179 @@
+---
+title: Knowledge Graph API Reference | OpenMetadata
+description: Every REST endpoint under /api/v1/rdf — status, SPARQL, graph exploration, validation, inference rules, insights, and Linked Open Data.
+sidebarTitle: API Reference
+---
+
+# Knowledge Graph API Reference
+
+All endpoints live under `/api/v1/rdf` unless noted. Every one returns **503** when RDF is disabled.
+
+Authenticate with a bearer token:
+
+```bash
+export OM_HOST=http://localhost:8585
+export TOKEN=<your-personal-access-token>
+```
+
+<Info>
+
+Most knowledge-graph endpoints are **admin-only**. Graph node hydration resolves entity details without re-applying the caller's per-entity view authorization, so opening these to non-admins would leak entities a user cannot otherwise see. The glossary-scoped ontology endpoints on `/api/v1/glossaries` are the non-admin path.
+
+</Info>
+
+## Status
+
+| Endpoint | Access | Returns |
+|---|---|---|
+| `GET /status` | Authenticated | `baseUri`, `enabled`, `storageType`, `inference` (`enabled`, `defaultLevel`, `availableLevels`), `projectionState` (`DISABLED` / `READY` / `REBUILDING` / `DEGRADED`), `askCollateEnabled` |
+
+## SPARQL
+
+| Endpoint | Access | Notes |
+|---|---|---|
+| `GET /sparql` | Admin | `query`, `format` (`json`, `xml`, `csv`, `tsv`), `inference` (`none`, `rdfs`, `owl`, `custom`) |
+| `POST /sparql` | Admin | JSON body `{ "query": "...", "format": "...", "inference": "..." }` |
+| `POST /sparql/update` | Admin | SPARQL UPDATE. See the warning below. |
+| `GET /queries/saved` | Authenticated | The caller's private saved queries. |
+| `PUT /queries/saved` | Authenticated | Replace the caller's saved queries. |
+| `GET /queries/templates` | Authenticated | Installation-wide shared query templates. Writes are admin-only, via system settings. |
+
+<Warning>
+
+`POST /sparql/update` writes directly to a derived index. Anything you write is discarded on the next reindex. Use the entity APIs to change your catalog.
+
+</Warning>
+
+## Entities and Graph
+
+| Endpoint | Access | Notes |
+|---|---|---|
+| `GET /entity/{entityType}/{id}` | Admin | The entity as RDF. `format`: `jsonld` (default), `turtle`, `rdfxml`, `ntriples`. |
+| `GET /entity/{entityType}/{id}/diff` | Admin | Diff two RDF versions of an entity. |
+| `GET /graph/explore` | Admin | `entityId`, `entityType`, `depth` (default 2), `entityTypes`, `relationshipTypes` (comma-separated filters). |
+| `GET /graph/explore/export` | Admin | Same parameters plus `format`: `turtle` (default) or `jsonld`. |
+| `GET /ontology` | Authenticated | Download the canonical OpenMetadata ontology. |
+| `GET /glossary/graph` | Authenticated | Glossary term relationship graph. See parameters below. |
+| `GET /glossary/{id}/export` | Authenticated | Export a glossary as an ontology. |
+| `GET /inference/lineage/{entityId}` | Admin | Full lineage with inference applied. Requires `entityType`. |
+| `GET /debug/glossary-relations` | Admin | Diagnostic view of glossary relations in RDF. |
+
+### `GET /glossary/graph` Parameters
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `glossaryId` | — | Scope primary terms to one glossary. |
+| `glossaryTermId` | — | Scope to one term and its direct incoming/outgoing relations. |
+| `relationTypes` | — | Comma-separated relation types to include. |
+| `limit` | `500` | Maximum terms returned. |
+| `offset` | `0` | Pagination offset. |
+| `includeIsolated` | `true` | Include terms with no relations. |
+
+Passing both `glossaryId` and `glossaryTermId` requires the term to belong to that glossary while still returning direct cross-glossary neighbors.
+
+## Validation
+
+| Endpoint | Access | Notes |
+|---|---|---|
+| `POST /validate` | Admin | SHACL validation. `entityUri` to scope to one entity (omit for the whole dataset), `format`: `turtle` (default) or `jsonld`. Response carries an `OM-SHACL-Conforms` header. |
+
+## Inference Rules
+
+| Endpoint | Access | Notes |
+|---|---|---|
+| `GET /rules` | Admin | Rules with `dirty`, `graphUri`, `tripleCount`, `lastMaterializedAt`, `lastError`, `systemRule`. |
+| `GET /rules/{name}` | Admin | One rule. |
+| `PUT /rules/{name}` | Admin | Create or update. Marks the rule dirty. |
+| `DELETE /rules/{name}` | Admin | Delete a custom rule and drop its graph. System rules cannot be deleted. |
+| `POST /rules/validate` | Admin | Validate a rule body without saving. |
+| `POST /rules/materialize` | Admin | Materialize now. |
+
+## Custom Ontology Extensions
+
+| Endpoint | Access |
+|---|---|
+| `GET /ontology/extensions` | Admin |
+| `GET /ontology/extensions/{name}` | Admin |
+| `PUT /ontology/extensions/{name}` | Admin |
+| `DELETE /ontology/extensions/{name}` | Admin |
+| `POST /ontology/extensions/validate` | Admin |
+
+Custom classes and properties must be in `https://open-metadata.org/ontology-extension/`.
+
+## Insights
+
+| Endpoint | Parameters |
+|---|---|
+| `GET /insights/important` | `entityType` (required), `window` (`daily`/`weekly`/`monthly`), `limit` (1–100, default 20) |
+| `POST /insights/recompute-centrality` | `entityType` (required) |
+| `POST /insights/recompute-communities` | `entityType` (required), `graphType` (`lineage`/`tagCoOccurrence`) |
+| `GET /insights/communities` | `entityType` (required), `graphType` |
+| `GET /insights/path` | `from`, `to` (required URIs), `direction` (`upstream`/`downstream`/`both`), `maxHops` (1–25, default 6) |
+| `GET /insights/recommendations` | `entityUri` (required), `limit` (1–50, default 10) |
+| `GET /insights/tag-cooccurrence` | `minCount` (default 2), `limit` (1–100, default 20) |
+| `GET /insights/glossary-reach` | `minDomains` (default 2), `limit` (1–100, default 20) |
+| `GET /insights/tag-popularity` | `limit` (1–100, default 20) |
+
+All admin-only.
+
+## Semantic Search
+
+| Endpoint | Notes |
+|---|---|
+| `GET /search/semantic` | Vector search over the graph. **Requires OpenSearch.** |
+| `GET /search/similar/{entityType}/{id}` | Similar entities. **Requires OpenSearch.** |
+| `GET /search/recommendations/{userId}` | Per-user recommendations. **Requires OpenSearch.** |
+
+## SQL → SPARQL
+
+| Endpoint | Notes |
+|---|---|
+| `POST /sql/translate` | Translate SQL to SPARQL. |
+| `POST /sql/query` | Translate and execute. |
+
+## Linked Open Data
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/v1/lod/entity/{entityType}/{id}` | Authenticated, content-negotiated redirect for a minted IRI. Requires `RDF_DEREFERENCEABLE_IRIS=true`. |
+
+## Glossary Ontology Endpoints
+
+These live under `/api/v1/glossaries` and — importantly — **work with RDF storage disabled**, because they read the database-primary model.
+
+| Endpoint | Access | Notes |
+|---|---|---|
+| `PUT /api/v1/glossaries/name/{name}/importRdf` | `EditAll` on the glossary | `format` (`turtle`, `rdfxml`, `ntriples`, `jsonld`), `dryRun` (default `true`). |
+| `GET /api/v1/glossaries/{id}/exportOntology` | `ViewAll` | `format`, `includeRelations` (default `true`). |
+| `POST /api/v1/glossaries/{id}/sparql` | `ViewAll` | Read-only SPARQL scoped to that glossary. No `SERVICE`, no other assets. |
+
+## Applications
+
+| Application | Purpose |
+|---|---|
+| `RdfIndexApp` — **RDF Knowledge Graph Indexing** | Initial index and full rebuilds. Config: `entities`, `recreateIndex` (default `true`), `batchSize` (100), `producerThreads` (2), `consumerThreads` (3), `queueSize` (5000), `useDistributedIndexing` (default `true`), `partitionSize` (10000). |
+| RDF inference materialization | Materializes dirty inference rules. Config: `force` (default `false`), `ruleName` for a single-rule run. |
+
+```bash
+# Trigger a full reindex
+curl -X POST "$OM_HOST/api/v1/apps/trigger/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
+
+# Status
+curl "$OM_HOST/api/v1/apps/name/RdfIndexApp/status" -H "Authorization: Bearer $TOKEN"
+
+# Stop a long-running index
+curl -X POST "$OM_HOST/api/v1/apps/stop/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
+```
+
+Only one reindex job can be active per cluster at a time.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Ontology Studio API" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/api">
+    Ontology authoring endpoints.
+  </Card>
+  <Card title="MCP tools" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/ai-agents">
+    The same capabilities, for agents.
+  </Card>
+</CardGroup>
