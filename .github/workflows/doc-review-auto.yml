@@ -15,6 +15,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # TEMPORARY -- diagnosing why the doc-review job's `if:` skips with 0 steps
+  # on an eligible same-repo MEMBER PR. No `if:` gate, so this always runs and
+  # prints the exact values the runner sees for this event. Remove once the
+  # real cause is confirmed.
+  debug-context:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Dump pull_request gating context
+        env:
+          HEAD_REPO_FULL_NAME: ${{ github.event.pull_request.head.repo.full_name }}
+          GITHUB_REPOSITORY_VALUE: ${{ github.repository }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          HEAD_MATCH: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          ASSOC_MATCH: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+        run: |
+          echo "event_name=$EVENT_NAME"
+          echo "event_action=$EVENT_ACTION"
+          echo "head.repo.full_name=[$HEAD_REPO_FULL_NAME]"
+          echo "github.repository=[$GITHUB_REPOSITORY_VALUE]"
+          echo "author_association=[$AUTHOR_ASSOCIATION]"
+          echo "head_match=[$HEAD_MATCH]"
+          echo "assoc_match=[$ASSOC_MATCH]"
+
   doc-review:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
     runs-on: ubuntu-latest
