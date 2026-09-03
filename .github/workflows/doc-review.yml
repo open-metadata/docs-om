@@ -194,7 +194,8 @@ jobs:
           chmod a-w "${RUNNER_TEMP}/pr-review-discussion.txt" \
             "${RUNNER_TEMP}/pr-inline-review-comments.json"
 
-      - if: steps.permission.outputs.trusted == 'true'
+      - id: review
+        if: steps.permission.outputs.trusted == 'true'
         uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -232,9 +233,9 @@ jobs:
               .review-sources/OpenMetadata-v2.0.x, the docs site's current default version
 
             If the source tree for a changed file's version isn't present (its checkout step
-            was skipped because no matching release tag was found), record Unable to verify in
-            Source & Link Verification for that file's claims; do not guess, substitute another
-            version's source, or fetch additional source.
+            was skipped because no matching release tag was found), record that specific reason
+            as an Issues Found row ("Could not verify" severity) for that file's claims; do not
+            guess, substitute another version's source, or fetch additional source.
 
             Return the Review Report in the exact policy format as your final response. Do not
             edit files, commit, push, post comments, create inline comments, or submit a PR
@@ -243,3 +244,27 @@ jobs:
           claude_args: |
             --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
             --disallowedTools "Edit,Write,MultiEdit,NotebookEditCell,Bash(gh pr comment:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rm:*)"
+
+      - name: Clean Up Prior Review Comments
+        # use_sticky_comment is false here (claude-code-action's sticky lookup
+        # only recognizes the official Claude GitHub App or a bot login
+        # containing "claude" as its own prior comment; we post as
+        # github-actions[bot] via github.token, so it would never match
+        # anyway). Delete older review comments ourselves, keeping only the
+        # one just posted. Gated on the review step actually succeeding, not
+        # just running, so a failed run never wipes out the last good report.
+        if: steps.permission.outputs.trusted == 'true' && steps.review.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          mapfile -t ids < <(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | test("### Review Report")) | .id' \
+            | sort -n)
+          if [[ ${#ids[@]} -gt 1 ]]; then
+            for id in "${ids[@]:0:${#ids[@]}-1}"; do
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/issues/comments/${id}"
+            done
+          fi
