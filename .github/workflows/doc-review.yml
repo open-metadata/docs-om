@@ -253,6 +253,9 @@ jobs:
         # anyway). Delete older review comments ourselves, keeping only the
         # one just posted. Gated on the review step actually succeeding, not
         # just running, so a failed run never wipes out the last good report.
+        # Matches both headings: "OpenMetadata Content Review" is the pre-merge
+        # heading (this policy PR itself is judged against main's old rules
+        # until it merges), "Review Report" is the new one this PR introduces.
         if: steps.permission.outputs.trusted == 'true' && steps.review.outcome == 'success'
         shell: bash
         env:
@@ -261,7 +264,7 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t ids < <(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | test("### Review Report")) | .id' \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | test("### Review Report|### OpenMetadata Content Review")) | .id' \
             | sort -n)
           if [[ ${#ids[@]} -gt 1 ]]; then
             for id in "${ids[@]:0:${#ids[@]}-1}"; do
