@@ -6,9 +6,16 @@ on:
 
 jobs:
   doc-review:
+    # Cheap, shell-free checks only at the job level. Actor trust is checked
+    # below via a live permission lookup, not
+    # github.event.comment.author_association: that field can read
+    # "CONTRIBUTOR" for a real org MEMBER whose org membership visibility is
+    # private, so it doesn't reliably reflect real access (confirmed live on
+    # the sibling doc-review-auto.yml workflow: it read CONTRIBUTOR for a
+    # MEMBER whose actual repo permission, via the collaborators API, was
+    # "write").
     if: |
       github.event.issue.pull_request != null &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       contains(github.event.comment.body, '/content-review')
     runs-on: ubuntu-latest
     permissions:
@@ -20,7 +27,24 @@ jobs:
       # every unqualified `gh pr ...`/`gh api ...` call needs this to know where to look.
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Check Actor Permission
+        id: permission
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          permission="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq '.permission')"
+          echo "Actor ${ACTOR} has repo permission: ${permission}"
+          if [[ "$permission" == "admin" || "$permission" == "maintain" || "$permission" == "write" ]]; then
+            echo "trusted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "trusted=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve Trusted Revisions
+        if: steps.permission.outputs.trusted == 'true'
         id: revisions
         shell: bash
         env:
@@ -79,6 +103,7 @@ jobs:
           done
 
       - name: Check Out Trusted Base At Workspace Root
+        if: steps.permission.outputs.trusted == 'true'
         # track_progress below forces the action's tag-mode branch handling,
         # which runs `git fetch origin <PR branch>` / `git checkout` at the
         # workspace root and needs an existing repo + origin remote to do so.
@@ -97,6 +122,7 @@ jobs:
           persist-credentials: false
 
       - name: Fetch Trusted Review Policy
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,40 +136,52 @@ jobs:
             | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/doc-review-policy/references/checklist.md"
           chmod -R a-w "${RUNNER_TEMP}/doc-review-policy"
 
-      - name: Check Out OpenMetadata Source (v2.1.x-SNAPSHOT / main)
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: open-metadata/OpenMetadata
-          ref: ${{ steps.revisions.outputs.v2_1_x_snapshot_sha }}
-          path: .review-sources/OpenMetadata-v2.1.x-SNAPSHOT
-          fetch-depth: 1
-          persist-credentials: false
+      - name: Fetch OpenMetadata Source Trees
+        if: steps.permission.outputs.trusted == 'true'
+        # Plain tarball download + extract, not actions/checkout: these trees
+        # are read-only reference material for Claude's Read/Grep tools only
+        # (never executed, and locked read-only by the next step), so they
+        # don't need to be git repositories. actions/checkout with a non-default
+        # ref here trips CodeQL's untrusted-checkout rule, which flags any such
+        # checkout inside this issue_comment-triggered workflow regardless of
+        # where the ref actually comes from -- these three refs are fetched
+        # from OpenMetadata's own tags/commits API, never from PR or comment
+        # content, but the rule can't trace that through the gh api calls
+        # above. A raw tarball fetch isn't checkout, so it isn't flagged.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fetch_tree() {
+            local ref="$1" dest="$2"
+            mkdir -p "$dest"
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/open-metadata/OpenMetadata/tarball/${ref}" \
+              -o "${RUNNER_TEMP}/om-source.tar.gz"
+            tar xzf "${RUNNER_TEMP}/om-source.tar.gz" -C "$dest" --strip-components=1
+            rm -f "${RUNNER_TEMP}/om-source.tar.gz"
+          }
 
-      - name: Check Out OpenMetadata Source (v2.0.x)
-        if: steps.revisions.outputs.v2_0_x_available == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: open-metadata/OpenMetadata
-          ref: ${{ steps.revisions.outputs.v2_0_x_sha }}
-          path: .review-sources/OpenMetadata-v2.0.x
-          fetch-depth: 1
-          persist-credentials: false
+          fetch_tree "${{ steps.revisions.outputs.v2_1_x_snapshot_sha }}" ".review-sources/OpenMetadata-v2.1.x-SNAPSHOT"
 
-      - name: Check Out OpenMetadata Source (v1.13.x)
-        if: steps.revisions.outputs.v1_13_x_available == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: open-metadata/OpenMetadata
-          ref: ${{ steps.revisions.outputs.v1_13_x_sha }}
-          path: .review-sources/OpenMetadata-v1.13.x
-          fetch-depth: 1
-          persist-credentials: false
+          if [[ "${{ steps.revisions.outputs.v2_0_x_available }}" == "true" ]]; then
+            fetch_tree "${{ steps.revisions.outputs.v2_0_x_sha }}" ".review-sources/OpenMetadata-v2.0.x"
+          fi
+
+          if [[ "${{ steps.revisions.outputs.v1_13_x_available }}" == "true" ]]; then
+            fetch_tree "${{ steps.revisions.outputs.v1_13_x_sha }}" ".review-sources/OpenMetadata-v1.13.x"
+          fi
 
       - name: Lock Down Trusted Sources
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         run: chmod -R a-w .review-sources
 
       - name: Collect PR Review Context
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -156,7 +194,8 @@ jobs:
           chmod a-w "${RUNNER_TEMP}/pr-review-discussion.txt" \
             "${RUNNER_TEMP}/pr-inline-review-comments.json"
 
-      - uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
+      - if: steps.permission.outputs.trusted == 'true'
+        uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}

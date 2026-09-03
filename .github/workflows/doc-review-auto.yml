@@ -15,34 +15,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # TEMPORARY -- diagnosing why the doc-review job's `if:` skips with 0 steps
-  # on an eligible same-repo MEMBER PR. No `if:` gate, so this always runs and
-  # prints the exact values the runner sees for this event. Remove once the
-  # real cause is confirmed.
-  debug-context:
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - name: Dump pull_request gating context
-        env:
-          HEAD_REPO_FULL_NAME: ${{ github.event.pull_request.head.repo.full_name }}
-          GITHUB_REPOSITORY_VALUE: ${{ github.repository }}
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-          HEAD_MATCH: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-          ASSOC_MATCH: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_ACTION: ${{ github.event.action }}
-        run: |
-          echo "event_name=$EVENT_NAME"
-          echo "event_action=$EVENT_ACTION"
-          echo "head.repo.full_name=[$HEAD_REPO_FULL_NAME]"
-          echo "github.repository=[$GITHUB_REPOSITORY_VALUE]"
-          echo "author_association=[$AUTHOR_ASSOCIATION]"
-          echo "head_match=[$HEAD_MATCH]"
-          echo "assoc_match=[$ASSOC_MATCH]"
-
   doc-review:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
+    # Same-repo only at the job level (cheap, no shell needed -- skips running
+    # anything at all for fork PRs). Actor trust is checked below via a live
+    # permission lookup, not github.event.pull_request.author_association: that
+    # field can read "CONTRIBUTOR" for a real org MEMBER whose org membership
+    # visibility is private, so it doesn't reliably reflect real access
+    # (confirmed live: it read CONTRIBUTOR for a MEMBER whose actual repo
+    # permission, via the collaborators API, was "write").
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +32,24 @@ jobs:
     env:
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Check Actor Permission
+        id: permission
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          permission="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq '.permission')"
+          echo "Actor ${ACTOR} has repo permission: ${permission}"
+          if [[ "$permission" == "admin" || "$permission" == "maintain" || "$permission" == "write" ]]; then
+            echo "trusted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "trusted=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve Trusted Revisions
+        if: steps.permission.outputs.trusted == 'true'
         id: revisions
         shell: bash
         env:
@@ -104,6 +102,7 @@ jobs:
           done
 
       - name: Check Out Trusted Base At Workspace Root
+        if: steps.permission.outputs.trusted == 'true'
         # track_progress below forces the action's tag-mode branch handling,
         # which runs `git fetch origin <PR branch>` / `git checkout` at the
         # workspace root and needs an existing repo + origin remote to do so.
@@ -122,6 +121,7 @@ jobs:
           persist-credentials: false
 
       - name: Fetch Trusted Review Policy
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -136,6 +136,7 @@ jobs:
           chmod -R a-w "${RUNNER_TEMP}/doc-review-policy"
 
       - name: Check Out OpenMetadata Source (v2.1.x-SNAPSHOT / main)
+        if: steps.permission.outputs.trusted == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: open-metadata/OpenMetadata
@@ -145,7 +146,7 @@ jobs:
           persist-credentials: false
 
       - name: Check Out OpenMetadata Source (v2.0.x)
-        if: steps.revisions.outputs.v2_0_x_available == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.v2_0_x_available == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: open-metadata/OpenMetadata
@@ -155,7 +156,7 @@ jobs:
           persist-credentials: false
 
       - name: Check Out OpenMetadata Source (v1.13.x)
-        if: steps.revisions.outputs.v1_13_x_available == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.v1_13_x_available == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: open-metadata/OpenMetadata
@@ -165,10 +166,12 @@ jobs:
           persist-credentials: false
 
       - name: Lock Down Trusted Sources
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         run: chmod -R a-w .review-sources
 
       - name: Collect PR Review Context
+        if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -181,7 +184,8 @@ jobs:
           chmod a-w "${RUNNER_TEMP}/pr-review-discussion.txt" \
             "${RUNNER_TEMP}/pr-inline-review-comments.json"
 
-      - uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
+      - if: steps.permission.outputs.trusted == 'true'
+        uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
