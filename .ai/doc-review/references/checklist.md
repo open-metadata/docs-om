@@ -92,6 +92,9 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Modifiers close to what they modify** — Flag dangling modifiers and misplaced "only."
 - [ ] **No more than two clauses joined by and/or/but** — Flag run-ons; suggest splitting or using a list.
 
+### 3.5 Spelling
+- [ ] **No typos or misspellings** — Flag any misspelled word.
+
 ---
 
 ## Category 4: Punctuation
@@ -114,7 +117,7 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Avoid semicolons in general content** — Flag; suggest splitting the sentence.
 
 ### 4.4 Dashes and Hyphens
-- [ ] **Em dash with no spaces** — "use pipelines—logical groups—to" not "use pipelines — logical groups — to."
+- [ ] **Minimize em dashes in prose** — One, used well, is fine. Flag prose that leans on them as a stylistic crutch (several in one piece, or one used where a period or comma would read more naturally). Prefer a comma, colon, parentheses, or splitting into two sentences. Applies to new content and edits of existing content; not a mandate to sweep existing pages unless asked. Treat as Minor severity, not Critical, unless truly pervasive.
 - [ ] **No spaced en dashes used as em dashes** — Flag " – " used mid-sentence.
 - [ ] **En dash for ranges** — "2020–2026," "pages 10–15" (not hyphens).
 - [ ] **Hyphen in compound modifiers before a noun** — "well-known author" but "the author is well known."
@@ -185,7 +188,7 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Every section has a clear, descriptive heading.**
 - [ ] **Parallel structure in headings** — Same grammatical form within the same section.
 - [ ] **No period at end of headings** — Question marks are acceptable.
-- [ ] **No heading immediately after another heading** with no body text between.
+- [ ] **No heading immediately after another heading, or immediately before a code block,** with no body text between — every heading needs at least one sentence of body text before the next heading or code block.
 
 ### 7.2 Lists
 - [ ] **At least 2 items** — Single-item lists should be prose.
@@ -194,11 +197,13 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Introduced with a complete sentence or colon-ending phrase.**
 - [ ] **No semicolons or commas at end of list items.**
 - [ ] **Period only if items are complete sentences or complete an introductory fragment.**
+- [ ] **Numbered only for sequential steps** — Use a numbered list only when items must be done in a specific order (see §7.4). Every other set of items — options, examples, non-ordered facts — uses bullets.
 
 ### 7.3 Bold & Italic
 - [ ] **Bold used only for** key terms on first use, UI element names, or critical warnings. Not for general emphasis.
 - [ ] **No underline** except hyperlinks.
 - [ ] **Italic used for** titles of works or introducing new technical terms.
+- [ ] **Bold before the colon in inline labels** — "**Example**:" not "**Example:**" — the colon sits outside the bold markers.
 
 ### 7.4 Instructions
 - [ ] **Numbered list for steps** — Not bullets, not prose.
@@ -215,6 +220,9 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Not used for essential information** — If the reader can't succeed without it, it isn't a Note — put it in the body text.
 - [ ] **Not used for cross-references** — Link to related content directly in the body text rather than via a callout.
 - [ ] **Not used for procedural steps** — Full steps belong in the numbered instructions, not offset in a box.
+
+### 7.6 UI Navigation Paths
+- [ ] **No arrow character (`→`)** — Flag `**Settings → Database**`; convert to `**Settings** > **Database**` (each segment separately bolded, plain `>` separator).
 
 ---
 
@@ -239,6 +247,9 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 ### 8.4 Age & Generational Language
 - [ ] **No age stereotypes** — Do not assume older users cannot use technology or younger users lack professionalism.
 
+### 8.5 Ableist Language
+- [ ] **No ableist terms** — Flag "sanity check" → "validation check," "blind spot" → "gap," "stand-alone" used pejoratively, and similar terms that use disability as a metaphor.
+
 ---
 
 ## Category 9: Accessibility
@@ -261,7 +272,7 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Consistent terminology throughout** — No synonyms for the same concept.
 
 ### 9.4 Interaction Language
-- [ ] **Generic interaction verbs** — "select" not "click," "enter" not "type," "activate" not "tap."
+- [ ] **Generic interaction verbs** — "enter" not "type," "activate" not "tap." Do not flag "click" or suggest "select" in its place.
 
 ---
 
@@ -277,7 +288,10 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Product names capitalized as proper nouns.**
 - [ ] **Version numbers formatted correctly** — "OpenMetadata 1.5" not "OpenMetadata v1.5" or "OM 1.5."
 
-### 10.3 Customer-Facing Tone
+### 10.3 Collate References
+- [ ] **No "Collate" in prose** — These docs describe the open-source OpenMetadata project, not the commercial Collate product built on top of it. Flag any prose mention of "Collate"; code identifiers are exempt only if they genuinely appear that way in shared source.
+
+### 10.4 Customer-Facing Tone
 - [ ] **Customer addressed as "you"** — Not "the user," "the client," or third person in direct communications.
 - [ ] **Error messages and notifications state result or action first** — "Your file was saved" not "File save operation completed successfully."
 - [ ] **Error messages explain what went wrong + what to do next** — No raw error codes without explanation.
@@ -294,3 +308,11 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **No humor, wordplay, or puns** in content intended for translation.
 - [ ] **UI strings under 80 characters** where possible (translations are often longer).
 - [ ] **Time zones specified** in international scheduling content.
+
+---
+
+## Category 12: Technical & Logical Accuracy
+
+- [ ] **No illogical or out-of-order steps** — Flag anything technically wrong, misleading, contradictory, or sequenced incorrectly (e.g. referencing a setting before it's created, a step that depends on a later step).
+- [ ] **No code bugs** — Flag missing imports, undefined variables, or syntax errors in code samples.
+- [ ] **Claims match reality** — For every specific, checkable claim (a version number, a named API/config option, a described product behavior, or "as of version X this changed"), verify it against an authoritative source — not only claims that initially read as suspicious, and not only narrowly "technical" ones. Record confirmed-correct (no output needed), confirmed-wrong (Issues Found row with the source citation), or could-not-be-checked (Issues Found row stating the specific reason, e.g. "no matching release tag found" — never the bare phrase "unable to verify" alone).

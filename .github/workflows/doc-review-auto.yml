@@ -1,30 +1,35 @@
-name: AI Documentation Review (on demand)
+name: AI Documentation Review (automatic)
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**/*.mdx"
+      - ".ai/doc-review/**"
+      - ".claude/skills/content-review/**"
+      - ".github/workflows/doc-review-auto.yml"
+      - ".github/workflows/doc-review.yml"
+
+concurrency:
+  group: doc-review-auto-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   doc-review:
-    # Cheap, shell-free checks only at the job level. Actor trust is checked
-    # below via a live permission lookup, not
-    # github.event.comment.author_association: that field can read
-    # "CONTRIBUTOR" for a real org MEMBER whose org membership visibility is
-    # private, so it doesn't reliably reflect real access (confirmed live on
-    # the sibling doc-review-auto.yml workflow: it read CONTRIBUTOR for a
-    # MEMBER whose actual repo permission, via the collaborators API, was
-    # "write").
-    if: |
-      github.event.issue.pull_request != null &&
-      contains(github.event.comment.body, '/content-review')
+    # Same-repo only at the job level (cheap, no shell needed -- skips running
+    # anything at all for fork PRs). Actor trust is checked below via a live
+    # permission lookup, not github.event.pull_request.author_association: that
+    # field can read "CONTRIBUTOR" for a real org MEMBER whose org membership
+    # visibility is private, so it doesn't reliably reflect real access
+    # (confirmed live: it read CONTRIBUTOR for a MEMBER whose actual repo
+    # permission, via the collaborators API, was "write").
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
       pull-requests: write
     env:
-      # gh CLI has no local checkout to infer the repo from anymore (see below) --
-      # every unqualified `gh pr ...`/`gh api ...` call needs this to know where to look.
       GH_REPO: ${{ github.repository }}
     steps:
       - name: Check Actor Permission
@@ -49,22 +54,11 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
-          if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
-            echo "Expected a numeric PR number, got: $PR_NUMBER" >&2
-            exit 1
-          fi
-
-          base_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.base.sha')"
-          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          base_sha='${{ github.event.pull_request.base.sha }}'
           if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Expected a full commit SHA for base_sha, got: $base_sha" >&2
-            exit 1
-          fi
-          if [[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Expected a full commit SHA for head_sha, got: $head_sha" >&2
+            echo "Expected a full commit SHA, got: $base_sha" >&2
             exit 1
           fi
 
@@ -90,13 +84,19 @@ jobs:
             exit 1
           fi
 
+          head_sha='${{ github.event.pull_request.head.sha }}'
+          if [[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Expected a full commit SHA, got: $head_sha" >&2
+            exit 1
+          fi
+
           {
             echo "base_sha=$base_sha"
             echo "head_sha=$head_sha"
             echo "v2_1_x_snapshot_sha=$main_sha"
           } >> "$GITHUB_OUTPUT"
 
-          echo "::notice::Reviewing PR #${PR_NUMBER} at frozen head commit ${head_sha} (base ${base_sha})"
+          echo "::notice::Reviewing PR #${{ github.event.pull_request.number }} at frozen head commit ${head_sha} (base ${base_sha})"
 
           for entry in "1.13:v1_13_x" "2.0:v2_0_x"; do
             line="${entry%%:*}"
@@ -138,9 +138,10 @@ jobs:
         # a further push. Deliberately not `git fetch`/`git diff`: fetching an
         # untrusted PR's head commit into this privileged workspace's git
         # object store is exactly the checkout-of-untrusted-code pattern
-        # CodeQL already flags on this workflow (issue_comment + write
-        # permissions) -- seen live when this was first tried. The compare
-        # API returns the same diff text without ever fetching those objects.
+        # CodeQL already flags on the sibling doc-review.yml (issue_comment +
+        # write permissions) -- seen live when this was first tried there. The
+        # compare API returns the same diff text without ever fetching those
+        # objects.
         if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
@@ -155,12 +156,14 @@ jobs:
       - name: Fetch Trusted Review Policy
         # Content API fetch into $RUNNER_TEMP, not a read of the local
         # checkout: this step's own sanitize-review-context.py fetch below
-        # is what it is for -- CodeQL's untrusted-checkout rule models
-        # "checkout a ref, then execute a script found in that checkout" as
-        # its sink (see its own npm-install/package.json example), and
-        # running a script *path inside the checked-out tree* matches that
-        # shape regardless of the ref actually being the trusted base. Content
-        # fetched this way is never executed from within the checkout.
+        # is what it is for -- CodeQL's untrusted-checkout rule (tripped on
+        # the sibling doc-review.yml, which shares this checkout pattern)
+        # models "checkout a ref, then execute a script found in that
+        # checkout" as its sink (see its own npm-install/package.json
+        # example), and running a script *path inside the checked-out tree*
+        # matches that shape regardless of the ref actually being the
+        # trusted base. Content fetched this way is never executed from
+        # within the checkout.
         if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
@@ -177,44 +180,35 @@ jobs:
             | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/sanitize-review-context.py"
           chmod -R a-w "${RUNNER_TEMP}/doc-review-policy" "${RUNNER_TEMP}/sanitize-review-context.py"
 
-      - name: Fetch OpenMetadata Source Trees
+      - name: Check Out OpenMetadata Source (v2.1.x-SNAPSHOT / main)
         if: steps.permission.outputs.trusted == 'true'
-        # Plain tarball download + extract, not actions/checkout: these trees
-        # are read-only reference material for Claude's Read/Grep tools only
-        # (never executed, and locked read-only by the next step), so they
-        # don't need to be git repositories. actions/checkout with a non-default
-        # ref here trips CodeQL's untrusted-checkout rule, which flags any such
-        # checkout inside this issue_comment-triggered workflow regardless of
-        # where the ref actually comes from -- these three refs are fetched
-        # from OpenMetadata's own tags/commits API, never from PR or comment
-        # content, but the rule can't trace that through the gh api calls
-        # above. A raw tarball fetch isn't checkout, so it isn't flagged.
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          fetch_tree() {
-            local ref="$1" dest="$2"
-            mkdir -p "$dest"
-            curl -fsSL \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/open-metadata/OpenMetadata/tarball/${ref}" \
-              -o "${RUNNER_TEMP}/om-source.tar.gz"
-            tar xzf "${RUNNER_TEMP}/om-source.tar.gz" -C "$dest" --strip-components=1
-            rm -f "${RUNNER_TEMP}/om-source.tar.gz"
-          }
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: open-metadata/OpenMetadata
+          ref: ${{ steps.revisions.outputs.v2_1_x_snapshot_sha }}
+          path: .review-sources/OpenMetadata-v2.1.x-SNAPSHOT
+          fetch-depth: 1
+          persist-credentials: false
 
-          fetch_tree "${{ steps.revisions.outputs.v2_1_x_snapshot_sha }}" ".review-sources/OpenMetadata-v2.1.x-SNAPSHOT"
+      - name: Check Out OpenMetadata Source (v2.0.x)
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.v2_0_x_available == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: open-metadata/OpenMetadata
+          ref: ${{ steps.revisions.outputs.v2_0_x_sha }}
+          path: .review-sources/OpenMetadata-v2.0.x
+          fetch-depth: 1
+          persist-credentials: false
 
-          if [[ "${{ steps.revisions.outputs.v2_0_x_available }}" == "true" ]]; then
-            fetch_tree "${{ steps.revisions.outputs.v2_0_x_sha }}" ".review-sources/OpenMetadata-v2.0.x"
-          fi
-
-          if [[ "${{ steps.revisions.outputs.v1_13_x_available }}" == "true" ]]; then
-            fetch_tree "${{ steps.revisions.outputs.v1_13_x_sha }}" ".review-sources/OpenMetadata-v1.13.x"
-          fi
+      - name: Check Out OpenMetadata Source (v1.13.x)
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.v1_13_x_available == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: open-metadata/OpenMetadata
+          ref: ${{ steps.revisions.outputs.v1_13_x_sha }}
+          path: .review-sources/OpenMetadata-v1.13.x
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Lock Down Trusted Sources
         if: steps.permission.outputs.trusted == 'true'
@@ -226,7 +220,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           gh pr view "$PR_NUMBER" --comments > "${RUNNER_TEMP}/pr-review-discussion.txt"
@@ -258,14 +252,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           track_progress: true
-          trigger_phrase: "/content-review"
-          use_sticky_comment: false
+          use_sticky_comment: true
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.issue.number }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
             Read the trusted policy files, fetched from the PR's base branch before any PR
-            content was read (this job never checks out the PR itself):
+            content was read:
             - ${{ runner.temp }}/doc-review-policy/instructions.md
             - ${{ runner.temp }}/doc-review-policy/references/checklist.md
 
@@ -308,16 +301,17 @@ jobs:
             --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEditCell,Read(./.git/**)"
 
       - name: Clean Up Prior Review Comments
-        # use_sticky_comment is false here (claude-code-action's sticky lookup
-        # only recognizes the official Claude GitHub App or a bot login
-        # containing "claude" as its own prior comment; we post as
-        # github-actions[bot] via github.token, so it would never match
-        # anyway). Delete older review comments ourselves, keeping only the
-        # one just posted.
+        # use_sticky_comment above doesn't work for us: its lookup only
+        # recognizes a prior comment as its own if posted by the official
+        # Claude GitHub App or a bot login containing "claude"
+        # (claude-code-action's create-initial.ts) -- we post as
+        # github-actions[bot] via github.token, so that check never matches
+        # and a new comment gets created on every run. Delete older ones
+        # ourselves instead, keeping only the one just posted.
         # Runs on every outcome (always()), not just success: a failed run's
         # comment (e.g. an error notice) doesn't carry a report heading, so
         # a heading-text match would never catch it and it would accumulate
-        # forever. This job and doc-review-auto.yml are the only workflows in
+        # forever. This job and doc-review.yml are the only workflows in
         # this repo that post issue/PR comments as github-actions[bot], so
         # "the newest github-actions[bot] comment on this PR" is a safe,
         # content-independent, outcome-independent identity for the one
@@ -327,7 +321,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           mapfile -t ids < <(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
