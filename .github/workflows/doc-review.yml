@@ -132,18 +132,24 @@ jobs:
           persist-credentials: false
 
       - name: Compute Frozen PR Diff
-        # Fetch the exact head commit resolved above (not a branch tip, which
-        # could move if the PR is pushed to again while this job runs) and
-        # diff it against the exact base commit. Claude reviews this static
-        # file, never a live `gh pr diff` -- that call re-resolves the PR's
-        # current head at whatever moment Claude happens to invoke it, which
-        # can be minutes after this job started and after a further push.
+        # Diff the exact base/head commits resolved above via the REST compare
+        # API (plain text over HTTPS), not a live `gh pr diff <n>` -- that call
+        # re-resolves the PR's current head at whatever moment Claude happens
+        # to invoke it, which can be minutes after this job started and after
+        # a further push. Deliberately not `git fetch`/`git diff`: fetching an
+        # untrusted PR's head commit into this privileged workspace's git
+        # object store is exactly the checkout-of-untrusted-code pattern
+        # CodeQL already flags on this workflow (issue_comment + write
+        # permissions) -- seen live when this was first tried. The compare
+        # API returns the same diff text without ever fetching those objects.
         if: steps.permission.outputs.trusted == 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch --depth 1 origin "${{ steps.revisions.outputs.head_sha }}"
-          git diff --no-color "${{ steps.revisions.outputs.base_sha }}" "${{ steps.revisions.outputs.head_sha }}" \
+          gh api "repos/${GITHUB_REPOSITORY}/compare/${{ steps.revisions.outputs.base_sha }}...${{ steps.revisions.outputs.head_sha }}" \
+            -H "Accept: application/vnd.github.v3.diff" \
             > "${RUNNER_TEMP}/pr-diff.patch"
           chmod a-w "${RUNNER_TEMP}/pr-diff.patch"
 
