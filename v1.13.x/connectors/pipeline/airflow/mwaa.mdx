@@ -14,22 +14,22 @@ There are two ways to extract metadata from an Amazon MWAA environment, dependin
 <Warning>
 **Do not use the `Backend` connection type from outside MWAA.** `Backend` reads the metadata database of the Airflow environment the ingestion workflow is *running inside*. OpenMetadata uses the `hostPort` field only to build clickable DAG links, never to fetch metadata. If you create an Airflow service pointing at your MWAA URL with a `Backend` connection and run it from OpenMetadata's ingestion pipeline, you will silently ingest the DAGs of OpenMetadata's own Airflow instead of MWAA's. `Backend` is only valid when the workflow executes inside MWAA itself (option 2 below).
 
-Direct database connections (`Postgres`/`MySQL`) aren't an alternative either. MWAA's metadata database lives in an AWS-managed private network and isn't reachable from outside.
+Direct database connections (`Postgres`/`MySQL`) aren't a general alternative either. MWAA's metadata database lives in an AWS-managed private network, reachable only from inside that VPC or a peered network — the same constraint a private MWAA web server has for the REST API connection below. See the ECS approach below for a working example from inside the VPC. It isn't an option for ingestion running entirely outside AWS.
 </Warning>
 
 ## 1. REST API Connection (Recommended)
 
-OpenMetadata authenticates by exchanging your AWS credentials for a short-lived Airflow web login token (`airflow:CreateWebLoginToken`), then reads DAGs, runs, and task states through the MWAA REST API. OpenMetadata always uses the Airflow v1 REST API for MWAA connections. MWAA handles the Airflow 2/3 version difference internally, so no client-side version detection happens.
+OpenMetadata calls the MWAA control plane's `InvokeRestApi` action directly with your AWS credentials — no login token is created or exchanged. That action proxies the request to the Airflow REST API to read DAGs, runs, and task states. OpenMetadata always uses the Airflow v1 REST API for MWAA connections. MWAA handles the Airflow 2/3 version difference internally, so no client-side version detection happens.
 
 ### Requirements
 
 - The MWAA environment must run **Airflow 2.4.3 or newer** (the minimum version supported by the MWAA `InvokeRestApi` API).
-- The IAM identity used in the connection needs `airflow:CreateWebLoginToken` and `airflow:InvokeRestApi`, scoped to the environment's Airflow role, not the environment itself:
+- The IAM identity used in the connection needs `airflow:InvokeRestApi`, scoped to the environment's Airflow role, not the environment itself:
 
 ```json
 {
   "Effect": "Allow",
-  "Action": ["airflow:CreateWebLoginToken", "airflow:InvokeRestApi"],
+  "Action": "airflow:InvokeRestApi",
   "Resource": "arn:aws:airflow:<region>:<account-id>:role/<environment-name>/<airflow-role>"
 }
 ```
