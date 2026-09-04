@@ -7,3 +7,19 @@ sidebarTitle: Troubleshooting
 import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 <Troubleshooting />
+
+## Test Connection Passes but No Tables Are Ingested
+
+If ingestion completes but imports **0 tables**, check the **GetTables** step on Test Connection. It still shows as passed, but carries a caveat titled **No readable tables** (or **No schemas visible**, if no databases were listable at all) with this explanation:
+
+```
+No tables were readable in any targeted schema. AWS Lake Formation returns an empty list (not an error) when grants are missing, so ingestion would collect 0 tables. Grant Lake Formation DESCRIBE/SELECT on the databases and tables the login should read. If the catalog is genuinely empty or view-only, this is expected.
+```
+
+This means the IAM role the connector uses is missing AWS Lake Formation **Describe** and **Select** grants on the target catalog, databases, or tables. AWS Lake Formation silently filters results it can't authorize instead of raising an error, so a catalog with missing grants looks identical to a genuinely empty one. Test Connection can't tell the two apart, so it passes with this caveat instead of failing outright, which would incorrectly reject a legitimately empty or view-only catalog.
+
+### Resolution
+
+1. In the AWS Lake Formation console, open **Data permissions**.
+2. Grant the IAM role used by the Athena connector **Describe** and **Select** permissions on the catalog, and on each database and table it needs to ingest.
+3. Re-run **Test Connection** and check the **GetTables** caveat again. If the catalog genuinely has no tables yet, this caveat is expected and can be ignored.

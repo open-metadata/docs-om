@@ -7,3 +7,19 @@ sidebarTitle: Troubleshooting
 import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 <Troubleshooting />
+
+## Test Connection Fails on GetTables, Naming AWS Lake Formation
+
+Test Connection can fail on the **GetTables** step with an error naming your catalog and pointing at AWS Lake Formation:
+
+```
+Connected and listed schemas, but no tables were readable in any of the targeted schema(s) of catalog '<your-catalog>'. AWS Lake Formation returns an empty list (instead of an error) when grants are missing, so ingestion would succeed and ingest 0 tables. Grant Lake Formation DESCRIBE/SELECT to the IAM role on the catalog and its databases/tables, then retry. If the catalog is genuinely empty (no tables yet), this failure is expected and can be ignored.
+```
+
+This means the IAM role the connector uses is missing AWS Lake Formation **Describe** and **Select** grants on the target catalog, databases, or tables. AWS Lake Formation silently filters results it can't authorize instead of raising an error, so without this check, ingestion would otherwise report success while ingesting 0 tables.
+
+### Resolution
+
+1. In the AWS Lake Formation console, open **Data permissions**.
+2. Grant the IAM role used by the Athena connector **Describe** and **Select** permissions on the catalog, and on each database and table it needs to ingest.
+3. Re-run **Test Connection**. If the catalog genuinely has no tables yet, this failure is expected and can be ignored.
