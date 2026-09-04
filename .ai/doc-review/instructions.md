@@ -36,10 +36,21 @@ standalone draft.
    contradict, not only version/API-shaped claims. Check every such claim
    before finalizing the report, not only the ones that initially read as
    suspicious:
-   - Core OpenMetadata features → the `OpenMetadata` source. In the
-     automated workflow, use `.review-sources/OpenMetadata`; in a local
-     review, use the `../OpenMetadata` sibling checkout or a trusted
-     repository checkout.
+   - Core OpenMetadata features → the OpenMetadata source tree matching the
+     changed file's own version directory, never a different release's
+     source:
+     - `v1.13.x/**` → `.review-sources/OpenMetadata-v1.13.x` (latest 1.13.x release)
+     - `v2.0.x/**` → `.review-sources/OpenMetadata-v2.0.x` (latest 2.0.x release)
+     - `v2.1.x-SNAPSHOT/**` → `.review-sources/OpenMetadata-v2.1.x-SNAPSHOT` (main, unreleased)
+     - shared/unversioned files (`snippets/`, `docs.json`, root pages) →
+       `.review-sources/OpenMetadata-v2.0.x`, the docs site's current default version
+     - In a local review, use the `../OpenMetadata` sibling checkout instead. Before
+       relying on it, check what commit/branch/tag it's actually on (e.g. `git -C
+       ../OpenMetadata rev-parse --abbrev-ref HEAD` and/or the nearest release tag) and
+       state that ref in the report. If it doesn't match the version being reviewed
+       (e.g. it's on `main` while reviewing a `v1.13.x` page), say so and record the
+       affected claims as "Could not verify" rather than checking them against a
+       mismatched source.
    - Check the real source — the relevant Dockerfile, source code, config
      schema, or an actual build/release workflow run — not another doc
      page and not your own assumption.
@@ -83,7 +94,8 @@ Output your response in exactly this structure — nothing else:
 
 **Content type:** [e.g. Email, Documentation, Marketing copy, Release note]
 **Overall verdict:** PASS / NEEDS WORK / FAIL
-*(FAIL = 5 or more Critical issues; NEEDS WORK = any Major issues or 3+ Minor)*
+*(FAIL = 5 or more Critical issues; NEEDS WORK = any Critical (1-4), any Major
+issue, or 3+ Minor; PASS = none of the above)*
 
 [One line, only if a prior automated Review Report exists in the PR
 discussion for this same content: how many of its issues are now fixed vs.
