@@ -376,7 +376,7 @@ Cloud Composer environment updates take several minutes to complete. Once applie
 
 **Best for:** Amazon MWAA environments.
 
-MWAA does not expose the Airflow web server with simple username/password authentication. Instead, AWS generates a short-lived web login token via the MWAA control plane API. OpenMetadata uses your AWS credentials to call `mwaa:CreateWebLoginToken`, then uses that token to call the Airflow REST API.
+MWAA doesn't expose the Airflow web server with simple username/password authentication. Instead, OpenMetadata calls the MWAA control plane's `InvokeRestApi` action directly with your AWS credentials. That action proxies the request to the Airflow REST API — no login token is created or exchanged.
 
 #### Required Parameters
 
@@ -445,6 +445,42 @@ In AWS Console: **Amazon MWAA → Environments** → select your environment →
 
 The IAM user or role must have access to DAGs, DAG runs, task instances, and task logs in the MWAA environment.
 
+#### OpenLineage Setup — Amazon MWAA
+
+Unlike Cloud Composer and Astronomer, MWAA doesn't preinstall `apache-airflow-providers-openlineage` on either its Airflow 2 or Airflow 3 environments (the community `apache/airflow` Docker image bundles it, but MWAA images don't) — install it through the environment's `requirements.txt`. The MWAA workers must also be able to reach the OpenMetadata server over HTTPS (public network egress or equivalent VPC connectivity).
+
+The Airflow constraints file only pins this provider for Airflow versions it was released alongside. Older environments (including MWAA's documented minimum, Airflow 2.4.3) get an unconstrained install of the latest release, which requires a newer Airflow version than MWAA supports. Check the [provider's release history on PyPI](https://pypi.org/project/apache-airflow-providers-openlineage/#history) for a version compatible with your Airflow release, and pin it explicitly in `requirements.txt` instead of relying on the constraints file alone. MWAA environments without outbound access to GitHub and PyPI need to host the provider wheel and constraints file in a private index instead.
+
+<Steps>
+<Step title="Add the provider to requirements.txt">
+Add the OpenLineage provider to the `requirements.txt` file in your environment's S3 bucket, together with the constraint line MWAA requires:
+
+```
+--constraint "https://raw.githubusercontent.com/apache/airflow/constraints-<airflow-version>/constraints-<python-version>.txt"
+apache-airflow-providers-openlineage
+```
+
+Replace `<airflow-version>` and `<python-version>` with your environment's versions, for example `constraints-2.10.1/constraints-3.11.txt`. If the environment has no `requirements.txt` yet, upload one to the S3 bucket and register it under **Requirements file** in the environment settings.
+</Step>
+<Step title="Add the OpenLineage configuration options">
+In the MWAA console, edit the environment and add two custom entries under **Airflow configuration options**:
+
+| Option | Value |
+|---|---|
+| `openlineage.namespace` | `<your-pipeline-service-name>` |
+| `openlineage.transport` | `{"type": "http", "url": "https://your-openmetadata-host/api/v1/openlineage/", "endpoint": "lineage", "auth": {"type": "api_key", "api_key": "<your-OpenMetadata-bot-JWT>"}}` |
+
+MWAA translates these to the `AIRFLOW__OPENLINEAGE__NAMESPACE` and `AIRFLOW__OPENLINEAGE__TRANSPORT` environment variables on the workers.
+</Step>
+<Step title="Save and wait for the environment update">
+Saving applies the changes through an environment update, which typically takes 20–30 minutes. Once complete, DAG task completions push OpenLineage events to OpenMetadata.
+</Step>
+</Steps>
+
+<Warning>
+The transport value contains an OpenMetadata bot JWT, and configuration options are visible to anyone who can view the environment in the AWS console. Scope the bot's permissions accordingly, and rotate the token if the environment configuration is widely readable.
+</Warning>
+
 ---
 
 ## API Version
@@ -509,7 +545,7 @@ AIRFLOW__OPENLINEAGE__TRANSPORT='{"type": "http", "url": "https://your-openmetad
 
 | Step | Action |
 |---|---|
-| 1. Confirm provider | `apache-airflow-providers-openlineage` ships with Airflow, Cloud Composer, and Astronomer. For self-hosted, install via `pip install apache-airflow-providers-openlineage`. |
+| 1. Confirm provider | `apache-airflow-providers-openlineage` ships with Cloud Composer and Astronomer. For self-hosted, install via `pip install apache-airflow-providers-openlineage`. For MWAA, add it to the environment's `requirements.txt`. |
 | 2. Set namespace | `AIRFLOW__OPENLINEAGE__NAMESPACE` — identifies this Airflow instance in OpenMetadata. Should match the pipeline service name. |
 | 3. Set transport | `AIRFLOW__OPENLINEAGE__TRANSPORT` — JSON with HTTP type, OpenMetadata base URL including `/api/v1/openlineage/`, endpoint `lineage`, and bot JWT as `api_key`. |
 | 4. Restart Airflow | Web server and scheduler must restart to pick up the new configuration. |

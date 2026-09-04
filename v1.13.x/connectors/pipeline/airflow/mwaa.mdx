@@ -1,20 +1,98 @@
 ---
 title: Extract MWAA Metadata
+description: Ingest pipeline metadata from Amazon MWAA. Use the REST API connection for an external MWAA environment, or run the ingestion inside MWAA when OpenMetadata cannot reach AWS.
 sidebarTitle: MWAA
 ---
 
 # Extract MWAA Metadata
 
-To extract MWAA Metadata we need to run the ingestion **from** MWAA, since the underlying database lives in a private network.
+There are two ways to extract metadata from an Amazon MWAA environment, depending on where the ingestion process runs:
 
-To learn how to run connectors from MWAA, you can take a look at this [doc](/v1.13.x/deployment/ingestion/external/mwaa). In this guide,
-we'll explain how to configure the MWAA ingestion in the 3 supported approaches:
+- **[REST API connection](/v1.13.x/connectors/pipeline/airflow/rest-api-connection#4-mwaa-configuration-amazon-managed-workflows-for-apache-airflow) (recommended).** The ingestion runs from OpenMetadata (UI-scheduled or via the CLI) and reads DAGs through the MWAA web server, using AWS credentials. No access to the underlying database is needed, and nothing has to be installed inside MWAA for metadata extraction (see below for the additional OpenLineage setup required for table-level lineage).
+- **Running the ingestion inside MWAA.** A DAG deployed in MWAA extracts metadata from the local Airflow backend and pushes it to OpenMetadata. Use this when your MWAA environment runs an Airflow version older than 2.4.3, or when the ingestion cannot be given AWS credentials.
 
-1. Install the openmetadata-ingestion package as a requirement in the Airflow environment. We will then run the process using a `PythonOperator`
-2. Configure an ECS cluster and run the ingestion as an ECS Operator.
-3. Install a plugin and run the ingestion with the `PythonVirtualenvOperator`.
+<Warning>
+**Do not use the `Backend` connection type from outside MWAA.** `Backend` reads the metadata database of the Airflow environment the ingestion workflow is *running inside*. OpenMetadata uses the `hostPort` field only to build clickable DAG links, never to fetch metadata. If you create an Airflow service pointing at your MWAA URL with a `Backend` connection and run it from OpenMetadata's ingestion pipeline, you will silently ingest the DAGs of OpenMetadata's own Airflow instead of MWAA's. `Backend` is only valid when the workflow executes inside MWAA itself (option 2 below).
 
-## 1. Extracting MWAA Metadata with the PythonOperator
+Direct database connections (`Postgres`/`MySQL`) aren't a general alternative either. MWAA's metadata database lives in an AWS-managed private network, reachable only from inside that VPC or a peered network — the same constraint a private MWAA web server has for the REST API connection below. See the ECS approach below for a working example from inside the VPC. It isn't an option for ingestion running entirely outside AWS.
+</Warning>
+
+## 1. REST API Connection (Recommended)
+
+OpenMetadata calls the MWAA control plane's `InvokeRestApi` action directly with your AWS credentials — no login token is created or exchanged. That action proxies the request to the Airflow REST API to read DAGs, runs, and task states. OpenMetadata always uses the Airflow v1 REST API for MWAA connections. MWAA handles the Airflow 2/3 version difference internally, so no client-side version detection happens.
+
+### Requirements
+
+- The MWAA environment must run **Airflow 2.4.3 or newer** (the minimum version supported by the MWAA `InvokeRestApi` API).
+- The IAM identity used in the connection needs `airflow:InvokeRestApi`, scoped to the environment's Airflow role, not the environment itself:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "airflow:InvokeRestApi",
+  "Resource": "arn:aws:airflow:<region>:<account-id>:role/<environment-name>/<airflow-role>"
+}
+```
+
+Replace `<airflow-role>` with the Apache Airflow role to grant: `Admin`, `Op`, `User`, `Viewer`, or `Public`.
+
+- If the MWAA environment uses a **private** web server, `InvokeRestApi` can't be called from outside its VPC. The ingestion runtime must run inside, or have network connectivity to, that VPC.
+
+### Configuration
+
+In the UI, create an **Airflow** pipeline service, select the **REST API Connection** type, and choose **MWAA** authentication. The equivalent YAML:
+
+```yaml
+source:
+  type: airflow
+  serviceName: airflow_mwaa
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: https://<environment-id>.c2.airflow.<region>.on.aws
+      numberOfStatus: 10
+      connection:
+        type: RestAPI
+        authConfig:
+          mwaaConfig:
+            mwaaEnvironmentName: <environment-name>
+            awsConfig:
+              awsRegion: <region>
+              awsAccessKeyId: <access-key-id>
+              awsSecretAccessKey: <secret-access-key>
+              awsSessionToken: <session-token>  # only for temporary (STS) credentials
+        apiVersion: auto
+        verifySSL: true
+  sourceConfig:
+    config:
+      type: PipelineMetadata
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: <OpenMetadata host and port>
+    authProvider: <OpenMetadata auth provider>
+```
+
+When the ingestion runs on AWS infrastructure with an attached IAM role (EC2, ECS, Lambda), omit the access key, secret, and session token. OpenMetadata picks up the role's credentials automatically. Cross-account access is supported via `assumeRoleArn`.
+
+For the full parameter reference, see the [REST API Connection documentation](/v1.13.x/connectors/pipeline/airflow/rest-api-connection).
+
+<Info>
+The REST API alone doesn't capture table-level lineage. It requires the OpenLineage provider configured in MWAA. For the required setup, see the [OpenLineage Setup Summary](/v1.13.x/connectors/pipeline/airflow/rest-api-connection#openlineage-setup-summary).
+</Info>
+
+## 2. Running the Ingestion Inside MWAA
+
+If the REST API connection isn't an option, run the ingestion as a DAG inside MWAA using the `Backend` connection, which reads MWAA's own metadata database directly. The OpenMetadata server must be reachable **from** MWAA. For more information about running connectors from MWAA, see [Run the ingestion from AWS MWAA](/v1.13.x/deployment/ingestion/external/mwaa). There are three supported approaches:
+
+- Install the `openmetadata-ingestion` package as a requirement in the Airflow environment, then run the process using a `PythonOperator`.
+- Configure an ECS cluster and run the ingestion as an ECS Operator.
+- Install a plugin and run the ingestion with the `PythonVirtualenvOperator`.
+
+### 2.1 Extracting MWAA Metadata with the PythonOperator
 
 As the ingestion process will be happening locally in MWAA, we can prepare a DAG with the following YAML
 configuration:
@@ -43,11 +121,11 @@ workflowConfig:
     authProvider: <OpenMetadata auth provider>
 ```
 
-## 2. Extracting MWAA Metadata with the ECS Operator
+### 2.2 Extracting MWAA Metadata with the ECS Operator
 
 After setting up the ECS Cluster, you'll need first to check the MWAA database connection
 
-### Getting MWAA database connection
+#### Getting MWAA Database Connection
 
 To extract MWAA information we will need to take a couple of points in consideration:
 1. How to get the underlying database connection info, and
@@ -149,7 +227,7 @@ workflowConfig:
       jwtToken: ...
 ```
 
-## 2. Extracting MWAA Metadata with the Python Virtualenv Operator
+### 2.3 Extracting MWAA Metadata with the Python Virtualenv Operator
 
 This will be similar as the first step, where you just need the simple `Backend` connection YAML:
 
