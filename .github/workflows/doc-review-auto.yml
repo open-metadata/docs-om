@@ -154,6 +154,16 @@ jobs:
           chmod a-w "${RUNNER_TEMP}/pr-diff.patch"
 
       - name: Fetch Trusted Review Policy
+        # Content API fetch into $RUNNER_TEMP, not a read of the local
+        # checkout: this step's own sanitize-review-context.py fetch below
+        # is what it is for -- CodeQL's untrusted-checkout rule (tripped on
+        # the sibling doc-review.yml, which shares this checkout pattern)
+        # models "checkout a ref, then execute a script found in that
+        # checkout" as its sink (see its own npm-install/package.json
+        # example), and running a script *path inside the checked-out tree*
+        # matches that shape regardless of the ref actually being the
+        # trusted base. Content fetched this way is never executed from
+        # within the checkout.
         if: steps.permission.outputs.trusted == 'true'
         shell: bash
         env:
@@ -166,7 +176,9 @@ jobs:
             | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/doc-review-policy/instructions.md"
           gh api "repos/${GITHUB_REPOSITORY}/contents/.ai/doc-review/references/checklist.md?ref=${BASE_SHA}" --jq '.content' \
             | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/doc-review-policy/references/checklist.md"
-          chmod -R a-w "${RUNNER_TEMP}/doc-review-policy"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/sanitize-review-context.py?ref=${BASE_SHA}" --jq '.content' \
+            | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/sanitize-review-context.py"
+          chmod -R a-w "${RUNNER_TEMP}/doc-review-policy" "${RUNNER_TEMP}/sanitize-review-context.py"
 
       - name: Check Out OpenMetadata Source (v2.1.x-SNAPSHOT / main)
         if: steps.permission.outputs.trusted == 'true'
@@ -226,7 +238,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/sanitize-review-context.py \
+          python3 "${RUNNER_TEMP}/sanitize-review-context.py" \
             "${RUNNER_TEMP}/pr-review-discussion.txt" \
             "${RUNNER_TEMP}/pr-inline-review-comments.json"
           chmod a-w "${RUNNER_TEMP}/pr-review-discussion.txt" \
