@@ -1,0 +1,300 @@
+name: Major Release Watcher (doc-need detection + completeness)
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # 06:00 UTC every Monday; the job decides odd/even week
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report findings only -- never create, update, or comment on any issue"
+        type: boolean
+        default: false
+      force_run:
+        description: "Run even if this isn't the biweekly week (for testing)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: major-release-watcher
+  cancel-in-progress: false
+
+jobs:
+  scan-and-notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Decide whether this Monday is the biweekly run (deterministic)
+        id: cadence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          WEEK="$(date -u +%V)"
+          if [ $((10#$WEEK % 2)) -eq 0 ] || [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            echo "run_this_week=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_this_week=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Same self-healing lookback as the minor watcher: since this
+          # workflow only ever does anything every other Monday, "since the
+          # last successful run" is already the right window.
+          #
+          # GitHub Actions runs this with `bash -e`, so if `gh run list`
+          # itself fails (rate limit, API hiccup, workflow not yet
+          # registered, etc.) the whole step would otherwise abort right
+          # here -- before ever reaching the fallback below. The `|| echo
+          # ""` neutralizes that: a failed lookup is treated exactly like
+          # "no prior run found", not a hard failure.
+          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
+                       --workflow "major-release-watcher.yml" --status success \
+                       --json createdAt --limit 1 --jq '.[0].createdAt // empty' \
+                       2>/dev/null || echo "")
+          if [ -n "$LAST_RUN" ]; then
+            echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          else
+            echo "lookback=$(date -u -d '15 days ago' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure tracking labels exist
+        if: steps.cadence.outputs.run_this_week == 'true' && github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "breaking-change" --repo "${{ github.repository }}" \
+            --color "C34A2C" --description "Upstream change that may break an existing user setup" --force
+
+      - uses: anthropics/claude-code-action@v1
+        if: steps.cadence.outputs.run_this_week == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
+          LOOKBACK: ${{ steps.cadence.outputs.lookback }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            You are the Major Release Watcher for this docs repo -- you
+            handle ONLY the next major release (the pattern 2.0 (current)
+            -> 2.1 -> 2.2 -> ..., i.e. whichever version directory's own
+            note says it's the pre-release snapshot for the next major).
+            A separate workflow, the Minor Release Watcher, owns the
+            current patch line (2.0.1, 2.0.2, ...) -- never touch that
+            here.
+
+            You do two jobs in one run: (A) scan for new major-bound doc
+            needs, same shape as the Minor Release Watcher's SCAN, FILTER,
+            VERIFY, GROUP, NOTIFY, DIGEST; and (B) re-check completeness of
+            multi-PR features you already flagged in a past run. Never
+            create branches, never create or edit pull requests, never
+            write any doc content. Only reading this repo, reading the
+            source repo, and creating/labeling/commenting on GitHub issues
+            in this repo is in scope.
+
+            If `DRY_RUN` is exactly `true`: still do every read-only step
+            for real, but never call `gh issue create`, `gh issue edit`,
+            or `gh issue comment`. Instead, print exactly what you would
+            have created, updated, or commented -- as your final response.
+            Do not write `slack-digest.txt` in dry-run mode either.
+
+            # PART A -- scan for new major-bound doc needs
+
+            ## A1. Read config
+
+            Read `release.config.json` for the current version per version
+            directory. Identify the pre-release/major-snapshot directory
+            (the one whose note says it tracks the next major, e.g.
+            `v2.1.x-SNAPSHOT`) -- that's your target version for anything
+            CONFIRMED below.
+
+            Read `.ai/release-checklist/references/upstream-watch-config.md`
+            for the doc-relevance filter rules. Use them exactly as
+            written.
+
+            ## A2. Scan main
+
+            gh pr list --repo open-metadata/OpenMetadata --state merged \
+              --base main \
+              --search "merged:>=$LOOKBACK" \
+              --json number,title,url,body,labels,mergedAt,files,baseRefName
+
+            ## A3. Classify major vs. minor -- the real judgment call this
+            workflow exists to make
+
+            A PR merged to `main` is not automatically major-only -- it
+            might just be minor-bound work that hasn't been backported yet.
+            Do not guess from the branch alone. For each PR from A2:
+
+            1. **Check for a backport first.** Search for a PR on the
+               current minor release branch (e.g. `2.0`) that backports
+               this one -- upstream's own convention is a title like
+               "Backport #<this-PR-number> to <branch>":
+               gh pr list --repo open-metadata/OpenMetadata --base <minor-branch> \
+                 --search "<PR number> in:title" --state all
+               If a backport exists (merged or even just open), this PR is
+               minor-bound (or dual) -- EXCLUDE it here. The Minor Release
+               Watcher owns it once/if that backport merges.
+
+            2. **If no backport exists yet, do not assume either way --
+               read the PR's own body and "Type of change."** A bug fix or
+               security fix is the kind of change that almost always gets
+               backported to the active patch line eventually, even if it
+               hasn't yet -- treat that as provisionally minor-bound, not
+               major-only, and EXCLUDE it (it'll surface again once
+               backported, or never needs major-specific docs if it never
+               is). A genuinely new capability, feature, or endpoint --
+               the kind of change that essentially never gets backported
+               to a patch release -- is the real signal for major-only.
+               INCLUDE only these.
+
+            3. **If even that's genuinely ambiguous**, don't force a
+               decision -- treat it as its own item and mark it NEEDS A
+               LOOK at the Verify step (A4), with a note that the
+               ambiguity was specifically about major-vs-minor
+               classification, not doc coverage.
+
+            ## A4. Filter and Verify
+
+            Apply the doc-relevance filter to whatever survived A3's
+            classification (major-only or genuinely ambiguous). For each
+            surviving PR, open the real diff/description and write a 1-2
+            sentence plain-English evidence note -- never guess from the
+            title.
+
+            Then classify into exactly one of:
+            - **HELD** — the PR's own body discloses it's unverified,
+              unapproved, or agent-generated with no build/test run. Stop
+              there regardless of how real the change sounds.
+            - **RULED OUT** — a bug fix restoring already-intended
+              behavior with nothing in this repo's docs to correct.
+              Search this repo (Grep/Glob) before deciding.
+            - **NEEDS A LOOK** — inconclusive, including anything flagged
+              ambiguous in A3. Don't guess.
+            - **CONFIRMED** — genuinely new, major-only, and no existing
+              coverage found. Only these proceed.
+
+            ## A5. Group (CONFIRMED items only)
+
+            Group PRs clearly belonging to the same feature (shared
+            tracking issue, near-identical titles, cross-references).
+            Grouping is cumulative across runs -- never guess whether a
+            feature is "done" here, that's PART B's job below, done with
+            real evidence, not a guess made while grouping.
+
+            ## A6. Notify
+
+            For each CONFIRMED item, search before creating anything -- do
+            all three checks, same as the Minor Watcher: (i) this exact PR
+            under either marker prefix, old or new (`daily-watcher:pr-X`
+            from before this workflow existed, or `major-watcher:pr-X`) --
+            search on the number, not the prefix:
+            gh issue list --repo ${{ github.repository }} --state all \
+              --search "pr-<number> --> in:body"
+            (ii) shared tracking issue ("Fixes #X" / "Part of #X" in this
+            PR's body, searched for in existing tracked issues); (iii)
+            shared original PR if this is itself a backport ("Backport #Y"
+            referencing an original PR Y, searched the same way as (i)).
+            Update an existing match (append PR + marker, post a
+            comment) rather than duplicate. Otherwise create one new issue:
+            gh issue create --repo ${{ github.repository }} \
+              --title "<short, plain-language summary>" \
+              [--label "breaking-change" if applicable] \
+              --body "<body>"
+            Body: the evidence note, a bullet list of source PR link(s),
+            the target major version directory, and
+            <!-- major-watcher:pr-<number> --> for de-dup. Assign
+            `NOTIFY_USERNAMES` if non-empty via `gh issue edit --add-assignee`.
+
+            # PART B -- completeness check on already-tracked features
+
+            ## B1. Find candidates
+
+            gh issue list --repo ${{ github.repository }} --state open --search "major-watcher in:body"
+            Read each. Keep only issues containing more than one
+            `<!-- major-watcher:pr-<number> --> ` marker (multi-PR --
+            single-PR issues have nothing to check here).
+
+            If none match, say so and move on to the digest -- nothing to
+            check this part.
+
+            ## B2. Check completeness, per candidate
+
+            For each candidate, extract every PR number referenced. For
+            each PR, open it and find the tracking issue it references
+            (a "Fixes #X" / "Part of #X" pattern). Then:
+            - Check whether tracking issue #X is open or closed.
+            - Search for every PR referencing #X, not just the ones already
+              in this docs-om issue -- there may be more, and some may
+              still be open/unmerged.
+
+            Classify into exactly one of:
+            - **COMPLETE** — tracking issue closed, every referencing PR
+              merged.
+            - **INCOMPLETE** — tracking issue still open, or at least one
+              referencing PR is still open. Report the merged-vs-open
+              count.
+            - **UNCLEAR** — you could not confidently resolve this. Never
+              guess between COMPLETE and INCOMPLETE.
+
+            ## B3. Report back on the existing issue
+
+            For every candidate, post one comment on that existing issue
+            (never a new issue) with the classification, every PR/tracking-
+            issue link checked, and what you found for each. COMPLETE:
+            say plainly it looks ready to draft now. INCOMPLETE: say how
+            many are still outstanding. UNCLEAR: quote the conflicting
+            evidence explicitly rather than summarizing it away.
+
+            # PART C -- Digest (always runs, both parts, even DRY_RUN)
+
+            Find or create a single persistent issue titled exactly
+            "Major Release Watcher — Scan Digest" (search first; create
+            only if missing, body "Running log of every Major Release
+            Watcher scan. New comments below.", assign
+            `NOTIFY_USERNAMES`). Post one new comment covering:
+
+            - Part A: PRs scanned, how many excluded as minor-bound (with
+              which rule excluded them), how many passed the filter,
+              confirmed/ruled-out/needs-a-look/held breakdown.
+            - Part B: how many multi-PR candidates were checked, and each
+              one's completeness classification.
+
+            Never skip this step, even when nothing was confirmed or no
+            candidates existed for Part B.
+
+            # PART D -- Slack handoff (only if Part A confirmed something, not in dry-run)
+
+            Only if Part A actually created or updated an issue this run,
+            and `DRY_RUN` is not `true`: write a short plain-text summary
+            (Slack mrkdwn: `*bold*`, `_italic_`, `•` bullets) to
+            `slack-digest.txt`, listing each confirmed item's title and
+            issue link. Otherwise do not create this file.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Read,Grep,Glob,Write"
+
+      - name: Send Slack DM if something was confirmed this run
+        if: steps.cadence.outputs.run_this_week == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ ! -s slack-digest.txt ]; then
+            echo "Nothing confirmed this run (or no digest file) -- skipping Slack."
+            exit 0
+          fi
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "Slack not configured yet (missing SLACK_WEBHOOK_URL secret) -- skipping."
+            exit 0
+          fi
+
+          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-type: application/json; charset=utf-8" \
+            --data "$(jq -n --rawfile text slack-digest.txt '{text: $text}')"

@@ -1,0 +1,306 @@
+name: Minor Release Watcher (doc-need detection)
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,4" # 06:00 UTC, Monday and Thursday
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report findings only -- never create, update, or comment on any issue"
+        type: boolean
+        default: false
+
+concurrency:
+  group: minor-release-watcher
+  cancel-in-progress: false
+
+jobs:
+  scan-and-notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Ensure tracking labels exist
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "breaking-change" --repo "${{ github.repository }}" \
+            --color "C34A2C" --description "Upstream change that may break an existing user setup" --force
+
+      - name: Work out this run's lookback window (deterministic)
+        id: cadence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # This workflow only ever runs Mon/Thu, so "since the last
+          # successful run" is already the right window -- no day-of-week
+          # filtering needed (unlike a workflow that shared one file across
+          # two different cadences, which the old daily-watcher.yml did).
+          # If a run is missed or fails, the next one naturally looks back
+          # further instead of silently dropping PRs.
+          # GitHub Actions runs this with `bash -e`, so if `gh run list`
+          # itself fails (rate limit, API hiccup, workflow not yet
+          # registered, etc.) the whole step would otherwise abort right
+          # here -- before ever reaching the fallback below. The `|| echo
+          # ""` neutralizes that: a failed lookup is treated exactly like
+          # "no prior run found", not a hard failure.
+          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
+                       --workflow "minor-release-watcher.yml" --status success \
+                       --json createdAt --limit 1 --jq '.[0].createdAt // empty' \
+                       2>/dev/null || echo "")
+          if [ -n "$LAST_RUN" ]; then
+            echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          else
+            # First run ever (or every past attempt failed) -- a safe
+            # generous default rather than guessing.
+            echo "lookback=$(date -u -d '4 days ago' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
+          LOOKBACK: ${{ steps.cadence.outputs.lookback }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            You are the Minor Release Watcher for this docs repo -- you
+            handle ONLY the current minor/patch release line (the pattern
+            2.0.0 -> 2.0.1 -> 2.0.2 -> ..., etc. per whichever version
+            directories exist), never the next major release. A separate
+            workflow, the Major Release Watcher, owns that.
+
+            Your job is SCAN, FILTER, VERIFY, GROUP, NOTIFY, and DIGEST
+            only. Never create branches, never create or edit pull
+            requests, never write any doc content. Only reading this repo,
+            reading the source repo, and creating/labeling/commenting on
+            GitHub issues in this repo is in scope.
+
+            If `DRY_RUN` is exactly `true`: still do every step for real
+            (steps 1-5 are read-only anyway), but for step 6 (Notify) and
+            step 7 (Digest), do not call `gh issue create`, `gh issue
+            edit`, or `gh issue comment` at all. Instead, print exactly
+            what you would have created or updated -- title, body, which
+            existing issue you'd have commented on -- as your final
+            response. Do not write `slack-digest.txt` in dry-run mode
+            either, since nothing was actually confirmed on GitHub.
+
+            ## 1. Read config
+
+            Read `release.config.json` (repo root) for the current version
+            per version directory.
+
+            Read `.ai/release-checklist/references/upstream-watch-config.md`
+            for the source repo and the doc-relevance filter rules. Use
+            that filter exactly as written — do not loosen or tighten it
+            on your own judgment.
+
+            ## 2. Scan — minor/patch release branches only
+
+            For every version directory in `release.config.json` that has
+            a live release branch upstream (the branch name is the version
+            directory's leading `X.Y`, e.g. `v2.0.x` → base branch `2.0`,
+            `v1.13.x` → base branch `1.13` — skip any pre-release/SNAPSHOT
+            directory, those don't have their own release branch), run:
+            gh pr list --repo open-metadata/OpenMetadata --state merged \
+              --base <release-branch> \
+              --search "merged:>=$LOOKBACK" \
+              --json number,title,url,body,labels,mergedAt,files,baseRefName
+
+            Never query `--base main` here — that's the Major Release
+            Watcher's job. A PR merged directly to a release branch is
+            unambiguously minor-bound; there's no classification judgment
+            call needed on this side (unlike the major side, which has to
+            work out whether an unbackported `main` PR is genuinely
+            major-only or just not-yet-backported minor work).
+
+            ## 3. Filter
+
+            Apply the doc-relevance filter from upstream-watch-config.md to
+            each PR. Drop anything that doesn't clearly pass it — dependency
+            bumps, backports, test-only or internal-refactor PRs, docs-only
+            PRs in the source repo itself. For each PR that passes, open the
+            real diff/description (`gh pr view <number> --repo
+            open-metadata/OpenMetadata`) and write a 1-2 sentence, plain-
+            English note of what actually changed — never guess from the
+            title alone.
+
+            Note which specific version (e.g. `2.0.1`, the next patch after
+            whatever's currently live) this change would eventually be
+            documented under, based on which release branch it merged to;
+            note "unclear" if you can't tell rather than guessing.
+
+            ## 4. Verify
+
+            Do not take a passing title at face value — this step exists
+            because it catches real mistakes. For each PR that survived
+            step 3, classify it into exactly one of:
+
+            - **HELD** — the PR's own body contains an explicit disclaimer
+              that it's unverified, unapproved, or agent-generated with no
+              build/test run (phrases like "not an approved change",
+              "input to review", "no build or test command", an
+              agent/bot name disclaiming responsibility, etc.). If you see
+              this, stop there — do not evaluate it further, do not create
+              or update an issue for it, regardless of how real the
+              described change sounds. Held items still go in the digest.
+
+            - **RULED OUT** — re-read the PR body's own "Type of change"
+              and description closely. If it's actually a bug fix
+              restoring already-intended behavior (not a new capability,
+              setting, or endpoint) AND nothing in this repo's docs
+              currently makes a claim that behavior contradicts, there is
+              nothing to document. Search this repo (Grep/Glob) for
+              existing coverage of the relevant area before deciding —
+              titles overstate new capability more often than not.
+
+            - **NEEDS A LOOK** — you found a plausible existing doc area to
+              check but couldn't confidently confirm whether it's already
+              covered or contradicted in the time this step allows. Don't
+              guess either way — this is a legitimate outcome, not a
+              failure to resolve.
+
+            - **CONFIRMED** — a genuinely new capability, setting,
+              endpoint, or behavior change, and you searched this repo and
+              found no existing coverage of it. Only CONFIRMED items
+              proceed to steps 5 and 6.
+
+            ## 5. Group (CONFIRMED items only)
+
+            If multiple CONFIRMED PRs clearly belong to the same feature
+            (linked to the same tracking issue, near-identical titles,
+            explicitly reference each other), group them into one item.
+            Otherwise treat each PR as its own item.
+
+            Grouping is cumulative across runs, not one-shot. Never try to
+            guess whether the feature is "done" — that call belongs to a
+            human at draft time or the pre-release pass, not to this step.
+
+            ## 6. Notify (create or update issues, de-duplicated across runs)
+
+            For each item from step 5 (CONFIRMED only — RULED OUT, NEEDS A
+            LOOK, and HELD items never get an issue, only a digest entry):
+
+            a. Search first, so nothing gets filed twice across runs. Do
+               all three checks — this repo has tracked issues from before
+               this workflow existed (a prior single combined watcher used
+               a `daily-watcher:pr-<number>` marker instead of this one's
+               `minor-watcher:pr-<number>`), and backport PRs reference
+               their original PR number, not a tracking issue number, so
+               relying on only one check misses real matches:
+
+               i.   This exact PR, under either marker prefix (old or new):
+                    gh issue list --repo ${{ github.repository }} --state all \
+                      --search "pr-<number> --> in:body"
+                    (matches `<!-- daily-watcher:pr-X -->` or
+                    `<!-- minor-watcher:pr-X -->` alike — search on the
+                    number, not the prefix, since the prefix changed but
+                    the number didn't.)
+
+               ii.  Shared tracking issue: if this item's PR body
+                    references "Fixes #X" / "Part of #X", search for that
+                    same "#X" inside existing tracked issue bodies.
+
+               iii. Shared original PR (backport pattern): if this item's
+                    PR title or body says "Backport #Y" / "Backport ... to
+                    <branch>" referencing an original PR number Y, search
+                    for Y the same way as (i) — the original PR (e.g. the
+                    one that merged to `main` first) may already be
+                    tracked under its own number, and this backport is the
+                    same feature, not a new one.
+
+            b. If a matching open issue already exists (same PR, or same
+               tracked feature): update it instead of creating a new one.
+               Append the new PR to the body's PR list and its dedup
+               marker (so future runs recognize it too), and post a short
+               comment noting what's new. Never open a second issue for
+               the same feature.
+
+            c. Otherwise create one new issue per item:
+               gh issue create --repo ${{ github.repository }} \
+                 --title "<short, plain-language summary of the change>" \
+                 [--label "breaking-change" if applicable] \
+                 --body "<body>"
+               No other label is needed — every issue this workflow files
+               already means "needs docs" by virtue of existing.
+
+               Body must include, in this order:
+               - The 1-2 sentence evidence note from step 3
+               - A bullet list of the source PR link(s)
+               - The target version (or "unclear — needs a look")
+               - A hidden HTML comment per PR number for de-duplication,
+                 exactly: <!-- minor-watcher:pr-<number> -->
+
+               If `NOTIFY_USERNAMES` is non-empty, assign the issue to
+               those GitHub usernames (comma-separated) via
+               `gh issue edit <number> --add-assignee <user>` for each.
+               If it's empty, still create the issue but do not fail —
+               just skip assignment.
+
+            ## 7. Digest (always runs, regardless of what steps 4-6 found)
+
+            Find or create a single persistent issue titled exactly
+            "Minor Release Watcher — Scan Digest" (search first; create
+            only if it doesn't exist, with body "Running log of every
+            Minor Release Watcher scan. New comments below.", and assign
+            `NOTIFY_USERNAMES` to it the same way step 6 does). Post one
+            new comment to it for this run, containing:
+
+            - How many PRs were scanned (per branch) and how many passed
+              the relevance filter.
+            - **Confirmed:** items that got a new or updated issue this
+              run, with links.
+            - **Ruled out:** items dropped in step 4, each with the
+              one-line reason.
+            - **Needs a look:** items step 4 couldn't confidently resolve,
+              with what you checked and why it was inconclusive.
+            - **Held:** items with an unverified/unapproved-change
+              disclaimer, quoting the exact disclaimer text.
+
+            Never skip this step, even when nothing was confirmed —
+            "nothing needed docs this run" is itself useful information.
+
+            ## 8. Slack handoff file (only if step 6 confirmed something, and not in dry-run)
+
+            Slack should stay quiet on routine days — only write this file
+            if at least one item was CONFIRMED this run (a new or updated
+            issue was actually created in step 6). If nothing was
+            confirmed, or `DRY_RUN` is `true`, do not create this file at
+            all; a separate, non-AI step checks for its absence and skips
+            Slack entirely.
+
+            If something was confirmed, write a short plain-text summary
+            (Slack mrkdwn is fine: `*bold*`, `_italic_`, `•` bullets — no
+            Markdown headers or links-in-brackets syntax) to
+            `slack-digest.txt` in the repo root, listing each confirmed
+            item's title and issue link. Keep it brief.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Read,Grep,Glob,Write"
+
+      - name: Send Slack DM if something was confirmed this run
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ ! -s slack-digest.txt ]; then
+            echo "Nothing confirmed this run (or no digest file) -- skipping Slack."
+            exit 0
+          fi
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "Slack not configured yet (missing SLACK_WEBHOOK_URL secret) -- skipping."
+            exit 0
+          fi
+
+          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-type: application/json; charset=utf-8" \
+            --data "$(jq -n --rawfile text slack-digest.txt '{text: $text}')"
