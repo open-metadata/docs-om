@@ -90,10 +90,36 @@ In terms of `connection` we support the following selections:
     deployments (Astronomer, Cloud Composer, MWAA) or any setup where database access is unavailable. Supports
     Basic Auth, Access Token, GCP Service Account, and MWAA authentication methods.
     See the [REST API Connection guide](/v2.1.x-SNAPSHOT/connectors/pipeline/airflow/rest-api-connection) for full setup instructions.
-- `backend`: Should not be used from the UI. This is only applicable when ingesting Airflow metadata locally
+- `Backend`: Should not be used from the UI. This is only applicable when ingesting Airflow metadata locally
     by running the ingestion from a DAG. It will use the current Airflow SQLAlchemy connection to extract the data.
 - `MySQL`, `Postgres`, and `SQLite`: Pass the required credentials to reach out each of these services. We
     will create a connection to the pointed database and read Airflow data from there.
+
+#### Choosing a Connection Type
+
+Pick the connection based on where your Airflow runs and what the ingestion process can reach:
+
+| Scenario | Connection type |
+|---|---|
+| Managed Airflow: [MWAA](/v2.1.x-SNAPSHOT/connectors/pipeline/airflow/mwaa), Cloud Composer, or Astronomer | `RestAPI` |
+| Self-hosted Airflow, with the ingestion scheduled from the OpenMetadata UI | `RestAPI` |
+| The ingestion runs as a DAG inside the same Airflow you want to ingest | `Backend` |
+| OpenMetadata's bundled ingestion Airflow ingesting itself | `Backend` |
+| Webserver API disabled or unreachable, but the metadata database is network-reachable | `MySQL`, `Postgres`, or `SQLite` |
+
+At a glance:
+
+|  | `RestAPI` | `Backend` | `MySQL` / `Postgres` / `SQLite` |
+|---|---|---|---|
+| Runs from the OpenMetadata UI or agent | ✅ | ❌ Ingests the agent's own Airflow, not the `hostPort` target | ✅ When the database is network-reachable |
+| Works with managed Airflow | ✅ | Only as a DAG deployed inside it | ⚠️ Provider- and reachability-dependent — MWAA's database, for example, is reachable only from inside its VPC, while most managed services don't expose it at all |
+| Credentials needed | Airflow user, token, or cloud credentials | None | Database read credentials |
+| Airflow versions | 2.x and 3.x, API version auto-detected (MWAA needs 2.4.3 or newer) | Matches the Airflow it runs in | Database schema varies across Airflow versions |
+| Table-level lineage | Requires the [OpenLineage provider](/v2.1.x-SNAPSHOT/connectors/pipeline/airflow/rest-api-connection#openlineage-setup-summary) | From DAG inlets and outlets | From DAG inlets and outlets |
+
+<Warning>
+`Backend` reads the metadata database of the Airflow environment the ingestion workflow is *running inside*, and uses `hostPort` only to build DAG links. Selecting it in the UI for an external Airflow, such as MWAA, silently ingests OpenMetadata's own Airflow instead. For an external instance, use `RestAPI`.
+</Warning>
 
 #### Test Connection
 
