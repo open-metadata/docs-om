@@ -26,7 +26,7 @@ jobs:
       issues: write
       actions: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 1
 
@@ -44,18 +44,37 @@ jobs:
 
           # Same self-healing lookback as the minor watcher: since this
           # workflow only ever does anything every other Monday, "since the
-          # last successful run" is already the right window.
+          # last completed real scan" is already the right window.
           #
-          # GitHub Actions runs this with `bash -e`, so if `gh run list`
-          # itself fails (rate limit, API hiccup, workflow not yet
-          # registered, etc.) the whole step would otherwise abort right
-          # here -- before ever reaching the fallback below. The `|| echo
-          # ""` neutralizes that: a failed lookup is treated exactly like
-          # "no prior run found", not a hard failure.
-          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
-                       --workflow "major-release-watcher.yml" --status success \
-                       --json createdAt --limit 1 --jq '.[0].createdAt // empty' \
-                       2>/dev/null || echo "")
+          # Deliberately NOT `gh run list --status success`: a manual
+          # dry_run invocation, and a scheduled run that lands on the
+          # non-biweekly (off) week, both complete with conclusion
+          # "success" but do no real scanning and create no tracker
+          # records -- using either as the next cutoff would permanently
+          # skip that interval. Instead, use the digest issue's own comment
+          # history: Part C below posts exactly one new comment on it per
+          # run, and only when this week is the real biweekly run and it's
+          # not a dry run (both are gated the same way as the actual
+          # scan-and-notify work) -- so its latest comment timestamp is
+          # precisely "the last time a real scan actually completed", with
+          # no separate bookkeeping needed.
+          #
+          # GitHub Actions runs this with `bash -e`, so if any `gh`/`jq`
+          # call here fails (rate limit, API hiccup, issue not yet created)
+          # the whole step would otherwise abort right here -- before ever
+          # reaching the fallback below. The `|| echo ""` on each lookup
+          # neutralizes that: a failed lookup is treated exactly like "no
+          # prior run found", not a hard failure.
+          DIGEST_ISSUE=$(gh issue list --repo "${{ github.repository }}" --state all \
+                           --search 'in:title "Major Release Watcher — Scan Digest"' \
+                           --json number --jq '.[0].number // empty' \
+                           2>/dev/null || echo "")
+          LAST_RUN=""
+          if [ -n "$DIGEST_ISSUE" ]; then
+            LAST_RUN=$(gh api "repos/${{ github.repository }}/issues/${DIGEST_ISSUE}/comments" --paginate \
+                         --jq '[.[].created_at] | sort | last // empty' \
+                         2>/dev/null || echo "")
+          fi
           if [ -n "$LAST_RUN" ]; then
             echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           else
@@ -70,7 +89,7 @@ jobs:
           gh label create "breaking-change" --repo "${{ github.repository }}" \
             --color "C34A2C" --description "Upstream change that may break an existing user setup" --force
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         if: steps.cadence.outputs.run_this_week == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -124,7 +143,14 @@ jobs:
             gh pr list --repo open-metadata/OpenMetadata --state merged \
               --base main \
               --search "merged:>=$LOOKBACK" \
-              --json number,title,url,body,labels,mergedAt,files,baseRefName
+              --json number,title,url,body,labels,mergedAt,files,baseRefName \
+              --limit 500
+
+            `--limit` defaults to 30 -- `main` merges far more than that in
+            any realistic biweekly window, and anything past the default
+            page is silently never scanned. Always pass an explicit high
+            limit (500 comfortably covers any realistic window; raise it
+            further if a single scan window could plausibly exceed that).
 
             ## A3. Classify major vs. minor -- the real judgment call this
             workflow exists to make
@@ -138,7 +164,7 @@ jobs:
                this one -- upstream's own convention is a title like
                "Backport #<this-PR-number> to <branch>":
                gh pr list --repo open-metadata/OpenMetadata --base <minor-branch> \
-                 --search "<PR number> in:title" --state all
+                 --search "<PR number> in:title" --state all --limit 50
                If a backport exists (merged or even just open), this PR is
                minor-bound (or dual) -- EXCLUDE it here. The Minor Release
                Watcher owns it once/if that backport merges.
@@ -165,9 +191,12 @@ jobs:
 
             Apply the doc-relevance filter to whatever survived A3's
             classification (major-only or genuinely ambiguous). For each
-            surviving PR, open the real diff/description and write a 1-2
-            sentence plain-English evidence note -- never guess from the
-            title.
+            surviving PR, read both the description (`gh pr view <number>
+            --repo open-metadata/OpenMetadata`) and the real code diff
+            (`gh pr diff <number> --repo open-metadata/OpenMetadata`), then
+            write a 1-2 sentence plain-English evidence note -- never guess
+            from the title or description alone; the description can
+            overstate or omit what the diff actually does.
 
             Then classify into exactly one of:
             - **HELD** — the PR's own body discloses it's unverified,
@@ -251,21 +280,29 @@ jobs:
             issue link checked, and what you found for each. COMPLETE:
             say plainly it looks ready to draft now. INCOMPLETE: say how
             many are still outstanding. UNCLEAR: quote the conflicting
-            evidence explicitly rather than summarizing it away.
+            evidence explicitly rather than summarizing it away. Same
+            DRY_RUN rule as everywhere else: if DRY_RUN is exactly `true`,
+            do not actually call `gh issue comment` here -- print what you
+            would have posted, and to which issue, instead.
 
-            # PART C -- Digest (always runs, both parts, even DRY_RUN)
+            # PART C -- Digest (always produces a report, both parts, even DRY_RUN)
 
             Find or create a single persistent issue titled exactly
             "Major Release Watcher — Scan Digest" (search first; create
             only if missing, body "Running log of every Major Release
             Watcher scan. New comments below.", assign
-            `NOTIFY_USERNAMES`). Post one new comment covering:
+            `NOTIFY_USERNAMES`). Compile one digest covering:
 
             - Part A: PRs scanned, how many excluded as minor-bound (with
               which rule excluded them), how many passed the filter,
               confirmed/ruled-out/needs-a-look/held breakdown.
             - Part B: how many multi-PR candidates were checked, and each
               one's completeness classification.
+
+            If DRY_RUN is exactly `true`, do not call `gh issue create` or
+            `gh issue comment` for this -- print the full digest as your
+            final response instead, exactly as steps A6/B3 do for their own
+            writes. Otherwise, post it as one new comment on that issue.
 
             Never skip this step, even when nothing was confirmed or no
             candidates existed for Part B.
@@ -279,7 +316,7 @@ jobs:
             issue link. Otherwise do not create this file.
 
           claude_args: |
-            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Read,Grep,Glob,Write"
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Bash(gh issue view:*),Read,Grep,Glob,Write${{ (github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
 
       - name: Send Slack DM if something was confirmed this run
         if: steps.cadence.outputs.run_this_week == 'true'

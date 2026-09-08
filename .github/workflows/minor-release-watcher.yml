@@ -22,7 +22,7 @@ jobs:
       issues: write
       actions: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 1
 
@@ -40,21 +40,40 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # This workflow only ever runs Mon/Thu, so "since the last
-          # successful run" is already the right window -- no day-of-week
-          # filtering needed (unlike a workflow that shared one file across
-          # two different cadences, which the old daily-watcher.yml did).
-          # If a run is missed or fails, the next one naturally looks back
-          # further instead of silently dropping PRs.
-          # GitHub Actions runs this with `bash -e`, so if `gh run list`
-          # itself fails (rate limit, API hiccup, workflow not yet
-          # registered, etc.) the whole step would otherwise abort right
-          # here -- before ever reaching the fallback below. The `|| echo
-          # ""` neutralizes that: a failed lookup is treated exactly like
-          # "no prior run found", not a hard failure.
-          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
-                       --workflow "minor-release-watcher.yml" --status success \
-                       --json createdAt --limit 1 --jq '.[0].createdAt // empty' \
-                       2>/dev/null || echo "")
+          # completed real scan" is already the right window -- no
+          # day-of-week filtering needed (unlike a workflow that shared one
+          # file across two different cadences, which the old
+          # daily-watcher.yml did). If a run is missed or fails, the next
+          # one naturally looks back further instead of silently dropping
+          # PRs.
+          #
+          # Deliberately NOT `gh run list --status success`: a manual
+          # dry_run invocation completes with conclusion "success" too, but
+          # does no real scanning and creates no tracker records -- using
+          # it as the next cutoff would permanently skip that interval.
+          # Instead, use the digest issue's own comment history: step 7
+          # below posts exactly one new comment on it per run, and only for
+          # a real (non-dry) scan (dry runs are instructed to skip that
+          # step entirely) -- so its latest comment timestamp is precisely
+          # "the last time a real scan actually completed", with no
+          # separate bookkeeping needed.
+          #
+          # GitHub Actions runs this with `bash -e`, so if any `gh`/`jq`
+          # call here fails (rate limit, API hiccup, issue not yet created)
+          # the whole step would otherwise abort right here -- before ever
+          # reaching the fallback below. The `|| echo ""` on each lookup
+          # neutralizes that: a failed lookup is treated exactly like "no
+          # prior run found", not a hard failure.
+          DIGEST_ISSUE=$(gh issue list --repo "${{ github.repository }}" --state all \
+                           --search 'in:title "Minor Release Watcher — Scan Digest"' \
+                           --json number --jq '.[0].number // empty' \
+                           2>/dev/null || echo "")
+          LAST_RUN=""
+          if [ -n "$DIGEST_ISSUE" ]; then
+            LAST_RUN=$(gh api "repos/${{ github.repository }}/issues/${DIGEST_ISSUE}/comments" --paginate \
+                         --jq '[.[].created_at] | sort | last // empty' \
+                         2>/dev/null || echo "")
+          fi
           if [ -n "$LAST_RUN" ]; then
             echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           else
@@ -63,7 +82,7 @@ jobs:
             echo "lookback=$(date -u -d '4 days ago' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         env:
           GH_TOKEN: ${{ github.token }}
           NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
@@ -115,7 +134,14 @@ jobs:
             gh pr list --repo open-metadata/OpenMetadata --state merged \
               --base <release-branch> \
               --search "merged:>=$LOOKBACK" \
-              --json number,title,url,body,labels,mergedAt,files,baseRefName
+              --json number,title,url,body,labels,mergedAt,files,baseRefName \
+              --limit 500
+
+            `--limit` defaults to 30 -- a busy release window can easily
+            merge more than that, and anything past the default page is
+            silently never scanned. Always pass an explicit high limit
+            (500 comfortably covers any realistic window; raise it further
+            if a single scan window could plausibly exceed that).
 
             Never query `--base main` here — that's the Major Release
             Watcher's job. A PR merged directly to a release branch is
@@ -129,11 +155,13 @@ jobs:
             Apply the doc-relevance filter from upstream-watch-config.md to
             each PR. Drop anything that doesn't clearly pass it — dependency
             bumps, backports, test-only or internal-refactor PRs, docs-only
-            PRs in the source repo itself. For each PR that passes, open the
-            real diff/description (`gh pr view <number> --repo
-            open-metadata/OpenMetadata`) and write a 1-2 sentence, plain-
-            English note of what actually changed — never guess from the
-            title alone.
+            PRs in the source repo itself. For each PR that passes, read
+            both the description (`gh pr view <number> --repo
+            open-metadata/OpenMetadata`) and the real code diff (`gh pr
+            diff <number> --repo open-metadata/OpenMetadata`), then write a
+            1-2 sentence, plain-English note of what actually changed —
+            never guess from the title or description alone; the
+            description can overstate or omit what the diff actually does.
 
             Note which specific version (e.g. `2.0.1`, the next patch after
             whatever's currently live) this change would eventually be
@@ -286,7 +314,7 @@ jobs:
             item's title and issue link. Keep it brief.
 
           claude_args: |
-            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Read,Grep,Glob,Write"
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Read,Grep,Glob,Write${{ (github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
 
       - name: Send Slack DM if something was confirmed this run
         env:
