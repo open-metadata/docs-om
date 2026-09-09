@@ -1,47 +1,28 @@
 ---
 title: Column Tests - UI Config | OpenMetadata Quality Config Guide
-description: Configure column-level data quality tests in the OpenMetadata UI — uniqueness, nullness, regex, ranges, and more.
+description: Configure column-level data quality tests in the OpenMetadata UI, covering uniqueness, nullness, regex, and range checks.
 sidebarTitle: Column Tests
 ---
 
 # Column Tests - UI Config
 
-Tests applied on top of Column metrics. For table-level tests, see the [Tests UI Overview](/v2.0.x/how-to-guides/data-quality-observability/quality/tests-ui).
+For table-level tests, see the [Tests UI Overview](/v2.0.x/how-to-guides/data-quality-observability/quality/tests-ui).
 
-Here is the list of all column tests:
-- [Column Values to Be Unique](#column-values-to-be-unique)
-- [Column Values to Be Not Null](#column-values-to-be-not-null)
-- [Column Values to Match Regex](#column-values-to-match-regex)
-- [Column Values to not Match Regex](#column-values-to-not-match-regex)
-- [Column Values to Be in Set](#column-values-to-be-in-set)
-- [Column Values to Be Not In Set](#column-values-to-be-not-in-set)
-- [Column Values to Be Between](#column-values-to-be-between)
-- [Column Values Missing Count to Be Equal](#column-values-missing-count-to-be-equal)
-- [Column Values Lengths to Be Between](#column-values-lengths-to-be-between)
-- [Column Value Max to Be Between](#column-value-max-to-be-between)
-- [Column Value Min to Be Between](#column-value-min-to-be-between)
-- [Column Value Mean to Be Between](#column-value-mean-to-be-between)
-- [Column Value Median to Be Between](#column-value-median-to-be-between)
-- [Column Values Sum to Be Between](#column-values-sum-to-be-between)
-- [Column Values Standard Deviation to Be Between](#column-values-standard-deviation-to-be-between)
-- [Column Values To Be At Expected Location](#column-values-to-be-at-expected-location)
+Column tests validate the values inside a specific column, rather than the table as a whole. Use them to catch problems like duplicate or missing values, values that fall outside an expected range or pattern, or statistical properties (such as the mean, median, or standard deviation) drifting outside what's expected.
 
 ### Column Values to Be Unique
-Ensures each value in a column appears only once.
+This test checks that every value in a column is distinct, with no duplicates anywhere. It's typically used on primary keys or other identifier columns, where duplicate values would indicate a data integrity problem.
 
-#### Dimension
-`Uniqueness`
+- **Dimension**: `Uniqueness`
+- **When to Use**
+  - Primary keys or natural identifiers.
+  - Fields like email, username, or ID.
+- **Behavior**
 
-#### When to Use
-- Primary keys or natural identifiers
-- Fields like email, username, or ID
-
-#### Behavior
-
-| Condition                    | Status |
-|------------------------------|--------|
-| All values are unique        | ✅     |
-| Any duplicate value found    | ❌     |
+  | Condition                    | Status |
+  |------------------------------|--------|
+  | All values are unique        | ✅     |
+  | Any duplicate value found    | ❌     |
 
 <video
   autoPlay
@@ -53,21 +34,18 @@ Ensures each value in a column appears only once.
 ></video>
 
 ### Column Values to Be Not Null
-Ensures there are no NULL entries in the column.
+This test checks that a column never contains empty or missing (NULL) values. It's useful for required fields where a missing value would break downstream reports or logic.
 
-#### Dimension
-`Completeness`
+- **Dimension**: `Completeness`
+- **When to Use**
+  - Mandatory fields such as `email`, `amount`, `created_at`.
+  - Required keys or business-critical columns.
+- **Behavior**
 
-#### When to Use
-- Mandatory fields such as `email`, `amount`, `created_at`
-- Required keys or business-critical columns
-
-#### Behavior
-
-| Condition                    | Status |
-|------------------------------|--------|
-| No NULLs present             | ✅     |
-| Any NULL value present       | ❌     |
+  | Condition                    | Status |
+  |------------------------------|--------|
+  | No NULLs present             | ✅     |
+  | Any NULL value present       | ❌     |
 
 <video
   autoPlay
@@ -79,22 +57,17 @@ Ensures there are no NULL entries in the column.
 ></video>
 
 ### Column Values to Match Regex
-This test validates that values in a column match a configured regular expression. OpenMetadata uses database regex support where available. For dialects where SQL regex is not supported, the validator falls back to SQL `LIKE` semantics.
+This test checks that every value in a column matches a pattern you define using a regular expression, for example to confirm that a column only contains validly formatted email addresses or postal codes. OpenMetadata uses native database regex support where available, and falls back to SQL `LIKE` semantics on dialects that don't support it.
 
-Ensures all values match a specified regular expression pattern.
+- **Dimension**: `Validity`
+- **When to Use**
+  - Emails, zip codes, IDs, structured formats.
+- **Behavior**
 
-#### Dimension
-`Validity`
-
-#### When to Use
-- Emails, zip codes, IDs, structured formats
-
-#### Behavior
-
-| Condition                    | Status |
-|------------------------------|--------|
-| All values match regex       | ✅     |
-| Any value does not match     | ❌     |
+  | Condition                    | Status |
+  |------------------------------|--------|
+  | All values match regex       | ✅     |
+  | Any value does not match     | ❌     |
 
 <video
   autoPlay
@@ -106,22 +79,17 @@ Ensures all values match a specified regular expression pattern.
 ></video>
 
 ### Column Values to not Match Regex
-This test validates that values in a column do not match a configured forbidden regular expression. If the test finds values matching the `forbiddenRegex`, the test will fail. OpenMetadata uses database regex support where available. For dialects where SQL regex is not supported, the validator falls back to SQL `NOT LIKE` semantics.
+This test checks that no value in a column matches a pattern you want to block, defined using a regular expression (`forbiddenRegex`). If even one value matches that forbidden pattern, the test fails, which makes it useful for catching placeholder values, test data, or other known-bad formats that shouldn't reach production. OpenMetadata uses native database regex support where available, and falls back to SQL `NOT LIKE` semantics on dialects that don't support it.
 
-Ensures values do **not** match a restricted regex pattern.
+- **Dimension**: `Validity`
+- **When to Use**
+  - Prevent forbidden values, test strings, or patterns.
+- **Behavior**
 
-#### Dimension
-`Validity`
-
-#### When to Use
-- Prevent forbidden values, test strings, or patterns
-
-#### Behavior
-
-| Condition                           | Status |
-|-------------------------------------|--------|
-| No value matches forbidden pattern  | ✅     |
-| Any value matches the pattern       | ❌     |
+  | Condition                           | Status |
+  |-------------------------------------|--------|
+  | No value matches forbidden pattern  | ✅     |
+  | Any value matches the pattern       | ❌     |
 
 <video
   autoPlay
@@ -133,78 +101,66 @@ Ensures values do **not** match a restricted regex pattern.
 ></video>
 
 ### Column Values to Be in Set
-Ensures values are within a predefined whitelist.
+This test checks that every value in a column comes from a predefined allowlist of acceptable values. It's a good fit for columns that represent a fixed set of categories, such as a status or country code field, where any unexpected value likely points to bad data.
 
-#### Dimension
-`Validity`
+- **Dimension**: `Validity`
+- **When to Use**
+  - Enum values: `status`, `currency`, `country_code`.
+- **Behavior**
 
-#### When to Use
-- Enum values: `status`, `currency`, `country_code`
-
-#### Behavior
-
-| Condition                                               | Status |
-|---------------------------------------------------------|--------|
-| All values in set (if `matchEnum = true`)               | ✅     |
-| Any value not in set (if `matchEnum = true`)            | ❌     |
-| Any value from set exists (if `matchEnum = false`)      | ✅     |
-| No values from set found (if `matchEnum = false`)       | ❌     |
+  | Condition                                               | Status |
+  |---------------------------------------------------------|--------|
+  | All values in set (if `matchEnum = true`)               | ✅     |
+  | Any value not in set (if `matchEnum = true`)            | ❌     |
+  | Any value from set exists (if `matchEnum = false`)      | ✅     |
+  | No values from set found (if `matchEnum = false`)       | ❌     |
 
 ![Column Values In Set](/public/images/how-to-guides/quality/column-test/column-values-in-set.gif)
 
 ### Column Values to Be Not In Set
-Ensures values are **not** in a specified blacklist.
+This test checks that no value in a column matches an entry in a blocklist of values you want to exclude. It's useful for catching known placeholder or invalid entries, such as `"NA"` or `-1`, that shouldn't appear in clean data.
 
-#### Dimension
-`Validity`
+- **Dimension**: `Validity`
+- **When to Use**
+  - Block invalid values like `"NA"`, `"Unknown"`, `-1`.
+- **Behavior**
 
-#### When to Use
-- Block invalid values like `"NA"`, `"Unknown"`, `-1`
-
-#### Behavior
-
-| Condition                                 | Status |
-|-------------------------------------------|--------|
-| No values from forbidden set              | ✅     |
-| Any value from forbidden set found        | ❌     |
+  | Condition                                 | Status |
+  |-------------------------------------------|--------|
+  | No values from forbidden set              | ✅     |
+  | Any value from forbidden set found        | ❌     |
 
 ![Column Values Not In Set](/public/images/how-to-guides/quality/column-test/column-values-not-in-set.gif)
 
 ### Column Values to Be Between
-Validates that values in a column are within a configured minimum and maximum range.
+This test checks that every value in a column falls within a minimum and maximum range you define. It's commonly used for numeric thresholds such as age, price, score, or percentage, and for date or timestamp ranges when supported by the connector.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Numeric thresholds such as age, price, score, or percentage.
+  - Date or timestamp ranges when supported by the connector.
+- **Behavior**
 
-#### When to Use
-- Numeric thresholds such as age, price, score, or percentage
-- Date or timestamp ranges when supported by the connector
-
-#### Behavior
-
-| Condition                                   | Status |
-|---------------------------------------------|--------|
-| Value within `[min, max]`                   | ✅     |
-| Value < min or > max                        | ❌     |
+  | Condition                                   | Status |
+  |---------------------------------------------|--------|
+  | Value within `[min, max]`                   | ✅     |
+  | Value < min or > max                        | ❌     |
 
 ![To Be Between](/public/images/how-to-guides/quality/column-test/to-be-between.gif)
 
 ### Column Values Missing Count to Be Equal
-Ensures total missing values (NULL + defined "missing" strings) match a target count.
+This test counts how many values in a column are missing, counting both true NULLs and any strings you've defined as representing a missing value (such as `"NA"` or `"N/A"`), and checks that this count matches a target you expect. It's useful when a small, known number of missing values is acceptable, but you still want to be alerted if that number changes.
 
-#### Dimension
-`Completeness`
+- **Dimension**: `Completeness`
+- **When to Use**
+  - Auditing known missing values.
+  - Accounting for `"NA"`, `"N/A"`, `"null"`.
+- **Behavior**
 
-#### When to Use
-- Auditing known missing values
-- Accounting for `"NA"`, `"N/A"`, `"null"`
-
-#### Behavior
-
-| Condition                                      | Status |
-|------------------------------------------------|--------|
-| Missing count = expected value                 | ✅     |
-| Missing count ≠ expected value                 | ❌     |
+  | Condition                                      | Status |
+  |------------------------------------------------|--------|
+  | Missing count = expected value                 | ✅     |
+  | Missing count ≠ expected value                 | ❌     |
 
 <video
   autoPlay
@@ -216,147 +172,123 @@ Ensures total missing values (NULL + defined "missing" strings) match a target c
 ></video>
 
 ### Column Values Lengths to Be Between
-Ensures that the length of each string value in the column is within a defined character range.
+This test checks that every string value in a column has a character length within a minimum and maximum range you define. It helps catch values that are unexpectedly too short or too long, which can otherwise break UI display limits or downstream processing.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - To validate field length constraints like `name`, `address`, or `description`.
+  - To catch too-short or too-long values that may break UI or downstream logic.
+- **Behavior**
 
-#### When to Use
-- To validate field length constraints like `name`, `address`, or `description`
-- To catch too-short or too-long values that may break UI or downstream logic
-
-#### Behavior
-
-| Condition                                     | Status |
-|-----------------------------------------------|--------|
-| All values have length within `[min, max]`    | ✅     |
-| Any value length < min or > max               | ❌     |
+  | Condition                                     | Status |
+  |-----------------------------------------------|--------|
+  | All values have length within `[min, max]`    | ✅     |
+  | Any value length < min or > max               | ❌     |
 
 ![Lengths To Be Between](/public/images/how-to-guides/quality/column-test/lengths-to-be-between.gif)
 
 ### Column Value Max to Be Between
-Validates the **maximum** value of a column lies within a range.
+This test looks at the single highest value in a column and checks that it falls within a range you define. It's a useful cap check for columns like `score`, `amount`, or `age`, where an unusually high maximum often signals bad or unvalidated input.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Cap validation for `score`, `amount`, `age`.
+- **Behavior**
 
-#### When to Use
-- Cap validation for `score`, `amount`, `age`
-
-#### Behavior
-
-| Condition                                            | Status |
-|------------------------------------------------------|--------|
-| Max value in range `[min, max]`                      | ✅     |
-| Max < min or Max > max                               | ❌     |
+  | Condition                                            | Status |
+  |------------------------------------------------------|--------|
+  | Max value in range `[min, max]`                      | ✅     |
+  | Max < min or Max > max                               | ❌     |
 
 ![Max](/public/images/how-to-guides/quality/column-test/max.gif)
 
 ### Column Value Min to Be Between
-Validates the **minimum** value of a column lies within a range.
+This test looks at the single lowest value in a column and checks that it falls within a range you define. It's useful for catching unexpected negative or unusually low values in fields like `discount` or `price`.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Threshold validation for `discount`, `price`, and so on.
+- **Behavior**
 
-#### When to Use
-- Threshold validation for `discount`, `price`, etc.
-
-#### Behavior
-
-| Condition                                            | Status |
-|------------------------------------------------------|--------|
-| Min value in range `[min, max]`                      | ✅     |
-| Min < min or Min > max                               | ❌     |
+  | Condition                                            | Status |
+  |------------------------------------------------------|--------|
+  | Min value in range `[min, max]`                      | ✅     |
+  | Min < min or Min > max                               | ❌     |
 
 ![Min](/public/images/how-to-guides/quality/column-test/min.gif)
 
 ### Column Value Mean to Be Between
-Validates that the **mean (average)** value is in the expected range.
+This test calculates the average (mean) of all values in a column and checks that it falls within an expected range. It's a good way to spot gradual shifts in your data, such as dataset drift or a pipeline that starts producing systematically different values.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Check dataset drift or pipeline behavior.
+- **Behavior**
 
-#### When to Use
-- Check dataset drift or pipeline behavior
-
-#### Behavior
-
-| Condition                                             | Status |
-|-------------------------------------------------------|--------|
-| Mean value in `[min, max]`                            | ✅     |
-| Mean < min or Mean > max                              | ❌     |
+  | Condition                                             | Status |
+  |-------------------------------------------------------|--------|
+  | Mean value in `[min, max]`                            | ✅     |
+  | Mean < min or Mean > max                              | ❌     |
 
 ![Mean](/public/images/how-to-guides/quality/column-test/mean.gif)
 
 ### Column Value Median to Be Between
-Validates the **median** value is in the expected range.
+This test calculates the median, the middle value when all values are sorted, of a column and checks that it falls within an expected range. Because the median isn't skewed by extreme outliers the way an average can be, it's a good complement to a mean check for fields like income, score, or latency.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Median income, score, latency checks.
+- **Behavior**
 
-#### When to Use
-- Median income, score, latency checks
-
-#### Behavior
-
-| Condition                                              | Status |
-|--------------------------------------------------------|--------|
-| Median in range `[min, max]`                           | ✅     |
-| Median < min or Median > max                           | ❌     |
+  | Condition                                              | Status |
+  |--------------------------------------------------------|--------|
+  | Median in range `[min, max]`                           | ✅     |
+  | Median < min or Median > max                           | ❌     |
 
 ![Median](/public/images/how-to-guides/quality/column-test/median.gif)
 
 ### Column Values Sum to Be Between
-Validates the total **sum** of values in a column is within a defined range.
+This test adds up every value in a column and checks that the total falls within a range you define. It's commonly used for financial or volume metrics, such as total revenue or units sold, where an unexpected total often points to missing or duplicated records.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Revenue, units sold, total scores, and so on.
+- **Behavior**
 
-#### When to Use
-- Revenue, units sold, total scores, etc.
-
-#### Behavior
-
-| Condition                                     | Status |
-|-----------------------------------------------|--------|
-| Sum in range `[min, max]`                     | ✅     |
-| Sum < min or Sum > max                        | ❌     |
+  | Condition                                     | Status |
+  |-----------------------------------------------|--------|
+  | Sum in range `[min, max]`                     | ✅     |
+  | Sum < min or Sum > max                        | ❌     |
 
 ![Sum](/public/images/how-to-guides/quality/column-test/sum.gif)
 
 ### Column Values Standard Deviation to Be Between
-Validates the **standard deviation** (spread) of values is acceptable.
+This test measures how spread out the values in a column are, using standard deviation, and checks that this spread falls within an acceptable range. It's useful for catching data that has suddenly become far more variable or far more uniform than expected.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Monitoring variance in numeric datasets.
+- **Behavior**
 
-#### When to Use
-- Monitoring variance in numeric datasets
-
-#### Behavior
-
-| Condition                                        | Status |
-|--------------------------------------------------|--------|
-| Std Dev in `[min, max]`                          | ✅     |
-| Std Dev < min or > max                           | ❌     |
+  | Condition                                        | Status |
+  |--------------------------------------------------|--------|
+  | Std Dev in `[min, max]`                          | ✅     |
+  | Std Dev < min or > max                           | ❌     |
 
 ![Standard Deviation](/public/images/how-to-guides/quality/column-test/standard-deviation.gif)
 
 ### Column Values To Be At Expected Location
-Validates latitude/longitude values are within a defined area.
+This test checks that latitude and longitude values in a column fall within a defined geographic area, such as a radius around an expected location. It's useful for validating address or location data, for example confirming that store or delivery coordinates fall within the region they're supposed to.
 
-#### Dimension
-`Accuracy`
+- **Dimension**: `Accuracy`
+- **When to Use**
+  - Verifying address coordinates.
+  - Mapping regional data.
+- **Behavior**
 
-#### When to Use
-- Verifying address coordinates
-- Mapping regional data
-
-#### Behavior
-
-| Condition                                            | Status |
-|------------------------------------------------------|--------|
-| Coordinates within buffer of expected location       | ✅     |
-| Any record outside allowed radius                    | ❌     |
+  | Condition                                            | Status |
+  |------------------------------------------------------|--------|
+  | Coordinates within buffer of expected location       | ✅     |
+  | Any record outside allowed radius                    | ❌     |
 
 ![Expected Location](/public/images/how-to-guides/quality/column-test/expected-location.gif)
