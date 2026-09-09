@@ -7,3 +7,43 @@ sidebarTitle: Troubleshooting
 import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 <Troubleshooting />
+
+## Test Connection Passes but No Tables Are Ingested
+
+If ingestion completes but imports **0 tables**, check the **GetTables** step on Test Connection. It still shows as passed, but can carry one of two different caveats depending on what's actually missing.
+
+### No Schemas Visible
+
+If no databases were listable in the catalog at all, the caveat reads:
+
+```
+No databases were listable in <catalog>. Check the login's Glue/Athena list permissions and Lake Formation DESCRIBE grants, or confirm the catalog and schemaFilterPattern are not excluding everything.
+```
+
+This can happen for a few different reasons:
+- The IAM role is missing the AWS Glue/Athena permissions needed to list databases.
+- The IAM role is missing the AWS Lake Formation **Describe** grant on those databases.
+- The connector's catalog or `schemaFilterPattern` setting is excluding every database.
+
+#### Resolution
+
+1. Confirm the IAM role has the Glue/Athena permissions needed to list databases (for example, `glue:GetDatabases`).
+2. In the AWS Lake Formation console, open **Data permissions** and confirm the role has **Describe** on the databases you expect to see.
+3. Check the catalog name and the connector's `schemaFilterPattern` to make sure they aren't unintentionally excluding every database.
+4. Re-run **Test Connection** and check the **GetTables** caveat again.
+
+### No Readable Tables
+
+If databases were visible but no tables inside them were readable, the caveat reads:
+
+```
+No tables were readable in any targeted schema. AWS Lake Formation returns an empty list (not an error) when grants are missing, so ingestion would collect 0 tables. Grant Lake Formation DESCRIBE/SELECT on the databases and tables the login should read. If the catalog is genuinely empty or view-only, this is expected.
+```
+
+This means the IAM role the connector uses is missing AWS Lake Formation **Describe** and **Select** grants on the target databases or tables. AWS Lake Formation silently filters out results it can't authorize instead of raising an error, so a catalog with missing grants looks identical to a genuinely empty one. Test Connection can't tell the two apart, so it passes with this caveat instead of failing outright, which would incorrectly reject a legitimately empty or view-only catalog.
+
+#### Resolution
+
+1. In the AWS Lake Formation console, open **Data permissions**.
+2. Grant the IAM role used by the Athena connector **Describe** and **Select** permissions on each database and table it needs to ingest.
+3. Re-run **Test Connection** and check the **GetTables** caveat again. If the catalog genuinely has no tables yet, this caveat is expected and can be ignored.
