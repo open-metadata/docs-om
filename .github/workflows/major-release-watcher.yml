@@ -140,6 +140,7 @@ jobs:
           DRY_RUN: ${{ (env.FORCE_DRY_RUN == 'true') && 'true' || (github.event.inputs.dry_run || 'false') }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           prompt: |
             REPO: ${{ github.repository }}
 
@@ -360,10 +361,10 @@ jobs:
             issue link. Otherwise do not create this file.
 
           claude_args: |
-            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Bash(gh issue view:*),Read,Grep,Glob,Write${{ (env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Bash(gh issue view:*),Read,Grep,Glob${{ (env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true') && ',Write,Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
 
       - name: Send Slack DM if something was confirmed this run
-        if: steps.cadence.outputs.run_this_week == 'true'
+        if: steps.cadence.outputs.run_this_week == 'true' && env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |

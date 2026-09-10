@@ -54,11 +54,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Lookback is the last successful *scheduled* run of this exact
-          # workflow. `--event schedule` is the key part: dry_run can only
-          # ever be true on a manual `workflow_dispatch` invocation, never
-          # on the real `schedule` cadence -- so filtering to schedule-only
-          # runs means a dry-run test can never contaminate this baseline,
-          # without needing any elevated token.
+          # workflow that actually did real work -- not just any successful
+          # scheduled run. `--event schedule` alone rules out a manual
+          # workflow_dispatch dry-run contaminating this baseline, but it is
+          # NOT enough by itself: a scheduled run during FORCE_DRY_RUN also
+          # completes with status "success" while writing nothing, because
+          # the label-creation step (and the write tools) are gated off, not
+          # the run itself. Treating that as a real watermark would silently
+          # skip everything found-but-never-tracked during the whole
+          # FORCE_DRY_RUN preview period, the moment it's switched off.
+          #
+          # So this walks backward through recent schedule runs and checks
+          # whether "Ensure tracking labels exist" -- gated off during both
+          # FORCE_DRY_RUN and a manual dry-run -- actually ran (conclusion
+          # "success") rather than being skipped, and uses the first such
+          # run's timestamp. Same pattern the major watcher already uses for
+          # its own off-week no-op runs. Read-only Jobs API calls, needs
+          # nothing beyond the `actions: read` already granted.
           #
           # Two things this deliberately avoids, both confirmed broken by
           # direct testing rather than assumed: a repo *variable* written
@@ -78,10 +90,20 @@ jobs:
             exit 0
           fi
 
-          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
-                       --workflow "minor-release-watcher.yml" --event schedule \
-                       --status success --json createdAt --limit 1 \
-                       --jq '.[0].createdAt // empty' 2>/dev/null || echo "")
+          LAST_RUN=""
+          for RUN_ID in $(gh run list --repo "${{ github.repository }}" \
+                            --workflow "minor-release-watcher.yml" --event schedule \
+                            --status success --json databaseId --limit 20 \
+                            --jq '.[].databaseId' 2>/dev/null || echo ""); do
+            MARKER=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
+                       --jq '.jobs[0].steps[]? | select(.name == "Ensure tracking labels exist") | .conclusion' \
+                       2>/dev/null || echo "")
+            if [ "$MARKER" = "success" ]; then
+              LAST_RUN=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}" \
+                           --jq '.created_at' 2>/dev/null || echo "")
+              break
+            fi
+          done
           if [ -n "$LAST_RUN" ]; then
             echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           else
@@ -125,6 +147,7 @@ jobs:
           DRY_RUN: ${{ (env.FORCE_DRY_RUN == 'true') && 'true' || (github.event.inputs.dry_run || 'false') }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           prompt: |
             REPO: ${{ github.repository }}
 
@@ -350,9 +373,10 @@ jobs:
             item's title and issue link. Keep it brief.
 
           claude_args: |
-            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Read,Grep,Glob,Write${{ (env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Read,Grep,Glob${{ (env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true') && ',Write,Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
 
       - name: Send Slack DM if something was confirmed this run
+        if: ${{ env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
