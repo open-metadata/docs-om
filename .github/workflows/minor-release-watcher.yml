@@ -9,6 +9,11 @@ on:
         description: "Report findings only -- never create, update, or comment on any issue"
         type: boolean
         default: false
+      since:
+        description: "Override the computed lookback with an explicit date (YYYY-MM-DD). Use this for a one-off catch-up run -- e.g. the very first real run after merging, when there's no prior scheduled run to compute a baseline from and the fixed 4-day fallback would silently miss weeks of backlog. Leave blank for normal operation."
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: minor-release-watcher
@@ -58,6 +63,12 @@ jobs:
           # GitHub Actions runs this with `bash -e`, so the `|| echo ""`
           # matters: a failed lookup is treated exactly like "no prior run
           # found", not a hard failure.
+          SINCE_OVERRIDE="${{ github.event.inputs.since }}"
+          if [ -n "$SINCE_OVERRIDE" ]; then
+            echo "lookback=$SINCE_OVERRIDE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
                        --workflow "minor-release-watcher.yml" --event schedule \
                        --status success --json createdAt --limit 1 \

@@ -13,6 +13,11 @@ on:
         description: "Run even if this isn't the biweekly week (for testing)"
         type: boolean
         default: false
+      since:
+        description: "Override the computed lookback with an explicit date (YYYY-MM-DD). Use this for a one-off catch-up run -- e.g. the very first real run after merging, when there's no prior on-week scheduled run to compute a baseline from and the fixed 15-day fallback would silently miss weeks of backlog. Leave blank for normal operation."
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: major-release-watcher
@@ -58,6 +63,12 @@ jobs:
           # "success") rather than being skipped, and uses the first such
           # run's timestamp. Read-only Jobs API calls, needs nothing beyond
           # the `actions: read` already granted.
+          SINCE_OVERRIDE="${{ github.event.inputs.since }}"
+          if [ -n "$SINCE_OVERRIDE" ]; then
+            echo "lookback=$SINCE_OVERRIDE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LAST_RUN=""
           for RUN_ID in $(gh run list --repo "${{ github.repository }}" \
                             --workflow "major-release-watcher.yml" --event schedule \
