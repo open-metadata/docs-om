@@ -90,11 +90,38 @@ jobs:
             echo "lookback=$(date -u -d '4 days ago' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Derive current/next version from this repo's own latest release notes (deterministic)
+        id: version
+        run: |
+          set -euo pipefail
+          # The single source of truth for "what's current" is this repo's
+          # own already-published snippets/releases/latest.mdx -- a real
+          # publish decision a human already made, not something to infer
+          # from an upstream tag or maintain separately in a config file
+          # that can silently drift out of sync with it. That file is
+          # replaced wholesale on every release (never accumulates), so
+          # the first match is always the only match.
+          CURRENT_VERSION=$(grep -oE '<Update label="[0-9]+\.[0-9]+\.[0-9]+' snippets/releases/latest.mdx | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "::error::Could not parse current version from snippets/releases/latest.mdx"
+            exit 1
+          fi
+
+          IFS='.' read -r MAJ MIN PATCH <<< "$CURRENT_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next_minor_version=${MAJ}.${MIN}.$((PATCH + 1))" >> "$GITHUB_OUTPUT"
+          echo "minor_release_branch=${MAJ}.${MIN}" >> "$GITHUB_OUTPUT"
+          echo "current_version_dir=v${MAJ}.${MIN}.x" >> "$GITHUB_OUTPUT"
+
       - uses: anthropics/claude-code-action@70fec183852c4f82f3f1969faed7dd60c5149ca7
         env:
           GH_TOKEN: ${{ github.token }}
           NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
           LOOKBACK: ${{ steps.cadence.outputs.lookback }}
+          NEXT_MINOR_VERSION: ${{ steps.version.outputs.next_minor_version }}
+          MINOR_RELEASE_BRANCH: ${{ steps.version.outputs.minor_release_branch }}
+          CURRENT_VERSION_DIR: ${{ steps.version.outputs.current_version_dir }}
           DRY_RUN: ${{ (env.FORCE_DRY_RUN == 'true') && 'true' || (github.event.inputs.dry_run || 'false') }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -124,23 +151,24 @@ jobs:
 
             ## 1. Read config
 
-            Read `release.config.json` (repo root) for the current version
-            per version directory.
+            The current version, the next minor/patch version, the minor
+            release branch name, and the current version's doc directory
+            have already been computed deterministically (not by you) and
+            are given to you as `NEXT_MINOR_VERSION`, `MINOR_RELEASE_BRANCH`,
+            and `CURRENT_VERSION_DIR` above -- there is no config file to
+            read for these.
 
             Read `.ai/release-checklist/references/upstream-watch-config.md`
             for the source repo and the doc-relevance filter rules. Use
             that filter exactly as written — do not loosen or tighten it
             on your own judgment.
 
-            ## 2. Scan — minor/patch release branches only
+            ## 2. Scan — minor/patch release branch only
 
-            For every version directory in `release.config.json` that has
-            a live release branch upstream (the branch name is the version
-            directory's leading `X.Y`, e.g. `v2.0.x` → base branch `2.0`,
-            `v1.13.x` → base branch `1.13` — skip any pre-release/SNAPSHOT
-            directory, those don't have their own release branch), run:
+            Scan only `MINOR_RELEASE_BRANCH` (this repo currently tracks
+            one live minor/patch line at a time, not older lines separately):
             gh pr list --repo open-metadata/OpenMetadata --state merged \
-              --base <release-branch> \
+              --base $MINOR_RELEASE_BRANCH \
               --search "merged:>=$LOOKBACK" \
               --json number,title,url,body,labels,mergedAt,files,baseRefName \
               --limit 500
@@ -171,10 +199,10 @@ jobs:
             never guess from the title or description alone; the
             description can overstate or omit what the diff actually does.
 
-            Note which specific version (e.g. `2.0.1`, the next patch after
-            whatever's currently live) this change would eventually be
-            documented under, based on which release branch it merged to;
-            note "unclear" if you can't tell rather than guessing.
+            The target version for anything that survives is
+            `NEXT_MINOR_VERSION` (given above) -- there's only one minor
+            line in scope this run, so no per-PR version judgment call is
+            needed here.
 
             ## 4. Verify
 
@@ -196,8 +224,8 @@ jobs:
               restoring already-intended behavior (not a new capability,
               setting, or endpoint) AND nothing in this repo's docs
               currently makes a claim that behavior contradicts, there is
-              nothing to document. Search this repo (Grep/Glob) for
-              existing coverage of the relevant area before deciding —
+              nothing to document. Search `CURRENT_VERSION_DIR` (Grep/Glob)
+              for existing coverage of the relevant area before deciding —
               titles overstate new capability more often than not.
 
             - **NEEDS A LOOK** — you found a plausible existing doc area to
@@ -273,7 +301,7 @@ jobs:
                Body must include, in this order:
                - The 1-2 sentence evidence note from step 3
                - A bullet list of the source PR link(s)
-               - The target version (or "unclear — needs a look")
+               - The target version (`NEXT_MINOR_VERSION`)
                - A hidden HTML comment per PR number for de-duplication,
                  exactly: <!-- minor-watcher:pr-<number> -->
 

@@ -98,6 +98,27 @@ jobs:
             echo "lookback=$(date -u -d '15 days ago' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Derive current/next version from this repo's own latest release notes (deterministic)
+        id: version
+        run: |
+          set -euo pipefail
+          # Same source of truth as the minor watcher (see that file for
+          # why this isn't release.config.json or an upstream tag lookup):
+          # this repo's own already-published snippets/releases/latest.mdx.
+          CURRENT_VERSION=$(grep -oE '<Update label="[0-9]+\.[0-9]+\.[0-9]+' snippets/releases/latest.mdx | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "::error::Could not parse current version from snippets/releases/latest.mdx"
+            exit 1
+          fi
+
+          IFS='.' read -r MAJ MIN PATCH <<< "$CURRENT_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "minor_release_branch=${MAJ}.${MIN}" >> "$GITHUB_OUTPUT"
+          echo "current_version_dir=v${MAJ}.${MIN}.x" >> "$GITHUB_OUTPUT"
+          echo "next_major_version=${MAJ}.$((MIN + 1))" >> "$GITHUB_OUTPUT"
+          echo "next_major_dir=v${MAJ}.$((MIN + 1)).x-SNAPSHOT" >> "$GITHUB_OUTPUT"
+
       - name: Ensure tracking labels exist
         if: steps.cadence.outputs.run_this_week == 'true' && env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true'
         env:
@@ -112,6 +133,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
           LOOKBACK: ${{ steps.cadence.outputs.lookback }}
+          MINOR_RELEASE_BRANCH: ${{ steps.version.outputs.minor_release_branch }}
+          CURRENT_VERSION_DIR: ${{ steps.version.outputs.current_version_dir }}
+          NEXT_MAJOR_VERSION: ${{ steps.version.outputs.next_major_version }}
+          NEXT_MAJOR_DIR: ${{ steps.version.outputs.next_major_dir }}
           DRY_RUN: ${{ (env.FORCE_DRY_RUN == 'true') && 'true' || (github.event.inputs.dry_run || 'false') }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -119,12 +144,12 @@ jobs:
             REPO: ${{ github.repository }}
 
             You are the Major Release Watcher for this docs repo -- you
-            handle ONLY the next major release (the pattern 2.0 (current)
-            -> 2.1 -> 2.2 -> ..., i.e. whichever version directory's own
-            note says it's the pre-release snapshot for the next major).
-            A separate workflow, the Minor Release Watcher, owns the
-            current patch line (2.0.1, 2.0.2, ...) -- never touch that
-            here.
+            handle ONLY the next major release (the pattern
+            `MINOR_RELEASE_BRANCH` (current) -> `NEXT_MAJOR_VERSION` -> ...,
+            given above -- `NEXT_MAJOR_DIR` is that next major's
+            pre-release snapshot doc directory). A separate workflow, the
+            Minor Release Watcher, owns the current patch line -- never
+            touch that here.
 
             You do two jobs in one run: (A) scan for new major-bound doc
             needs, same shape as the Minor Release Watcher's SCAN, FILTER,
@@ -145,11 +170,13 @@ jobs:
 
             ## A1. Read config
 
-            Read `release.config.json` for the current version per version
-            directory. Identify the pre-release/major-snapshot directory
-            (the one whose note says it tracks the next major, e.g.
-            `v2.1.x-SNAPSHOT`) -- that's your target version for anything
-            CONFIRMED below.
+            The current version, current version's doc directory, next
+            major version, and next major's pre-release snapshot directory
+            have already been computed deterministically (not by you) and
+            are given to you as `MINOR_RELEASE_BRANCH`, `CURRENT_VERSION_DIR`,
+            `NEXT_MAJOR_VERSION`, and `NEXT_MAJOR_DIR` above -- there is no
+            config file to read for these. `NEXT_MAJOR_DIR` is your target
+            version's doc directory for anything CONFIRMED below.
 
             Read `.ai/release-checklist/references/upstream-watch-config.md`
             for the doc-relevance filter rules. Use them exactly as
@@ -176,11 +203,11 @@ jobs:
             might just be minor-bound work that hasn't been backported yet.
             Do not guess from the branch alone. For each PR from A2:
 
-            1. **Check for a backport first.** Search for a PR on the
-               current minor release branch (e.g. `2.0`) that backports
-               this one -- upstream's own convention is a title like
-               "Backport #<this-PR-number> to <branch>":
-               gh pr list --repo open-metadata/OpenMetadata --base <minor-branch> \
+            1. **Check for a backport first.** Search for a PR on
+               `MINOR_RELEASE_BRANCH` that backports this one -- upstream's
+               own convention is a title like "Backport #<this-PR-number>
+               to <branch>":
+               gh pr list --repo open-metadata/OpenMetadata --base $MINOR_RELEASE_BRANCH \
                  --search "<PR number> in:title" --state all --limit 50
                If a backport exists (merged or even just open), this PR is
                minor-bound (or dual) -- EXCLUDE it here. The Minor Release
@@ -221,7 +248,7 @@ jobs:
               there regardless of how real the change sounds.
             - **RULED OUT** — a bug fix restoring already-intended
               behavior with nothing in this repo's docs to correct.
-              Search this repo (Grep/Glob) before deciding.
+              Search `NEXT_MAJOR_DIR` (Grep/Glob) before deciding.
             - **NEEDS A LOOK** — inconclusive, including anything flagged
               ambiguous in A3. Don't guess.
             - **CONFIRMED** — genuinely new, major-only, and no existing
@@ -255,7 +282,7 @@ jobs:
               [--label "breaking-change" if applicable] \
               --body "<body>"
             Body: the evidence note, a bullet list of source PR link(s),
-            the target major version directory, and
+            the target major version (`NEXT_MAJOR_VERSION`), and
             <!-- major-watcher:pr-<number> --> for de-dup. Assign
             `NOTIFY_USERNAMES` if non-empty via `gh issue edit --add-assignee`.
 
