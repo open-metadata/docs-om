@@ -2,10 +2,10 @@
 
 Reference doc for the automated doc-need detection built into this repo.
 Explains the whole flow, both workflows, what each step actually does, and
-where the prompts/code live. Mirrors the shape of
-`.ai/release-checklist/`'s own overview doc in spirit — this one covers the
-automated front half of the pipeline (detecting a doc need), that one
-covers the manual release-time back half (verifying nothing was missed).
+where the prompts/code live. Covers only the automated front half of the
+pipeline (detecting a doc need) -- pre/post-release checklist verification
+is a separate, manually-triggered process, kept out of this branch
+entirely.
 
 ---
 
@@ -51,20 +51,35 @@ repo already goes through.
 ## Design principles
 
 - **Deterministic gates, never an AI judgment call for "should this run
-  today."** Cadence (which days, which lookback window) is decided by
-  plain bash before Claude ever runs — the AI's job is judging PR content,
-  not deciding whether today is a scan day.
+  today" or "what version is current."** Cadence (which days, which
+  lookback window) and the current/next version numbers are all decided
+  by plain bash before Claude ever runs — the AI's job is judging PR
+  content, not deciding whether today is a scan day or what version comes
+  next.
 - **Self-healing lookback, not a fixed day-count.** Both workflows ask
-  "when did I last succeed?" via `gh run list`, and use that as the actual
-  cutoff. A missed or failed run widens the next lookback automatically
-  instead of silently dropping PRs.
+  "when did I last succeed?" via `gh run list` (filtered to real `schedule`
+  runs, so a manual dry-run test can never contaminate the baseline), and
+  use that as the actual cutoff. A missed or failed run widens the next
+  lookback automatically instead of silently dropping PRs. A `since`
+  workflow_dispatch input can override this outright for a one-off
+  catch-up run -- needed the first time each workflow runs for real, when
+  there's no prior run to compute a baseline from.
+- **Current version comes from this repo's own published release notes,
+  not a separately-maintained config file.** `snippets/releases/latest.mdx`
+  is replaced wholesale on every real release -- it's the one thing that's
+  already guaranteed to reflect an actual publish decision a human made,
+  so both workflows parse the version straight out of it and compute
+  next-minor/next-major from that, deterministically, in bash.
 - **Verify before notify.** Every candidate is classified as CONFIRMED,
   RULED OUT, NEEDS A LOOK, or HELD before anything reaches an issue — a
   passing title is never taken at face value.
 - **Dry-run is a real feature, not a testing hack.** Both workflows accept
   a `dry_run` input that runs every read-only step for real but never
   writes anything — useful for previewing before trusting a new filter
-  tweak, not just something built for this one round of testing.
+  tweak, not just something built for this one round of testing. A
+  workflow-level `FORCE_DRY_RUN` switch additionally forces this on
+  regardless of trigger (schedule included), by removing the write tools
+  from Claude's allowed list outright -- see "First live rollout" below.
 - **No guessing on ambiguity, ever.** Major-vs-minor classification,
   doc-relevance, and feature completeness all have an explicit "I don't
   know" outcome that surfaces the evidence to a human instead of forcing a
@@ -76,23 +91,25 @@ repo already goes through.
 
 **File:** `.github/workflows/minor-release-watcher.yml`
 **Schedule:** `0 6 * * 1,4` — 06:00 UTC, every Monday and Thursday
-**Scope:** the current minor/patch line only (e.g. `2.0.0 → 2.0.1 → 2.0.2`
-for however many version directories `release.config.json` lists with a
-live release branch). Never touches `main` — that's the other workflow's
-job, and a PR merged straight to a release branch is unambiguously
-minor-bound, so there's no classification judgment needed on this side.
+**Scope:** the single current minor/patch line only (e.g.
+`2.0.0 → 2.0.1 → 2.0.2`). Never touches `main` — that's the other
+workflow's job, and a PR merged straight to a release branch is
+unambiguously minor-bound, so there's no classification judgment needed on
+this side. Older lines (e.g. a still-patched `1.13.x`) are not watched --
+a deliberate scope decision, not an oversight.
 
 | Step | What it does | Where |
 |---|---|---|
-| Lookback | Finds the last successful run of *this* workflow via `gh run list`; falls back to a 4-day window if none found or the lookup itself fails | Deterministic bash step, `id: cadence` |
-| 1. Read config | Reads `release.config.json` for current versions, and `upstream-watch-config.md` for the doc-relevance filter rules | Prompt step 1 |
-| 2. Scan | `gh pr list --base <release-branch>` for every live minor branch, since the lookback cutoff | Prompt step 2 |
+| Lookback | Finds the last successful *scheduled* run of this workflow via `gh run list --event schedule`; falls back to a 4-day window if none found or the lookup itself fails; a `since` input overrides both outright | Deterministic bash step, `id: cadence` |
+| Version | Parses the current version out of this repo's own `snippets/releases/latest.mdx`, then computes the next minor version, the minor release branch name, and the current version's doc directory | Deterministic bash step, `id: version` |
+| 1. Read config | Uses the already-computed version values above, and reads `upstream-watch-config.md` for the doc-relevance filter rules | Prompt step 1 |
+| 2. Scan | `gh pr list --base <minor-release-branch>` since the lookback cutoff | Prompt step 2 |
 | 3. Filter | Applies the doc-relevance filter; for survivors, reads the real PR body/diff and writes a plain-English evidence note — never guesses from the title | Prompt step 3 |
 | 4. Verify | Classifies each survivor as **HELD** (PR discloses it's unverified/unapproved), **RULED OUT** (bug fix restoring existing behavior, checked against this repo's actual docs), **NEEDS A LOOK** (genuinely inconclusive), or **CONFIRMED** | Prompt step 4 |
 | 5. Group | Groups CONFIRMED PRs belonging to the same feature; cumulative across runs, never guesses whether a feature is "done" | Prompt step 5 |
 | 6. Notify | Dedups three ways before creating anything: (i) this PR's number under *either* marker prefix — old `daily-watcher:pr-X` or this workflow's `minor-watcher:pr-X`, (ii) a shared "Fixes #X" tracking issue, (iii) a shared original PR if this item is itself a backport ("Backport #Y"). Creates or updates one issue; assigns `DAILY_WATCHER_ASSIGNEES` if set | Prompt step 6 |
 | 7. Digest | Posts a comment to a persistent "Minor Release Watcher — Scan Digest" issue every run, listing all four categories — this is what makes routine, uneventful runs visible too | Prompt step 7 |
-| 8. Slack | Only if something was CONFIRMED this run: writes `slack-digest.txt`, which a separate non-AI step posts to `SLACK_WEBHOOK_URL` | Prompt step 8 + final bash step |
+| 8. Slack | Only if something was CONFIRMED this run (and not forced/dry-run): writes `slack-digest.txt`, which a separate non-AI step posts to `SLACK_WEBHOOK_URL` | Prompt step 8 + final bash step |
 
 ---
 
@@ -103,15 +120,15 @@ minor-bound, so there's no classification judgment needed on this side.
 check (`date -u +%V`, even weeks only) means it only actually does anything
 every other Monday. `workflow_dispatch` accepts a `force_run` input to
 override this for a manual run.
-**Scope:** `main` only, targeting the next major (whichever version
-directory's own note says it's the pre-release snapshot, e.g.
-`v2.1.x-SNAPSHOT`). Does two jobs in one run:
+**Scope:** `main` only, targeting the next major version (computed
+deterministically from the current version -- e.g. current `2.0` → next
+major `2.1`). Does two jobs in one run:
 
 ### Part A — scan for new major-bound doc needs
 
 | Step | What it does |
 |---|---|
-| A1. Read config | Same as the minor watcher, identifies the major/pre-release target directory |
+| A1. Read config | Uses the already-computed version values (current version, minor release branch, next major version, next major's doc directory) |
 | A2. Scan | `gh pr list --base main` since the lookback |
 | A3. Classify major vs. minor | **The judgment call this workflow exists to make.** A `main` merge isn't automatically major-only — it might just be minor work that hasn't been backported yet. First checks for a backport PR on the current minor branch (upstream's own "Backport #X to Y" title convention). If none exists, reads the PR's own "Type of change": a bug/security fix is treated as provisionally minor-bound (excluded here) since those almost always get backported eventually; a genuinely new capability is the real major-only signal. Genuinely ambiguous cases become their own NEEDS A LOOK item instead of a guess |
 | A4. Filter + Verify | Same four-way classification as the minor watcher, applied to whatever survived A3 |
@@ -131,6 +148,25 @@ directory's own note says it's the pre-release snapshot, e.g.
 Same shape as the minor watcher's steps 7–8, but the digest issue is
 titled "Major Release Watcher — Scan Digest" and covers both Part A and
 Part B in one comment per run.
+
+---
+
+## First live rollout
+
+Both workflows carry a workflow-level `env: FORCE_DRY_RUN: "true"`. While
+set, this overrides `dry_run` regardless of trigger (schedule included),
+and Claude's allowed tools have the write commands (`gh issue
+create`/`edit`/`comment`) removed outright -- not just described as
+off-limits in the prompt. This makes the first pass after merging safe by
+construction: the schedule can fire for real before anyone tests it
+manually, and that run can only ever read and report.
+
+The intended sequence once merged:
+1. Run each workflow via `workflow_dispatch` from `main`.
+2. Read the digest issue each produces and sanity-check it against what's
+   actually open upstream.
+3. Flip `FORCE_DRY_RUN` to `"false"` in its own separate, reviewable
+   commit -- that's the actual go-live moment.
 
 ---
 
@@ -174,20 +210,46 @@ Projects (v2) write access if that's wanted later.
   prefix specifically to keep recognizing these, but they were never
   retroactively migrated to carry a `minor-watcher`/`major-watcher`
   marker of their own.
-- **First run for each workflow has no history to look back on** — falls
-  back to a fixed generous window (4 days for minor, 15 for major) rather
-  than guessing; this only matters once, on each workflow's very first
-  successful run.
+- **First run for each workflow has no history to look back on** — the
+  `since` input handles this deliberately; without it, falls back to a
+  fixed generous window (4 days for minor, 15 for major) rather than
+  guessing.
+- **Older minor lines (e.g. `1.13.x`) are no longer watched** — a
+  deliberate scope reduction to a single current line, not a bug.
+- **`create-draft.yml`'s real git-push/PR-open path has never executed
+  successfully** — `issue_comment` only fires from the default branch, so
+  this can only be tested for real after merging.
 
 ## Verified before this went anywhere near `main`
 
-Tested via disposable branches (never a PR) — see the commit history on
-`docs/daily-watcher-docs-om` for the full detail. In short: the real
-`GITHUB_TOKEN` permission chain was confirmed end-to-end (label/issue
-create/comment/edit/close), a real bug in the lookback step's error
-handling was caught and fixed (an unhandled `gh run list` failure would
-have aborted the whole step under GitHub Actions' default `bash -e`), and
-two real de-duplication gaps were caught and fixed by walking the exact
-prompt logic against live upstream data by hand — a marker-prefix mismatch
-with pre-split issues, and a missing check for the "Backport #X" title
-pattern real backport PRs actually use.
+Everything below was checked on disposable branches (never a PR) --
+see the commit history on `docs/daily-watcher-docs-om` for full detail.
+Being specific here on purpose: an earlier version of this doc overstated
+what had actually been confirmed.
+
+**Confirmed working, via real live-API calls:**
+- The plain `gh` CLI commands both workflows depend on (label create,
+  issue create/comment/edit/close) work against the live API
+- The lookback mechanism: an earlier repo-*variable* approach was
+  confirmed broken (the default `GITHUB_TOKEN` gets a 403 regardless of
+  declared permissions) before being replaced with `gh run list --event
+  schedule`, itself confirmed to filter correctly by trigger event
+- The major watcher's off-week-run detection (Jobs API step-conclusion
+  check, not just run status)
+- The `since` override and the `FORCE_DRY_RUN` safety switch (gating
+  logic, tool-list construction, and `DRY_RUN` resolution all confirmed
+  on disposable branches)
+- The version-derivation step: confirmed the parsed version, computed
+  next-minor/next-major/branch, and the two derived directory names all
+  match real data and real directories on disk
+- De-duplication against both marker prefixes and the "Backport #X" title
+  pattern, verified against real upstream PRs
+- Major/minor classification logic, walked against real PRs both ways
+
+**NOT yet verified — and can't be, before this merges:**
+`schedule`, `workflow_dispatch`, and `issue_comment` only fire from a
+repo's default branch. The actual `claude-code-action` step (the part
+that reads real PRs and would create/update issues) has never executed
+successfully in a real run yet — only the surrounding bash/`gh` logic
+above has been proven live. See "First live rollout" above for how this
+is being handled safely.

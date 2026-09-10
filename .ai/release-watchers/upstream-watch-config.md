@@ -1,23 +1,12 @@
 # Upstream watch config
 
-Repo and filters for the pre-release breaking-changes check.
+Repo and filters for the Minor/Major Release Watchers' doc-relevance scan.
 
 ## Repo
 
 - `open-metadata/OpenMetadata` (public) — this repo's sibling source repo
   (per `CLAUDE.md`, checked out alongside as `../OpenMetadata` for
-  connector-doc-review); the same repo the pre-release checklist widens its
-  merged-PR query against.
-
-## Query
-
-```
-gh pr list --repo open-metadata/OpenMetadata --state merged --search "merged:>=<since>" --json number,title,url,labels,mergedAt
-```
-
-`<since>` is the previous release's date for a pre-release pass (from
-`release.config.json`'s `releaseDate`, or the target version directory's
-prior patch release date).
+  connector-doc-review).
 
 ## Doc-relevance filter
 
