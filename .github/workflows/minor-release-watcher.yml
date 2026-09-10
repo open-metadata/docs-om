@@ -34,46 +34,34 @@ jobs:
           gh label create "breaking-change" --repo "${{ github.repository }}" \
             --color "C34A2C" --description "Upstream change that may break an existing user setup" --force
 
-      - name: Work out this run's lookback window (deterministic)
+      - name: Work out this run's lookback window (deterministic, from last real scan)
         id: cadence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # This workflow only ever runs Mon/Thu, so "since the last
-          # completed real scan" is already the right window -- no
-          # day-of-week filtering needed (unlike a workflow that shared one
-          # file across two different cadences, which the old
-          # daily-watcher.yml did). If a run is missed or fails, the next
-          # one naturally looks back further instead of silently dropping
-          # PRs.
+          # Lookback is the last successful *scheduled* run of this exact
+          # workflow. `--event schedule` is the key part: dry_run can only
+          # ever be true on a manual `workflow_dispatch` invocation, never
+          # on the real `schedule` cadence -- so filtering to schedule-only
+          # runs means a dry-run test can never contaminate this baseline,
+          # without needing any elevated token.
           #
-          # Deliberately NOT `gh run list --status success`: a manual
-          # dry_run invocation completes with conclusion "success" too, but
-          # does no real scanning and creates no tracker records -- using
-          # it as the next cutoff would permanently skip that interval.
-          # Instead, use the digest issue's own comment history: step 7
-          # below posts exactly one new comment on it per run, and only for
-          # a real (non-dry) scan (dry runs are instructed to skip that
-          # step entirely) -- so its latest comment timestamp is precisely
-          # "the last time a real scan actually completed", with no
-          # separate bookkeeping needed.
+          # Two things this deliberately avoids, both confirmed broken by
+          # direct testing rather than assumed: a repo *variable* written
+          # via `gh api .../actions/variables` needs a token with actual
+          # Variables permission -- the default GITHUB_TOKEN gets a 403
+          # there even with `actions: write` declared, since that scope
+          # only covers workflow-run-level operations, not repo settings.
+          # And the digest issue's own comment timestamps are corruptible
+          # by any unrelated human reply on that issue.
           #
-          # GitHub Actions runs this with `bash -e`, so if any `gh`/`jq`
-          # call here fails (rate limit, API hiccup, issue not yet created)
-          # the whole step would otherwise abort right here -- before ever
-          # reaching the fallback below. The `|| echo ""` on each lookup
-          # neutralizes that: a failed lookup is treated exactly like "no
-          # prior run found", not a hard failure.
-          DIGEST_ISSUE=$(gh issue list --repo "${{ github.repository }}" --state all \
-                           --search 'in:title "Minor Release Watcher — Scan Digest"' \
-                           --json number --jq '.[0].number // empty' \
-                           2>/dev/null || echo "")
-          LAST_RUN=""
-          if [ -n "$DIGEST_ISSUE" ]; then
-            LAST_RUN=$(gh api "repos/${{ github.repository }}/issues/${DIGEST_ISSUE}/comments" --paginate \
-                         --jq '[.[].created_at] | sort | last // empty' \
-                         2>/dev/null || echo "")
-          fi
+          # GitHub Actions runs this with `bash -e`, so the `|| echo ""`
+          # matters: a failed lookup is treated exactly like "no prior run
+          # found", not a hard failure.
+          LAST_RUN=$(gh run list --repo "${{ github.repository }}" \
+                       --workflow "minor-release-watcher.yml" --event schedule \
+                       --status success --json createdAt --limit 1 \
+                       --jq '.[0].createdAt // empty' 2>/dev/null || echo "")
           if [ -n "$LAST_RUN" ]; then
             echo "lookback=$(date -u -d "$LAST_RUN" +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           else
