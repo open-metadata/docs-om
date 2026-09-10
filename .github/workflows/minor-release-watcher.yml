@@ -19,6 +19,15 @@ concurrency:
   group: minor-release-watcher
   cancel-in-progress: false
 
+env:
+  # First-live-rollout safety switch. While "true", this overrides
+  # dry_run regardless of trigger (schedule included) and Claude's
+  # allowed tools have the write commands removed outright -- not just
+  # told not to use them. Flip to "false" in its own deliberate commit
+  # only after a real workflow_dispatch run from main has been read and
+  # looks right.
+  FORCE_DRY_RUN: "true"
+
 jobs:
   scan-and-notify:
     runs-on: ubuntu-latest
@@ -32,7 +41,7 @@ jobs:
           fetch-depth: 1
 
       - name: Ensure tracking labels exist
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -86,7 +95,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOTIFY_USERNAMES: ${{ vars.DAILY_WATCHER_ASSIGNEES }}
           LOOKBACK: ${{ steps.cadence.outputs.lookback }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ (env.FORCE_DRY_RUN == 'true') && 'true' || (github.event.inputs.dry_run || 'false') }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -313,7 +322,7 @@ jobs:
             item's title and issue link. Keep it brief.
 
           claude_args: |
-            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Read,Grep,Glob,Write${{ (github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue list:*),Read,Grep,Glob,Write${{ (env.FORCE_DRY_RUN != 'true' && github.event.inputs.dry_run != 'true') && ',Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*)' || '' }}"
 
       - name: Send Slack DM if something was confirmed this run
         env:
