@@ -177,7 +177,7 @@ The intended sequence once merged:
 | Minor Release Watcher | `schedule` | Every Monday and Thursday, 06:00 UTC |
 | Major Release Watcher | `schedule` + internal week-parity gate | Every other Monday, 06:00 UTC |
 | Create Draft (`create-draft.yml`) | `issue_comment` | On demand — comment `/create-draft` on any tracked issue |
-| TW-standards review (`doc-review-auto.yml`) | `pull_request` | Automatic on every PR touching `.mdx` — **still on its own unmerged branch (PR #412), not live yet** |
+| TW-standards review (`doc-review-auto.yml`) | `pull_request` | Automatic on every PR touching `.mdx` — merged and live (PR #412, 2026-09-08) |
 | Broken-links check (`mint-broken-links.yml`) | `pull_request` | Automatic on every PR — already live |
 
 ---
@@ -202,9 +202,6 @@ Projects (v2) write access if that's wanted later.
   GitHub issues with assignees, not added to project #105.
 - **Email notification was scoped, not built** — parked pending a decision
   on sending method (SMTP vs. a transactional API) and frequency.
-- **`doc-review-auto.yml` still isn't merged** — the automatic TW-standards
-  half of the downstream pipeline exists but isn't live on `main` yet
-  (tracked separately as PR #412).
 - **Old pre-split tracked issues (#428, #450, #452) use the original
   `daily-watcher:pr-X` marker.** Dedup searches by number rather than
   prefix specifically to keep recognizing these, but they were never
