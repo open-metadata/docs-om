@@ -7,3 +7,64 @@ sidebarTitle: Troubleshooting
 import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 <Troubleshooting />
+
+## Lineage Workflow Succeeds but No Lineage Appears
+
+The lineage workflow can finish without errors and still produce nothing. When that happens the run log ends with:
+
+```
+SAP HANA lineage finished with no edges. Check that the metadata workflow has already
+ingested the tables and views, that processViewLineage or processQueryLineage is enabled,
+and that the ingestion user can read SYS.VIEWS and SYS.M_SQL_PLAN_CACHE.
+```
+
+Work through the causes in this order, since the first is by far the most common.
+
+### Metadata Ingestion Has Not Run Yet
+
+View lineage is resolved against the tables and views already registered in OpenMetadata. On a new service, running the lineage workflow before the metadata workflow gives it nothing to connect.
+
+**Resolution:** run metadata ingestion first, confirm the tables and views appear in OpenMetadata, then run the lineage workflow.
+
+### The Ingestion User Cannot See Other Users' Queries
+
+Table-to-table lineage is parsed from `SYS.M_SQL_PLAN_CACHE`. Without the `CATALOG READ` privilege, SAP HANA filters that view down to the connected user's own statements, so the connector only ever sees queries the ingestion user itself ran. It reports success because the query completes normally and legitimately returns nothing.
+
+**Resolution:**
+
+1. Grant the privilege to the ingestion user or its role:
+
+```SQL
+GRANT CATALOG READ TO <user_or_role>;
+```
+
+2. Re-run the lineage workflow and check the reported edge count in the logs.
+
+### The Statements You Expect Are DDL
+
+The plan cache holds execution plans, so DDL never enters it. A table created and populated by `CREATE TABLE ... AS SELECT` has no recoverable upstream on SAP HANA, by any route.
+
+**Resolution:** none at the connector level. If the relationship matters, populate the target with `INSERT INTO ... SELECT` so the statement is cached and parsed, or add the edge manually in OpenMetadata.
+
+### The Statements Have Aged Out
+
+The plan cache is a cache. HANA evicts entries under memory pressure, so statements that ran long before the workflow may already be gone, and the lookback window has no effect on entries that no longer exist.
+
+**Resolution:** schedule the lineage workflow frequently enough that it sees statements while they are still cached.
+
+## `_SYS_REPO` Not Present
+
+On SAP HANA Cloud the lineage run logs:
+
+```
+_SYS_REPO is not present, so there are no repository models to read. This is normal on
+SAP HANA Cloud, where the classic repository was never carried over.
+```
+
+This is informational, not an error. `_SYS_REPO` belongs to the classic HANA repository, which SAP did not carry into HANA Cloud, so a Cloud instance has no Calculation, Analytic or Attribute Views to read. View, column-level and table-to-table lineage are unaffected.
+
+If you see this on an **on-premise** or **HANA Express** instance, where the schema should exist, the ingestion user is most likely missing its grant:
+
+```SQL
+GRANT SELECT ON SCHEMA _SYS_REPO TO <user_or_role>;
+```
