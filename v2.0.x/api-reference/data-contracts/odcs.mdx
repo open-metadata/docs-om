@@ -246,6 +246,31 @@ curl -X PUT "{base_url}/api/v1/dataContracts/odcs?entityId=a1b2c3d4-e5f6-7890-ab
 
 ---
 
+## Preserving ODCS-Only Fields
+
+ODCS documents can carry data OpenMetadata doesn't model directly, such as quality rules or element-level
+`authoritativeDefinitions` and `transformSourceObjects`. Rather than dropping this data, OpenMetadata stores it
+as a passthrough and restores it on export.
+
+<Warning>
+
+A plain `PUT /v1/dataContracts` that omits these fields from its payload leaves them untouched—only an
+explicit empty array in the payload clears them, the same way `PUT /odcs?mode=replace` does with a document
+that omits them. A PATCH that explicitly removes them also works.
+
+</Warning>
+
+**Current limitations**:
+- The UI doesn't render these passthrough fields yet—they're accessible via the API only.
+- If the schema element an extension is attached to can't be matched on export (for example, it was renamed
+  or removed), `authoritativeDefinitions` fall back to the contract level rather than being lost.
+  `transformSourceObjects` have no such fallback. For an unmatched element, they're dropped instead.
+- Several other ODCS attributes aren't mapped yet and don't round-trip: `businessName`, `classification`,
+  `examples`, `customProperties`, `transformLogic`, `transformDescription`, `logicalTypeOptions` (except
+  `maxLength`, which round-trips through the column's `dataLength`), and element-level `tags`.
+
+---
+
 ## Parse ODCS YAML
 
 Preview an ODCS YAML contract without importing. Useful for inspecting multi-object contracts.
