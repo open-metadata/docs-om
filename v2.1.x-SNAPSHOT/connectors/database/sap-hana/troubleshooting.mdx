@@ -31,6 +31,8 @@ View lineage is resolved against the tables and views already registered in Open
 
 Table-to-table lineage is parsed from `SYS.M_SQL_PLAN_CACHE`. Without the `CATALOG READ` privilege, SAP HANA filters that view down to the connected user's own statements, so the connector only ever sees queries the ingestion user itself ran. It reports success because the query completes normally and legitimately returns nothing.
 
+`CATALOG READ` is a system privilege. It lifts row filtering from the monitoring and system views the user can reach, not only the plan cache, so grant it deliberately rather than as a routine step.
+
 **Resolution**:
 
 1. Grant the privilege to the ingestion user or its role:
@@ -63,10 +65,10 @@ SAP HANA Cloud, where the classic repository was never carried over. View and qu
 lineage are unaffected.
 ```
 
-This is informational, not an error. `_SYS_REPO` belongs to the classic HANA repository, which SAP did not carry into HANA Cloud, so a Cloud instance has no Calculation, Analytic, or Attribute Views to read. View, column-level, and table-to-table lineage are unaffected.
+This is informational, not an error. `_SYS_REPO` belongs to the classic HANA repository, which SAP did not carry into HANA Cloud, so there are no classic repository models for this pass to read. Calculation views built in HDI containers are still ingested through `_SYS_BIC`, and view, column-level, and table-to-table lineage are unaffected.
 
 If you see this on an **on-premise** or **HANA Express** instance, where the schema should exist, the ingestion user is most likely missing its grant:
 
 ```SQL
-GRANT SELECT ON SCHEMA _SYS_REPO TO <user_or_role>;
+GRANT SELECT ON _SYS_REPO.ACTIVE_OBJECT TO <user_or_role>;
 ```
