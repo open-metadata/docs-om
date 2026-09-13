@@ -10,16 +10,26 @@ import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 ## Lineage Workflow Succeeds but No Lineage Appears
 
-The lineage workflow can finish without errors and still produce nothing. When that happens the run log ends with:
+The lineage workflow can finish without errors and still produce nothing. The run log ends with one of two warnings, and which one you see narrows the cause.
+
+If statements were read but nothing resolved:
 
 ```
-SAP HANA lineage finished with no edges and read no queries. Check that the metadata
-workflow has already ingested the tables and views, that processViewLineage or
+SAP HANA lineage finished with no edges, though N query records were emitted. The
+statements parsed but their endpoints did not resolve to ingested assets, so check that
+the metadata workflow covers the schemas those statements reference.
+```
+
+That points at metadata coverage, so start with the first cause below. If nothing was read at all:
+
+```
+SAP HANA lineage finished with no edges and emitted no query records. Check that the
+metadata workflow has already ingested the tables and views, that processViewLineage or
 processQueryLineage is enabled, and that the ingestion user holds CATALOG READ, without
 which SYS.M_SQL_PLAN_CACHE only returns the ingestion user's own statements.
 ```
 
-Work through the causes in this order, because the first is by far the most common.
+That points at access or configuration, so start with the second cause below.
 
 ### Metadata Ingestion Has Not Run Yet
 
