@@ -22,11 +22,38 @@ Tools are labeled **Read** (retrieve data only) or **Write** (create or modify d
 | **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
 | **Metrics** | [create_metric](#create_metric) |
 
+## Which Tool to Call First
+
+**If you already have a fully qualified name** (from a prior result, a user-supplied FQN, or a UI deep link), start with `get_entity_details` or `get_asset_context` depending on what you need. Add `include: ["lineage", "quality"]` to `get_entity_details` if you need those alongside entity details. This resolves most questions about a known asset in a single call.
+
+**If you don't have a fully qualified name yet**, start with `search_metadata` (exact names, owners, tags, tiers) or `semantic_search` (vague or conceptual queries), then pass the `fullyQualifiedName` from a result into the tool you need.
+
+Starting broad with `search_metadata` when you already know the FQN adds unnecessary round trips (re-searching, re-confirming the match) that calling the lookup tool directly avoids.
+
+## Fully Qualified Name (FQN) Format
+
+An entity's FQN is a dot-separated path built from the entity and its ancestors. The number of segments depends on entity type:
+
+| Entity Type | FQN Pattern | Example |
+|---|---|---|
+| Table | `service.database.schema.table` | `snowflake_prod.analytics.public.customers` |
+| Database Schema | `service.database.schema` | `snowflake_prod.analytics.public` |
+| Database | `service.database` | `snowflake_prod.analytics` |
+| Dashboard | `service.dashboardName` | `sample_superset.10` |
+| Tag | `Classification.TagName` | `PII.Sensitive` |
+| Glossary Term | `glossary.term` | `marketing-terms.customer-acquisition-cost` |
+
+Consult the entity's [API Reference](/v2.0.x/api-reference/data-assets) page for entity types not listed here.
+
+**Special Characters**: If a name segment contains a period (`.`) or a double quote (`"`), wrap that segment in double quotes, escaping any internal `"` by doubling it. For example, a schema literally named `sales.eu` inside database `prod` becomes `service.prod."sales.eu".table`.
+
 ## Discover
 
 Search and find data assets across your catalog using keyword, semantic, or natural language queries.
 
 ### search_metadata
+
+**Type**: Read
 
 **Description**: Find data assets and business terms by keyword. Use when you know specific names, owners, tags, tiers, services, or column names.
 
@@ -46,10 +73,22 @@ Search and find data assets across your catalog using keyword, semantic, or natu
 | `from` | integer | No | Offset for pagination (default: 0) |
 | `cursor` | string | No | Pagination cursor — pass the `nextCursor` value from the previous response to get the next page. Takes precedence over `from` when both are provided. |
 | `fields` | string | No | Comma-separated additional fields to include |
-| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query |
+| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query. Example: `{"bool": {"must": [{"term": {"entityType": "table"}}, {"term": {"tags.tagFQN": "PII.Sensitive"}}]}}` |
 | `includeDeleted` | boolean | No | Include deleted entities (default: false) |
 | `includeAggregations` | boolean | No | Include aggregation/facet data (default: false) |
 | `maxAggregationBuckets` | integer | No | Max buckets per aggregation (default: 10, max: 50) |
+
+<Warning>
+
+Three rules are easy to get silently wrong with this tool:
+
+- **`queryFilter` value**: Omit it entirely rather than sending an empty string, `"null"`, or `"{}"`. A degenerate value is not treated as "no filter": it currently produces a `400 JSON parsing failed` error instead of falling through to a normal keyword search.
+- **Batch-reading known entities**: To hydrate several already-known entities in one call instead of one `get_entity_details` call per entity, use a `terms` clause on `fullyQualifiedName` in `queryFilter` together with `fields`.
+- **Finding a table's data-quality tests**: Match on `originEntityFQN`, not `entityFQN`. A column-level test stores the column's FQN in `entityFQN`, so filtering on the table's FQN there silently returns only table-level tests, with a clean but wrong total.
+
+`fullyQualifiedName`, `entityFQN`, and `originEntityFQN` are indexed with a lowercase normalizer. Values passed in a `term`/`terms` clause must be lowercased, or the clause silently matches zero rows.
+
+</Warning>
 
 **Entity Types**
 - **Service Entities**: `databaseService`, `messagingService`, `apiService`, `dashboardService`, `pipelineService`, `storageService`, `mlmodelService`, `metadataService`, `searchService`
@@ -137,6 +176,8 @@ Results include a `similarityScore` field for each entity whenever the search ba
 
 ### semantic_search
 
+**Type**: Read
+
 **Description**: Find data assets by meaning using vector search ([setup guide](../../deployment/semantic-search#enable-semantic-search)). Use for exploratory queries where you don't know exact names. Returns conceptually related assets even when no keywords match.
 
 **Use Cases**:
@@ -198,6 +239,8 @@ Results include a `similarityScore` field for each entity whenever the search ba
 
 ### search_company_context
 
+**Type**: Read
+
 **Description**: Semantic search over company context knowledge pills from the Context Center. Returns matching pills with their title, question, answer, summary, and source file. Use this to answer questions from company documents, runbooks, FAQs, and policies.
 
 **Parameters**
@@ -232,7 +275,9 @@ Retrieve detailed information about specific entities and company knowledge pill
 
 ### get_entity_details
 
-**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually. The response includes an `extension` field containing any custom properties defined for the entity type.
+**Type**: Read
+
+**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). If you already have the exact FQN (from a prior search result, or built from known segments using the documented FQN format), pass it directly. If you're not certain of the exact segment values (service, database, schema, or table names as stored in OpenMetadata may differ from source-system names), use `search_metadata` or `semantic_search` first and pass through the `fullyQualifiedName` from the result to avoid a failed lookup. The response includes an `extension` field containing any custom properties defined for the entity type.
 
 **Parameters**
 
@@ -295,6 +340,8 @@ Retrieve detailed information about specific entities and company knowledge pill
 ```
 
 ### get_company_context
+
+**Type**: Read
 
 **Description**: Fetch a single company context knowledge pill by its fully qualified name. Returns the full title, question, answer, summary, and source file. Use the `fullyQualifiedName` or `name` returned by `search_company_context`.
 
@@ -407,7 +454,7 @@ Retrieve context knowledge associated with the current user, a persona, or a spe
 
 **Type**: Read
 
-**Description**: Returns the full AI context for a single data asset in one call: the business knowledge attached to it (approved glossary term definitions, Context Center articles) plus type-specific structural context. For tables this includes the column schema, primary key, foreign keys (with the referenced columns and cardinality), and the columns most frequently joined with other tables. Prefer this over `get_entity_details` once you've selected an asset and need its business rules and join keys. Use the `fullyQualifiedName` and `entityType` values directly from search results.
+**Description**: Returns the full AI context for a single data asset in one call: the business knowledge attached to it (approved glossary term definitions, Context Center articles), its tags, and type-specific structural context. For tables this includes the column schema, primary key, foreign keys (with the referenced columns and cardinality), and the columns most frequently joined with other tables. It also includes upstream/downstream lineage and a data-quality test summary (pass/fail counts) when available. Prefer this over `get_entity_details` once you've selected an asset and need its business rules and join keys. If you only need lineage and quality (not the business knowledge and structural context), `get_entity_details`'s `include` parameter can fold those in without a separate call. Use the `fullyQualifiedName` and `entityType` values directly from search results.
 
 **Parameters**
 
@@ -505,6 +552,8 @@ Explore data dependencies, trace upstream sources, and analyze downstream impact
 
 ### get_entity_lineage
 
+**Type**: Read
+
 **Description**: Retrieve upstream and downstream lineage for any entity to understand data dependencies and perform impact analysis. Pass the exact `fullyQualifiedName` from search results.
 
 **Parameters**
@@ -559,6 +608,8 @@ Explore data dependencies, trace upstream sources, and analyze downstream impact
 
 ### create_lineage
 
+**Type**: Write
+
 **Description**: Create a lineage relationship between two entities. Identify each entity by `fqn` (the fully qualified name a search result already returns) or by `id` (UUID) and `type`. `fqn` is preferred, since it skips the extra lookup an `id` would need.
 
 **Parameters**
@@ -594,6 +645,8 @@ Explore data dependencies, trace upstream sources, and analyze downstream impact
 > **Tip**: `search_metadata` and `get_entity_details` results already carry each entity's `fqn` — pass it straight through to `create_lineage` instead of resolving an `id` first.
 
 ### root_cause_analysis
+
+**Type**: Read
 
 **Description**: Trace a data quality failure back to its origin by traversing data quality lineage across pipeline hops.
 
@@ -633,6 +686,8 @@ Explore data dependencies, trace upstream sources, and analyze downstream impact
 Create and manage glossaries, terms, and reusable context memories.
 
 ### create_glossary
+
+**Type**: Write
 
 **Description**: Create a new glossary to organize business terms. Set `mutuallyExclusive: true` to restrict entities to a single term from the glossary at a time.
 
@@ -706,6 +761,8 @@ Create and manage glossaries, terms, and reusable context memories.
 
 ### create_glossary_term
 
+**Type**: Write
+
 **Description**: Create a new term within an existing glossary. Supports hierarchical parent–child relationships between terms.
 
 **Parameters**
@@ -762,6 +819,8 @@ Create and manage glossaries, terms, and reusable context memories.
 
 ### create_context_memory
 
+**Type**: Write
+
 **Description**: Save a reusable piece of knowledge to the Context Center — a preference, instruction, runbook step, or FAQ answer the assistant should retain across conversations. Use this when the user explicitly asks you to remember, note, or store something.
 
 **Parameters**
@@ -807,6 +866,8 @@ Define and apply classifications, tags, domains, data products, and entity updat
 
 ### create_classification
 
+**Type**: Write
+
 **Description**: Create a new Classification in OpenMetadata. A Classification is a top-level container that groups related Tags (e.g., `PII`, `Tier`). The `name` becomes the root segment of every tag FQN under it. The `mutuallyExclusive` flag is immutable once the classification exists.
 
 **Parameters**
@@ -842,6 +903,8 @@ Define and apply classifications, tags, domains, data products, and entity updat
 ```
 
 ### create_tag
+
+**Type**: Write
 
 **Description**: Create a new Tag inside a Classification in OpenMetadata. The tag FQN is `Classification.TagName` (e.g., `PII.Sensitive`). At least one of `classification` or `parent` must be provided.
 
@@ -898,6 +961,8 @@ Define and apply classifications, tags, domains, data products, and entity updat
 ```
 
 ### create_domain
+
+**Type**: Write
 
 **Description**: Create a new Domain in OpenMetadata. A Domain is a top-level governance grouping of data assets. To create a child domain, set `parent` to the FQN of an existing parent domain. `domainType` defaults to `Aggregate` if omitted.
 
@@ -957,6 +1022,8 @@ Define and apply classifications, tags, domains, data products, and entity updat
 
 ### create_data_product
 
+**Type**: Write
+
 **Description**: Create a new Data Product in OpenMetadata. A Data Product groups data assets that deliver business value and must belong to at least one Domain. All referenced domain FQNs must already exist.
 
 **Parameters**
@@ -996,6 +1063,8 @@ Define and apply classifications, tags, domains, data products, and entity updat
 
 ### patch_entity
 
+**Type**: Write
+
 **Description**: Update an existing entity's properties using [JSON Patch](https://jsonpatch.com/) (RFC 6902). Use `get_entity_details` first to retrieve the current state before constructing a patch.
 
 **Parameters**
@@ -1030,6 +1099,8 @@ Access test definitions and create test cases to validate your data assets.
 
 ### get_test_definitions
 
+**Type**: Read
+
 **Description**: List test definitions available in OpenMetadata for tables or columns. Call this before `create_test_case` to identify valid test types and their required parameters.
 
 **Parameters**
@@ -1060,6 +1131,8 @@ Access test definitions and create test cases to validate your data assets.
 ```
 
 ### create_test_case
+
+**Type**: Write
 
 **Description**: Create a data quality test case for a table or column. For column tests, ensure the column's data type is listed in the test definition's `supportedDataTypes`.
 
@@ -1102,6 +1175,8 @@ Access test definitions and create test cases to validate your data assets.
 Define and track measurable business and technical KPIs.
 
 ### create_metric
+
+**Type**: Write
 
 **Description**: Create a new metric entity in OpenMetadata to track and standardize business KPIs.
 
