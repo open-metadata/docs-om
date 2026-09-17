@@ -23,11 +23,12 @@ Before configuring the webhook in OpenMetadata, you need a webhook endpoint URL 
 - An automation platform like Zapier or Make
 - A custom application or API endpoint
 - An internal service that accepts HTTP POST requests
-- A serverless function (AWS Lambda, Google Cloud Functions, etc.)
+- A serverless function (for example, AWS Lambda or Google Cloud Functions)
 
 Your endpoint must:
 - Accept HTTP POST requests
 - Be accessible from your OpenMetadata instance
+- Reply with its final response directly. A redirect (3xx) response is treated as a failed delivery, so the configured Endpoint URL should be the exact final URL, not one that redirects elsewhere
 
 ### Configuring Generic Webhooks in OpenMetadata
 
@@ -45,6 +46,8 @@ Once you have your webhook endpoint URL, follow these steps to configure it in O
 1. Click **Add Destination**
 2. Select **Generic Webhook** from the available destination options
 3. Paste your **Endpoint URL** into the **Endpoint URL** field (must start with `https://`)
+4. Optionally, set an **Authentication** method so your endpoint can verify requests actually came from OpenMetadata. See [Authenticating Webhook Requests](#authenticating-webhook-requests) below
+5. Optionally, add custom request headers
 
 #### Step 3: Test the Connection
 
@@ -58,9 +61,76 @@ Once you have your webhook endpoint URL, follow these steps to configure it in O
 1. Click **Save** to store the configuration
 2. The webhook destination is now ready to receive alerts
 
+### Authenticating Webhook Requests
+
+The Generic Webhook destination supports three ways to authenticate outgoing requests, so your endpoint can confirm they actually came from OpenMetadata:
+
+- **No authentication**: requests carry no credential. Only use this for endpoints on a trusted internal network.
+- **Bearer token with an HMAC signature**: you provide a secret key. OpenMetadata never sends this key over the network. Instead, it signs every request with it and sends the signature in the `X-OM-Signature` header. See [Verifying the Signature](#verifying-the-signature) below.
+- **OAuth2 client credentials**: you provide a token URL, client ID, client secret, and optional scope. OpenMetadata exchanges these for an access token using the OAuth2 client-credentials grant, caches the token until it's close to expiring, and sends it as an `Authorization: Bearer <token>` header. If your endpoint responds with `401 Unauthorized`, OpenMetadata fetches a fresh token and retries the request once.
+
+You can also add custom headers (for example, a static API key). Custom headers are stored in plain text and are visible to any user who can view the alert configuration, so don't put a secret in a custom header. Use the HMAC or OAuth2 option instead.
+
+### Verifying the Signature
+
+If you configure the HMAC option, every request includes a header in this form:
+
+```
+X-OM-Signature: sha256=<signature>
+```
+
+`<signature>` is the HMAC-SHA256 of the exact request body, computed using your secret key and Base64-encoded (not hex-encoded).
+
+To verify a request on your endpoint:
+1. Read the raw request body exactly as received, before parsing it as JSON.
+2. Compute HMAC-SHA256 of that raw body using your secret key, then Base64-encode the result.
+3. Prefix it with `sha256=` and compare it to the `X-OM-Signature` header using a constant-time comparison.
+4. Reject the request if they don't match.
+
+The signature doesn't include a timestamp, so it can't by itself prevent a captured request from being replayed. Track each event's `id` field (see [Payload and Event Types](#payload-and-event-types) below) and ignore any event you've already processed to guard against replay.
+
+### Request Headers
+
+Every webhook request includes:
+- `Content-Type: application/json`
+- `X-OM-Signature: sha256=<signature>` (only if you configured the HMAC option)
+- `Authorization: Bearer <token>` (only if you configured OAuth2 client credentials)
+- Any custom headers you added
+
+There's no header identifying the event type, a delivery ID, or a delivery timestamp. That information is all in the request body, described below.
+
+### Payload and Event Types
+
+Each request body is a single `ChangeEvent` JSON object describing one change in OpenMetadata. Its main fields:
+
+| Field | Description |
+|---|---|
+| `id` | Unique identifier for this event. Track this to detect and ignore duplicate or replayed deliveries. |
+| `eventType` | What happened, for example `entityCreated`, `entityUpdated`, or `entityDeleted`. |
+| `entityType`, `entityFullyQualifiedName` | What kind of asset changed, and which one. |
+| `userName` | Who made the change. |
+| `timestamp` | When the change happened, in Unix epoch milliseconds. |
+| `changeDescription` | For `entityUpdated` events, the fields that were added, updated, or deleted. |
+| `entity` | The full asset, sent as a JSON-encoded string rather than a nested object. Parse it a second time to read it. |
+
+For the complete field list and every `eventType` value, see the [`ChangeEvent`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEvent.json) and [`ChangeEventType`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEventType.json) schemas.
+
+### Delivery Behavior
+
+- **Timeouts**: by default, OpenMetadata allows up to 10 seconds to connect to your endpoint and 12 seconds to receive a response.
+- **Retries**: a failed delivery (a connection error, a timeout, or a non-2xx response) is retried up to 3 times by default.
+- **Ordering**: events aren't guaranteed to arrive in order, so sort by each event's `timestamp` rather than assuming delivery order.
+
+### Network Considerations
+
+OpenMetadata doesn't provide a fixed, published outbound IP address for webhook delivery. Requests originate from wherever your OpenMetadata server is deployed, so the source IP depends on your own infrastructure (for example, a cloud NAT gateway). If your endpoint's firewall needs a specific source IP allowlisted, check with whoever manages your OpenMetadata deployment's network egress.
+
+OpenMetadata doesn't offer a VPN or PrivateLink-style connection for webhook delivery. Your endpoint needs to be reachable over the public internet, or over a network your OpenMetadata server already has a route to.
+
 ### Best Practices
 
 - **Use HTTPS**: Always use HTTPS endpoints for security
+- **Authenticate Requests**: Configure HMAC or OAuth2 authentication so your endpoint can reject unsigned or forged requests
 - **Error Handling**: Ensure your endpoint handles errors gracefully and logs failures
 - **Response Time**: Keep endpoint response times under 30 seconds
 - **Multiple Webhooks**: You can configure multiple webhook endpoints for different alert types
