@@ -325,6 +325,13 @@ jobs:
             from the title or description alone; the description can
             overstate or omit what the diff actually does.
 
+            Also record, from the PR's own body (not the evidence note),
+            whether it names a shared tracking issue ("Fixes #X" / "Part
+            of #X") or is itself a backport ("Backport #Y" referencing an
+            original PR). Capture the referenced PR/issue number -- this
+            travels with the item into the handoff file so the notify job
+            never has to re-derive it from prose.
+
             Then classify into exactly one of:
             - **HELD** — the PR's own body discloses it's unverified,
               unapproved, or agent-generated with no build/test run. Stop
@@ -336,6 +343,12 @@ jobs:
               ambiguous in A3. Don't guess.
             - **CONFIRMED** — genuinely new, major-only, and no existing
               coverage found. Only these proceed.
+
+            For every item that does NOT reach CONFIRMED, record a
+            one-sentence reason tied to its classification -- the only
+            record of that judgment call once the run ends, and the
+            digest below needs it verbatim, not reconstructed from
+            memory.
 
             ## A5. Group (CONFIRMED items only)
 
@@ -396,6 +409,15 @@ jobs:
               - `suggested_title`: a short, plain-language issue title
               - `breaking`: true/false, whether this looks like a breaking
                 change worth the `breaking-change` label
+              - `tracking_issue`: the shared tracking issue number found in
+                A4 (an integer), or `null` if none
+              - `original_pr`: the original PR number if this item is
+                itself a backport (A4), or `null` if not
+            - `reviewed_items`: array, one entry per item that did NOT
+              reach CONFIRMED in A4, each an object with:
+              - `status`: `held`, `ruled_out`, or `needs_a_look`
+              - `source_prs`: array of `{number, url}`, same shape as above
+              - `reason`: the one-sentence reason recorded in A4
             - `completeness_checks`: array, one entry per B1 candidate,
               each an object with:
               - `issue_number`: the existing tracked issue's number (must
@@ -496,7 +518,7 @@ jobs:
               print(f"::error::{msg}")
               sys.exit(1)
 
-          for key in ("scanned", "excluded_as_minor", "verified_counts", "confirmed_items", "completeness_checks"):
+          for key in ("scanned", "excluded_as_minor", "verified_counts", "confirmed_items", "reviewed_items", "completeness_checks"):
               if key not in data:
                   fail(f"summary.json missing required key: {key}")
           if not isinstance(data["scanned"], int):
@@ -535,6 +557,28 @@ jobs:
                   fail(f"confirmed_items[{i}].suggested_title must be a non-empty string under 200 characters")
               if not isinstance(item["evidence"], str) or len(item["evidence"]) > 4000:
                   fail(f"confirmed_items[{i}].evidence must be a string under 4000 characters")
+              if item.get("tracking_issue") is not None and not isinstance(item["tracking_issue"], int):
+                  fail(f"confirmed_items[{i}].tracking_issue must be an integer or null")
+              if item.get("original_pr") is not None and not isinstance(item["original_pr"], int):
+                  fail(f"confirmed_items[{i}].original_pr must be an integer or null")
+
+          reviewed = data["reviewed_items"]
+          if not isinstance(reviewed, list):
+              fail("reviewed_items must be an array")
+          for i, item in enumerate(reviewed):
+              for key in ("status", "source_prs", "reason"):
+                  if key not in item:
+                      fail(f"reviewed_items[{i}] missing required key: {key}")
+              if item["status"] not in ("held", "ruled_out", "needs_a_look"):
+                  fail(f"reviewed_items[{i}].status must be one of held/ruled_out/needs_a_look")
+              prs = item["source_prs"]
+              if not isinstance(prs, list) or not prs:
+                  fail(f"reviewed_items[{i}].source_prs must be a non-empty array")
+              for pr in prs:
+                  if not isinstance(pr, dict) or not isinstance(pr.get("number"), int) or not pr_url_re.match(str(pr.get("url", ""))):
+                      fail(f"reviewed_items[{i}] has a malformed source_prs entry: {pr!r}")
+              if not isinstance(item["reason"], str) or not item["reason"].strip():
+                  fail(f"reviewed_items[{i}].reason must be a non-empty string")
 
           checks = data["completeness_checks"]
           if not isinstance(checks, list):
@@ -556,7 +600,7 @@ jobs:
           with open("/tmp/major-release-watcher-handoff/issue_numbers_to_verify.txt", "w") as f:
               f.write("\n".join(str(n) for n in issue_numbers))
 
-          print(f"Handoff schema OK -- {len(items)} confirmed item(s) (all target_version values match {expected_version}), {len(checks)} completeness check(s) to verify live.")
+          print(f"Handoff schema OK -- {len(items)} confirmed item(s) (all target_version values match {expected_version}), {len(reviewed)} reviewed item(s), {len(checks)} completeness check(s) to verify live.")
           PYEOF
 
           # Belt-and-suspenders on top of the schema check above: confirm
@@ -615,11 +659,15 @@ jobs:
             If `DRY_RUN` is exactly `true`: the tools for `gh issue
             create`, `gh issue edit`, and `gh issue comment` are not even
             available to you this run. Still do every other step for real
-            (reading with `gh issue list` is fine), but for step 1 (Notify)
-            and step 2 (Report completeness), print exactly what you would
-            have created, updated, or commented as your final response
-            instead of calling those tools. Do not write `slack-digest.txt`
-            in dry-run mode.
+            (reading with `gh issue list` is fine), but for steps 1
+            (Notify), 2 (Report completeness), and 3 (Digest), write
+            exactly what you would have created, updated, or commented to
+            `/tmp/major-release-watcher-handoff/dry-run-preview.md`
+            (Markdown, one section per item) instead of calling those
+            tools -- a deterministic step after this one publishes that
+            file to the run's job summary, since forced dry-run creates no
+            digest issue an operator could read instead. Do not write
+            `slack-digest.txt` in dry-run mode.
 
             ## 1. Notify (create or update issues, de-duplicated across runs)
 
@@ -630,11 +678,12 @@ jobs:
             `major-watcher:pr-X`) -- search on the number, not the prefix:
             gh issue list --repo ${{ github.repository }} --state all --limit 200 \
               --search "pr-<number> in:body"
-            (ii) shared tracking issue ("Fixes #X" / "Part of #X" in the
-            entry's evidence, searched for in existing tracked issues);
-            (iii) shared original PR if this entry is itself a backport
-            ("Backport #Y" referencing an original PR Y), searched the same
-            way as (i). Update an existing match (append PR + marker, post
+            (ii) shared tracking issue: if the entry's `tracking_issue`
+            field is set, search for that number directly, never
+            re-derived from the evidence prose; (iii) shared original PR:
+            if the entry's `original_pr` field is set (this item is
+            itself a backport), search for that number the same way as
+            (i). Update an existing match (append PR + marker, post
             a comment) rather than duplicate. Otherwise create one new
             issue:
             gh issue create --repo ${{ github.repository }} \
@@ -668,8 +717,11 @@ jobs:
 
             - Part A: PRs scanned, how many excluded as minor-bound (with
               which rule excluded them, from `excluded_as_minor`), how many
-              passed the filter, confirmed/ruled-out/needs-a-look/held
-              breakdown (from `verified_counts`).
+              passed the filter, and the confirmed/ruled-out/needs-a-look/held
+              breakdown (from `verified_counts`) -- for ruled-out,
+              needs-a-look, and held, list each `reviewed_items` entry with
+              its source PR link(s) and `reason` verbatim, not just the
+              count.
             - Part B: how many multi-PR candidates were checked, and each
               one's completeness classification (from `completeness_checks`).
 
@@ -689,6 +741,18 @@ jobs:
 
           claude_args: |
             --allowedTools "${{ needs.prepare.outputs.notify_tools }}"
+
+      - name: Publish dry-run preview to the job summary (forced dry-run creates no digest issue to read instead)
+        if: ${{ needs.prepare.outputs.dry_run == 'true' }}
+        run: |
+          FILE=/tmp/major-release-watcher-handoff/dry-run-preview.md
+          if [ -s "$FILE" ]; then
+            {
+              echo "## Major Release Watcher -- dry-run preview"
+              echo
+              cat "$FILE"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload Slack digest for the Slack job, if one was written
         if: always()

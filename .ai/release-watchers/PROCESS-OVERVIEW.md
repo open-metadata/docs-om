@@ -80,6 +80,10 @@ repo already goes through.
   workflow-level `FORCE_DRY_RUN` switch additionally forces this on
   regardless of trigger (schedule included), by removing the write tools
   from Claude's allowed list outright -- see "First live rollout" below.
+  Because no issue-write tools exist in that mode, there's no digest issue
+  to read afterward -- the notify job instead writes what it would have
+  created or updated to `dry-run-preview.md`, which a deterministic step
+  publishes to the workflow run's job summary.
 - **No guessing on ambiguity, ever.** Major-vs-minor classification,
   doc-relevance, and feature completeness all have an explicit "I don't
   know" outcome that surfaces the evidence to a human instead of forcing a
@@ -163,8 +167,10 @@ manually, and that run can only ever read and report.
 
 The intended sequence once merged:
 1. Run each workflow via `workflow_dispatch` from `main`.
-2. Read the digest issue each produces and sanity-check it against what's
-   actually open upstream.
+2. Open that run's job summary in the Actions UI and sanity-check the
+   dry-run preview against what's actually open upstream -- forced
+   dry-run creates no digest issue to read instead, since the tools to
+   create one aren't available in that mode.
 3. Flip `FORCE_DRY_RUN` to `"false"` in its own separate, reviewable
    commit -- that's the actual go-live moment.
 
