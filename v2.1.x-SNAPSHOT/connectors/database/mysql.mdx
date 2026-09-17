@@ -41,7 +41,7 @@ Grant both `SELECT` and `SHOW VIEW`. Either privilege on its own already ingests
 | Profiler, sample data, and data quality | Yes | No | Yes |
 | Stored procedures | No | No | No, `SHOW_ROUTINE` is also required |
 
-Views need both privileges because MySQL gates each half of a view read separately. `SHOW VIEW` authorizes `SHOW CREATE TABLE`, which returns the view definition. `SELECT` authorizes `DESCRIBE`, which returns the view columns. Holding only one still triggers `Error 1142` for the missing half, but OpenMetadata catches that per view rather than failing the workflow. The view entity is still created, just missing its schema definition (DDL) if `SHOW VIEW` is missing, or its columns if `SELECT` is missing.
+Views need both privileges because MySQL gates each half of a view read separately. `SHOW VIEW` authorizes `SHOW CREATE TABLE`, which returns the view definition. `SELECT` authorizes `DESCRIBE`, which returns the view columns. OpenMetadata reads both in the same step, before it builds the view entity, so `Error 1142` on either call fails that view outright rather than producing a partial entity with only DDL or only columns. Grant both privileges together or the view won't be ingested at all.
 
 ```SQL
 -- Create user. If <hostName> is omitted, defaults to '%'
@@ -58,7 +58,14 @@ GRANT SELECT, SHOW VIEW ON world.hello TO '<username>';
 GRANT SHOW_ROUTINE ON *.* TO '<username>';
 ```
 
-Object-level grants also limit discovery. `SHOW TABLES` returns only the objects the user holds some privilege on, so any table or view left out of the grant never reaches OpenMetadata and raises no error. Stored procedures behave the same way. They stay hidden in `INFORMATION_SCHEMA.ROUTINES` until the user holds `SHOW_ROUTINE`.
+Object-level grants also limit discovery. `SHOW TABLES` returns only the objects the user holds some privilege on, so any table or view left out of the grant never reaches OpenMetadata and raises no error.
+
+Stored procedure visibility in `INFORMATION_SCHEMA.ROUTINES` has three possible outcomes, not just visible-or-hidden:
+- **No row at all**: the user is not the routine's `DEFINER` and holds none of `SHOW_ROUTINE`, global `SELECT`, or `CREATE ROUTINE`/`ALTER ROUTINE`/`EXECUTE` on the routine. The routine never reaches OpenMetadata and raises no error, the same as an ungranted table.
+- **Row visible, but no definition**: the user holds only `CREATE ROUTINE`, `ALTER ROUTINE`, or `EXECUTE` (without `SHOW_ROUTINE`, global `SELECT`, or being the definer). MySQL returns the row with `ROUTINE_DEFINITION` set to `NULL`, so OpenMetadata still creates the stored procedure entity, but with no code captured.
+- **Full definition visible**: the user holds `SHOW_ROUTINE`, holds global `SELECT`, or is the routine's own `DEFINER`. `ROUTINE_DEFINITION` is populated and OpenMetadata captures the routine's actual code.
+
+Granting `SHOW_ROUTINE` (as below) is the simplest way to guarantee the third outcome for every routine, regardless of who defined it.
 
 ### Lineage & Usage
 To extract lineage & usage, enable query logging in MySQL. By default, OpenMetadata reads from `mysql.general_log`, so the connection user needs `SELECT` access on `mysql.general_log`. If you enable `useSlowLogs`, OpenMetadata reads from `mysql.slow_log` instead, so the same user needs `SELECT` access on `mysql.slow_log`.
