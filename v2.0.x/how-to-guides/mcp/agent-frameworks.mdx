@@ -1,0 +1,169 @@
+---
+title: Connecting Agent Frameworks
+description: Connect a programmatic agent framework (CrewAI, LangChain, the OpenAI Agents SDK) to OpenMetadata's MCP server using a Bot token, for unattended, headless integrations.
+sidebarTitle: Agent Frameworks
+---
+
+# Connecting Agent Frameworks to OpenMetadata MCP
+
+Every other guide in this section (Claude Desktop, Cursor, VS Code, Goose) assumes a person runs the client interactively and can complete a browser sign-in. This guide covers the opposite case: a programmatic agent framework such as CrewAI, LangChain, the OpenAI Agents SDK, or your own orchestration code, calling the MCP server directly over HTTP with no one present.
+
+## When to Use This Guide
+
+- You're wiring an agent framework directly to the MCP endpoint, not through one of the interactive clients listed above.
+- Your process runs unattended, on a schedule, or as part of a larger pipeline, so no one is available to complete an OAuth browser login.
+- You need a service identity whose access is separate from any individual's account.
+
+## 1. Authenticate with a Bot Token
+
+OAuth 2.0 (see [OAuth 2.0 Authentication](/v2.0.x/how-to-guides/mcp/oauth)) requires a person to sign in through a browser, so it doesn't fit an unattended agent. Use a Personal Access Token generated from a Bot instead:
+
+1. Follow [How to Set Up Bots](/v2.0.x/developers/bots) to create a Bot and assign it the role-based access policy your agent needs.
+2. Generate a Personal Access Token for that Bot, following [Personal Access Token (PAT)](/v2.0.x/how-to-guides/mcp#personal-access-token-pat).
+3. Store the token in an environment variable or secrets manager, never in source control.
+
+Every request to the MCP endpoint carries this token in the Authorization header:
+
+```http
+Authorization: Bearer <your-bot-token>
+```
+
+## 2. Set Up a Raw JSON-RPC Session
+
+Before your first tool call, initialize the connection and confirm it:
+
+```json
+// 1. POST {OMURL}/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "my-agent",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+```json
+// 2. POST {OMURL}/mcp, a notification with no "id" and no response body
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
+From here, call any tool with `tools/call`:
+
+```json
+// POST {OMURL}/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "search_metadata",
+    "arguments": {
+      "query": "customer orders",
+      "entityType": "table"
+    }
+  }
+}
+```
+
+See the [MCP Server Connection Guide](/v2.0.x/how-to-guides/mcp/connect) for the full protocol reference (headers, `tools/list`, prompts) and the [MCP Tools Reference](/v2.0.x/how-to-guides/mcp/reference) for every available tool.
+
+## 3. Minimal Code Example: LangChain
+
+The snippet below wraps the raw session above as a LangChain `StructuredTool`. It's illustrative, not a maintained SDK: a full LangChain or CrewAI MCP adapter, if one becomes available, would replace hand-rolled HTTP calls like these.
+
+```python
+import os
+import httpx
+from pydantic import BaseModel, Field
+from langchain.tools import StructuredTool
+
+
+class MCPSession:
+    def __init__(self, base_url: str, bot_token: str):
+        self.endpoint = base_url.rstrip("/") + "/mcp"
+        self.headers = {
+            "Authorization": f"Bearer {bot_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+        self.client = httpx.Client(timeout=30)
+        self._next_id = 1
+        self._initialize()
+
+    def _request(self, method: str, params: dict | None = None, notify: bool = False) -> dict | None:
+        payload = {"jsonrpc": "2.0", "method": method}
+        if not notify:
+            payload["id"] = self._next_id
+            self._next_id += 1
+        if params is not None:
+            payload["params"] = params
+        response = self.client.post(self.endpoint, headers=self.headers, json=payload)
+        response.raise_for_status()
+        return response.json() if response.content else None
+
+    def _initialize(self) -> None:
+        self._request(
+            "initialize",
+            {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "langchain-agent", "version": "1.0.0"},
+            },
+        )
+        self._request("notifications/initialized", notify=True)
+
+    def call_tool(self, name: str, arguments: dict) -> str:
+        response = self._request("tools/call", {"name": name, "arguments": arguments})
+        result = response["result"]
+        text = result["content"][0]["text"]
+        if result.get("isError"):
+            raise RuntimeError(f"{name} failed: {text}")
+        return text
+
+
+session = MCPSession(
+    base_url=os.environ["OM_SERVER_URL"],
+    bot_token=os.environ["OM_BOT_TOKEN"],
+)
+
+
+class SearchMetadataInput(BaseModel):
+    query: str = Field(description="Keywords to search for")
+    entity_type: str | None = Field(default=None, description="Optional entity type filter, e.g. 'table'")
+
+
+def search_metadata(query: str, entity_type: str | None = None) -> str:
+    arguments = {"query": query}
+    if entity_type:
+        arguments["entityType"] = entity_type
+    return session.call_tool("search_metadata", arguments)
+
+
+search_metadata_tool = StructuredTool.from_function(
+    func=search_metadata,
+    name="search_metadata",
+    description="Search the OpenMetadata catalog by keyword.",
+    args_schema=SearchMetadataInput,
+)
+```
+
+Wrap additional tools (`get_entity_details`, `get_entity_lineage`, and so on) the same way: one small function per tool, each calling `session.call_tool` with that tool's name and arguments.
+
+## 4. Check isError on Every Response
+
+Since there's no human watching for a stuck spinner, a headless caller must explicitly check `result.isError` on every tool call rather than assuming a 200-shaped response succeeded. See [Tool Execution Errors](/v2.0.x/how-to-guides/mcp/connect-api#tool-execution-errors) for the full envelope shape and a worked example.
+
+## Next Steps
+
+- [MCP Tools Reference](/v2.0.x/how-to-guides/mcp/reference) for the full tool catalog.
+- [MCP Server Connection Guide](/v2.0.x/how-to-guides/mcp/connect) for the complete protocol reference.
