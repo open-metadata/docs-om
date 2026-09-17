@@ -31,19 +31,42 @@ Before configuring the MySQL connector, make sure the following requirements are
 
 ### Metadata
 OpenMetadata supports MySQL (version 8.0.42 or greater). The user must have access to the `INFORMATION_SCHEMA` table. By default, a user can see only the rows in the `INFORMATION_SCHEMA` that correspond to objects for which the user has the proper access privileges.
+
+Grant both `SELECT` and `SHOW VIEW`. Either privilege on its own already ingests base tables in full, which is what makes an incomplete grant easy to miss:
+
+| Capability | `SELECT` only | `SHOW VIEW` only | Both |
+| --- | --- | --- | --- |
+| Table discovery, columns, comments, keys, indexes, and DDL | Yes | Yes | Yes |
+| Views | No | No | Yes |
+| Profiler, sample data, and data quality | Yes | No | Yes |
+| Stored procedures | No | No | No, `SHOW_ROUTINE` is also required |
+
+Views need both privileges because MySQL gates each half of a view read separately. `SHOW VIEW` authorizes `SHOW CREATE TABLE`, which returns the view definition. `SELECT` authorizes `DESCRIBE`, which returns the view columns. OpenMetadata reads both in the same step, before it builds the view entity, so `Error 1142` on either call fails that view outright rather than producing a partial entity with only DDL or only columns. Grant both privileges together or the view won't be ingested at all.
+
 ```SQL
 -- Create user. If <hostName> is omitted, defaults to '%'
 -- More details https://dev.mysql.com/doc/refman/8.0/en/create-user.html
 CREATE USER '<username>'[@'<hostName>'] IDENTIFIED BY '<password>';
--- Grant select on a database
-GRANT SELECT ON world.* TO '<username>';
--- Grant select on a database
-GRANT SELECT ON world.* TO '<username>';
--- Grant select on a specific object
-GRANT SELECT ON world.hello TO '<username>';
--- Grant show view to extract ddl
-GRANT SHOW VIEW ON world.* to '<username>';
+-- Grant on a whole database
+GRANT SELECT, SHOW VIEW ON world.* TO '<username>';
+-- Or scope the grant to a single object
+GRANT SELECT, SHOW VIEW ON world.hello TO '<username>';
+-- Only when ingesting stored procedures
+-- SHOW_ROUTINE makes the routine and its definition visible. The connector
+-- only reads INFORMATION_SCHEMA.ROUTINES and never calls the routine, so
+-- EXECUTE is not needed
+GRANT SHOW_ROUTINE ON *.* TO '<username>';
 ```
+
+Object-level grants also limit discovery. `SHOW TABLES` returns only the objects the user holds some privilege on, so any table or view left out of the grant never reaches OpenMetadata and raises no error.
+
+Stored procedure visibility in `INFORMATION_SCHEMA.ROUTINES` has three possible outcomes, not just visible-or-hidden:
+- **No row at all**: the user is not the routine's `DEFINER` and holds none of `SHOW_ROUTINE`, global `SELECT`, or `CREATE ROUTINE`/`ALTER ROUTINE`/`EXECUTE` on the routine. The routine never reaches OpenMetadata and raises no error, the same as an ungranted table.
+- **Row visible, but no definition**: the user holds only `CREATE ROUTINE`, `ALTER ROUTINE`, or `EXECUTE` (without `SHOW_ROUTINE`, global `SELECT`, or being the definer). MySQL returns the row with `ROUTINE_DEFINITION` set to `NULL`, so OpenMetadata still creates the stored procedure entity, but with no code captured.
+- **Full definition visible**: the user holds `SHOW_ROUTINE`, holds global `SELECT`, or is the routine's own `DEFINER`. `ROUTINE_DEFINITION` is populated and OpenMetadata captures the routine's actual code.
+
+Granting `SHOW_ROUTINE` (as below) is the simplest way to guarantee the third outcome for every routine, regardless of who defined it.
+
 ### Lineage & Usage
 To extract lineage & usage, enable query logging in MySQL. By default, OpenMetadata reads from `mysql.general_log`, so the connection user needs `SELECT` access on `mysql.general_log`. If you enable `useSlowLogs`, OpenMetadata reads from `mysql.slow_log` instead, so the same user needs `SELECT` access on `mysql.slow_log`.
 ```sql
