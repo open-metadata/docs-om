@@ -1,0 +1,74 @@
+---
+title: Security Model
+description: Trust boundaries, privilege levels, and the outbound-connection behavior of an OpenMetadata deployment.
+collate: false
+---
+
+# Security Model
+
+This page describes the trust boundaries of an OpenMetadata deployment: which roles are trusted with what, which capabilities are intended by design, and which behaviors we treat as security vulnerabilities.
+
+It is intended for operators planning a deployment, security teams reviewing OpenMetadata, and researchers preparing a report. For instructions on enabling authentication, authorization, and secrets management, see [Enable Security](/v2.0.x/deployment/security).
+
+## What OpenMetadata Is
+
+OpenMetadata is a metadata platform. Its core function is to connect to the data sources you operate — databases, warehouses, dashboards, pipelines, message queues, and object stores — read metadata from them, and present a unified catalog.
+
+This means OpenMetadata is, by design, a service that makes outbound network connections to destinations that an operator configures. That property is inseparable from what the product does, and it shapes the trust model described below.
+
+## Privilege Levels
+
+| Level | Trusted to | Notes |
+| --- | --- | --- |
+| Anonymous | Nothing | All API and UI access requires authentication. |
+| Authenticated user | Read metadata subject to policy; edit entities they are authorized for | Service connections and ingestion pipelines are governed by the same policy engine as every other resource. Out of the box, no default policy grants `Create` on a service or pipeline to a non-admin. The default policy does, however, let any authenticated user claim ownership of a service or pipeline that has no owner yet, and ownership grants full control of that entity, including editing its connection and triggering or deploying its pipelines. See [Operator Responsibilities](#operator-responsibilities). |
+| Data steward / custom roles | Whatever the assigned policies grant | Scope is defined by your policy configuration. The built-in Data Steward role, for example, can trigger any existing ingestion pipeline by default. |
+| Administrator | Full control of the deployment, including service connections, ingestion, and outbound destinations | Equivalent to an operator of the host itself. See below. |
+| Deployment operator | The infrastructure, configuration, secrets, and network position of the application | Outside the application's control. |
+
+## Administrators Are Trusted at the Level of a Network Operator
+
+An OpenMetadata administrator can configure the application to connect to any host reachable from the application's network position. This is intended. Configuring service connections, ingestion sources, webhooks, and external endpoints is the administrative function of the product, and an administrator who can configure a connection can necessarily cause the server to open it.
+
+Treat the administrator role accordingly:
+
+- Grant it with the same care you would grant shell access to the host running OpenMetadata.
+- Restrict it to a small, named set of people.
+- Authenticate it through your identity provider with multi-factor authentication enabled.
+- Review administrator assignments as part of your normal access review.
+
+We do not consider "an administrator caused the server to connect to a host of their choosing" to be a vulnerability. Under [CWE-441: Unintended Proxy or Intermediary](https://cwe.mitre.org/data/definitions/441.html), the weakness lies in an actor reaching a control sphere they could not otherwise reach. An administrator of an OpenMetadata deployment is expected to have access to the network in which it runs, so no additional sphere is reached.
+
+## What We Do Treat as a Vulnerability
+
+The trust model above draws a boundary. Behavior that crosses it is in scope, and we want to hear about it:
+
+- **Privilege escalation.** Any path by which a user below the administrator role can create or modify a service connection, trigger ingestion against a destination they specify, or otherwise influence the outbound destination. This excludes the ownership-based control described under [Privilege levels](#privilege-levels), which is intended behavior, not privilege escalation.
+- **Credential exposure to an unintended destination.** Stored connection credentials being transmitted to a host other than the one configured, for example as a result of a redirect being followed across hosts.
+- **Reaching a sphere the operator cannot.** The application reaching an endpoint that is available to the process but not to an administrator acting as themselves. Cloud instance metadata services are the clearest example, since they expose the workload's own identity rather than the operator's.
+- **Response disclosure across a boundary.** Content retrieved from a configured destination being returned to a user who is not authorized to see it.
+- **Authentication or authorization bypass**, secrets disclosure, injection, or any other defect that does not depend on administrator privilege.
+
+### Current Outbound-Connection Controls
+
+OpenMetadata validates webhook, alert-destination, and webhook OAuth2 token URLs against a private and link-local IP address pattern before sending the request. This pattern covers RFC 1918 ranges, loopback addresses, and 169.254.0.0/16, including the 169.254.169.254 cloud metadata address. The check matches the literal host string only: it is not DNS-resolution-aware, and it does not re-apply to a host reached through an HTTP redirect. We do not currently claim protection against a DNS-rebinding or redirect-based bypass of this filter. Treat one as falling under "Reaching a sphere the operator cannot" above.
+
+Database, dashboard, and other data-source connector hosts are not passed through this filter. Connecting to them is the intended, operator-configured behavior described under [What OpenMetadata Is](#what-openmetadata-is).
+
+## Operator Responsibilities
+
+Because the application's network position defines what an administrator can reach through it, the boundary is enforced at the infrastructure layer, not by the application:
+
+- **Segment the network.** Deploy OpenMetadata where it can reach the data sources it needs to catalog, and no further. Egress policy is the primary control.
+- **Restrict egress explicitly.** Use security groups, network policies, or an egress proxy to constrain outbound destinations rather than relying on defaults.
+- **Use least-privilege credentials per source.** Each service connection should use a dedicated read-only account scoped to the metadata it needs. Do not reuse a high-privilege account across connections.
+- **Assign an owner to every service connection and ingestion pipeline you create.** An entity with no owner can be claimed by any authenticated user, who then gains full control of it under the default policy. Set an owner at creation time to avoid relying on this default.
+- **Block the instance metadata endpoint.** Where the platform supports it, deny the workload access to the cloud metadata service, or require IMDSv2-style session-token access.
+- **Store secrets in a managed secrets store** rather than in configuration files. See [Secrets Manager](/v2.0.x/deployment/secrets-manager).
+- **Enable audit logging** and retain it, so that configuration changes to service connections are attributable.
+
+## Reporting a Security Issue
+
+Report suspected vulnerabilities privately rather than through public issues. See the project's [security policy](https://github.com/open-metadata/OpenMetadata/security/policy) for the current reporting channel.
+
+A report is most useful when it identifies which boundary above is crossed. Reports that reduce to "an administrator can direct the application to connect to a host they choose" will be closed as intended behavior, with a reference to this page. Reports demonstrating any of the items under [What We Do Treat as a Vulnerability](#what-we-do-treat-as-a-vulnerability) will be triaged and, where confirmed, fixed and assigned a CVE.
