@@ -10,14 +10,14 @@ import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 ## Lineage Workflow Succeeds but No Lineage Appears
 
-The lineage workflow runs two independent passes on every service. A SQL pass covers view definitions for column-level lineage and query history for table-to-table lineage. A classic-repository pass reads `_SYS_REPO`, available only on-premise and on HANA Express. The diagnosis below only fires when both passes produce zero edges.
+The lineage workflow can run up to two independent passes. A SQL pass covers view definitions for column-level lineage and query history for table-to-table lineage, and runs on every service. A classic-repository pass reads `_SYS_REPO` and runs only when View Lineage is enabled (`processViewLineage`); it's relevant only on-premise and on HANA Express, since Cloud has no `_SYS_REPO`. The diagnosis below only fires when both enabled passes produce zero edges.
 
 If the SQL pass itself failed to read `SYS.M_SQL_PLAN_CACHE` (for example, a missing `CATALOG READ` privilege), that is reported directly as a workflow failure, with the underlying SAP HANA error appended after `Cause:`. None of the log lines below appear in that case. Start with [The Ingestion User Cannot See Other Users' Queries](#the-ingestion-user-cannot-see-other-users-queries) if you see that.
 
 Otherwise, the run log ends with one of these, depending on configuration and what the SQL pass actually read:
 
 - **Both view and query lineage are disabled** (`processViewLineage` and `processQueryLineage`): "No lineage was created because both View Lineage and Query Lineage are turned off." Enable at least one on the ingestion pipeline.
-- **Statements were read but none resolved**: the run log begins with a message such as "No lineage was created from N analysed queries...", meaning the statements parsed but their endpoints did not resolve to ingested assets. Start with [Metadata Ingestion Has Not Run Yet](#metadata-ingestion-has-not-run-yet) below.
+- **Statements were read but none resolved, or were already processed**: the run log begins with "No lineage was created from N analysed queries...". This usually means the referenced tables haven't been ingested yet — start with [Metadata Ingestion Has Not Run Yet](#metadata-ingestion-has-not-run-yet) below. If lineage has run before, it can also mean the queries were simply processed already, which needs no action. If the message ends with "...N of which reported an error above," check the query errors logged immediately before this line rather than re-running metadata ingestion.
 - **Query lineage is on, reading a query log file, and it returned nothing**: check that the configured file is readable and actually holds the statements you expect.
 - **Query lineage is on, reading `SYS.M_SQL_PLAN_CACHE`, and it returned nothing**: see [The Ingestion User Cannot See Other Users' Queries](#the-ingestion-user-cannot-see-other-users-queries) below, the `CATALOG READ` case.
 - **Only view lineage is enabled**: only view definitions were read. Confirm metadata ingestion has run and the views you expect are in scope.
