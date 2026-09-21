@@ -10,17 +10,17 @@ import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 ## Lineage Workflow Succeeds but No Lineage Appears
 
-The lineage workflow runs two independent passes on every service: a SQL pass (view definitions for column-level lineage, plus query history for table-to-table lineage) and a classic-repository pass (`_SYS_REPO`, on-premise and HANA Express only). The diagnosis below only fires when **both** passes produce zero edges.
+The lineage workflow runs two independent passes on every service. A SQL pass covers view definitions for column-level lineage and query history for table-to-table lineage. A classic-repository pass reads `_SYS_REPO`, available only on-premise and on HANA Express. The diagnosis below only fires when both passes produce zero edges.
 
-If the SQL pass itself failed to read `SYS.M_SQL_PLAN_CACHE` (for example, a missing `CATALOG READ` privilege), that is reported directly as a workflow failure, with the underlying SAP HANA error appended after `Cause:`, and none of the log lines below appear. Start with [The Ingestion User Cannot See Other Users' Queries](#the-ingestion-user-cannot-see-other-users-queries) if you see that.
+If the SQL pass itself failed to read `SYS.M_SQL_PLAN_CACHE` (for example, a missing `CATALOG READ` privilege), that is reported directly as a workflow failure, with the underlying SAP HANA error appended after `Cause:`. None of the log lines below appear in that case. Start with [The Ingestion User Cannot See Other Users' Queries](#the-ingestion-user-cannot-see-other-users-queries) if you see that.
 
 Otherwise, the run log ends with one of these, depending on configuration and what the SQL pass actually read:
 
 - **Both view and query lineage are disabled** (`processViewLineage` and `processQueryLineage`): "No lineage was created because both View Lineage and Query Lineage are turned off." Enable at least one on the ingestion pipeline.
-- **Statements were read but none resolved**: "No lineage was created from N analysed queries...". The statements parsed but their endpoints did not resolve to ingested assets: start with [Metadata Ingestion Has Not Run Yet](#metadata-ingestion-has-not-run-yet) below.
+- **Statements were read but none resolved**: the run log begins with a message such as "No lineage was created from N analysed queries...", meaning the statements parsed but their endpoints did not resolve to ingested assets. Start with [Metadata Ingestion Has Not Run Yet](#metadata-ingestion-has-not-run-yet) below.
 - **Query lineage is on, reading a query log file, and it returned nothing**: check that the configured file is readable and actually holds the statements you expect.
 - **Query lineage is on, reading `SYS.M_SQL_PLAN_CACHE`, and it returned nothing**: see [The Ingestion User Cannot See Other Users' Queries](#the-ingestion-user-cannot-see-other-users-queries) below, the `CATALOG READ` case.
-- **Only view lineage is enabled**: only view definitions were read; confirm metadata ingestion has run and the views you expect are in scope.
+- **Only view lineage is enabled**: only view definitions were read. Confirm metadata ingestion has run and the views you expect are in scope.
 
 ### Metadata Ingestion Has Not Run Yet
 
@@ -66,9 +66,9 @@ analytic or attribute view models to read. That is normal on SAP HANA Cloud, and
 view and query lineage are unaffected.
 ```
 
-This is informational, not an error, and it does not mean the workflow found no lineage overall: the SQL-based view and query-history passes run independently of this one and are unaffected. `_SYS_REPO` belongs to the classic HANA repository, which SAP never carried into HANA Cloud, so there are no classic-repository-authored Calculation, Analytic, or Attribute views for this pass to read there.
+This is informational, not an error, and it does not mean the workflow found no lineage overall: the SQL-based view and query-history passes run independently of this one and are unaffected. `_SYS_REPO` belongs to the classic HANA repository, which SAP never carried into HANA Cloud, so this pass finds no classic-repository-authored Calculation, Analytic, or Attribute views to read there.
 
-This has no bearing on views built through an **HDI container**. Those are not read from `_SYS_REPO` or `_SYS_BIC` on any HANA edition: HANA deploys an HDI container's runtime objects into a schema generated for that container, and neither lineage pass reads that schema by name. Grant `SELECT` on the container's schema so its views are visible during metadata ingestion, then check the lineage run log to see whether the SQL pass covered them; that depends on whether the view exposes a SQL-parseable definition, the same requirement as any other view.
+This has no bearing on views built through an **HDI container**. Those are not read from `_SYS_REPO` or `_SYS_BIC` on any HANA edition: HANA deploys an HDI container's runtime objects into a schema generated for that container, and neither lineage pass reads that schema by name. Grant `SELECT` on the container's schema so its views are visible during metadata ingestion, then check the lineage run log to see whether the SQL pass covered them. That depends on whether the view exposes a SQL-parseable definition, the same requirement as any other view.
 
 The connector logs this only when the object itself is not found. If you see it on an **on-premise** or **HANA Express** instance, where the schema should exist, check that `_SYS_REPO.ACTIVE_OBJECT` is actually present rather than assuming a permissions problem.
 
