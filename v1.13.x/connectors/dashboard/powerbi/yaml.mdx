@@ -63,26 +63,36 @@ For more information please visit the PowerBI official documentation [here](http
 Follow the steps below to configure the account setup for PowerBI connector:
 ### Step 1: Enable API permissions from the PowerBI Admin console
 We extract the information from PowerBI using APIs, this is a manual step a PowerBI Admin needs to do to ensure we can get the right information.
-Login to the [Power BI](https://app.powerbi.com/) as Admin and from `Tenant` settings allow below permissions.
-- Allow service principles to use Power BI APIs
-- Allow service principals to use read-only Power BI admin APIs
-- Enhance admin APIs responses with detailed metadata
+Log in to the [Power BI](https://app.powerbi.com/) as Admin and enable the tenant settings below from [Tenant settings](https://app.powerbi.com/admin-portal/tenantSettings?experience=power-bi) in the Admin portal.
+Start with **Allow service principals to use Power BI APIs**, which lets the service principal call the Power BI REST APIs. Of the three settings in the table below, the first authorizes the service principal to call the [PowerBI admin APIs](/v1.13.x/connectors/dashboard/powerbi#powerbi-admin-and-non-admin-apis). The other two add detail to the [GetScanResult](https://learn.microsoft.com/en-us/rest/api/power-bi/admin/workspace-info-get-scan-result) response that the connector reads.
+
+| Tenant setting | What it unlocks | If disabled |
+|---|---|---|
+| **Service principals can access read-only admin APIs** | Lets an app registered in Microsoft Entra ID authenticate to the read-only admin APIs with a service principal instead of user credentials. This is the base requirement for the `GetScanResult` API that supplies dashboard, chart, and datamodel metadata. See [Enable service principal authentication for read-only admin APIs](https://learn.microsoft.com/en-us/fabric/admin/enable-service-principal-admin-apis). | No metadata is ingested. |
+| **Enhance admin APIs responses with detailed metadata** | Adds semantic model table and column names to the `GetScanResult` response, which OpenMetadata ingests as datamodel tables and columns. See [Enabling enhanced metadata scanning](https://learn.microsoft.com/en-us/fabric/governance/metadata-scanning-overview#enabling-enhanced-metadata-scanning). | Data models are ingested without their tables and columns. |
+| **Enhance admin APIs responses with DAX and mashup expressions** | Adds table-level and column-level DAX and mashup expressions to the `GetScanResult` response. OpenMetadata parses these expressions to enrich datamodel metadata and to resolve lineage back to source tables and columns. | Lineage is incomplete, because the expressions that link data models to their source tables and columns are missing. |
+
+<Note>
+**Note**: The two enhanced metadata settings apply to service principals only when **Service principals can access read-only admin APIs** is also enabled. Enable all three together, and add the service principal to the security group specified in each setting.
+</Note>
+
+One more admin API setting, **Service principals can access admin APIs used for updates**, grants write access through the admin APIs. Metadata ingestion is read-only, so this setting is not required.
 ### Step 2: Create the App in Azure AD
 Please follow the steps mentioned [here](https://docs.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal) for setting up the Azure AD application service principle.
 ### Step 3: Provide necessary API permissions to the Azure AD app
-Go to the `Azure Ad app registrations` page, select your app and add the dashboard permissions to the app for PowerBI service and grant admin consent for the same:
-The required permissions are:
-- `Dashboard.Read.All`
-Optional Permissions: (Without granting these permissions, the dataset information cannot be retrieved and the datamodel and lineage processing will be skipped)
-- `Dataset.Read.All`
+Go to the `Azure Ad app registrations` page, select your app and add the permissions below to the app for PowerBI service and grant admin consent for the same.
+All four permissions are required:
+- `Dashboard.Read.All`: dashboards and the tiles OpenMetadata ingests as charts.
+- `Dataset.Read.All`: datasets that OpenMetadata ingests as data models, along with their tables and columns. Without it, datamodel and lineage processing is skipped.
+- `Report.Read.All`: reports, which OpenMetadata also ingests as dashboards.
+- `Workspace.Read.All`: workspaces, which OpenMetadata stores in the project field of dashboards and data models.
 <Warning>
 Make sure that in the API permissions section **Tenant** related permissions are not being given to the app
 Please refer [here](https://stackoverflow.com/questions/71001110/power-bi-rest-api-requests-not-authorizing-as-expected) for detailed explanation
 </Warning>
 ### Step 4: PowerBI Workspaces
 The service principal does not take into account the default user workspaces e.g `My Workspace`.
-Create new workspaces in PowerBI by following the document [here](https://docs.microsoft.com/en-us/power-bi/collaborate-share/service-create-the-new-workspaces)
-For reference here is a [thread](https://community.powerbi.com/t5/Service/Error-while-executing-Get-dataset-call-quot-API-is-not/m-p/912360#M85711) referring to the same
+To create a workspace, see [Create a workspace in Power BI](https://learn.microsoft.com/en-us/power-bi/collaborate-share/service-create-the-new-workspaces). For service principal requirements and limitations, see [Embed Power BI content with service principal and an application secret](https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal#considerations-and-limitations).
 ### Python Requirements
 <PythonRequirements />
 To run the PowerBI ingestion, you will need to install:
