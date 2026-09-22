@@ -19,6 +19,29 @@ All OpenMetadata MCP tools, with parameters and examples.
 | **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
 | **Metrics** | [create_metric](#create_metric) |
 
+## Which Tool to Call First
+
+**If you already have a fully qualified name**, start with `get_entity_details` directly. **If you don't**, start with `search_metadata` or `semantic_search` first, then pass the `fullyQualifiedName` from a result into `get_entity_details`.
+
+Starting broad with `search_metadata` when you already know the FQN adds unnecessary round trips (re-searching, re-confirming the match) that calling the lookup tool directly avoids.
+
+## Fully Qualified Name (FQN) Format
+
+An entity's FQN is a dot-separated path built from the entity and its ancestors. The number of segments depends on entity type:
+
+| Entity Type | FQN Pattern | Example |
+|---|---|---|
+| Table | `service.database.schema.table` | `snowflake_prod.analytics.public.customers` |
+| Database Schema | `service.database.schema` | `snowflake_prod.analytics.public` |
+| Database | `service.database` | `snowflake_prod.analytics` |
+| Dashboard | `service.dashboardName` | `sample_superset.10` |
+| Tag | `Classification.TagName` | `PII.Sensitive` |
+| Glossary Term | `glossary.term` | `marketing-terms.customer-acquisition-cost` |
+
+Consult the entity's [API Reference](/v1.13.x/api-reference/data-assets) page for entity types not listed here.
+
+**Special Characters**: If a name segment contains a period (`.`) or a double quote (`"`), wrap that segment in double quotes, escaping any internal `"` by doubling it. For example, a schema literally named `sales.eu` inside database `prod` becomes `service.prod."sales.eu".table`.
+
 ## Discover
 
 Search and find data assets across your catalog using keyword, semantic, or natural language queries.
@@ -42,10 +65,16 @@ Search and find data assets across your catalog using keyword, semantic, or natu
 | `size` | integer | No | Max results to return (default: 10, max: 50) |
 | `from` | integer | No | Offset for pagination (default: 0) |
 | `fields` | string | No | Comma-separated additional fields to include |
-| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query |
+| `queryFilter` | string | No | Advanced: direct OpenSearch DSL JSON query. Example: `{"bool": {"must": [{"term": {"entityType": "table"}}, {"term": {"tags.tagFQN": "PII.Sensitive"}}]}}` |
 | `includeDeleted` | boolean | No | Include deleted entities (default: false) |
 | `includeAggregations` | boolean | No | Include aggregation/facet data (default: false) |
 | `maxAggregationBuckets` | integer | No | Max buckets per aggregation (default: 10, max: 50) |
+
+<Warning>
+
+Omit `queryFilter` entirely rather than sending an empty string, `"null"`, or `"{}"`. A degenerate value is not treated as "no filter": it currently produces a `400 JSON parsing failed` error instead of falling through to a normal keyword search.
+
+</Warning>
 
 **Entity Types**
 - **Service Entities**: `databaseService`, `messagingService`, `apiService`, `dashboardService`, `pipelineService`, `storageService`, `mlmodelService`, `metadataService`, `searchService`
@@ -191,7 +220,7 @@ Retrieve detailed information about specific entities and company knowledge pill
 
 ### get_entity_details
 
-**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). Pass the exact `fullyQualifiedName` value from search results — do not construct FQNs manually.
+**Description**: Retrieve full details for a specific entity by fully qualified name (FQN). If you already have the exact FQN (from a prior search result, or built from known segments using the documented FQN format), pass it directly. If you're not certain of the exact segment values (service, database, schema, or table names as stored in OpenMetadata may differ from source-system names), use `search_metadata` or `semantic_search` first and pass through the `fullyQualifiedName` from the result to avoid a failed lookup.
 
 **Parameters**
 
