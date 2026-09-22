@@ -42,11 +42,15 @@ And, if you have password policies forcing users to reset the password, you can 
 ```SQL
 ALTER USER openmetadata DISABLE PASSWORD LIFETIME;
 ```
-Note that in order to get the metadata for **Calculation Views**, **Analytics Views** and **Attribute Views**, you need to have enough
-permissions on the `_SYS_BIC` schema. You can grant the required permissions to the user by running the following SQL commands:
+<Note>
+To get the metadata for **Calculation Views**, **Analytic Views**, and **Attribute Views** authored in the classic repository, you need enough permissions on the `_SYS_BIC` schema, where on-premise and HANA Express instances expose them as runtime views.
+</Note>
+
+You can grant the required permissions to the user by running the following SQL commands:
 ```SQL
 GRANT SELECT ON SCHEMA _SYS_BIC TO <user_or_role>;
 ```
+Views deployed through an **HDI container** are not exposed there. HANA deploys an HDI container's runtime objects into a schema generated for that container instead, so grant `SELECT` on that container's own schema to see those views.
 
 ### Lineage
 
@@ -55,7 +59,7 @@ SAP HANA lineage comes from three places, each covering a different kind of rela
 | Lineage | Read from | Grant required |
 |---|---|---|
 | View lineage, including column level | View definitions captured by metadata ingestion | `SELECT` on `SYS`, already required for metadata |
-| Table-to-table, from `INSERT INTO ... SELECT` and similar | `SYS.M_SQL_PLAN_CACHE` | `CATALOG READ` |
+| Table-to-table, from `INSERT INTO ... SELECT` and similar | `SYS.M_SQL_PLAN_CACHE`, or a configured `queryLogFilePath` instead | `CATALOG READ`, only when reading the plan cache |
 | Classic repository model lineage | `_SYS_REPO.ACTIVE_OBJECT` | `SELECT` on that object |
 
 ```SQL
@@ -71,11 +75,11 @@ GRANT SELECT ON _SYS_REPO.ACTIVE_OBJECT TO <user_or_role>;
 ```
 
 <Note>
-**SAP HANA Cloud.** `_SYS_REPO` is the classic HANA repository, which was never carried into SAP HANA Cloud, so that grant does not apply there and the lineage workflow logs an informational message saying the schema is absent. This affects only classic repository models. Calculation views built in HDI containers are still ingested through `_SYS_BIC`, and view, column-level, and table-to-table lineage are unaffected.
+**SAP HANA Cloud.** `_SYS_REPO` is the classic HANA repository, which was never carried into SAP HANA Cloud, so that grant does not apply there and the lineage workflow logs an informational message saying the schema is absent. This affects only classic-repository-authored Calculation, Analytic, and Attribute views: HANA Cloud never produces lineage for them, same as it never exposes them for metadata (see Metadata, above). View, column-level, and table-to-table lineage from ordinary tables and views are unaffected. Views deployed through an HDI container aren't read by this pass either, on any HANA edition: see [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/database/sap-hana/troubleshooting#_sys_repo-not-present) for what that means for their lineage.
 </Note>
 
 <Note>
-**`CREATE TABLE ... AS SELECT` is not captured.** SAP HANA records lineage-relevant statements in the plan cache, which holds execution plans and therefore never contains DDL. A table populated by `CREATE TABLE ... AS SELECT` will have no upstream lineage. Populating it with `INSERT INTO ... SELECT` instead makes the relationship visible.
+**`CREATE TABLE ... AS SELECT` is not captured from the plan cache.** `SYS.M_SQL_PLAN_CACHE` holds execution plans and therefore never contains DDL, so a table populated by `CREATE TABLE ... AS SELECT` has no upstream lineage when read from there. Populating it with `INSERT INTO ... SELECT` instead makes the relationship visible. If you configure `queryLogFilePath` to read statements from a file instead of the plan cache, that limitation doesn't apply: the shared query parser recognizes `CREATE TABLE ... AS SELECT` from a log file like it does for other connectors.
 </Note>
 
 Lineage also requires that the metadata workflow has already run, because view lineage is resolved against the tables and views that ingestion has registered. Run metadata ingestion before the lineage workflow on a new service.
