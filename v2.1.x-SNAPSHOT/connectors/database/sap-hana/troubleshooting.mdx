@@ -7,3 +7,80 @@ sidebarTitle: Troubleshooting
 import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 <Troubleshooting />
+
+## Lineage Workflow Succeeds but No Lineage Appears
+
+The lineage workflow can finish without errors and still produce nothing. The run log ends with one of two warnings, and which one you see narrows the cause.
+
+If statements were read but nothing resolved:
+
+```
+SAP HANA lineage finished with no edges, though N query records were emitted. The
+statements parsed but their endpoints did not resolve to ingested assets, so check that
+the metadata workflow covers the schemas those statements reference.
+```
+
+That points at metadata coverage, so start with the first cause below. If nothing was read at all:
+
+```
+SAP HANA lineage finished with no edges and emitted no query records. Check that the
+metadata workflow has already ingested the tables and views, that processViewLineage or
+processQueryLineage is enabled, and that the ingestion user holds CATALOG READ, without
+which SYS.M_SQL_PLAN_CACHE only returns the ingestion user's own statements.
+```
+
+That points at access or configuration, so start with the second cause below.
+
+### Metadata Ingestion Has Not Run Yet
+
+View lineage is resolved against the tables and views already registered in OpenMetadata. On a new service, running the lineage workflow before the metadata workflow gives it nothing to connect.
+
+**Resolution**: run metadata ingestion first, confirm the tables and views appear in OpenMetadata, then run the lineage workflow.
+
+### The Ingestion User Cannot See Other Users' Queries
+
+Table-to-table lineage is parsed from `SYS.M_SQL_PLAN_CACHE`. Without the `CATALOG READ` privilege, SAP HANA filters that view down to the connected user's own statements, so the connector only ever sees queries the ingestion user itself ran. It reports success because the query completes normally and legitimately returns nothing.
+
+`CATALOG READ` is a system privilege. It lifts row filtering from the monitoring and system views the user can reach, not only the plan cache, so grant it deliberately rather than as a routine step.
+
+**Resolution**:
+
+1. Grant the privilege to the ingestion user or its role:
+
+```SQL
+GRANT CATALOG READ TO <user_or_role>;
+```
+
+2. Re-run the lineage workflow and check the reported edge count in the logs.
+
+### The Statements You Expect Are DDL
+
+The plan cache holds execution plans, so DDL never enters it. A table created and populated by `CREATE TABLE ... AS SELECT` has no recoverable upstream on SAP HANA, by any route.
+
+**Resolution**: none at the connector level. If the relationship matters, populate the target with `INSERT INTO ... SELECT` so the statement is cached and parsed, or add the edge manually in OpenMetadata.
+
+### The Statements Have Aged Out
+
+The plan cache is a cache. HANA evicts entries under memory pressure, so statements that ran long before the workflow may already be gone. The lookback window has no effect on entries that no longer exist.
+
+**Resolution**: schedule the lineage workflow frequently enough that it sees statements while they are still cached.
+
+## `_SYS_REPO` Not Present
+
+On SAP HANA Cloud the lineage run logs:
+
+```
+_SYS_REPO is not present, so there are no repository models to read. This is normal on
+SAP HANA Cloud, where the classic repository was never carried over. View and query
+lineage are unaffected. Cause: <the underlying HANA error>
+```
+
+This is informational, not an error. `_SYS_REPO` belongs to the classic HANA repository, which SAP did not carry into HANA Cloud, so there are no classic repository models for this pass to read. Calculation views built in HDI containers are still ingested through `_SYS_BIC`, and view, column-level, and table-to-table lineage are unaffected.
+
+The connector logs this only when the object itself is not found. If you see it on an **on-premise** or **HANA Express** instance, where the schema should exist, check that `_SYS_REPO.ACTIVE_OBJECT` is actually present rather than assuming a permissions problem.
+
+A missing privilege behaves differently: it is reported as a workflow failure rather than this message. Apply the grant when you see that error:
+
+```SQL
+GRANT SELECT ON _SYS_REPO.ACTIVE_OBJECT TO <user_or_role>;
+```

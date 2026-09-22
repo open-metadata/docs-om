@@ -47,7 +47,38 @@ permissions on the `_SYS_BIC` schema. You can grant the required permissions to 
 ```SQL
 GRANT SELECT ON SCHEMA _SYS_BIC TO <user_or_role>;
 ```
-The same applies to the `_SYS_REPO` schema, required for lineage extraction.
+
+### Lineage
+
+SAP HANA lineage comes from three places, each covering a different kind of relationship, so the grants you need depend on the lineage you expect to see.
+
+| Lineage | Read from | Grant required |
+|---|---|---|
+| View lineage, including column level | View definitions captured by metadata ingestion | `SELECT` on `SYS`, already required for metadata |
+| Table-to-table, from `INSERT INTO ... SELECT` and similar | `SYS.M_SQL_PLAN_CACHE` | `CATALOG READ` |
+| Classic repository model lineage | `_SYS_REPO.ACTIVE_OBJECT` | `SELECT` on that object |
+
+```SQL
+-- Table-to-table lineage. Without this the ingestion user sees only the statements
+-- it ran itself, so the lineage workflow finds nothing to parse. Note this is a system
+-- privilege: it lifts row filtering from the monitoring and system views the user can
+-- reach, not just SYS.M_SQL_PLAN_CACHE. Grant it deliberately.
+GRANT CATALOG READ TO <user_or_role>;
+
+-- Classic repository models. On-premise and HANA Express only. Granted on the single
+-- object the connector reads rather than the whole schema.
+GRANT SELECT ON _SYS_REPO.ACTIVE_OBJECT TO <user_or_role>;
+```
+
+<Note>
+**SAP HANA Cloud.** `_SYS_REPO` is the classic HANA repository, which was never carried into SAP HANA Cloud, so that grant does not apply there and the lineage workflow logs an informational message saying the schema is absent. This affects only classic repository models. Calculation views built in HDI containers are still ingested through `_SYS_BIC`, and view, column-level, and table-to-table lineage are unaffected.
+</Note>
+
+<Note>
+**`CREATE TABLE ... AS SELECT` is not captured.** SAP HANA records lineage-relevant statements in the plan cache, which holds execution plans and therefore never contains DDL. A table populated by `CREATE TABLE ... AS SELECT` will have no upstream lineage. Populating it with `INSERT INTO ... SELECT` instead makes the relationship visible.
+</Note>
+
+Lineage also requires that the metadata workflow has already run, because view lineage is resolved against the tables and views that ingestion has registered. Run metadata ingestion before the lineage workflow on a new service.
 
 ### Profiler & Data Quality
 
