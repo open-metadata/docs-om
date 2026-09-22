@@ -33,15 +33,15 @@ OpenMetadata's MCP Server supports two authentication methods:
 
 ### OAuth 2.0 (Recommended)
 
-Connect using your existing OpenMetadata login - the same way you sign in to the OpenMetadata UI. No tokens to generate or manage. OAuth works with all supported SSO providers (Google, Azure, Okta, Auth0, LDAP, SAML, and more).
+Connect using your existing OpenMetadata login - the same way you sign in to the OpenMetadata UI. No tokens to generate or manage. OAuth works with all supported SSO providers (Google, Azure, Okta, Auth0, LDAP, SAML, and more). This flow requires a browser login, so it's best suited to clients a person runs interactively (Claude Desktop, Cursor, VS Code). For unattended agents or automation, use a Bot's [JWT token](#bot-token) instead.
 
 Learn more about [OAuth 2.0 Authentication](/v2.1.x-SNAPSHOT/how-to-guides/mcp/oauth).
 
 ### Personal Access Token (PAT)
 
-For environments where browser-based login is not available, you can use a Personal Access Token.
+If you only need a quick, personal test connection tied to your own account, generate a Personal Access Token from your user profile:
 
-1. Go to `&lt;YOUR-OpenMetadata-SERVER&gt;/users/&lt;YOUR-USERNAME&gt;/access-token` and select **Generate New Token**. This will give your AI agent the same role and access policy that is assigned to you in OpenMetadata. If you would like it to have different role-based access controls, create a new user.
+1. Go to `<YOUR-OpenMetadata-SERVER>/users/<YOUR-USERNAME>/access-token` and select **Generate New Token**. This gives your AI agent the same role and access policy assigned to you in OpenMetadata.
 
     <img src="/public/images/how-to-guides/mcp/generate-new-token.png" alt="Generate New Token" />
 
@@ -50,6 +50,22 @@ For environments where browser-based login is not available, you can use a Perso
     <img src="/public/images/how-to-guides/mcp/generate-new-token-2.png" alt="Set Token Lifespan" />
 
 3. Copy and save the token for later use.
+
+A Personal Access Token can't be generated for a Bot — OpenMetadata rejects that request. For any recurring or production agent use case, use a Bot's JWT token instead, described next.
+
+### Bot Token
+
+For unattended agents, automations, or environments where browser-based login is not available, use a Bot rather than a personal user account. A Bot is a service-account identity built for this purpose: it isn't tied to a specific person, and it keeps agent access auditable and separate from any individual's login.
+
+1. See [How to Set Up Bots](/v2.1.x-SNAPSHOT/developers/bots) to create a Bot and assign it the role-based access policy your agent needs.
+2. On the Bot's details page, click **Generate new token** to issue its JWT (revoke the existing one first if you're rotating it).
+3. Copy the JWT and store it in an environment variable or secrets manager, never in source control.
+
+Every request then carries this token in the Authorization header:
+
+```http
+Authorization: Bearer <your-bot-token>
+```
 
 ## Connect Your MCP Client
 
