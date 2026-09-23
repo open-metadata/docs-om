@@ -157,6 +157,7 @@ Default: `false`
 ## Token Validity (tokenValidity):
 The validity period of the SAML token in seconds.
 Default: `"3600"` (1 hour)
+Must be a positive value. OpenMetadata rejects a zero or negative value, and falls back to `3600` at runtime if an invalid value is ever persisted.
 
 ## Send Encrypted Name ID (sendEncryptedNameId):
 Whether to send the NameID in an encrypted format in the SAML response.
@@ -279,7 +280,14 @@ Whether to enforce user principal matching with the defined principal domain
 If true, enables secure connections (SSL/TLS)
 
 ## Use Roles From Provider (useRolesFromProvider):
-Whether to derive roles from the authentication provider
+Whether to derive roles from the authentication provider. Roles must be included in the identity provider's token and must match existing OpenMetadata role names. OpenMetadata skips any role name it doesn't recognize.
+
+Whether a role change at the provider reaches OpenMetadata depends on how the user signs in:
+
+- **OIDC sign-in**: OpenMetadata updates the user's roles each time they sign in, so a role added or removed at the provider takes effect at their next sign-in. If the token doesn't include a roles claim at all, OpenMetadata leaves the user's existing roles unchanged.
+- **SAML sign-in**: Signing in doesn't update roles from the provider. Manage these users' roles in OpenMetadata directly.
+
+The provider can make a user an admin, but removing the Admin role at the provider doesn't remove their admin access. To remove it, update the user in OpenMetadata. If the user is also listed in `adminPrincipals`, remove them from that list too, because OpenMetadata restores admin access to everyone on it when they sign in.
 
 ## Initial Admins (initialAdmins):
 List of initial admin users for the system
