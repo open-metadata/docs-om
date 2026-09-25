@@ -6,9 +6,11 @@ sidebarTitle: ODCS Import and Export
 
 # ODCS Import and Export
 
-OpenMetadata imports and exports data contracts in the [Open Data Contract Standard (ODCS)](https://bitol-io.github.io/open-data-contract-standard/latest/) format. An import converts the ODCS document into an OpenMetadata data contract on one table. It doesn't store the original file.
+OpenMetadata imports and exports data contracts in the [Open Data Contract Standard (ODCS)](https://bitol-io.github.io/open-data-contract-standard/latest/) format. An import converts the ODCS document into an OpenMetadata data contract on one data asset, usually a table. It doesn't store the original file.
 
 ODCS covers more than an OpenMetadata contract does. Servers, pricing, support channels, and business names, for example, have no place on an OpenMetadata contract. This page explains what an import keeps, what it leaves out, and what happens to quality rules, so you know what to expect before you import.
+
+The import report, the **Create Test Cases from Quality Rules** option, and running ODCS quality rules as test cases require OpenMetadata 2.0.3 or later. Earlier 2.0.x releases store quality rules without running them, and a single value they can't read fails the whole import.
 
 <Info>
 
@@ -35,12 +37,14 @@ An import reads the file the same way the import report does. Preview the report
 
 ### In the UI
 
-1. On the table's page, select the **Contract** tab.
-2. Select **Import ODCS** and choose the ODCS YAML file.
-3. Optional: If the file contains more than one schema object, select the object that describes this table.
-4. Review the status card and the **Import Report** below the preview.
-5. Optional: Clear **Create Test Cases from Quality Rules** to keep the quality rules with the contract without running them.
-6. Select **Import**, or **Import with Warnings** when the report lists warnings.
+1. On the asset's page, select the **Contract** tab.
+2. Select **Add Contract** > **Import ODCS**. If the asset already has a contract, select **Import ODCS** in the contract's actions menu instead.
+3. Choose the ODCS YAML file.
+4. Optional: If the file contains more than one schema object, select the object that describes this asset.
+5. If the asset already has a contract, select **Merge with Existing** to keep the fields the file doesn't set, or **Replace Entire Contract**.
+6. Review the status card and the **Import Report** below the preview.
+7. Optional: Clear **Create Test Cases from Quality Rules** to keep the quality rules with the contract without running them.
+8. Select **Import**, or **Import with Warnings** when the report lists warnings.
 
 The status card shows one of three states:
 
@@ -68,9 +72,10 @@ Send the file to `POST /v1/dataContracts/odcs/validate/yaml`. The response is th
 Only problems the import can't work around block it:
 
 - An unsupported `apiVersion`, a `kind` other than `DataContract`, or a missing or invalid `status`.
-- A contract column that the table doesn't have, or a column listed twice.
+- A contract column that the asset doesn't have, or a column listed twice.
+- A schema on an asset type that doesn't support one, such as a dashboard. See [Supported Assets](/v2.0.x/how-to-guides/data-contracts/spec#supported-assets).
 - A schema object name (`objectName`) that isn't in the file.
-- A missing table.
+- A missing asset.
 - Quality rules that would create test cases you don't have permission to create. Import without test cases to keep the rules without running them.
 
 Everything else is a warning. The import leaves the value out, reports it, and imports the rest. That includes values OpenMetadata can't represent, such as the `vector` logical type added in ODCS v3.2.0, or freshness measured in minutes.
@@ -86,7 +91,7 @@ The following tables list how an import treats each ODCS field. Each field is ei
 | `apiVersion`, `kind` | Checked. See [Supported ODCS Versions](#supported-odcs-versions). |
 | `status` | Contract status: `active` becomes **Approved**, `proposed` and `draft` become **Draft**, `deprecated` becomes **Deprecated**, and `retired` becomes **Archived**. |
 | `id` | Contract ID when it's a UUID. Otherwise OpenMetadata generates one. |
-| `name` | Contract name. When it's missing, the name comes from the table. |
+| `name` | Contract name. When it's missing, the name comes from the asset. |
 | `description.purpose`, `description.limitations`, `description.usage` | Contract description. Limitations and usage become headed sections. A plain-text `description` becomes the purpose. |
 | `schema` | Contract columns. See [Schema](#schema). |
 | `team` | Contract owners. See [Team and Roles](#team-and-roles). |
@@ -95,8 +100,8 @@ The following tables list how an import treats each ODCS field. Each field is ei
 | `quality` | Quality rules. See [Quality Rules](#quality-rules). |
 | `authoritativeDefinitions` | Kept for export only. |
 | `version` | Not imported. OpenMetadata versions the contract itself. |
-| `domain`, `dataProduct` | Not imported. The contract takes its domain and data product from the table. |
-| `servers` | Not imported. OpenMetadata takes connection details from the table's service. |
+| `domain`, `dataProduct` | Not imported. The contract takes its domain and data product from the asset. |
+| `servers` | Not imported. OpenMetadata takes connection details from the asset's service. |
 | `contractCreatedTs` | Not imported. OpenMetadata records when it creates the contract. |
 | `tenant`, `tags`, `support`, `price`, `customProperties` | Not imported. OpenMetadata contracts have no equivalent. |
 | `description.authoritativeDefinitions`, `description.customProperties` | Not imported. |
@@ -105,7 +110,7 @@ The following tables list how an import treats each ODCS field. Each field is ei
 
 ### Schema
 
-A contract covers one table, so an import reads one schema object. It picks the object named in `objectName`, then the object named like the table, then the first object. Other schema objects aren't imported. A `schema` that lists columns directly, without an object around them, is read as the table's columns.
+A contract covers one asset, so an import reads one schema object. It picks the object named in `objectName`, then the object named like the asset, then the first object. Other schema objects aren't imported. A `schema` that lists columns directly, without an object around them, is read as the asset's columns.
 
 On the imported schema object:
 
@@ -128,11 +133,11 @@ On each property (column):
 | `properties` | Nested columns. |
 | `quality` | Column-level quality rules. |
 | `authoritativeDefinitions`, `transformSourceObjects` | Kept for export only. |
-| `tags` | Not imported. Tag the table's columns in OpenMetadata to classify them or link glossary terms. |
+| `tags` | Not imported. Tag the asset's columns in OpenMetadata to classify them or link glossary terms. |
 | `physicalName`, `businessName`, `classification`, `criticalDataElement`, `examples`, `partitioned`, `partitionKeyPosition`, `primaryKeyPosition`, `encryptedName`, `transformLogic`, `transformDescription`, `customProperties`, `relationships`, `id`, `items` | Not imported. OpenMetadata contract columns have no equivalent. |
 | `context`, `synonyms`, `enum`, `semanticType`, `deprecated` | Not imported. They were added in ODCS v3.2.0. |
 
-The import compares the contract columns with the table. A contract column the table doesn't have blocks the import. A column whose type differs from the table's is reported as a warning.
+The import compares the contract columns with the asset's columns or fields, as a contract run does. A contract column the asset doesn't have blocks the import. A column whose type differs from the asset's is reported as a warning. For how names and types are matched, see [Schema](/v2.0.x/how-to-guides/data-contracts/spec#schema).
 
 ### Team and Roles
 
@@ -156,7 +161,7 @@ OpenMetadata keeps the contract's owners, not the whole team. The team can be a 
 | `retention` | Retention | day, week, month, year |
 | `availabilityTime` | Availability time, with the timezone from `valueExt` | Not applicable |
 
-Common unit spellings, such as `d`, `days`, `hrs`, and `yr`, are accepted. The `value` must be a whole number. The `element` of a freshness property sets the SLA column and must name a column of the table.
+Common unit spellings, such as `d`, `days`, `hrs`, and `yr`, are accepted. The `value` must be a whole number. The `element` of a freshness property sets the SLA column. On a table, it must name one of the table's columns.
 
 These SLA values are reported and left out rather than failing the import:
 
@@ -164,7 +169,7 @@ These SLA values are reported and left out rather than failing the import:
 - A value that isn't a whole number.
 - A unit the SLA field doesn't offer, such as freshness in minutes.
 - A timezone OpenMetadata doesn't list. The availability time is still imported, without a timezone.
-- An `element` that isn't a column of the table.
+- On a table, an `element` that isn't one of its columns.
 
 The `driver`, `description`, `scheduler`, `schedule`, `customProperties`, `authoritativeDefinitions`, and `id` fields of an SLA property aren't imported.
 
@@ -173,7 +178,7 @@ The `driver`, `description`, `scheduler`, `schedule`, `customProperties`, `autho
 Quality rules are read from the document root, from the schema object, and from each property. Each rule becomes one of three things:
 
 - **Test case**: An OpenMetadata test case on the table or column, linked to the contract. It runs with the contract's test suite, so its results count toward the contract's quality validation.
-- **SLA**: A `freshness` rule sets the contract's refresh frequency. Contract validation checks the SLA, so no test case is added.
+- **SLA**: A `freshness` rule sets the contract's refresh frequency instead of creating a test case. Contract runs don't check SLA values, so the rule records the expectation but nothing checks it.
 - **Not Run**: The rule is stored with the contract and comes back on ODCS export, but nothing runs it.
 
 Every rule is stored with the contract, whatever its outcome. The import report's **Quality Rules** section lists what each rule becomes and why.
@@ -229,9 +234,9 @@ With test case creation turned off, the rules are stored only, and the test case
 
 ## Exporting to ODCS
 
-To export a contract, open the table's **Contract** tab and select **Export as ODCS**, or call `GET /v1/dataContracts/{id}/odcs/yaml`. The export is an ODCS v3.1.0 document that includes:
+To export a contract, open the asset's **Contract** tab and select **Export as ODCS** in the actions menu, or call `GET /v1/dataContracts/{id}/odcs/yaml`. The export is an ODCS v3.1.0 document that includes:
 
-- The contract's columns, as the properties of one schema object named after the table.
+- The contract's columns, as the properties of one schema object named after the asset.
 - Owners, as team members with `role: owner`.
 - Security policies, as roles.
 - The SLA, as `slaProperties`. The refresh frequency is always exported as a `freshness` property, which other ODCS tools read.
