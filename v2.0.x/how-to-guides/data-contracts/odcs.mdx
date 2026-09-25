@@ -1,0 +1,324 @@
+---
+title: ODCS Import and Export | OpenMetadata Data Contracts
+description: Which Open Data Contract Standard (ODCS) versions and fields OpenMetadata imports, how ODCS quality rules become test cases, and how to check a contract before you import it.
+sidebarTitle: ODCS Import and Export
+---
+
+# ODCS Import and Export
+
+OpenMetadata imports and exports data contracts in the [Open Data Contract Standard (ODCS)](https://bitol-io.github.io/open-data-contract-standard/latest/) format. An import converts the ODCS document into an OpenMetadata data contract on one table. It doesn't store the original file.
+
+ODCS covers more than an OpenMetadata contract does. Servers, pricing, support channels, and business names, for example, have no place on an OpenMetadata contract. This page explains what an import keeps, what it leaves out, and what happens to quality rules, so you know what to expect before you import.
+
+<Info>
+
+The contract page, including its YAML code view, shows the OpenMetadata contract that the import produced. It doesn't show the original ODCS file. A long ODCS file often produces a much shorter contract. Keep the source file in version control if you need the full document.
+
+</Info>
+
+## Supported ODCS Versions
+
+OpenMetadata reads these `apiVersion` values:
+
+| `apiVersion` | How it's read |
+|---|---|
+| `v3.1.0` | Native mapping. Exports always use this version. |
+| `v3.2.0` | Read with the v3.1.0 mapping. Fields added in v3.2.0 are reported as not imported. |
+| `v3.0.2`, `v3.0.1`, `v3.0.0` | Read with the v3.1.0 mapping. Older shapes, such as a team written as a list of members, are accepted. |
+| `v2.2.2`, `v2.2.1`, `v2.2.0` | Read with the v3.1.0 mapping. |
+
+Any other `apiVersion` blocks the import. The document must also have `kind: DataContract` and a valid `status` (`proposed`, `draft`, `active`, `deprecated`, or `retired`).
+
+## Check a Contract Before You Import It
+
+An import reads the file the same way the import report does. Preview the report first to see exactly what the import will do.
+
+### In the UI
+
+1. On the table's page, select the **Contract** tab.
+2. Select **Import ODCS** and choose the ODCS YAML file.
+3. Optional: If the file contains more than one schema object, select the object that describes this table.
+4. Review the status card and the **Import Report** below the preview.
+5. Optional: Clear **Create Test Cases from Quality Rules** to keep the quality rules with the contract without running them.
+6. Select **Import**, or **Import with Warnings** when the report lists warnings.
+
+The status card shows one of three states:
+
+| Status | Meaning |
+|---|---|
+| **Ready to Import** | Everything in the file is imported. |
+| **Ready with Warnings** | The contract imports, but some fields are left out or changed. |
+| **Cannot Import** | A blocking issue stops the import. **Import** stays disabled. |
+
+The status card also shows how many quality rules run as test cases, for example "33 of 35 quality rules run as test cases." The report has four sections:
+
+- **Blocking Issues**: What stops the import and why.
+- **Quality Rules**: Each rule, the column it applies to, and its outcome: **Test case**, **SLA**, or **Not Run**. A test case outcome names the test definition and the test case. A **Not Run** outcome gives the reason.
+- **Not Imported**: Fields the import leaves out, grouped by section (document, schema, SLA, team, roles, servers, support, and quality). Each entry gives the reason and, when the same field appears in many places, how many places.
+- **Kept for Export Only**: Fields OpenMetadata stores so they come back on ODCS export, but doesn't show on the contract.
+
+Changing the file, the schema object, or the checkbox runs the check again, so the report always matches what the import will do.
+
+### With the API
+
+Send the file to `POST /v1/dataContracts/odcs/validate/yaml`. The response is the contract validation result with an `odcsImportReport` that lists the same blocking issues, warnings, and quality rule outcomes as the UI. For the request parameters and the response format, see the [Import & Export API reference](/v2.0.x/api-reference/data-contracts/odcs#validate-odcs-yaml).
+
+### What Blocks an Import
+
+Only problems the import can't work around block it:
+
+- An unsupported `apiVersion`, a `kind` other than `DataContract`, or a missing or invalid `status`.
+- A contract column that the table doesn't have, or a column listed twice.
+- A schema object name (`objectName`) that isn't in the file.
+- A missing table.
+- Quality rules that would create test cases you don't have permission to create. Import without test cases to keep the rules without running them.
+
+Everything else is a warning. The import leaves the value out, reports it, and imports the rest. That includes values OpenMetadata can't represent, such as the `vector` logical type added in ODCS v3.2.0, or freshness measured in minutes.
+
+## Field Mapping
+
+The following tables list how an import treats each ODCS field. Each field is either imported into the contract, kept for export only, or not imported. A field that isn't part of ODCS at all is reported as not imported.
+
+### Document
+
+| ODCS field | In OpenMetadata |
+|---|---|
+| `apiVersion`, `kind` | Checked. See [Supported ODCS Versions](#supported-odcs-versions). |
+| `status` | Contract status: `active` becomes **Approved**, `proposed` and `draft` become **Draft**, `deprecated` becomes **Deprecated**, and `retired` becomes **Archived**. |
+| `id` | Contract ID when it's a UUID. Otherwise OpenMetadata generates one. |
+| `name` | Contract name. When it's missing, the name comes from the table. |
+| `description.purpose`, `description.limitations`, `description.usage` | Contract description. Limitations and usage become headed sections. A plain-text `description` becomes the purpose. |
+| `schema` | Contract columns. See [Schema](#schema). |
+| `team` | Contract owners. See [Team and Roles](#team-and-roles). |
+| `roles` | Contract security policies. See [Team and Roles](#team-and-roles). |
+| `slaProperties` | Contract SLA. See [SLA Properties](#sla-properties). |
+| `quality` | Quality rules. See [Quality Rules](#quality-rules). |
+| `authoritativeDefinitions` | Kept for export only. |
+| `version` | Not imported. OpenMetadata versions the contract itself. |
+| `domain`, `dataProduct` | Not imported. The contract takes its domain and data product from the table. |
+| `servers` | Not imported. OpenMetadata takes connection details from the table's service. |
+| `contractCreatedTs` | Not imported. OpenMetadata records when it creates the contract. |
+| `tenant`, `tags`, `support`, `price`, `customProperties` | Not imported. OpenMetadata contracts have no equivalent. |
+| `description.authoritativeDefinitions`, `description.customProperties` | Not imported. |
+| `slaDefaultElement` | Not imported. It's deprecated since ODCS v3.1.0. |
+| `context` | Not imported. It was added in ODCS v3.2.0. |
+
+### Schema
+
+A contract covers one table, so an import reads one schema object. It picks the object named in `objectName`, then the object named like the table, then the first object. Other schema objects aren't imported. A `schema` that lists columns directly, without an object around them, is read as the table's columns.
+
+On the imported schema object:
+
+| ODCS field | In OpenMetadata |
+|---|---|
+| `name`, `logicalType` | Used to select the object. |
+| `properties` | Contract columns. |
+| `quality` | Table-level quality rules. |
+| `authoritativeDefinitions`, `transformSourceObjects` | Kept for export only. |
+| Every other field, such as `physicalName`, `businessName`, `description`, `tags`, `relationships`, and `dataGranularityDescription` | Not imported. Only the object's columns are imported. |
+
+On each property (column):
+
+| ODCS field | In OpenMetadata |
+|---|---|
+| `name`, `description` | Column name and description. |
+| `physicalType`, `logicalType` | Column data type. A `physicalType` that names an OpenMetadata data type, such as `VARCHAR`, wins. Otherwise the type comes from `logicalType`. |
+| `primaryKey`, `unique`, `required` | Column constraint: primary key, then unique, then not null. |
+| `logicalTypeOptions.maxLength` | Column data length. Other `logicalTypeOptions` aren't imported. |
+| `properties` | Nested columns. |
+| `quality` | Column-level quality rules. |
+| `authoritativeDefinitions`, `transformSourceObjects` | Kept for export only. |
+| `tags` | Not imported. Tag the table's columns in OpenMetadata to classify them or link glossary terms. |
+| `physicalName`, `businessName`, `classification`, `criticalDataElement`, `examples`, `partitioned`, `partitionKeyPosition`, `primaryKeyPosition`, `encryptedName`, `transformLogic`, `transformDescription`, `customProperties`, `relationships`, `id`, `items` | Not imported. OpenMetadata contract columns have no equivalent. |
+| `context`, `synonyms`, `enum`, `semanticType`, `deprecated` | Not imported. They were added in ODCS v3.2.0. |
+
+The import compares the contract columns with the table. A contract column the table doesn't have blocks the import. A column whose type differs from the table's is reported as a warning.
+
+### Team and Roles
+
+OpenMetadata keeps the contract's owners, not the whole team. The team can be a list of members (ODCS v3.0) or an object with `members` (ODCS v3.1).
+
+| ODCS field | In OpenMetadata |
+|---|---|
+| Team member with `role: owner` | Contract owner. The `username` or `name` must match an OpenMetadata user, or the `name` must match a team. Owners that don't match are reported and left out. |
+| Team member with any other role | Not imported. |
+| Other team and member fields, such as `description`, `dateIn`, and `dateOut` | Not imported. |
+| `roles[].role` | Access policy name on the contract's security section. A role named `classification-<value>` sets the data classification instead. |
+| `roles[].firstLevelApprovers` | Identities on that access policy. A single string or a list is accepted. |
+| `roles[].access`, `description`, `secondLevelApprovers`, `customProperties`, `id` | Not imported. |
+
+### SLA Properties
+
+| ODCS `property` | Contract SLA field | Accepted units |
+|---|---|---|
+| `freshness` or `refreshFrequency` | Refresh frequency | hour, day, week, month, year |
+| `latency` or `maxLatency` | Maximum latency | minute, hour, day |
+| `retention` | Retention | day, week, month, year |
+| `availabilityTime` | Availability time, with the timezone from `valueExt` | Not applicable |
+
+Common unit spellings, such as `d`, `days`, `hrs`, and `yr`, are accepted. The `value` must be a whole number. The `element` of a freshness property sets the SLA column and must name a column of the table.
+
+These SLA values are reported and left out rather than failing the import:
+
+- A property with no OpenMetadata equivalent, such as `frequency` or `availability`.
+- A value that isn't a whole number.
+- A unit the SLA field doesn't offer, such as freshness in minutes.
+- A timezone OpenMetadata doesn't list. The availability time is still imported, without a timezone.
+- An `element` that isn't a column of the table.
+
+The `driver`, `description`, `scheduler`, `schedule`, `customProperties`, `authoritativeDefinitions`, and `id` fields of an SLA property aren't imported.
+
+## Quality Rules
+
+Quality rules are read from the document root, from the schema object, and from each property. Each rule becomes one of three things:
+
+- **Test case**: An OpenMetadata test case on the table or column, linked to the contract. It runs with the contract's test suite, so its results count toward the contract's quality validation.
+- **SLA**: A `freshness` rule sets the contract's refresh frequency. Contract validation checks the SLA, so no test case is added.
+- **Not Run**: The rule is stored with the contract and comes back on ODCS export, but nothing runs it.
+
+Every rule is stored with the contract, whatever its outcome. The import report's **Quality Rules** section lists what each rule becomes and why.
+
+### Rules That Run as Test Cases
+
+| ODCS rule | OpenMetadata test definition |
+|---|---|
+| `metric: nullValues` (legacy `rule: notNull`) | `columnValuesToBeNotNull` |
+| `metric: missingValues` | `columnValuesMissingCount`. Values in `arguments.missingValues` also count as missing. |
+| `metric: invalidValues` with `arguments.validValues` (legacy `rule: validValues`) | `columnValuesToBeInSet` |
+| `metric: invalidValues` with `arguments.pattern` (legacy `rule: regex` or `rule: pattern`) | `columnValuesToMatchRegex` |
+| `metric: duplicateValues` | `columnValuesToBeUnique` |
+| `metric: rowCount` | `tableRowCountToEqual` for `mustBe`, otherwise `tableRowCountToBeBetween` |
+| `metric: completeness` with `unit: percent` | `columnValuesToBeNotNull` that tolerates the remaining share of nulls. At least 95% complete tolerates 5% nulls. |
+| Legacy `rule: textLength` | `columnValueLengthsToBeBetween` |
+| Legacy `rule: valuesBetween` | `columnValuesToBeBetween` |
+| `type: sql` | `tableCustomSQLQuery` |
+| `type: custom` with `engine: openmetadata` | The test definition named in `implementation`. OpenMetadata exports its own tests in this form. |
+
+OpenMetadata also accepts the legacy counts `nullCount`, `missingCount`, and `duplicateCount`, and reads metric arguments from `arguments` (v3.1.0) or directly on the rule (v3.0.x).
+
+Comparisons become the test's thresholds:
+
+- **Null, invalid, and duplicate values**: No comparison, or `mustBe: 0`, allows no failing rows. `mustBeLessOrEqualTo` and `mustBeLessThan` set how many failing rows are allowed. With `unit: percent`, the limit is a share of the rows.
+- **Row count, text length, and value ranges**: `mustBe`, `mustBeBetween`, and the `mustBeGreaterThan`, `mustBeGreaterOrEqualTo`, `mustBeLessThan`, and `mustBeLessOrEqualTo` operators become the range.
+- **SQL rules**: The rule needs exactly one comparison with a whole number. The `{object}` and `{property}` placeholders (also written `${object}` and `${property}`) become the table and column names, quoted for the table's database. A query that groups rows at the top level counts the rows it returns. Any other query compares the value it returns.
+
+### Rules That Don't Run
+
+These rules are stored with the contract and exported again, but nothing runs them:
+
+- `type: text` rules, which describe an expectation in prose.
+- `type: custom` rules for any engine other than `openmetadata`, such as Soda, Great Expectations, dbt, or Monte Carlo. OpenMetadata has no executor for these engines.
+- Metrics with no OpenMetadata test equivalent, such as `uniqueValues` and `distinctValues`, and metric names ODCS doesn't define.
+- A column-level rule that isn't attached to a column, or whose column isn't in the table.
+- A rule missing the argument its test needs, such as `invalidValues` without `validValues` or `pattern`.
+- A comparison the test can't express, such as `mustNotBeBetween`, or a SQL rule with a fractional threshold.
+- A `freshness` rule measured in minutes or seconds. The contract's refresh frequency is measured in hours or longer.
+
+To run a vendor check in OpenMetadata, rewrite it as a supported metric or as a `type: sql` rule, or add an equivalent test case to the contract.
+
+### How Test Cases Are Created
+
+- **Names**: A test case takes the rule's `id` as its name. Without an `id`, the name is `odcs_` followed by the rule's name, for example `odcs_order_id_is_never_null`. Give each rule a stable `id` so test case names don't change when you rename a rule.
+- **Re-imports**: Importing the same contract again updates the test cases it created last time instead of adding new ones.
+- **Existing test cases**: If the table already has a test case with the same name that the contract doesn't own, the import links it only when it runs the same test with the same parameters. Otherwise the import skips it and reports why.
+- **Replace mode**: A rule removed from the contract is unlinked from the contract. Its test case isn't deleted.
+- **Permissions**: Creating test cases requires the **Create Tests** permission on the table. Updating a test case the contract created requires **Edit Tests**. Without them, the import report blocks the import. Clear **Create Test Cases from Quality Rules**, or send `createTestCases=false` to the API, to import the rules without running them.
+- **Tables only**: Quality rules run as test cases only for contracts on tables.
+
+With test case creation turned off, the rules are stored only, and the test cases already linked to the contract stay linked.
+
+## Exporting to ODCS
+
+To export a contract, open the table's **Contract** tab and select **Export as ODCS**, or call `GET /v1/dataContracts/{id}/odcs/yaml`. The export is an ODCS v3.1.0 document that includes:
+
+- The contract's columns, as the properties of one schema object named after the table.
+- Owners, as team members with `role: owner`.
+- Security policies, as roles.
+- The SLA, as `slaProperties`. The refresh frequency is always exported as a `freshness` property, which other ODCS tools read.
+- Every stored quality rule, word for word.
+- The contract's other test cases, as ODCS rules. A test with an ODCS equivalent becomes a library or SQL rule. Any other test becomes a `type: custom` rule with `engine: openmetadata`, which recreates the same test case when imported.
+- The fields kept for export only.
+
+Fields the import left out aren't restored on export.
+
+### Differences From the Bitol JSON Schema
+
+OpenMetadata reads its own exports back without changes. A strict validator that checks the export against the Bitol ODCS v3.1.0 JSON Schema reports these differences:
+
+| What the export contains | What the Bitol schema expects | To pass strict validation |
+|---|---|---|
+| `logicalType` values `long`, `float`, `double`, `decimal`, `text`, and `bytes`, which keep the column's data type | `string`, `date`, `timestamp`, `time`, `number`, `integer`, `object`, `array`, or `boolean` | Map `long` to `integer`, `float`, `double`, and `decimal` to `number`, and `text` and `bytes` to `string`. The column's type stays in `physicalType`. |
+| `roles[].firstLevelApprovers` as a list | A string | Join the list into one string. OpenMetadata imports either form. |
+| A root-level `quality` list | Rules under a schema object or property | Place table-level rules under the schema object's `quality` in the source file. Rules imported from the document root are exported at the root. |
+
+## Recommended ODCS Format
+
+For the most predictable imports, write contracts in this form:
+
+- Use `apiVersion: v3.1.0`.
+- Use `metric` with the ODCS metrics `nullValues`, `missingValues`, `invalidValues`, `duplicateValues`, and `rowCount`, and put their arguments under `arguments`. The older `rule` field still works, but ODCS v3.1.0 deprecates it.
+- Put table-level rules under the schema object's `quality`, and column-level rules under the property's `quality`.
+- Give each rule a stable `id`.
+- State freshness as an SLA property in hours or longer, for example `property: freshness`, `value: 1`, `unit: d`.
+- Write each SQL rule with the `{object}` and `{property}` placeholders and exactly one `mustBe…` comparison with a whole number.
+- Keep vendor checks as `type: custom` rules with their `engine`, knowing they're stored but not run.
+
+A file that mixes v3.0 and v3.1 conventions, such as `rule` in some checks and `metric` in others, still imports. Check the import report to confirm what each rule becomes.
+
+Imported onto a table with `order_id`, `status`, and `updated_at` columns, and with `jane.doe` as an OpenMetadata user, this example imports without warnings. It creates three test cases and sets the SLA's refresh frequency:
+
+```yaml
+apiVersion: v3.1.0
+kind: DataContract
+id: 3f1c6a2e-8d4b-4b8e-9d62-1c0f5e7a9b21
+name: orders-contract
+status: active
+description:
+  purpose: Orders placed through the web store.
+  usage: Daily revenue reporting.
+team:
+  members:
+    - username: jane.doe
+      role: owner
+schema:
+  - name: orders
+    logicalType: object
+    properties:
+      - name: order_id
+        logicalType: integer
+        physicalType: BIGINT
+        primaryKey: true
+        quality:
+          - id: order_id_not_null
+            name: Order ID is never null
+            metric: nullValues
+            mustBe: 0
+      - name: status
+        logicalType: string
+        quality:
+          - id: status_valid
+            name: Status is a known value
+            metric: invalidValues
+            arguments:
+              validValues: [placed, shipped, delivered, returned]
+            mustBe: 0
+    quality:
+      - id: orders_not_empty
+        name: Orders table is not empty
+        metric: rowCount
+        mustBeGreaterThan: 0
+slaProperties:
+  - property: freshness
+    value: 1
+    unit: d
+    element: orders.updated_at
+```
+
+<CardGroup cols={2}>
+  <Card title="Import & Export API" href="/v2.0.x/api-reference/data-contracts/odcs">
+    Endpoints for ODCS import, export, and validation.
+  </Card>
+  <Card title="Data Contract Specification" href="/v2.0.x/how-to-guides/data-contracts/spec">
+    The sections of an OpenMetadata data contract.
+  </Card>
+</CardGroup>
