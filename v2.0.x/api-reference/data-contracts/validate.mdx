@@ -7,11 +7,13 @@ api: POST /v1/dataContracts/{id}/validate
 
 # Validate & Results
 
-Run on-demand validation of data contracts and manage execution results. Validation checks schema compliance, semantics rules, quality expectations, and SLA targets.
+Run on-demand validation of data contracts and manage execution results. Validation checks schema compliance, semantics rules, and quality expectations. SLA, security, and terms of use aren't checked.
 
 ## Validate a Contract
 
-Trigger on-demand validation of a data contract. Returns a `DataContractResult` with status for each validation dimension.
+Trigger on-demand validation of a data contract. Returns a `DataContractResult` with status for each validation dimension. Requires the **Edit All** permission on the contract.
+
+Schema and semantics are checked immediately. When the contract has quality expectations, the call starts the contract's test suite pipeline and returns a `Running` result. The quality results and the final status are added to that result when the tests finish. A new validation aborts a result that's still `Running`.
 
 `POST /v1/dataContracts/{id}/validate`
 
@@ -21,7 +23,7 @@ Trigger on-demand validation of a data contract. Returns a `DataContractResult` 
 
 ## Validate by Entity
 
-Validate the effective contract for a specific entity. If the entity only has an inherited contract from a data product, a local contract is materialized to store results.
+Validate the effective contract for a specific entity, including rules inherited from its data product. If the entity only has an inherited contract from a data product, a local contract is materialized to store results. Requires the **Edit All** permission on the entity. Returns `404` if the entity has no effective contract.
 
 `POST /v1/dataContracts/entity/validate`
 
@@ -104,13 +106,7 @@ curl -X POST "{base_url}/api/v1/dataContracts/entity/validate?entityId=a1b2c3d4-
     "failed": 0,
     "total": 2,
     "qualityScore": 100.0
-  },
-  "slaValidation": {
-    "refreshFrequencyMet": true,
-    "latencyMet": true,
-    "availabilityMet": true
-  },
-  "executionTime": 1250
+  }
 }
 ```
 </ResponseExample>
@@ -121,12 +117,13 @@ curl -X POST "{base_url}/api/v1/dataContracts/entity/validate?entityId=a1b2c3d4-
 
 | Status | Description |
 |--------|-------------|
-| `Running` | Validation is in progress |
-| `Success` | All validations passed |
-| `Failed` | One or more validations failed |
-| `PartialSuccess` | Some validations passed, some failed |
-| `Aborted` | Validation was aborted due to an error |
-| `Queued` | Validation is queued for execution |
+| `Running` | Validation is in progress. A contract with quality expectations stays `Running` until its tests finish. |
+| `Success` | No schema column, semantics rule, or test case failed |
+| `Failed` | At least one schema column, semantics rule, or test case failed |
+| `Aborted` | The test suite couldn't be started, or a newer validation replaced this one |
+| `PartialSuccess`, `Queued` | Reserved. OpenMetadata doesn't set them, but results added with `PUT /results` can use them. |
+
+The **Data Contract Validation** application also validates every contract on a schedule, daily at midnight by default.
 
 ---
 
@@ -212,7 +209,7 @@ Programmatically add a validation result (useful for external validation pipelin
 </ParamField>
 
 <ParamField body="slaValidation" type="object">
-  SLA validation details.
+  SLA validation details. OpenMetadata doesn't fill this in during validation. External pipelines can set it.
 
   <Expandable title="properties">
     <ParamField body="refreshFrequencyMet" type="boolean">Whether refresh frequency target was met.</ParamField>

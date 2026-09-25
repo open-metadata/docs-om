@@ -9,6 +9,10 @@ api: GET /v1/dataContracts/{id}/odcs
 
 Data contracts can be imported and exported using the [Open Data Contract Standard (ODCS)](https://bitol-io.github.io/open-data-contract-standard/latest/) v3.1.0 format. Both JSON and YAML are supported, with smart merge and full replace modes for updates.
 
+For which ODCS fields an import keeps, how quality rules become test cases, and how exports differ from the Bitol JSON Schema, see [ODCS Import and Export](/v2.0.x/how-to-guides/data-contracts/odcs).
+
+The `createTestCases` parameter, the `odcsImportReport` in validation responses, and quality rules that run as test cases require OpenMetadata 2.0.3 or later.
+
 ## Export to ODCS
 
 ### Export by ID (JSON)
@@ -103,45 +107,66 @@ curl "{base_url}/api/v1/dataContracts/name/sales-orders-contract/odcs" \
     {
       "name": "orders",
       "logicalType": "object",
+      "physicalType": "table",
       "properties": [
         {
           "name": "order_id",
+          "physicalName": "order_id",
           "logicalType": "integer",
-          "required": true,
-          "primaryKey": true
+          "physicalType": "INT",
+          "primaryKey": true,
+          "unique": false,
+          "required": false,
+          "quality": [
+            {
+              "id": "order_id_not_null",
+              "name": "Order ID is never null",
+              "type": "library",
+              "metric": "nullValues",
+              "mustBe": 0,
+              "column": "order_id"
+            }
+          ]
         },
         {
           "name": "customer_id",
+          "physicalName": "customer_id",
           "logicalType": "integer",
+          "physicalType": "INT",
+          "primaryKey": false,
+          "unique": false,
           "required": true
         },
         {
           "name": "order_date",
+          "physicalName": "order_date",
           "logicalType": "timestamp",
-          "required": true
-        },
+          "physicalType": "TIMESTAMP"
+        }
+      ],
+      "quality": [
         {
-          "name": "total_amount",
-          "logicalType": "decimal"
+          "id": "orders_not_empty",
+          "name": "Orders table is not empty",
+          "type": "library",
+          "metric": "rowCount",
+          "mustBeGreaterThan": 0,
+          "column": "orders"
         }
       ]
     }
   ],
-  "quality": [
-    {
-      "type": "custom",
-      "dimension": "completeness",
-      "description": "All required fields must be present"
-    }
-  ],
   "slaProperties": [
     {
-      "property": "frequency",
-      "value": "PT1H"
+      "property": "freshness",
+      "value": "1",
+      "unit": "day",
+      "element": "order_date"
     },
     {
-      "property": "availability",
-      "value": "99.9"
+      "property": "availabilityTime",
+      "value": "09:00",
+      "valueExt": "GMT+00:00 (Europe/London)"
     }
   ]
 }
@@ -184,6 +209,10 @@ curl "{base_url}/api/v1/dataContracts/name/sales-orders-contract/odcs" \
   Schema object name to import for multi-object ODCS contracts. If not specified, auto-selects based on entity name.
 </ParamField>
 
+<ParamField query="createTestCases" type="boolean" default="true">
+  Whether the contract's ODCS quality rules become test cases on the table. With `false`, the rules are stored with the contract without running, and test cases already linked to the contract stay linked, in `replace` mode too. Creating test cases requires the **Create Tests** permission on the table. Without it, an import with `createTestCases=true` returns `403` and writes nothing.
+</ParamField>
+
 ```python Import ODCS
 from metadata.sdk import configure
 from metadata.sdk.entities import DataContracts
@@ -209,12 +238,17 @@ contract = (DataContracts.import_odcs(table_id, "table")
 ```java Import ODCS
 // Import from ODCS JSON
 var contract = client.dataContracts().importFromODCS(
-    entityId, "table", odcsContract
+    odcsContract, entityId, "table"
 );
 
 // Import from YAML
 var contract = client.dataContracts().importFromODCSYaml(
-    entityId, "table", yamlContent
+    yamlContent, entityId, "table"
+);
+
+// Import from YAML, keeping quality rules without creating test cases
+var contract = client.dataContracts().importFromODCSYaml(
+    yamlContent, entityId, "table", false
 );
 ```
 
@@ -242,15 +276,24 @@ curl -X PUT "{base_url}/api/v1/dataContracts/odcs?entityId=a1b2c3d4-e5f6-7890-ab
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d @contract.json
+
+# Import quality rules without creating test cases
+curl -X POST "{base_url}/api/v1/dataContracts/odcs/yaml?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table&createTestCases=false" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @contract.yaml
 ```
+
+An import reads past values it can't represent. It leaves them out and imports the rest. Only the blocking issues listed under [Validate ODCS YAML](#validate-odcs-yaml) reject the request.
 
 ---
 
 ## Preserving ODCS-Only Fields
 
-ODCS documents can carry data OpenMetadata doesn't model directly, such as quality rules or element-level
+ODCS documents can carry data OpenMetadata doesn't model directly, such as element-level
 `authoritativeDefinitions` and `transformSourceObjects`. Rather than dropping this data, OpenMetadata stores it
-as a passthrough and restores it on export.
+as a passthrough and restores it on export. ODCS quality rules are stored the same way, whether or not they
+also run as test cases, so an export returns them word for word.
 
 <Warning>
 
@@ -261,13 +304,14 @@ that omits them. A PATCH that explicitly removes them also works.
 </Warning>
 
 **Current limitations**:
-- The UI doesn't render these passthrough fields yet—they're accessible via the API only.
+- The contract page doesn't show these passthrough fields. Quality rules that run show up as the contract's test cases. The import report lists every rule, including the ones that don't run.
 - If the schema element an extension is attached to can't be matched on export (for example, it was renamed
   or removed), `authoritativeDefinitions` fall back to the contract level rather than being lost.
   `transformSourceObjects` have no such fallback. For an unmatched element, they're dropped instead.
 - Several other ODCS attributes aren't mapped yet and don't round-trip: `businessName`, `classification`,
   `examples`, `customProperties`, `transformLogic`, `transformDescription`, `logicalTypeOptions` (except
-  `maxLength`, which round-trips through the column's `dataLength`), and element-level `tags`.
+  `maxLength`, which round-trips through the column's `dataLength`), and element-level `tags`. For the full list,
+  see [Field Mapping](/v2.0.x/how-to-guides/data-contracts/odcs#field-mapping).
 
 ---
 
@@ -298,7 +342,7 @@ curl -X POST "{base_url}/api/v1/dataContracts/odcs/parse/yaml" \
 
 ## Validate ODCS YAML
 
-Validate an ODCS YAML contract against a target entity without creating it.
+Preview an ODCS YAML import against a target entity without creating anything. The response reports what the import keeps, changes, and leaves out, and what each quality rule becomes. The UI's import dialog shows the same report.
 
 `POST /v1/dataContracts/odcs/validate/yaml`
 
@@ -314,6 +358,10 @@ Validate an ODCS YAML contract against a target entity without creating it.
   Schema object name for multi-object contracts.
 </ParamField>
 
+<ParamField query="createTestCases" type="boolean" default="true">
+  Whether the import you're previewing would create test cases from the quality rules. Pass the same value you'll import with, so the report matches the import.
+</ParamField>
+
 ```bash Validate YAML
 curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3d4-e5f6-7890-abcd-ef1234567890&entityType=table" \
   -H "Authorization: Bearer {access_token}" \
@@ -321,14 +369,118 @@ curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3
   --data-binary @contract.yaml
 ```
 
+```java Validate YAML
+ContractValidation validation = client.dataContracts().validateODCSYaml(
+    yamlContent, entityId, "table", true
+);
+ODCSImportReport report = validation.getOdcsImportReport();
+System.out.println("Can import: " + report.getCanImport());
+```
+
 ```json Response
 {
-  "passed": 3,
-  "failed": 1,
-  "total": 4,
-  "failedFields": ["missing_column"]
+  "valid": true,
+  "schemaValidation": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "failedFields": []
+  },
+  "odcsImportReport": {
+    "odcsVersion": "v3.1.0",
+    "canImport": true,
+    "canCreateTestCases": true,
+    "issues": [
+      {
+        "severity": "warning",
+        "category": "schema",
+        "field": "businessName",
+        "path": "schema[0].properties[0].businessName",
+        "occurrences": 3,
+        "message": "`businessName` is not imported. OpenMetadata contract columns have no equivalent."
+      },
+      {
+        "severity": "warning",
+        "category": "servers",
+        "field": "servers",
+        "path": "servers",
+        "occurrences": 1,
+        "message": "`servers` is not imported. OpenMetadata takes connection details from the table's service."
+      },
+      {
+        "severity": "info",
+        "category": "schema",
+        "field": "authoritativeDefinitions",
+        "path": "schema[0].authoritativeDefinitions",
+        "occurrences": 1,
+        "message": "`authoritativeDefinitions` is kept for ODCS export but not shown in OpenMetadata."
+      }
+    ],
+    "qualityRules": [
+      {
+        "name": "Order ID is never null",
+        "column": "order_id",
+        "outcome": "testCase",
+        "testDefinition": "columnValuesToBeNotNull",
+        "testCaseName": "order_id_not_null"
+      },
+      {
+        "name": "Orders land daily",
+        "column": "orders",
+        "outcome": "sla",
+        "reason": "Sets the contract's refresh frequency to every day."
+      },
+      {
+        "name": "Soda duplicate check",
+        "column": "orders",
+        "outcome": "notExecuted",
+        "reason": "It is written for the 'soda' engine, which runs outside OpenMetadata."
+      }
+    ]
+  }
 }
 ```
+
+The response is a `ContractValidation`. `valid` matches `odcsImportReport.canImport`.
+
+### Import Report Fields
+
+| Field | Description |
+|---|---|
+| `odcsVersion` | The `apiVersion` the document declares. |
+| `canImport` | `false` when at least one issue is blocking. |
+| `canCreateTestCases` | Whether you may create test cases on the table, which importing quality rules as test cases requires. |
+| `issues` | Findings about the document, blocking issues first, then warnings, then information. |
+| `qualityRules` | One entry per quality rule, with what the rule becomes. |
+
+Each issue has these fields:
+
+| Field | Description |
+|---|---|
+| `severity` | `blocking` stops the import. `warning` means part of the document isn't imported, or not as written. `info` describes how something is imported, such as a field kept for export only. |
+| `category` | Section of the document: `document`, `schema`, `quality`, `sla`, `team`, `roles`, `servers`, `support`, or `other`. |
+| `field` | The ODCS key the finding is about, such as `businessName`. |
+| `path` | Where the first occurrence is, such as `schema[0].properties[3].businessName`. |
+| `occurrences` | How many places the same finding applies to. A key repeated on every property is reported once with a count. |
+| `message` | What happens to the field and why. |
+
+Each quality rule entry has these fields:
+
+| Field | Description |
+|---|---|
+| `name`, `column` | The rule's name and the column or schema object it's attached to. |
+| `outcome` | `testCase`: the rule runs as a test case. `sla`: the rule sets the contract's refresh frequency. `notExecuted`: the rule is stored with the contract, but nothing runs it. |
+| `testDefinition`, `testCaseName` | For `testCase`, the test definition and the name of the test case the import creates or updates. |
+| `reason` | For `notExecuted`, why the rule doesn't run. For `sla`, the refresh frequency it sets. |
+
+These issues are blocking:
+
+- An unsupported `apiVersion`, a `kind` other than `DataContract`, or a missing or invalid `status`.
+- A contract column the table doesn't have, or a column listed twice.
+- An `objectName` that isn't in the document, or a missing entity.
+- Quality rules that would create test cases the caller may not create. Validate and import with `createTestCases=false` to keep the rules without running them.
+
+A document with missing required fields returns `200` with `valid: false` and a blocking issue. Malformed YAML returns `400`.
 
 ---
 
@@ -336,7 +488,8 @@ curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3
 
 | Version | Status |
 |---------|--------|
-| v3.1.0 | Full support |
+| v3.2.0 | Supported. Read with the v3.1.0 mapping. Fields added in v3.2.0 are reported as not imported. |
+| v3.1.0 | Full support. Exports use this version. |
 | v3.0.2 | Supported |
 | v3.0.1 | Supported |
 | v3.0.0 | Supported |
@@ -352,5 +505,5 @@ curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3
 |------|-----------|-------------|
 | `400` | `BAD_REQUEST` | Invalid ODCS content or YAML syntax |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
-| `403` | `FORBIDDEN` | User lacks permission |
+| `403` | `FORBIDDEN` | User lacks permission for the contract, or for the test cases an import with `createTestCases=true` would create |
 | `404` | `NOT_FOUND` | Data contract or entity not found |

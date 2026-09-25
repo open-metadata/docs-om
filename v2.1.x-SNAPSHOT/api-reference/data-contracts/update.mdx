@@ -30,11 +30,10 @@ configure(
 )
 
 # Update contract description and status
-contract = DataContracts.update(
-    "f7a1b2c3-d4e5-6789-0abc-def123456789",
-    description="Updated contract for sales orders table",
-    entityStatus="Active"
-)
+contract = DataContracts.retrieve("f7a1b2c3-d4e5-6789-0abc-def123456789")
+contract.description = "Updated contract for sales orders table"
+contract.entityStatus = "Approved"
+contract = DataContracts.update(contract)
 ```
 
 ```java PATCH /v1/dataContracts/{id}
@@ -43,7 +42,7 @@ import static org.openmetadata.sdk.fluent.DataContracts.*;
 // Update using fluent API
 FluentDataContract contract = find(contractId).fetch();
 contract.withDescription("Updated contract for sales orders table")
-    .withStatus(EntityStatus.ACTIVE)
+    .withStatus(EntityStatus.APPROVED)
     .save();
 ```
 
@@ -54,7 +53,7 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
   -H "Content-Type: application/json-patch+json" \
   -d '[
     {"op": "replace", "path": "/description", "value": "Updated contract for sales orders table"},
-    {"op": "replace", "path": "/entityStatus", "value": "Active"}
+    {"op": "replace", "path": "/entityStatus", "value": "Approved"}
   ]'
 
 # Add a semantic rule
@@ -62,7 +61,12 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json-patch+json" \
   -d '[
-    {"op": "add", "path": "/semantics/-", "value": {"name": "hasDomain"}}
+    {"op": "add", "path": "/semantics/-", "value": {
+      "name": "Domain is set",
+      "description": "The table must belong to a domain.",
+      "rule": "{\"some\":[{\"var\":\"domains\"},{\"!=\":[{\"var\":\"fullyQualifiedName\"},null]}]}",
+      "enabled": true
+    }}
   ]'
 ```
 </RequestExample>
@@ -74,7 +78,7 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
   "name": "sales-orders-contract",
   "fullyQualifiedName": "sales-orders-contract",
   "description": "Updated contract for sales orders table",
-  "entityStatus": "Active",
+  "entityStatus": "Approved",
   "entity": {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "type": "table",
@@ -87,7 +91,7 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
   "changeDescription": {
     "fieldsUpdated": [
       {"name": "description", "oldValue": "Data contract for the sales orders table", "newValue": "Updated contract for sales orders table"},
-      {"name": "entityStatus", "oldValue": "Draft", "newValue": "Active"}
+      {"name": "entityStatus", "oldValue": "Draft", "newValue": "Approved"}
     ]
   }
 }
@@ -101,7 +105,7 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
 | Operation | Path | Description |
 |-----------|------|-------------|
 | `replace` | `/description` | Update description |
-| `replace` | `/entityStatus` | Change status (`Draft`, `Active`, `Deprecated`) |
+| `replace` | `/entityStatus` | Change status (`Draft`, `In Review`, `Approved`, `Rejected`, `Deprecated`, `Archived`) |
 | `add` | `/semantics/-` | Add a semantic rule |
 | `remove` | `/semantics/0` | Remove a semantic rule by index |
 | `replace` | `/sla` | Update SLA section |
