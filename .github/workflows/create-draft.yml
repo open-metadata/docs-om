@@ -23,8 +23,11 @@ jobs:
         # 1. The job-level `if:` above is only a cheap substring pre-filter
         #    (skip spinning up a runner at all for obviously-unrelated
         #    comments) -- incidental prose like "don't run /create-draft
-        #    yet" also contains that substring. Require an exact, standalone
-        #    command here before doing anything real.
+        #    yet" also contains that substring. Require the entire comment,
+        #    trimmed of surrounding whitespace, to be exactly the command
+        #    before doing anything real. Matching any single line isn't
+        #    enough: a multiline note can quote `/create-draft` on its own
+        #    line while saying not to run it.
         #
         # 2. Anyone can open a public GitHub issue, so an issue's title and
         #    body are untrusted content unless we can prove this workflow's
@@ -44,8 +47,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          if ! printf '%s' "$COMMENT_BODY" | grep -qxE '[[:space:]]*/create-draft[[:space:]]*'; then
-            echo "Comment is not an exact, standalone /create-draft command -- refusing to proceed." >&2
+          COMMAND="${COMMENT_BODY//$'\r'/}"
+          COMMAND="${COMMAND#"${COMMAND%%[![:space:]]*}"}"
+          COMMAND="${COMMAND%"${COMMAND##*[![:space:]]}"}"
+          if [ "$COMMAND" != "/create-draft" ]; then
+            echo "Comment is not exactly the /create-draft command -- refusing to proceed." >&2
             echo "valid=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

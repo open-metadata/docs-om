@@ -63,18 +63,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Lookback is the last successful *scheduled* run of this exact
-          # workflow that actually did real work -- not just any successful
-          # scheduled run. `--event schedule` alone rules out a manual
-          # workflow_dispatch dry-run contaminating this baseline, but it is
-          # NOT enough by itself: a scheduled run during FORCE_DRY_RUN also
-          # completes with status "success" while writing nothing, because
-          # the label-creation step (and the write tools) are gated off, not
-          # the run itself. Treating that as a real watermark would silently
+          # Lookback is the last successful *live* run of this exact
+          # workflow on main -- scheduled or manual -- not
+          # just any successful run. A run's status alone isn't enough: a
+          # run during FORCE_DRY_RUN, or a manual dry_run, also completes
+          # with status "success" while writing nothing, because the
+          # label-creation step (and the write tools) are gated off, not the
+          # run itself. Treating that as a real watermark would silently
           # skip everything found-but-never-tracked during the whole
-          # FORCE_DRY_RUN preview period, the moment it's switched off.
+          # preview period, the moment it's switched off.
           #
-          # So this walks backward through recent schedule runs and checks
+          # So this walks backward through recent successful runs and checks
           # whether "Ensure tracking labels exist" (now in the "prepare"
           # job -- this workflow used to be a single job, so the check below
           # matches on job name too) -- gated off during both FORCE_DRY_RUN
@@ -83,6 +82,14 @@ jobs:
           # timestamp. Same pattern the major watcher already uses for its
           # own off-week no-op runs. Read-only Jobs API calls, needs nothing
           # beyond the `actions: read` already granted.
+          #
+          # Manual (workflow_dispatch) runs count too, not just `schedule`
+          # ones: the first live run is the manual catch-up with an explicit
+          # `since`, and it's the only thing that can seed this baseline. If
+          # only scheduled runs counted, every scheduled run after it would
+          # still find no live baseline and fail closed below, forever.
+          # Restricting to main keeps a manual run from a feature branch,
+          # with an edited copy of this workflow, from setting the baseline.
           #
           # Two things this deliberately avoids, both confirmed broken by
           # direct testing rather than assumed: a repo *variable* written
@@ -108,15 +115,15 @@ jobs:
           fi
 
           # 100, not 20: with this workflow scheduled twice a week, a cap of
-          # 20 only reaches back about ten weeks. A gap in scheduled runs
-          # (an extended dry-run preview period, an outage, workflow
-          # disabled for a while) can easily exceed that, and the old cap
-          # would then report "no baseline found" for a run that actually
-          # has one just out of reach -- aging a valid baseline out instead
-          # of finding it.
+          # 20 only reaches back about ten weeks. A gap in live runs (an
+          # extended dry-run preview period, an outage, workflow disabled
+          # for a while) can easily exceed that, and the old cap would then
+          # report "no baseline found" for a run that actually has one just
+          # out of reach -- aging a valid baseline out instead of finding it.
           LAST_RUN=""
           for RUN_ID in $(gh run list --repo "${{ github.repository }}" \
-                            --workflow "minor-release-watcher.yml" --event schedule \
+                            --workflow "minor-release-watcher.yml" \
+                            --branch main \
                             --status success --json databaseId --limit 100 \
                             --jq '.[].databaseId' 2>/dev/null || echo ""); do
             MARKER=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
@@ -138,7 +145,7 @@ jobs:
             # 4-day default here would permanently and silently miss
             # whatever backlog built up before this run, with nothing in
             # the digest to show it was ever skipped.
-            echo "::error::No successful live (non-dry) baseline run found among the last 100 scheduled runs, and no explicit 'since' input was given. Re-run workflow_dispatch with an explicit since=YYYY-MM-DD to establish this rollout's first live baseline -- falling back to a short fixed window here would silently and permanently miss any older backlog." >&2
+            echo "::error::No successful live (non-dry) baseline run found among the last 100 successful runs on main, and no explicit 'since' input was given. Re-run workflow_dispatch from main with an explicit since=YYYY-MM-DD to establish this rollout's first live baseline -- falling back to a short fixed window here would silently and permanently miss any older backlog." >&2
             exit 1
           else
             # Preview-only run (FORCE_DRY_RUN, or a manual dry_run): nothing
@@ -257,13 +264,21 @@ jobs:
               --base $MINOR_RELEASE_BRANCH \
               --search "merged:>=$LOOKBACK" \
               --json number,title,url,body,labels,mergedAt,files,baseRefName \
-              --limit 500
+              --limit 1000
 
-            `--limit` defaults to 30 -- a busy release window can easily
-            merge more than that, and anything past the default page is
-            silently never scanned. Always pass an explicit high limit
-            (500 comfortably covers any realistic window; raise it further
-            if a single scan window could plausibly exceed that).
+            The scan must be exhaustive. `gh pr list` silently stops at
+            `--limit`, and GitHub's search never returns more than 1,000
+            results for one query, so a full result is not proof that
+            nothing is left. If a query returns exactly as many PRs as its
+            `--limit`, treat it as cut off: split its date range in half
+            (`merged:<start>..<middle>` and `merged:<day after
+            middle>..<end>`, with `<end>` being today for the open-ended
+            first query) and run each half the same way. Repeat until every
+            range returns fewer PRs than the limit, then combine the results,
+            dropping duplicates by PR number. If a single day's range still
+            returns the full limit, stop: don't write `summary.json`, so the
+            run fails visibly instead of reporting a partial scan as
+            complete.
 
             Never query `--base main` here -- that's the Major Release
             Watcher's job. A PR merged directly to a release branch is
@@ -278,8 +293,17 @@ jobs:
 
             Apply the doc-relevance filter from upstream-watch-config.md to
             each PR. Drop anything that doesn't clearly pass it -- dependency
-            bumps, backports, test-only or internal-refactor PRs, docs-only
-            PRs in the source repo itself. For each PR that passes, read
+            bumps, test-only or internal-refactor PRs, docs-only PRs in the
+            source repo itself.
+
+            Do NOT drop a PR just because it's a backport ("Backport #Y to
+            <branch>"). Most changes reach a patch release as a backport of
+            a PR that merged to `main` first, and the Major Release Watcher
+            leaves those to this workflow once a backport exists -- dropping
+            them here means neither watcher reviews the change. Judge a
+            backport on its own diff like any other PR, and record its
+            original PR number (see below) so the notify job updates the
+            original's issue instead of filing a second one. For each PR that passes, read
             both the description (`gh pr view <number> --repo
             open-metadata/OpenMetadata`) and the real code diff (`gh pr
             diff <number> --repo open-metadata/OpenMetadata`), then write a

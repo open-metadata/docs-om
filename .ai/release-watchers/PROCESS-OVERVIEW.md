@@ -57,13 +57,17 @@ repo already goes through.
   content, not deciding whether today is a scan day or what version comes
   next.
 - **Self-healing lookback, not a fixed day-count.** Both workflows ask
-  "when did I last succeed?" via `gh run list` (filtered to real `schedule`
-  runs, so a manual dry-run test can never contaminate the baseline), and
-  use that as the actual cutoff. A missed or failed run widens the next
-  lookback automatically instead of silently dropping PRs. A `since`
-  workflow_dispatch input can override this outright for a one-off
-  catch-up run -- needed the first time each workflow runs for real, when
-  there's no prior run to compute a baseline from.
+  "when did I last succeed for real?" via `gh run list` on `main`,
+  scheduled or manual, and keep only runs whose "Ensure tracking labels
+  exist" step actually ran, so a dry-run or off-week run can never
+  contaminate the baseline. They use that as the actual cutoff. A missed
+  or failed run widens the next lookback automatically instead of
+  silently dropping PRs. A `since` workflow_dispatch input can override
+  this outright for a one-off catch-up run -- needed the first time each
+  workflow runs for real, when there's no prior run to compute a baseline
+  from. That manual run then becomes the baseline for the scheduled runs
+  after it. A live run with no baseline and no `since` fails instead of
+  guessing a window.
 - **Current version comes from this repo's own published release notes,
   not a separately-maintained config file.** `snippets/releases/latest.mdx`
   is replaced wholesale on every real release -- it's the one thing that's
@@ -104,11 +108,11 @@ a deliberate scope decision, not an oversight.
 
 | Step | What it does | Where |
 |---|---|---|
-| Lookback | Finds the last successful *scheduled* run of this workflow via `gh run list --event schedule`; falls back to a 4-day window if none found or the lookup itself fails; a `since` input overrides both outright | Deterministic bash step, `id: cadence` |
+| Lookback | Finds the last successful live run of this workflow on `main`, scheduled or manual, via `gh run list --branch main` plus a check that the label step actually ran; a live run with none found fails, and a preview run falls back to a 4-day window; a `since` input overrides all of this outright | Deterministic bash step, `id: cadence` |
 | Version | Parses the current version out of this repo's own `snippets/releases/latest.mdx`, then computes the next minor version, the minor release branch name, and the current version's doc directory | Deterministic bash step, `id: version` |
 | 1. Read config | Uses the already-computed version values above, and reads `upstream-watch-config.md` for the doc-relevance filter rules | Prompt step 1 |
-| 2. Scan | `gh pr list --base <minor-release-branch>` since the lookback cutoff | Prompt step 2 |
-| 3. Filter | Applies the doc-relevance filter; for survivors, reads the real PR body/diff and writes a plain-English evidence note — never guesses from the title | Prompt step 3 |
+| 2. Scan | `gh pr list --base <minor-release-branch>` since the lookback cutoff; splits the date range whenever a query comes back full, so nothing past the result limit is missed | Prompt step 2 |
+| 3. Filter | Applies the doc-relevance filter, including to backports, which is how most changes reach a patch release; for survivors, reads the real PR body/diff and writes a plain-English evidence note — never guesses from the title | Prompt step 3 |
 | 4. Verify | Classifies each survivor as **HELD** (PR discloses it's unverified/unapproved), **RULED OUT** (bug fix restoring existing behavior, checked against this repo's actual docs), **NEEDS A LOOK** (genuinely inconclusive), or **CONFIRMED** | Prompt step 4 |
 | 5. Group | Groups CONFIRMED PRs belonging to the same feature; cumulative across runs, never guesses whether a feature is "done" | Prompt step 5 |
 | 6. Notify | Dedups three ways before creating anything: (i) this PR's number under *either* marker prefix — old `daily-watcher:pr-X` or this workflow's `minor-watcher:pr-X`, (ii) a shared "Fixes #X" tracking issue, (iii) a shared original PR if this item is itself a backport ("Backport #Y"). Creates or updates one issue; assigns `DAILY_WATCHER_ASSIGNEES` if set | Prompt step 6 |
@@ -133,8 +137,8 @@ major `2.1`). Does two jobs in one run:
 | Step | What it does |
 |---|---|
 | A1. Read config | Uses the already-computed version values (current version, minor release branch, next major version, next major's doc directory) |
-| A2. Scan | `gh pr list --base main` since the lookback |
-| A3. Classify major vs. minor | **The judgment call this workflow exists to make.** A `main` merge isn't automatically major-only — it might just be minor work that hasn't been backported yet. First checks for a backport PR on the current minor branch (upstream's own "Backport #X to Y" title convention). If none exists, reads the PR's own "Type of change": a bug/security fix is treated as provisionally minor-bound (excluded here) since those almost always get backported eventually; a genuinely new capability is the real major-only signal. Genuinely ambiguous cases become their own NEEDS A LOOK item instead of a guess |
+| A2. Scan | `gh pr list --base main` since the lookback; splits the date range whenever a query comes back full, and fails the run if a single day still does |
+| A3. Classify major vs. minor | **The judgment call this workflow exists to make.** A `main` merge isn't automatically major-only — it might just be minor work that hasn't been backported yet. First checks for a backport PR on the current minor branch (upstream's own "Backport #X to Y" title convention). If one exists, the PR is excluded only once this repo already tracks the change under either PR number; otherwise it's still reviewed here, so a change can't fall between the two watchers. If none exists, reads the PR's own "Type of change": a bug/security fix is treated as provisionally minor-bound (excluded here) since those almost always get backported eventually; a genuinely new capability is the real major-only signal. Genuinely ambiguous cases become their own NEEDS A LOOK item instead of a guess |
 | A4. Filter + Verify | Same four-way classification as the minor watcher, applied to whatever survived A3 |
 | A5. Group | Same cumulative grouping as the minor watcher |
 | A6. Notify | Same three-way dedup as the minor watcher (own prefix, old prefix, shared tracking issue, shared original PR) |
@@ -214,9 +218,9 @@ Projects (v2) write access if that's wanted later.
   retroactively migrated to carry a `minor-watcher`/`major-watcher`
   marker of their own.
 - **First run for each workflow has no history to look back on** — the
-  `since` input handles this deliberately; without it, falls back to a
-  fixed generous window (4 days for minor, 15 for major) rather than
-  guessing.
+  `since` input handles this deliberately. Without it, a live run fails
+  rather than guessing a window. Preview runs fall back to a fixed window
+  (4 days for minor, 15 for major), since they don't track anything.
 - **Older minor lines (e.g. `1.13.x`) are no longer watched** — a
   deliberate scope reduction to a single current line, not a bug.
 - **`create-draft.yml`'s real git-push/PR-open path has never executed

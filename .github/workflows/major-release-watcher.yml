@@ -71,21 +71,27 @@ jobs:
           # Same self-healing lookback as the minor watcher (see that file
           # for why this isn't a repo variable -- 403, confirmed by direct
           # testing -- or the digest issue's comment timestamps -- corrupted
-          # by any unrelated human reply). `--event schedule` alone isn't
-          # quite enough here, though: this workflow runs every Monday, but
-          # only does real work on even weeks -- an *off*-week run also
-          # completes with status "success", it just skips its steps. Using
-          # "most recent successful schedule run" as-is would find that
-          # no-op run and silently create the exact same kind of gap.
+          # by any unrelated human reply). A successful run status isn't
+          # enough here, though: this workflow runs every Monday, but only
+          # does real work on even weeks -- an *off*-week run also completes
+          # with status "success", it just skips its steps. So does a
+          # FORCE_DRY_RUN or manual dry_run. Using "most recent successful
+          # run" as-is would find that no-op run and silently create the
+          # exact same kind of gap.
           #
-          # So this walks backward through recent schedule runs and checks
+          # So this walks backward through recent successful runs and checks
           # whether "Ensure tracking labels exist" (now in the "prepare"
           # job -- this workflow used to be a single job, so the check
           # below matches on job name too) -- a step already gated to
-          # on-week, non-dry runs only -- actually ran (conclusion
-          # "success") rather than being skipped, and uses the first such
-          # run's timestamp. Read-only Jobs API calls, needs nothing beyond
-          # the `actions: read` already granted.
+          # on-week (or force_run), non-dry runs only -- actually ran
+          # (conclusion "success") rather than being skipped, and uses the
+          # first such run's timestamp. Read-only Jobs API calls, needs
+          # nothing beyond the `actions: read` already granted.
+          #
+          # Manual (workflow_dispatch) runs on main count too, for the same
+          # reason as in the minor watcher: the first live run is the manual
+          # catch-up with an explicit `since`, and it's the only thing that
+          # can seed this baseline.
           SINCE_OVERRIDE="${{ github.event.inputs.since }}"
           if [ -n "$SINCE_OVERRIDE" ]; then
             echo "lookback=$SINCE_OVERRIDE" >> "$GITHUB_OUTPUT"
@@ -98,8 +104,8 @@ jobs:
           fi
 
           # 100, not 20: this workflow only does real work on even weeks,
-          # so 20 scheduled runs (most of them off-week no-ops) reaches
-          # back less than a year even in the best case. A gap (an
+          # so 20 successful runs (half of them off-week no-ops) reach back
+          # less than a year even in the best case. A gap (an
           # extended dry-run preview period, an outage, workflow disabled
           # for a while) can easily exceed what 20 runs covers, and the old
           # cap would then report "no baseline found" for a run that
@@ -107,7 +113,8 @@ jobs:
           # out instead of finding it.
           LAST_RUN=""
           for RUN_ID in $(gh run list --repo "${{ github.repository }}" \
-                            --workflow "major-release-watcher.yml" --event schedule \
+                            --workflow "major-release-watcher.yml" \
+                            --branch main \
                             --status success --json databaseId --limit 100 \
                             --jq '.[].databaseId' 2>/dev/null || echo ""); do
             MARKER=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
@@ -129,7 +136,7 @@ jobs:
             # 15-day default here would permanently and silently miss
             # whatever backlog built up before this run, with nothing in
             # the digest to show it was ever skipped.
-            echo "::error::No successful live (non-dry) baseline run found among the last 100 scheduled runs, and no explicit 'since' input was given. Re-run workflow_dispatch with an explicit since=YYYY-MM-DD (and force_run=true, if this isn't a biweekly week) to establish this rollout's first live baseline -- falling back to a short fixed window here would silently and permanently miss any older backlog." >&2
+            echo "::error::No successful live (non-dry) baseline run found among the last 100 successful runs on main, and no explicit 'since' input was given. Re-run workflow_dispatch from main with an explicit since=YYYY-MM-DD (and force_run=true, if this isn't a biweekly week) to establish this rollout's first live baseline -- falling back to a short fixed window here would silently and permanently miss any older backlog." >&2
             exit 1
           else
             # Preview-only run (FORCE_DRY_RUN, or a manual dry_run): nothing
@@ -271,13 +278,22 @@ jobs:
               --base main \
               --search "merged:>=$LOOKBACK" \
               --json number,title,url,body,labels,mergedAt,files,baseRefName \
-              --limit 500
+              --limit 1000
 
-            `--limit` defaults to 30 -- `main` merges far more than that in
-            any realistic biweekly window, and anything past the default
-            page is silently never scanned. Always pass an explicit high
-            limit (500 comfortably covers any realistic window; raise it
-            further if a single scan window could plausibly exceed that).
+            The scan must be exhaustive. `gh pr list` silently stops at
+            `--limit`, and GitHub's search never returns more than 1,000
+            results for one query, so a full result is not proof that
+            nothing is left -- a long catch-up window on `main` can easily
+            exceed it. If a query returns exactly as many PRs as its
+            `--limit`, treat it as cut off: split its date range in half
+            (`merged:<start>..<middle>` and `merged:<day after
+            middle>..<end>`, with `<end>` being today for the open-ended
+            first query) and run each half the same way. Repeat until every
+            range returns fewer PRs than the limit, then combine the results,
+            dropping duplicates by PR number. If a single day's range still
+            returns the full limit, stop: don't write `summary.json`, so the
+            run fails visibly instead of reporting a partial scan as
+            complete.
 
             ## A3. Classify major vs. minor -- the real judgment call this
             workflow exists to make
@@ -292,9 +308,28 @@ jobs:
                to <branch>":
                gh pr list --repo open-metadata/OpenMetadata --base $MINOR_RELEASE_BRANCH \
                  --search "<PR number> in:title" --state all --limit 50
-               If a backport exists (merged or even just open), this PR is
-               minor-bound (or dual) -- EXCLUDE it here. The Minor Release
-               Watcher owns it once/if that backport merges.
+               If a backport exists, the change is minor-bound (or dual),
+               but only EXCLUDE it here once this repo already tracks it.
+               Search this repo's issues for both numbers:
+               gh issue list --repo ${{ github.repository }} --state all --limit 200 \
+                 --search "pr-<this PR number> in:body"
+               gh issue list --repo ${{ github.repository }} --state all --limit 200 \
+                 --search "pr-<backport PR number> in:body"
+               A match is an issue whose body carries a watcher marker
+               (`daily-watcher:pr-X`, `minor-watcher:pr-X`, or
+               `major-watcher:pr-X`) for either number. If one exists,
+               EXCLUDE this PR and count it under `backport_found`.
+
+               If a backport exists but neither number is tracked yet, do
+               NOT exclude it. The Minor Release Watcher may not have
+               scanned the backport yet, and an open backport may never
+               merge. Skip step 2 (a backport already settles that this
+               isn't a guess about future backporting) and INCLUDE the PR
+               in A4, where the doc-relevance filter decides it like any
+               other. Mention the backport's number in its evidence note.
+               When the Minor Release Watcher later reviews the backport,
+               its dedup finds this PR's issue by the original PR number
+               and updates it instead of filing a second one.
 
             2. **If no backport exists yet, do not assume either way --
                read the PR's own body and "Type of change."** A bug fix or
@@ -397,7 +432,8 @@ jobs:
             and write `summary.json`, an object with:
             - `scanned`: how many PRs A2 returned
             - `excluded_as_minor`: object with counts per exclusion rule
-              (`backport_found`, `bugfix_type`), from A3
+              from A3: `backport_found` (a backport exists and this repo
+              already tracks the change) and `bugfix_type`
             - `verified_counts`: object with `held`, `ruled_out`,
               `needs_a_look`, `confirmed` counts from A4
             - `confirmed_items`: array, one entry per CONFIRMED item from
