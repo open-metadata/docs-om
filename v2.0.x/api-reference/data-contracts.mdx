@@ -10,46 +10,62 @@ Data contracts define the schema, quality expectations, SLA guarantees, and gove
 
 ## Supported Entity Types
 
-Data contracts can be attached to the following entity types:
+Data contracts can be attached to the following entity types. Every type supports semantics, SLA, security, and terms of use. Only the types marked below support a schema or quality expectations. A contract that sets an unsupported section is rejected with `400`.
 
-| Entity Type | Schema Validation | Quality Validation | Semantics Validation |
-|-------------|:-:|:-:|:-:|
-| Table | ✓ | ✓ | ✓ |
-| Topic | ✓ | — | ✓ |
-| API Endpoint | ✓ | — | ✓ |
-| Dashboard Data Model | ✓ | — | ✓ |
-| Stored Procedure | — | — | ✓ |
-| Database | — | — | ✓ |
-| Database Schema | — | — | ✓ |
-| Dashboard | — | — | ✓ |
-| Chart | — | — | ✓ |
-| Pipeline | — | — | ✓ |
-| Search Index | — | — | ✓ |
-| API Collection | — | — | ✓ |
-| ML Model | — | — | ✓ |
-| Container | — | — | ✓ |
-| Data Product | — | — | ✓ |
+| Entity Type | `entity.type` | Schema | Quality Expectations |
+|-------------|---------------|:-:|:-:|
+| Table | `table` | ✓ | ✓ |
+| Topic | `topic` | ✓ | — |
+| API Endpoint | `apiEndpoint` | ✓ | — |
+| Dashboard Data Model | `dashboardDataModel` | ✓ | — |
+| Stored Procedure | `storedProcedure` | — | — |
+| Database | `database` | — | — |
+| Database Schema | `databaseSchema` | — | — |
+| Dashboard | `dashboard` | — | — |
+| Chart | `chart` | — | — |
+| Pipeline | `pipeline` | — | — |
+| Search Index | `searchIndex` | — | — |
+| API Collection | `apiCollection` | — | — |
+| API | `api` | — | — |
+| API Service | `apiService` | — | — |
+| Metric | `metric` | — | — |
+| ML Model | `mlmodel` | — | — |
+| Container | `container` | — | — |
+| Directory | `directory` | — | — |
+| File | `file` | — | — |
+| Spreadsheet | `spreadsheet` | — | — |
+| Worksheet | `worksheet` | — | — |
+| Data Product | `dataProduct` | — | — |
+
+An entity can have one contract of its own. Creating a second one returns `400`.
 
 ## Contract Sections
 
 A data contract consists of several optional sections:
 
-| Section | Description |
-|---------|-------------|
-| **Schema** | Expected column definitions — names, types, constraints |
-| **Semantics** | Business rules — required owners, descriptions, domains, tags |
-| **Quality Expectations** | References to test cases that must pass |
-| **SLA** | Refresh frequency, max latency, availability targets |
-| **Terms of Use** | Allowed/disallowed use cases, compliance requirements |
-| **Security** | Access policies and classification requirements |
+| Section | Description | Checked by a validation run |
+|---------|-------------|:-:|
+| **Schema** | Expected columns or fields: names, types, constraints | ✓ |
+| **Semantics** | JSON Logic rules on the entity's metadata, such as owners, description, domain, and tags | ✓ |
+| **Quality Expectations** | References to test cases that must pass | ✓ |
+| **SLA** | Refresh frequency, max latency, availability time, retention | — |
+| **Terms of Use** | Allowed and disallowed uses, compliance requirements | — |
+| **Security** | Data classification, access policies, identities, row filters | — |
+
+For every field and how each check works, see [Data Contract Specification](/v2.0.x/how-to-guides/data-contracts/spec).
 
 ## Contract Status
 
+`entityStatus` holds the contract's review status. It's separate from the result of each validation run.
+
 | Status | Description |
 |--------|-------------|
-| `Draft` | Contract is being defined, not enforced |
-| `Active` | Contract is active and enforced |
-| `Deprecated` | Contract is deprecated, will be retired |
+| `Draft` | Contract is being defined. The default for API requests. |
+| `In Review` | Awaiting review. When the contract has reviewers, only a reviewer can move it to `Approved` or `Rejected`. |
+| `Approved` | Contract is agreed. Only an `Approved` data product contract is inherited by the data product's assets. |
+| `Rejected` | Reviewers rejected the contract. |
+| `Deprecated` | Contract is deprecated and will be retired. |
+| `Archived` | Contract is retired. |
 
 ## API Endpoints
 
@@ -68,6 +84,8 @@ A data contract consists of several optional sections:
 | `GET` | `/v1/dataContracts/{id}/versions` | List versions |
 | `GET` | `/v1/dataContracts/{id}/versions/{version}` | Get specific version |
 | `POST` | `/v1/dataContracts/{id}/validate` | Validate contract |
+| `POST` | `/v1/dataContracts/entity/validate` | Validate an entity's effective contract |
+| `POST` | `/v1/dataContracts/validate` | Check a contract request without creating it |
 | `GET` | `/v1/dataContracts/{id}/results` | List execution results |
 | `GET` | `/v1/dataContracts/{id}/results/latest` | Get latest result |
 | `PUT` | `/v1/dataContracts/{id}/results` | Add execution result |
@@ -75,10 +93,13 @@ A data contract consists of several optional sections:
 | `GET` | `/v1/dataContracts/{id}/odcs/yaml` | Export to ODCS YAML |
 | `POST` | `/v1/dataContracts/odcs` | Import from ODCS JSON |
 | `POST` | `/v1/dataContracts/odcs/yaml` | Import from ODCS YAML |
+| `POST` | `/v1/dataContracts/odcs/validate/yaml` | Preview an ODCS YAML import |
 
 ## Inheritance
 
-When an entity belongs to a **Data Product** that has a data contract, the entity inherits the contract's semantics, SLA, terms of use, and security rules. The entity can also have its own contract that takes precedence over inherited properties.
+When an entity belongs to exactly one **Data Product** whose contract is `Approved`, the entity inherits the contract's semantics, SLA, terms of use, and security. Schema and quality expectations are never inherited. An entity in several data products inherits nothing.
+
+The entity can also have its own contract. Its terms of use, security, and SLA take precedence, and the data product's value fills in only where the entity's contract leaves one empty. The data product's semantics rules are added to the entity's rules, except rules with the same name. `GET /v1/dataContracts/entity` returns the merged, effective contract.
 
 <CardGroup cols={2}>
 
