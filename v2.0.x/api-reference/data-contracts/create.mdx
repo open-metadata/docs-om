@@ -12,11 +12,11 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
 ## Body Parameters
 
 <ParamField body="name" type="string" required>
-  Name of the data contract. Must be unique.
+  Name of the data contract, 1 to 256 characters. The contract's fully qualified name is `<entityFQN>.dataContract_<name>`.
 </ParamField>
 
 <ParamField body="entity" type="object" required>
-  Reference to the data asset this contract applies to.
+  Reference to the data asset this contract applies to. An entity can have only one contract.
 
   <Expandable title="properties">
     <ParamField body="id" type="string" required>
@@ -24,7 +24,7 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
     </ParamField>
 
     <ParamField body="type" type="string" required>
-      Entity type: `table`, `topic`, `apiEndpoint`, `dashboardDataModel`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `chart`, `pipeline`, `searchIndex`, `apiCollection`, `mlmodel`, `container`, `dataProduct`.
+      Entity type. See [Supported Entity Types](/v2.0.x/api-reference/data-contracts#supported-entity-types).
     </ParamField>
   </Expandable>
 </ParamField>
@@ -38,19 +38,23 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
 </ParamField>
 
 <ParamField body="entityStatus" type="string" default="Draft">
-  Contract status: `Draft`, `Active`, or `Deprecated`.
+  Contract status: `Draft`, `In Review`, `Approved`, `Rejected`, `Deprecated`, or `Archived`.
 </ParamField>
 
 <ParamField body="schema" type="array">
-  Expected column definitions. Each item follows the Column schema.
+  Expected columns or fields. Supported for `table`, `topic`, `apiEndpoint`, and `dashboardDataModel` only. Each item follows the Column schema. Every name must exist on the entity, and no name can repeat.
 
   <Expandable title="properties">
     <ParamField body="name" type="string" required>
-      Column name.
+      Column or field name.
     </ParamField>
 
     <ParamField body="dataType" type="string" required>
-      Data type (e.g., `INT`, `VARCHAR`, `TIMESTAMP`).
+      Data type, for example `INT`, `VARCHAR`, or `TIMESTAMP`.
+    </ParamField>
+
+    <ParamField body="dataLength" type="integer">
+      Length for types such as `VARCHAR`.
     </ParamField>
 
     <ParamField body="constraint" type="string">
@@ -64,21 +68,37 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
 </ParamField>
 
 <ParamField body="semantics" type="array">
-  Semantics rules defining business expectations.
+  Semantics rules evaluated against the entity's metadata when the contract is validated.
 
   <Expandable title="properties">
     <ParamField body="name" type="string" required>
-      Rule name (e.g., `hasOwner`, `hasDescription`, `hasDomain`, `hasTags`).
+      Rule name.
     </ParamField>
 
-    <ParamField body="args" type="object">
-      Rule arguments (varies by rule type).
+    <ParamField body="description" type="string" required>
+      Rule description. Reported as the failure reason when the rule fails.
+    </ParamField>
+
+    <ParamField body="rule" type="string" required>
+      [JSON Logic](https://jsonlogic.com/) expression. The rule passes when it returns `true`.
+    </ParamField>
+
+    <ParamField body="enabled" type="boolean" default="true">
+      Whether the rule is evaluated.
+    </ParamField>
+
+    <ParamField body="entityType" type="string">
+      Apply the rule only to this entity type.
+    </ParamField>
+
+    <ParamField body="ignoredEntities" type="array">
+      Entity types the rule skips.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="qualityExpectations" type="array">
-  References to test cases that must pass.
+  References to test cases that must pass. Supported for `table` only.
 
   <Expandable title="properties">
     <ParamField body="id" type="string" required>
@@ -92,37 +112,49 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
 </ParamField>
 
 <ParamField body="sla" type="object">
-  Service level agreement expectations.
+  Service level agreement expectations. Stored and shown on the contract, but not checked by validation runs.
 
   <Expandable title="properties">
-    <ParamField body="refreshFrequency" type="string">
-      Expected refresh frequency in ISO 8601 duration (e.g., `PT1H`, `P1D`).
+    <ParamField body="refreshFrequency" type="object">
+      `interval` (integer) and `unit`: `hour`, `day`, `week`, `month`, or `year`.
     </ParamField>
 
-    <ParamField body="maxLatency" type="integer">
-      Maximum acceptable latency in milliseconds.
+    <ParamField body="maxLatency" type="object">
+      `value` (integer) and `unit`: `minute`, `hour`, or `day`.
     </ParamField>
 
-    <ParamField body="availability" type="number">
-      Target availability percentage (0-100).
+    <ParamField body="availabilityTime" type="string">
+      Time of day the data should be available, for example `09:00`.
+    </ParamField>
+
+    <ParamField body="timezone" type="string" default="GMT+00:00 (Europe/London)">
+      Timezone for `availabilityTime`, in the form `GMT+05:30 (Asia/Kolkata)`.
+    </ParamField>
+
+    <ParamField body="retention" type="object">
+      `period` (integer) and `unit`: `day`, `week`, `month`, or `year`.
+    </ParamField>
+
+    <ParamField body="columnName" type="string">
+      Column that holds the data's refresh time.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="termsOfUse" type="string">
-  Terms of use in Markdown format. Describes allowed/disallowed use cases and compliance requirements.
+  Terms of use in Markdown format. Describes allowed and disallowed uses and compliance requirements. Returned as `termsOfUse.content` on the contract.
 </ParamField>
 
 <ParamField body="security" type="object">
-  Security and access policy expectations.
+  Security and access expectations. Stored and shown on the contract, but not enforced.
 
   <Expandable title="properties">
-    <ParamField body="accessPolicy" type="string">
-      Access policy description.
+    <ParamField body="dataClassification" type="string">
+      Classification of the data, for example `PII` or `Confidential`.
     </ParamField>
 
-    <ParamField body="requiredClassifications" type="array">
-      Required classification tags (e.g., `PII.Sensitive`).
+    <ParamField body="policies" type="array">
+      Access policies. Each has `accessPolicy` (policy name), `identities` (consumer groups or users), and `rowFilters` (a list of `columnName` and `values`).
     </ParamField>
   </Expandable>
 </ParamField>
@@ -132,76 +164,79 @@ Create a new data contract and attach it to a data asset. Only the `name` and `e
 </ParamField>
 
 <ParamField body="reviewers" type="array">
-  Reviewer user references.
+  Reviewer references (users or teams). When set, only a reviewer can move the contract from `In Review` to `Approved` or `Rejected`.
 </ParamField>
 
 <ParamField body="effectiveFrom" type="string">
-  ISO 8601 date from which this contract is effective.
+  Date and time from which this contract is effective. Informational only.
 </ParamField>
 
 <ParamField body="effectiveUntil" type="string">
-  ISO 8601 date until which this contract is effective.
+  Date and time until which this contract is effective. Informational only.
+</ParamField>
+
+<ParamField body="sourceUrl" type="string">
+  Link to where the contract is maintained.
 </ParamField>
 
 <RequestExample dropdown>
 ```python POST /v1/dataContracts
 from metadata.sdk import configure
 from metadata.sdk.entities import DataContracts
+from metadata.generated.schema.api.data.createDataContract import (
+    CreateDataContractRequest,
+)
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
 
-# Create a basic data contract for a table
-contract = DataContracts.create(
-    name="sales-orders-contract",
-    entity={
-        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "type": "table"
-    },
-    description="Data contract for the sales orders table",
-    entityStatus="Active",
-    schema=[
+request = CreateDataContractRequest.model_validate({
+    "name": "sales-orders-contract",
+    "entity": {"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "type": "table"},
+    "description": "Data contract for the sales orders table",
+    "entityStatus": "Approved",
+    "schema": [
         {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
-        {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
         {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
-        {"name": "total_amount", "dataType": "DECIMAL"}
     ],
-    semantics=[
-        {"name": "hasOwner"},
-        {"name": "hasDescription"},
-        {"name": "hasTags"}
+    "semantics": [
+        {
+            "name": "Owners is set",
+            "description": "The table must have an owner.",
+            "rule": '{"and":[{"some":[{"var":"owners"},{"!=":[{"var":"fullyQualifiedName"},null]}]}]}',
+            "enabled": True,
+        }
     ],
-    sla={
-        "refreshFrequency": "PT1H",
-        "availability": 99.9
-    }
-)
-print(f"Created contract: {contract.fullyQualifiedName}")
+    "sla": {"refreshFrequency": {"interval": 1, "unit": "day"}},
+})
+contract = DataContracts.create(request)
+print(f"Created contract: {contract.fullyQualifiedName.root}")
 ```
 
 ```java POST /v1/dataContracts
 import static org.openmetadata.sdk.fluent.DataContracts.*;
 
-// Create a data contract with fluent API
 DataContract contract = create()
     .name("sales-orders-contract")
     .forEntity(new EntityReference()
         .withId(tableId)
         .withType("table"))
     .withDescription("Data contract for the sales orders table")
-    .withStatus(EntityStatus.ACTIVE)
+    .withStatus(EntityStatus.APPROVED)
     .withSchema(List.of(
         new Column().withName("order_id").withDataType(ColumnDataType.INT),
-        new Column().withName("customer_id").withDataType(ColumnDataType.INT),
         new Column().withName("order_date").withDataType(ColumnDataType.TIMESTAMP)
     ))
-    .withSemanticRule(new SemanticsRule().withName("hasOwner"))
-    .withSemanticRule(new SemanticsRule().withName("hasDescription"))
+    .withSemanticRule(new SemanticsRule()
+        .withName("Owners is set")
+        .withDescription("The table must have an owner.")
+        .withRule("{\"and\":[{\"some\":[{\"var\":\"owners\"},{\"!=\":[{\"var\":\"fullyQualifiedName\"},null]}]}]}"))
     .withSla(new ContractSLA()
-        .withRefreshFrequency("PT1H")
-        .withAvailability(99.9))
+        .withRefreshFrequency(new RefreshFrequency()
+            .withInterval(1)
+            .withUnit(RefreshFrequency.Unit.DAY)))
     .execute();
 ```
 
@@ -216,21 +251,21 @@ curl -X POST "{base_url}/api/v1/dataContracts" \
       "type": "table"
     },
     "description": "Data contract for the sales orders table",
-    "entityStatus": "Active",
+    "entityStatus": "Approved",
     "schema": [
       {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
-      {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
-      {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
-      {"name": "total_amount", "dataType": "DECIMAL"}
+      {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"}
     ],
     "semantics": [
-      {"name": "hasOwner"},
-      {"name": "hasDescription"},
-      {"name": "hasTags"}
+      {
+        "name": "Owners is set",
+        "description": "The table must have an owner.",
+        "rule": "{\"and\":[{\"some\":[{\"var\":\"owners\"},{\"!=\":[{\"var\":\"fullyQualifiedName\"},null]}]}]}",
+        "enabled": true
+      }
     ],
     "sla": {
-      "refreshFrequency": "PT1H",
-      "availability": 99.9
+      "refreshFrequency": {"interval": 1, "unit": "day"}
     }
   }'
 ```
@@ -241,10 +276,9 @@ curl -X POST "{base_url}/api/v1/dataContracts" \
 {
   "id": "f7a1b2c3-d4e5-6789-0abc-def123456789",
   "name": "sales-orders-contract",
-  "fullyQualifiedName": "sales-orders-contract",
-  "displayName": "sales-orders-contract",
+  "fullyQualifiedName": "sample_data.ecommerce_db.shopify.sales_orders.dataContract_sales-orders-contract",
   "description": "Data contract for the sales orders table",
-  "entityStatus": "Active",
+  "entityStatus": "Approved",
   "entity": {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "type": "table",
@@ -253,18 +287,18 @@ curl -X POST "{base_url}/api/v1/dataContracts" \
   },
   "schema": [
     {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
-    {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
-    {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
-    {"name": "total_amount", "dataType": "DECIMAL"}
+    {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"}
   ],
   "semantics": [
-    {"name": "hasOwner"},
-    {"name": "hasDescription"},
-    {"name": "hasTags"}
+    {
+      "name": "Owners is set",
+      "description": "The table must have an owner.",
+      "rule": "{\"and\":[{\"some\":[{\"var\":\"owners\"},{\"!=\":[{\"var\":\"fullyQualifiedName\"},null]}]}]}",
+      "enabled": true
+    }
   ],
   "sla": {
-    "refreshFrequency": "PT1H",
-    "availability": 99.9
+    "refreshFrequency": {"interval": 1, "unit": "day"}
   },
   "version": 0.1,
   "updatedAt": 1769982800000,
@@ -285,7 +319,7 @@ Use `PUT /v1/dataContracts` with the same body to create a new contract or updat
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `400` | `BAD_REQUEST` | Invalid request body, an entity type or section the entity doesn't support, schema columns the entity doesn't have, or an entity that already has a contract |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to create data contracts |
-| `409` | `CONFLICT` | A contract with the same name already exists |
+| `404` | `NOT_FOUND` | The referenced entity doesn't exist |
