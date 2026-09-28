@@ -35,7 +35,7 @@ the diff, and the PR's own stated context (title, body, discussion).
 3. Run every applicable checklist item against the content.
 4. **Check every checkable claim the content makes against the PR's own
    other statements and against the diff itself, for internal
-   consistency** — not against external source. This covers things like:
+   consistency**: not against external source. This covers things like:
    a PR description that states a count or list the diff's own content
    contradicts, a claim in the body text that contradicts a table or code
    sample earlier in the *same* diff, or a cross-reference to a section

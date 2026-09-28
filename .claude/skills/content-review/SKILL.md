@@ -22,7 +22,7 @@ draft before opening a PR, reviewing someone else's PR's changed content
 without waiting for CI, or reviewing pasted content that isn't in a PR at
 all. This is a technical-writing standards review: it never fetches or
 verifies against an external source repository (`OpenMetadata` or any
-other codebase) — every finding must be derivable from the content, the
+other codebase). Every finding must be derivable from the content, the
 diff, and the PR's own stated context. This skill also does not fetch or
 verify PR discussion (issue comments, inline review comments, submitted
 reviews). See Notes for why.
