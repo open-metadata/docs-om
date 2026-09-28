@@ -89,6 +89,16 @@ GRANT VIEW SERVER STATE TO YourUser;
 -- SQL Server 2022 and later: GRANT VIEW SERVER PERFORMANCE STATE TO YourUser;
 ```
 Exact grant names and tiers can differ on Azure SQL Database and Azure SQL Managed Instance. Check `sys.database_query_store_options` and the [Microsoft documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-query-text-transact-sql) for your instance.
+
+### Synonyms
+
+SQL Server synonyms are ingested as an alternate name on the table or view they point to, not as separate entities. Enable **Include Synonyms** in the connection config to turn this on — it's off by default. OpenMetadata then sweeps `sys.synonyms` across every in-scope database before ingesting tables, so a synonym that points to a table in a different database resolves correctly, as long as both databases are in scope.
+
+- The canonical table's page shows a read-only **Aliases** widget listing each synonym that points to it. Tables with no synonyms don't show the widget.
+- Aliases are searchable, and lineage from a query or view that references the synonym's name attaches to the canonical table. The synonym itself never appears as its own entity or lineage node.
+- A synonym pointing to an object that doesn't exist, or to a linked server (a four-part name), is reported as unresolved in the ingestion pipeline status instead of being silently dropped.
+- Dropping or retargeting a synonym at the source updates the alias list on the next ingestion run.
+
 ### For Remote Connection
 
 If the ingestion runner connects to MSSQL over the network rather than locally, work through the following checks in order.

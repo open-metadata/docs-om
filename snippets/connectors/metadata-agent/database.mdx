@@ -26,19 +26,20 @@ To configure the additional Metadata Agent and schedule ingestion, follow these 
 
         | Field | Default | Description |
         |---|---|---|
-        | Default Owner | — | Owner applied to all entities when no specific level owner is configured. Accepts a user or team name/email. |
-        | Service Owner | — | Owner assigned to the service entity. |
-        | Database Owner | — | Owner assigned to all ingested databases. Accepts a single owner or a per-database name mapping. |
-        | Database Schema Owner | — | Owner assigned to all ingested schemas. Accepts a single owner or a per-schema name mapping. |
-        | Table Owner | — | Owner assigned to all ingested tables. Accepts a single owner or a per-table name mapping. |
-        | Enable Inheritance | On | When on, child entities inherit the owner from their parent when they have no owner configured. |
-        | Query Log Duration | 1 | Number of days to look back in query logs when processing stored procedure results. |
-        | Query Parsing Timeout Limit | 300 | Timeout in seconds for parsing a single query. |
-        | Number of Threads | 1 | Number of threads to use for parallel table ingestion. |
-        | Incremental Extraction | Off | When enabled, subsequent runs only extract entities changed since the last successful run. |
-        | Successful Pipeline Run Lookback Days | 7 | Number of days to search back for a prior successful run to use as a baseline for incremental extraction. |
-        | Safety Margin Days | 1 | Additional days added to the baseline timestamp as a buffer for incremental extraction. |
-        | JSON Schema Sample Size | 10 | Number of rows sampled to infer JSON column schema. Only applies when Extract JSON Schema is enabled in Advanced Config. |
+        | **Default Owner** | — | Owner applied to any entity that has no owner from a more specific field below. Accepts a user or a team, by name or email. |
+        | **Service Owner** | — | Owner assigned to the service entity itself (the connector/service you're setting up, not the data inside it). |
+        | **Database Owner** | — | Owner assigned to every database this agent ingests. Accepts either one owner for all of them, or a mapping of specific owners per database. |
+        | **Database Schema Owner** | — | Owner assigned to every schema this agent ingests. Accepts either one owner for all of them, or a mapping of specific owners per schema. |
+        | **Table Owner** | — | Owner assigned to every table this agent ingests. Accepts either one owner for all of them, or a mapping of specific owners per table. |
+        | **Enable Inheritance** | On | When on, an entity with no owner of its own inherits one from the nearest parent that has one, checked in this order: table, then schema, then database, then service, then Default Owner. Turn off if you want only the owners set explicitly above to apply, with no fallback. |
+        | **Query Log Duration** | 1 | How many days of query logs to look back through when processing stored procedure results. |
+        | **Query Parsing Timeout Limit** | 300 | How many seconds to spend parsing a single query before giving up on it and moving to the next. Raise this if large or complex queries are being skipped. |
+        | **Number of Threads** | 1 | How many tables to ingest in parallel. Raising this can speed up ingestion on databases with many tables, at the cost of more load on the source. |
+        | **Incremental Extraction** | Off | When on, a run extracts only entities that changed since the last successful run, instead of re-scanning everything every time. Faster on large, mostly unchanged databases. |
+        | **Successful Pipeline Run Lookback Days** | 7 | Only used when Incremental Extraction is on. How many days back to search for a prior successful run to use as the starting point for what changed since then. |
+        | **Safety Margin Days** | 1 | Only used when Incremental Extraction is on. Extra days added before that starting point, as a buffer so changes still in flight when the last run finished aren't missed. |
+        | **Extract JSON Schema** | Off | Sample values in JSON columns to infer and ingest their schema, so the individual fields inside a JSON column are visible in OpenMetadata rather than just "JSON". Requires `SELECT` permission on the sampled tables. If that permission is missing, the JSON column is still ingested, just without a detailed schema. |
+        | **JSON Schema Sample Size** | 10 | Only used when Extract JSON Schema is on. Number of rows sampled per JSON column to infer its schema. A larger sample gives more accurate results but takes longer to run. |
 
         For more information about how the Default Owner, Service Owner, Database Owner, Database Schema Owner, Table Owner, and Enable Inheritance fields resolve an owner, see [Hierarchical Owner Configuration](/connectors/ingestion/workflows/metadata/hierarchical-owner-configuration).
 
@@ -52,18 +53,18 @@ To configure the additional Metadata Agent and schedule ingestion, follow these 
 
         | Toggle | Default | Description |
         |---|---|---|
-        | Include Tables | On | Ingest table metadata from the source. Turn off to skip tables entirely. |
-        | Include Tags | On | Ingest tags from the source. |
-        | Include Stored Procedures | On | Ingest stored procedure metadata. |
-        | Include DDL Statements | Off | Ingest DDL statements alongside table metadata. |
-        | Include Owners | Off | Assign owners to ingested entities when the source owner's email matches a user in OpenMetadata. Does not overwrite an existing owner. |
-        | Include Custom Properties | Off | Ingest connector-specific custom properties onto entities. |
-        | Mark Deleted Tables | On | Soft-delete tables in OpenMetadata when they are removed from the source. Applies only within the currently ingested schema. |
-        | Mark Deleted Stored Procedures | On | Soft-delete stored procedures in OpenMetadata when they are removed from the source. |
-        | Mark Deleted Schemas | Off | Soft-delete schemas and all their child assets when removed from the source. |
-        | Mark Deleted Databases | Off | Soft-delete databases and all their child assets when removed from the source. |
-        | Override Metadata | Off | When on, source values overwrite existing descriptions, tags, owners, and display names in OpenMetadata. When off, OpenMetadata only updates fields that have no existing value. |
-        | Enable Debug Log | Off | Sets the ingestion log level to DEBUG. Useful for troubleshooting. |
+        | **Include Tables** | On | Ingest tables and their columns. Turn off to skip tables entirely, for example if this agent exists only to pull tags or stored procedures. |
+        | **Include Tags** | On | Ingest tags already defined on tables/columns in the source system (for example, a classification tag applied in Snowflake) and bring them into OpenMetadata as tags on the same assets. |
+        | **Include Stored Procedures** | On | Ingest stored procedures as their own assets, so they show up in the catalog and can be linked into lineage. |
+        | **Include DDL Statements** | Off | Also ingest the raw `CREATE TABLE` / `CREATE VIEW` statement for each asset, so it's viewable in OpenMetadata alongside the asset's metadata. |
+        | **Include Owners** | Off | When an ingested asset's owner in the source system is an email that matches an existing OpenMetadata user, assign that user as the asset's owner. Never overwrites an owner an asset already has in OpenMetadata. |
+        | **Include Custom Properties** | Off | Ingest source-specific metadata that doesn't map to a standard OpenMetadata field (for example, a database-specific attribute) into custom properties on the asset, if custom properties have been defined for that entity type. |
+        | **Mark Deleted Tables** | On | If a table this agent previously ingested no longer exists in the source, soft-delete it in OpenMetadata too. Only affects tables within schemas this agent actually scans. |
+        | **Mark Deleted Stored Procedures** | On | Same as Mark Deleted Tables, but for stored procedures. |
+        | **Mark Deleted Schemas** | Off | If an entire schema this agent previously ingested no longer exists in the source, soft-delete the schema and everything in it. |
+        | **Mark Deleted Databases** | Off | If an entire database this agent previously ingested no longer exists in the source, soft-delete the database and everything in it. |
+        | **Override Metadata** | Off | On: values from the source (descriptions, tags, owners, display names) always overwrite what's currently in OpenMetadata, even if someone edited it there. Off: OpenMetadata only fills in fields that are still empty, so manual edits in OpenMetadata are preserved. |
+        | **Enable Debug Log** | Off | Run this ingestion at DEBUG log verbosity instead of the normal level. Turn on when troubleshooting a failing or unexpected run. Leave off otherwise, since debug logs are much larger. |
 
         <Note>
         Available toggles vary by connector. Stored procedure options only appear for connectors that support stored procedures.
@@ -71,7 +72,11 @@ To configure the additional Metadata Agent and schedule ingestion, follow these 
 
         <img src="/public/images/connector2.0/metadata-ingestion/Database/database-scope-behaviour.png" alt="Scope & Behaviour" />
 
-   - **Advanced Config**: Optional connector-specific settings such as Include Views and Extract JSON Schema.
+   - **Advanced Config**: Driver-level options (connection arguments, scheme, and timeouts). Most connections never need these, and they vary by connector. This section also has one ingestion-scope toggle:
+
+        | Toggle | Default | Description |
+        |---|---|---|
+        | **Include Views** | On | Ingest views in addition to tables. Turn off to skip views entirely. Since view lineage is derived from parsing each view's SQL definition, turning this off also stops view-based lineage from being generated for this service. |
 
         <img src="/public/images/connector2.0/metadata-ingestion/Database/database-advance.png" alt="Advanced Config" />
 
