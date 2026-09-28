@@ -86,22 +86,22 @@ sidebarTitle: API Usage & Reference
 
 ## Error Handling
 
-### Authentication Error
+### Protocol-Level Errors
+
+#### Authentication Error
+
+A request with a missing or invalid/expired bearer token fails at the transport level: the server responds with HTTP status `401 Unauthorized` and a JSON-RPC error body using the generic internal-error code:
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32002,
-    "message": "Authentication required",
-    "data": {
-      "type": "authentication_error"
-    }
-  }
+  "code": -32603,
+  "message": "Invalid or expired token"
 }
 ```
 
-### Invalid Tool Error
+Check the HTTP status code first: a `401` response means your client must re-authenticate before retrying, rather than treating the call as a normal JSON-RPC tool error.
+
+#### Invalid Tool Error
 ```json
 {
   "jsonrpc": "2.0",
@@ -116,7 +116,7 @@ sidebarTitle: API Usage & Reference
 }
 ```
 
-### Validation Error
+#### Validation Error
 ```json
 {
   "jsonrpc": "2.0",
@@ -131,6 +131,40 @@ sidebarTitle: API Usage & Reference
   }
 }
 ```
+
+### Tool Execution Errors
+
+A tool that runs but fails (a bad argument, a missing entity, an authorization denial, or a backend fault) does not return a JSON-RPC protocol-level error object. Instead, the server returns a normal JSON-RPC success response whose `result.isError` field is `true`. The failure details are a JSON string inside `result.content[0].text`, and the same object is also available as `result.structuredContent` for clients that support it.
+
+**Sample Response** (entity not found):
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"error\":\"Error executing tool: table instance for mysql_prod.ecommerce.public.missing_table not found\",\"statusCode\":404}"
+      }
+    ],
+    "structuredContent": {
+      "error": "Error executing tool: table instance for mysql_prod.ecommerce.public.missing_table not found",
+      "statusCode": 404
+    },
+    "isError": true
+  }
+}
+```
+
+| | Protocol-Level Error | Tool Execution Error |
+|---|---|---|
+| Top-level field | `error` | `result` |
+| Signals | Malformed request, unknown method, transport/auth failure before dispatch | Tool ran but the operation itself failed (bad FQN, permission denied, backend fault) |
+| Where to check | `response.error.code` / `.message` | `response.result.isError === true`, then parse `response.result.content[0].text` (or read `response.result.structuredContent` directly) |
+| `statusCode` in payload | Not present | Present inside the JSON string / `structuredContent` (`400`, `403`, `404`, `429`, `500`, `504`) |
+
+Always check `result.isError` on a successful JSON-RPC response before assuming the tool call succeeded. A 200-shaped response isn't proof the operation worked.
 
 ## Best Practices
 

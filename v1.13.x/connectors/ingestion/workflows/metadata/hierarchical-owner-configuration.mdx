@@ -1,0 +1,91 @@
+---
+title: Metadata Ingestion - Hierarchical Owner Configuration
+description: Automatically assign owners to databases, schemas, and tables during metadata ingestion, with per-entity mappings and inheritance down the hierarchy.
+sidebarTitle: Hierarchical Owner Configuration
+---
+
+# Metadata Ingestion - Hierarchical Owner Configuration
+
+The Hierarchical Owner Configuration (`ownerConfig`) lets you assign owners to databases, schemas, and tables as OpenMetadata ingests them, without depending on an owner being set in the source system. Set a single owner for an entire level, map specific entities to specific owners, or let child entities inherit an owner from their parent when they don't have a match of their own.
+
+This is different from the **Include Owners** toggle, which only pulls in an owner if the source system already reports one for that entity. `ownerConfig` lets you define ownership rules directly in the ingestion configuration instead.
+
+## How Resolution Works
+
+For each database, schema, and table OpenMetadata ingests, it resolves an owner in this order:
+
+1. **Exact mapping**: If the level's configuration is a map, OpenMetadata looks for the entity's fully qualified name first, then falls back to matching on the entity's simple name.
+2. **Level default**: If the level's configuration is a single value instead of a map, that owner applies to every entity at that level.
+3. **Inherited owner**: If nothing matched at the current level and `enableInheritance` is `true` (the default), the entity inherits the owner already resolved for its parent. A schema inherits from its database, and a table inherits from its schema, or from its database if the schema itself has no resolved owner.
+4. **Default owner**: If nothing above resolved an owner, OpenMetadata falls back to the top-level `default` value.
+
+If none of these steps resolve an owner, the entity is ingested without one.
+
+<Note>
+The schema also defines a `service` field, but it isn't applied during ingestion — only `database`, `databaseSchema`, and `table` level configuration affects the resolved owner. Setting `service` has no effect.
+</Note>
+
+## Configuring via the UI
+
+When configuring a metadata agent through the OpenMetadata UI, Hierarchical Owner Configuration appears as its own section in the ingestion setup step, with these fields:
+
+- **Default**: Fallback owner (a user or team name, or an email) applied when nothing more specific matches at any level.
+- **Service**: Present in the form, but has no effect. Hierarchical Owner Configuration doesn't resolve an owner at the service level.
+- **Database**: Choose **Option 1** for a single owner applied to every database, or **Option 2** to map specific database names to owner(s).
+- **DatabaseSchema**: Choose **Option 1** for a single owner applied to every schema, or **Option 2** to map specific schema names or fully qualified names to owner(s).
+- **Table**: Choose **Option 1** for a single owner applied to every table, or **Option 2** to map specific table names or fully qualified names to owner(s).
+- **Enable Inheritance**: Toggle controlling whether a schema or table without its own match inherits the resolved owner from its parent. Enabled by default.
+
+## Configuring via YAML
+
+Add `ownerConfig` under `sourceConfig.config` in your ingestion YAML:
+
+```yaml
+sourceConfig:
+  config:
+    type: DatabaseMetadata
+    ownerConfig:
+      default: data-platform-team
+      database:
+        sales_db: sales-team
+        analytics_db: analytics-team
+      databaseSchema:
+        analytics_db.reporting: reporting-team
+      table:
+        sales_db.public.customers: customer-team
+        sales_db.public.orders:
+          - alice
+          - bob
+      enableInheritance: true
+```
+
+- **default**: Fallback owner (a user or team name, or an email) applied when nothing more specific matches at any level.
+- **database**: Owner for database entities. Either a single owner applied to every database, or a map of database names to owner(s).
+- **databaseSchema**: Owner for schema entities. Either a single owner applied to every schema, or a map keyed by the schema's fully qualified name (`database.schema`) or simple name, mapped to owner(s).
+- **table**: Owner for table entities. Either a single owner applied to every table, or a map keyed by the table's fully qualified name (`database.schema.table`) or simple name, mapped to owner(s).
+- **enableInheritance**: When `true` (default), a schema or table without its own match inherits the resolved owner from its parent instead of falling straight to `default`.
+
+### Assigning Multiple Owners
+
+A mapped owner value can be a single name or a list:
+
+```yaml
+table:
+  sales_db.public.orders:
+    - alice
+    - bob
+```
+
+- Multiple users are allowed in a list.
+- Only one team is allowed as an owner, and it can't be combined with users or other teams in the same list.
+- Each value must be a user or team name, or email, already registered in OpenMetadata. Values that can't be resolved are skipped, and the entity is ingested without that owner.
+
+## Precedence with Include Owners
+
+`ownerConfig` and **Include Owners** are independent settings — enabling or disabling **Include Owners** doesn't affect whether `ownerConfig`'s rules apply, and `ownerConfig` doesn't need **Include Owners** enabled to work. For tables, `ownerConfig` is resolved first. If it doesn't produce an owner and **Include Owners** is enabled, OpenMetadata falls back to the owner reported by the source system.
+
+On entities that already exist in OpenMetadata and already have an owner, a resolved owner from `ownerConfig` doesn't overwrite it unless **Override Metadata** is also enabled, the same way that setting governs description, tags, and display name elsewhere in this pipeline.
+
+## Feature Available For
+
+Hierarchical Owner Configuration is available for all database connectors, since it's part of the shared Database Metadata Pipeline configuration.
