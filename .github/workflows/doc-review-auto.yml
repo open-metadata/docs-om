@@ -398,7 +398,7 @@ jobs:
           for line in section.splitlines():
               if re.match(r'^\s*\|\s*\d+\s*\|', line):
                   row = re.match(
-                      r'^\s*\|\s*(\d+)\s*\|(?:\\.|[^|])*\|\s*(Critical|Major|Minor|Could not verify)\s*\|',
+                      r'^\s*\|\s*(\d+)\s*\|(?:\\.|[^|])*\|\s*(Critical|Major|Minor)\s*\|',
                       line,
                   )
                   if not row:
@@ -412,8 +412,8 @@ jobs:
           actual = tuple(counts[key] for key in ('Critical', 'Major', 'Minor'))
           if reported != actual:
               fail(f"Findings counts {reported} disagree with issue rows {actual}")
-          expected = ('FAIL' if actual[0] >= 5 else
-                      'NEEDS WORK' if actual[0] or actual[1] or actual[2] >= 3 else 'PASS')
+          expected = ('FAIL' if actual[0] or actual[1] > 3 else
+                      'NEEDS WORK' if sum(actual) else 'PASS')
           if verdicts[0] != expected:
               fail(f"Verdict {verdicts[0]} disagrees with validated findings ({expected})")
           PY
