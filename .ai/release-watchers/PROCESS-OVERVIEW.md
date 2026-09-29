@@ -88,6 +88,11 @@ repo already goes through.
   to read afterward -- the notify job instead writes what it would have
   created or updated to `dry-run-preview.md`, which a deterministic step
   publishes to the workflow run's job summary.
+- **Drafting and publishing run in separate jobs.** The drafting model
+  reads source PRs with a read-only token. A deterministic step packages
+  only documentation changes, and a fresh runner validates the patch
+  before it commits and opens a draft PR. The publishing job never runs
+  a model or reads upstream PR content.
 - **No guessing on ambiguity, ever.** Major-vs-minor classification,
   doc-relevance, and feature completeness all have an explicit "I don't
   know" outcome that surfaces the evidence to a human instead of forcing a
