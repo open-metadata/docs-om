@@ -1,0 +1,69 @@
+---
+title: Import an OWL/SKOS Ontology | OpenMetadata Knowledge Graph Guide
+description: Import an existing OWL or SKOS ontology into a glossary as glossary terms and typed relations.
+slug: /how-to-guides/data-governance/ontology/import
+sidebarTitle: Import an Ontology
+---
+
+# Import an OWL/SKOS Ontology
+
+If your organization already maintains an ontology or taxonomy as an OWL (Web Ontology Language) or SKOS (Simple Knowledge Organization System) file, you can import it directly into a glossary instead of recreating it by hand. OpenMetadata converts the ontology's concepts, classes, and relationships into glossary terms and typed relations.
+
+This is currently an API-only capability — there's no import button in the UI yet.
+
+## What Gets Imported
+
+| Ontology construct | Becomes |
+|---|---|
+| `skos:Concept` or `owl:Class` | A glossary term |
+| `skos:broader` or `rdfs:subClassOf` | The term's parent in the glossary hierarchy |
+| `skos:closeMatch`, `skos:exactMatch`, and other `skos:*Match` properties | A concept mapping on the term |
+| `owl:ObjectProperty` edges | A typed related term |
+
+If [RDF (Resource Description Framework) indexing](/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph) is enabled on your instance, the glossary terms created by the import are automatically mirrored into the RDF triplestore, the same as terms created any other way.
+
+## Importing an Ontology
+
+Send the ontology file's contents as the request body to:
+
+```
+PUT /v1/glossaries/name/{glossaryName}/importRdf
+```
+
+| Query parameter | Values | Default |
+|---|---|---|
+| `format` | `turtle`, `rdfxml`, `ntriples` | `turtle` |
+| `dryRun` | `true`, `false` | `true` |
+
+Set the `Content-Type` header to match the file's syntax: `text/turtle`, `application/rdf+xml`, or `application/n-triples`.
+
+**`dryRun` defaults to `true`.** A dry run validates the ontology and reports what it would do, without creating or changing anything. Set `dryRun=false` explicitly once you've reviewed the dry-run result and are ready to persist the import.
+
+```bash
+curl -X PUT "$OM_HOST/api/v1/glossaries/name/product-taxonomy/importRdf?format=turtle&dryRun=false" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: text/turtle" \
+  --data-binary @taxonomy.ttl
+```
+
+The target glossary (`product-taxonomy` above) must already exist. Importing requires **Edit All** permission on the glossary. Only an admin user can introduce new relation types or custom properties the ontology requires that don't already exist in OpenMetadata; a non-admin's import is restricted to the relation types and properties already defined.
+
+## Import Result
+
+The response summarizes what the import did (or would do, for a dry run):
+
+| Field | Meaning |
+|---|---|
+| `dryRun` | Whether this was a dry run |
+| `glossariesCreated` | Glossaries created (0 if importing into an existing glossary) |
+| `termsCreated` | New glossary terms created |
+| `termsUpdated` | Existing glossary terms updated |
+| `relationsAdded` | Parent and related-term relations added |
+| `conceptMappingsAdded` | Concept mappings (`skos:*Match`) added |
+| `relationTypesRegistered` | New relation types registered to represent `owl:ObjectProperty` edges |
+| `customPropertiesCreated` | New custom properties created |
+| `messages` | Warnings or notes about the import, such as constructs that couldn't be mapped |
+
+<Card title="Ontology Explorer" href="/v2.1.x-SNAPSHOT/how-to-guides/data-governance/ontology">
+  Visualize the imported terms and their relationships as a graph.
+</Card>

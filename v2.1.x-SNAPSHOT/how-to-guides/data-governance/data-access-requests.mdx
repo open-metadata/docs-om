@@ -1,0 +1,87 @@
+---
+title: Data Access Requests | OpenMetadata Governance Guide
+description: Let users request access to a table through OpenMetadata, and have an approved request granted automatically by the Policy Agent.
+slug: /how-to-guides/data-governance/data-access-requests
+sidebarTitle: Data Access Requests
+---
+
+# Data Access Requests
+
+Data Access Requests let a user request access to a table or data product through OpenMetadata's task system, routed to an approver as a task. Once approved, the **Policy Agent** applies the grant automatically on the source system, so requesters and approvers don't need a manual ticket to a data platform team.
+
+## How It Fits Together
+
+Three pieces work together:
+
+1. **Connector configuration**: An admin enables `policyAgentConfig` on a database service (Snowflake, Databricks, or Unity Catalog today) and declares which access types it supports.
+2. **The request**: A user requests access to a table or data product by creating a task with the access type, permission level, an expiration date, and a reason.
+3. **The Policy Agent**: A governance workflow's **Policy Agent** node runs when the task is approved. It executes the grant against the source system through a Policy Agent ingestion pipeline, then marks the request granted — or falls back to a manual step if the connector or request can't be automated.
+
+## Enabling Data Access Requests on a Connector
+
+Set `policyAgentConfig` on the database service's connection:
+
+```yaml
+policyAgentConfig:
+  enabled: true
+  supportsFullAccess: true
+  supportsColumnAccess: false
+  supportsMaskedAccess: true
+```
+
+| Field | Meaning |
+|---|---|
+| `enabled` | Turns on Data Access Requests for this service. Only services with this set to `true` accept a request. |
+| `supportsFullAccess` | Whether a request can ask for unrestricted access to a table. |
+| `supportsColumnAccess` | Whether a request can be scoped to specific columns. |
+| `supportsMaskedAccess` | Whether a request can ask for masked/anonymized column values instead of the real data. |
+
+Defaults differ by connector:
+
+| Connector | `enabled` | `supportsFullAccess` | `supportsMaskedAccess` | `supportsColumnAccess` |
+|---|---|---|---|---|
+| Snowflake | `true` | `true` | `true` | `false` |
+| Databricks | `true` | `true` | `false` | `false` |
+| Unity Catalog | `true` | `true` | `false` | `false` |
+
+## Requesting Access
+
+This is currently an API-only capability — there's no "Request Access" action in the UI yet. Create a task with `taskType: DataAccessRequest` against the table or data product.
+
+A request captures:
+
+| Field | Notes |
+|---|---|
+| **Access Type** | **Full Access**, **Column Level**, or **Masked**. Only the types the connector's `policyAgentConfig` supports are offered. On a data product, **Column Level** is always rejected, since a data product can span multiple backing services. |
+| **Selected Columns** | Used to scope a Column Level or Masked request to specific columns. |
+| **Permission Level** | **Read**, **Write**, or **Admin**. |
+| **Expiration Date** | When the access should end. Required. |
+| **Access Reason** | A short justification, at least 10 characters. Required. |
+| **External Ticket ID** | Optional link to a ticket in an external system. |
+
+The created task is visible to the request's approver like any other OpenMetadata task.
+
+## Approving, Rejecting, or Revoking
+
+An approver acts on the task:
+
+- **Approve**: Optional comment. Once approved, the Policy Agent workflow node runs and applies the grant.
+- **Reject**: Requires a comment explaining why.
+- **Revoke**: Requires a comment. Tears down whatever access the principal currently holds at that scope — a revoke removes everything granted, not just the originally requested level.
+
+## What the Policy Agent Does
+
+When a request is approved, the workflow's Policy Agent node:
+
+1. Runs a Policy Agent ingestion pipeline, which executes the grant (or revoke) against the source system.
+2. By default, waits up to 10 minutes for that pipeline to finish before continuing.
+3. Reports back one of these outcomes:
+    - For a grant: **granted**, **denied**, or **manual** (the connector or configuration couldn't apply the grant automatically, and someone needs to apply it by hand).
+    - For a revoke: **revoked** or **manual**.
+
+A workflow can also be configured to always revoke, regardless of what a given request asked for — useful for an offboarding or access-review workflow that needs to tear down access rather than grant it.
+
+## Limitations
+
+- Automated grants and revokes are currently supported for **Snowflake**, **Databricks**, and **Unity Catalog**. Other connectors can still use the request-and-approve flow, but the grant itself must be applied manually.
+- A `Revoke` removes everything the principal holds at the given scope. There's no way to revoke only part of a previously granted access.
