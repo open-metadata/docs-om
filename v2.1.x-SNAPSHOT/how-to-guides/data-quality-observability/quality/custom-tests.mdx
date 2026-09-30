@@ -8,9 +8,9 @@ sidebarTitle: Custom Tests
 
 Publish results from an external quality tool or implement a validator that OpenMetadata runs. Steps 1–4 register a custom test and publish its results through the API. Step 5 describes installing a custom validator for execution through OpenMetadata.
 
-Before starting, ingest the target table into OpenMetadata. Obtain a bearer token with permission to create test definitions, edit tests on the table, and publish results. Replace `{access_token}` in the examples and use your server URL instead of `http://localhost:8585`. The examples use the existing table `local_redshift.dev.dbt_jaffle.customers`. Replace this FQN throughout with your table's FQN.
+Before starting, ingest the target table into OpenMetadata. Obtain a bearer token with permission to create test definitions, edit tests on the table, and publish results. Replace `{access_token}` in the examples and use your server URL instead of `http://localhost:8585`. The examples use the existing table `local_redshift.dev.dbt_jaffle.customers`. Replace this fully qualified name (FQN) throughout with your table's FQN.
 
-### Step 1: Creating a `TestDefinition`
+## Step 1: Create a Test Definition
 
 Send `POST /api/v1/dataQuality/testDefinitions` to register a definition. This example declares a string parameter named `colName` for a test whose results are calculated externally.
 
@@ -33,11 +33,11 @@ curl --request POST 'http://localhost:8585/api/v1/dataQuality/testDefinitions' \
 
 Keep the `fullyQualifiedName` from the response (`demo_test_definition` in this example). Test-case creation accepts this name as a string, rather than an ID or an entity-reference object.
 
-To make the definition available for execution through OpenMetadata, include `OpenMetadata` in `testPlatforms` and install a matching validator as described in Step 5. Registering a definition alone does not implement or run the test.
+To make the definition available for execution through OpenMetadata, include `OpenMetadata` in `testPlatforms` and install a matching validator as described in Step 5. Registering a definition alone doesn't implement or run the test.
 
-### Step 2: Creating a `TestSuite` (Optional)
+## Step 2: Create a Test Suite
 
-A **basic test suite** holds the tests for a table. When you create a test case in Step 3, the server reuses the table's basic suite or creates one automatically. Skip this step unless you want to create the suite explicitly.
+Optional: Create a suite explicitly before creating a test case. A **basic test suite** holds the tests for a table. When you create a test case in Step 3, the server reuses the table's basic suite or creates one automatically. Skip this step unless you want to create the suite explicitly.
 
 To create it explicitly, send `POST /api/v1/dataQuality/testSuites/basic` with the existing table's FQN in `basicEntityReference`. Reuse the suite if the table already has one.
 
@@ -52,15 +52,15 @@ curl --request POST 'http://localhost:8585/api/v1/dataQuality/testSuites/basic' 
 }'
 ```
 
-`POST /api/v1/dataQuality/testSuites` creates a logical grouping instead. Do not send `executable` or `basic` as request fields. The endpoint determines the suite type. Use `basicEntityReference` instead of the deprecated `executableEntityReference` field.
+`POST /api/v1/dataQuality/testSuites` creates a logical grouping instead. Omit `executable` and `basic` from the request. The endpoint determines the suite type. Use `basicEntityReference` instead of the deprecated `executableEntityReference` field.
 
-See [Create a Test Suite](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-suites/create) for details.
+For more information, see [Create a Test Suite](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-suites/create).
 
-### Step 3: Creating a `TestCase`
+## Step 3: Create a Test Case
 
 Send `POST /api/v1/dataQuality/testCases` with the test definition's FQN as a string and an `entityLink` identifying the table or column. For a table, use `<#E::table::tableFQN>`. For a column, use `<#E::table::tableFQN::columns::columnName>`. Include the opening and closing angle brackets.
 
-Do not send `testSuite` in the request. The server associates the case with the table's basic suite using `entityLink`. Parameter names must match the definition, and parameter values must be strings.
+Omit `testSuite` from the request. The server associates the case with the table's basic suite using `entityLink`. Parameter names must match the definition, and parameter values must be strings.
 
 ```bash
 curl --request POST 'http://localhost:8585/api/v1/dataQuality/testCases' \
@@ -77,11 +77,11 @@ curl --request POST 'http://localhost:8585/api/v1/dataQuality/testCases' \
 }'
 ```
 
-Keep the returned `fullyQualifiedName` for Step 4. For this example it is `local_redshift.dev.dbt_jaffle.customers.custom_test_Case`.
+Keep the returned `fullyQualifiedName` for Step 4. For this example, it is `local_redshift.dev.dbt_jaffle.customers.custom_test_Case`.
 
-### Step 4: Writing `TestCaseResults` (Optional - for externally executed tests)
+## Step 4: Write Test Case Results
 
-After running your external test, send `POST /api/v1/dataQuality/testCases/testCaseResults/{fqn}` with its result. Use the test case's returned FQN, URL-encoded when necessary, in the path. The required fields are `timestamp`, `testCaseStatus`, and `testResultValue`.
+Optional: Publish results yourself when you run the test outside OpenMetadata. After running your external test, send `POST /api/v1/dataQuality/testCases/testCaseResults/{fqn}` with its result. Use the test case's returned FQN, URL-encoded when necessary, in the path. The required fields are `timestamp`, `testCaseStatus`, and `testResultValue`.
 
 The timestamp is Unix epoch time in milliseconds. Replace the example timestamp with the actual execution time.
 
@@ -100,33 +100,37 @@ curl --request POST 'http://localhost:8585/api/v1/dataQuality/testCases/testCase
 }'
 ```
 
-View the result on the table's test case. See [Test Case Results](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-cases/results) to retrieve submitted results.
+View the result on the table's test case. For more information, see [Test Case Results](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-cases/results).
 
-### Step 5: Making Custom Test Case Available Through OpenMetadata UI (Optional)
-OpenMetadata offers the flexibility to user to create custom test cases that will be executable through the user interface. To accomplish our goal, we'll be leveraging OpenMetadata namespace `data_quality` submodule .
+## Step 5: Make the Test Available Through the OpenMetadata UI
 
-#### A. Create Your Namespace Package
-The first in creating your own executable test case is to create a package where you'll be writing the logic to process the tests. Your package should have a minimum the below structure
+Optional: To run the test through the OpenMetadata user interface (UI), implement a validator in the `data_quality` namespace.
+
+### 1. Create Your Namespace Package
+
+Create a Python package for your validation logic with this minimum structure:
 
 ```
 metadata/
 setup.py
 ```
 
-To add table and column level test cases to SQLAlchemy sources you will place your test respectively in:
-- `metadata/data_quality/validations/table/sqlalchemy/<yourTest>.py`
-- `metadata/data_quality/validations/column/sqlalchemy/<yourTest>.py`
+For SQLAlchemy sources, place your validation file in the directory for its entity type:
+
+- Table tests: `metadata/data_quality/validations/table/sqlalchemy/<yourTest>.py`
+- Column tests: `metadata/data_quality/validations/column/sqlalchemy/<yourTest>.py`
 
 `<yourTest>` should match the name of your test definition in Step 1.
 
-**Important:** You will need to add an `__init__.py` file in every folder and these `__init__.py` should have the below line
+Add an `__init__.py` file in every package folder with this line:
 
 ```python
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
 ```
 
-#### B. Create your Test Class
-In `<yourTest>.py`, create a class named `<YourTest>Validator` that inherits from `BaseTestValidator`. Inherit from `SQAValidatorMixin` if you need its helper methods. Implement `run_validation` to return a `TestCaseResult` object. The following skeleton shows the class structure.
+### 2. Create Your Test Class
+
+In `<yourTest>.py`, create a class named `<YourTest>Validator` that inherits from `BaseTestValidator`. Inherit from `SQAValidatorMixin` if you need its helper methods. Implement `run_validation` to return a `TestCaseResult` object. The following illustrative skeleton omits imports and validation logic. Add these in your implementation before running it.
 
 
 ```python
@@ -141,9 +145,10 @@ class ColumnEntropyToBeBetweenValidator(BaseTestValidator):
       """Run test validation"""
 ```
 
-#### C. `pip` Install Your Package
-Once you have completed A) and B) you should only need to `pip install` your package in the environment where OpenMetadata python SDK is install.
+### 3. Install Your Package
 
-<img src="/public/images/features/ingestion/workflows/data-quality/custom-test-definition.png" alt="Create test case" />
+After implementing the validator, install your package with `pip install` in the environment that runs the OpenMetadata Python SDK.
 
- <img src="/public/images/features/ingestion/workflows/data-quality/custom-test-result.png" alt="Create test case" />
+<img src="/public/images/features/ingestion/workflows/data-quality/custom-test-definition.png" alt="Custom test definition in OpenMetadata" />
+
+<img src="/public/images/features/ingestion/workflows/data-quality/custom-test-result.png" alt="Custom test result in OpenMetadata" />

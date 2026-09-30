@@ -9,9 +9,7 @@ api: POST /v1/dataQuality/testCases
 
 Create a new test case by linking a test definition to a specific table or column with concrete parameter values.
 
-<Note>
-The server associates the test case with the basic suite of the table in `entityLink`, creating that suite if needed. Do not include `testSuite` in the create request. Automatically created suites are named `<tableFQN>.testSuite`. An existing basic suite keeps its name.
-</Note>
+The server associates the test case with the basic suite of the table in `entityLink`, creating that suite if needed. Omit `testSuite` from the create request. Automatically created suites are named `<tableFQN>.testSuite`. An existing basic suite keeps its name.
 
 ## Body Parameters
 
@@ -20,7 +18,7 @@ The server associates the test case with the basic suite of the table in `entity
 </ParamField>
 
 <ParamField body="testDefinition" type="string" required>
-  Fully qualified name of the test definition to use (e.g., `columnValueMaxToBeBetween`).
+  Fully qualified name (FQN) of the test definition to use. For example, `columnValueMaxToBeBetween`.
 </ParamField>
 
 <ParamField body="entityLink" type="string" required>
@@ -32,11 +30,11 @@ The server associates the test case with the basic suite of the table in `entity
 
   <Expandable title="properties">
     <ParamField body="name" type="string" required>
-      Name of the parameter (must match a parameter in the test definition).
+      Parameter name. Must match a parameter in the test definition.
     </ParamField>
 
     <ParamField body="value" type="string" required>
-      Value for the parameter (always provided as a string).
+      Parameter value. Always provide it as a string.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -54,7 +52,7 @@ The server associates the test case with the basic suite of the table in `entity
     </ParamField>
 
     <ParamField body="type" type="string">
-      Type of owner entity (e.g., `user`, `team`).
+      Owner entity type, such as `user` or `team`.
     </ParamField>
 
     <ParamField body="name" type="string">
@@ -248,18 +246,25 @@ Returns the created test case object with all specified properties and system-ge
 
 ## Create or Update (PUT)
 
-Use `PUT /v1/dataQuality/testCases` instead of `POST` to perform an upsert. If a test case with the same `fullyQualifiedName` already exists, it will be updated; otherwise, a new test case is created. The request body is the same as `POST`.
+Use `PUT /v1/dataQuality/testCases` instead of `POST` to perform an upsert. If a test case with the same `fullyQualifiedName` already exists, the server updates it. Otherwise, the server creates a new test case. The request body is the same as `POST`.
 
 ```bash
 curl -X PUT "{base_url}/api/v1/dataQuality/testCases" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
-  -d '{ ... same body as POST ... }'
+  -d '{
+    "name": "column_value_max_to_be_between",
+    "testDefinition": "columnValueMaxToBeBetween",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
+    "parameterValues": [
+      {"name": "minValueForMaxInCol", "value": "1"},
+      {"name": "maxValueForMaxInCol", "value": "100"}
+    ],
+    "description": "Validates shop_id max value stays between 1 and 100"
+  }'
 ```
 
-<Note>
-`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
-</Note>
+`PUT` updates an existing entity instead of returning a `409` conflict error.
 
 ---
 

@@ -9,9 +9,7 @@ api: POST /v1/dataQuality/testSuites
 
 `POST /v1/dataQuality/testSuites` creates a **logical** test suite that groups test cases across tables. To create a **basic** test suite linked to one table, use `POST /v1/dataQuality/testSuites/basic` as shown below.
 
-<Note>
-The endpoint determines the suite type. Do not send `executable` or `basic` in the request body. `basic` is a response field set by the server. `executable` is deprecated.
-</Note>
+The endpoint determines the suite type. Omit `executable` and `basic` from the request body. `basic` is a response field set by the server. `executable` is deprecated.
 
 ## Body Parameters
 
@@ -28,7 +26,7 @@ The endpoint determines the suite type. Do not send `executable` or `basic` in t
 </ParamField>
 
 <ParamField body="basicEntityReference" type="string">
-  Required when creating a basic suite through `/v1/dataQuality/testSuites/basic`: the FQN of an existing table. Omit this field for logical suites.
+  The fully qualified name (FQN) of an existing table. Required when creating a basic suite through `/v1/dataQuality/testSuites/basic`. Omit this field for logical suites.
 </ParamField>
 
 <ParamField body="owners" type="array">
@@ -40,7 +38,7 @@ The endpoint determines the suite type. Do not send `executable` or `basic` in t
     </ParamField>
 
     <ParamField body="type" type="string">
-      Type of owner entity (e.g., `user`, `team`).
+      Owner entity type, such as `user` or `team`.
     </ParamField>
 
     <ParamField body="name" type="string">
@@ -159,7 +157,7 @@ Returns the created test suite object with all specified properties and system-g
     </ResponseField>
 
     <ResponseField name="type" type="string">
-      Type of owner entity (e.g., `user`, `team`).
+      Owner entity type, such as `user` or `team`.
     </ResponseField>
 
     <ResponseField name="name" type="string">
@@ -176,7 +174,7 @@ Returns the created test suite object with all specified properties and system-g
 
 ## Create a Basic Test Suite
 
-The table must already exist in OpenMetadata. Use its FQN for `basicEntityReference` and `<tableFQN>.testSuite` for the suite name. If the table already has a basic suite, reuse it. Creating a test case automatically creates the table's basic suite when one does not exist.
+The table must already exist in OpenMetadata. Use its FQN for `basicEntityReference` and `<tableFQN>.testSuite` for the suite name. If the table already has a basic suite, reuse it. Creating a test case automatically creates the table's basic suite when one doesn't exist.
 
 ```bash
 curl -X POST "{base_url}/api/v1/dataQuality/testSuites/basic" \
@@ -194,18 +192,20 @@ The response has `basic: true` and a `basicEntityReference` object identifying t
 
 ## Create or Update (PUT)
 
-Use `PUT /v1/dataQuality/testSuites` for a logical suite, or `PUT /v1/dataQuality/testSuites/basic` for a basic suite, to perform an upsert. If a test suite with the same name already exists, it will be updated. Otherwise, a new test suite is created. The request body is the same as `POST`.
+Use `PUT /v1/dataQuality/testSuites` for a logical suite, or `PUT /v1/dataQuality/testSuites/basic` for a basic suite, to perform an upsert. If a test suite with the same name already exists, the server updates it. Otherwise, the server creates a new test suite. The request body is the same as `POST`.
 
 ```bash
 curl -X PUT "{base_url}/api/v1/dataQuality/testSuites" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
-  -d '{ ... same body as POST ... }'
+  -d '{
+    "name": "critical_data_quality_checks",
+    "displayName": "Critical Data Quality Checks",
+    "description": "Groups all critical data quality test cases across production tables"
+  }'
 ```
 
-<Note>
-`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
-</Note>
+`PUT` updates an existing entity instead of returning a `409` conflict error.
 
 ---
 
