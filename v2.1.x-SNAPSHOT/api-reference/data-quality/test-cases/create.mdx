@@ -9,6 +9,10 @@ api: POST /v1/dataQuality/testCases
 
 Create a new test case by linking a test definition to a specific table or column with concrete parameter values.
 
+<Note>
+The server associates the test case with the basic suite of the table in `entityLink`, creating that suite if needed. Do not include `testSuite` in the create request.
+</Note>
+
 ## Body Parameters
 
 <ParamField body="name" type="string" required>
@@ -17,10 +21,6 @@ Create a new test case by linking a test definition to a specific table or colum
 
 <ParamField body="testDefinition" type="string" required>
   Fully qualified name of the test definition to use (e.g., `columnValueMaxToBeBetween`).
-</ParamField>
-
-<ParamField body="testSuite" type="string" required>
-  Fully qualified name of the test suite this test case belongs to.
 </ParamField>
 
 <ParamField body="entityLink" type="string" required>
@@ -78,7 +78,6 @@ configure(
 request = CreateTestCaseRequest(
     name="column_value_max_to_be_between",
     testDefinition="columnValueMaxToBeBetween",
-    testSuite="b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
     entityLink="<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
     parameterValues=[
         {"name": "minValueForMaxInCol", "value": "1"},
@@ -92,17 +91,15 @@ print(f"Created: {test_case.fullyQualifiedName}")
 ```
 
 ```java POST /v1/dataQuality/testCases
-import static org.openmetadata.sdk.fluent.TestCases.*;
+import org.openmetadata.sdk.fluent.builders.TestCaseBuilder;
 
-var testCase = TestCases.builder()
+// Use an initialized OpenMetadataClient named client.
+var testCase = TestCaseBuilder.create(client)
     .name("column_value_max_to_be_between")
     .testDefinition("columnValueMaxToBeBetween")
-    .testSuite("b5fcae09-02c2-4c0b-8c4a-5b52d650e592")
     .entityLink("<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>")
-    .parameterValues(List.of(
-        Map.of("name", "minValueForMaxInCol", "value", "1"),
-        Map.of("name", "maxValueForMaxInCol", "value", "100")
-    ))
+    .parameter("minValueForMaxInCol", "1")
+    .parameter("maxValueForMaxInCol", "100")
     .create();
 ```
 
@@ -113,7 +110,6 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
   -d '{
     "name": "column_value_max_to_be_between",
     "testDefinition": "columnValueMaxToBeBetween",
-    "testSuite": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
     "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
     "parameterValues": [
       {"name": "minValueForMaxInCol", "value": "1"},
@@ -144,7 +140,7 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
   "testSuite": {
     "id": "suite-id",
     "type": "testSuite",
-    "name": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+    "name": "sample_data.ecommerce_db.shopify.dim_address.testSuite",
     "deleted": false
   },
   "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::shop_id>",
