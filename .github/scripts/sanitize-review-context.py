@@ -18,7 +18,7 @@ Each file is sanitized and rewritten in place.
 import re
 import sys
 
-ZERO_WIDTH = re.compile("[\u200B\u200C\u200D\uFEFF]")
+ZERO_WIDTH = re.compile("[\u200B\u200C\u200D\u2060\uFEFF]")
 CONTROL = re.compile("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]")
 SOFT_HYPHEN = re.compile("\u00AD")
 BIDI_OVERRIDE = re.compile("[\u202A-\u202E\u2066-\u2069]")
