@@ -1,18 +1,22 @@
 ---
 title: Create a Test Suite
-description: Create a new executable or logical test suite
+description: Create a logical test suite or a basic test suite for a table
 sidebarTitle: Create a Test Suite
 api: POST /v1/dataQuality/testSuites
 ---
 
 # Create a Test Suite
 
-Create a new test suite. Logical test suites group test cases across multiple tables. Executable test suites are tied to a specific table.
+`POST /v1/dataQuality/testSuites` creates a **logical** test suite that groups test cases across tables. To create a **basic** test suite linked to one table, use `POST /v1/dataQuality/testSuites/basic` as shown below.
+
+<Note>
+The endpoint determines the suite type. Do not send `executable` or `basic` in the request body. `basic` is a response field set by the server; `executable` is deprecated.
+</Note>
 
 ## Body Parameters
 
 <ParamField body="name" type="string" required>
-  Name of the test suite. Must be unique.
+  Name of the test suite. Must be unique. For a basic suite, use the target table's fully qualified name (FQN).
 </ParamField>
 
 <ParamField body="displayName" type="string">
@@ -23,8 +27,8 @@ Create a new test suite. Logical test suites group test cases across multiple ta
   Description of the test suite in Markdown format.
 </ParamField>
 
-<ParamField body="executable" type="boolean" required>
-  Set to `true` for an executable test suite (tied to a table), `false` for a logical test suite (user-defined grouping).
+<ParamField body="basicEntityReference" type="string">
+  Required when creating a basic suite through `/v1/dataQuality/testSuites/basic`: the FQN of an existing table. Omit this field for logical suites.
 </ParamField>
 
 <ParamField body="owners" type="array">
@@ -60,41 +64,22 @@ configure(
 request = CreateTestSuiteRequest(
     name="critical_data_quality_checks",
     displayName="Critical Data Quality Checks",
-    description="Groups all critical data quality test cases across production tables",
-    executable=False
+    description="Groups all critical data quality test cases across production tables"
 )
 
 test_suite = TestSuites.create(request)
 print(f"Created: {test_suite.name}")
-
-# Create an executable test suite
-request = CreateTestSuiteRequest(
-    name="dim_address_test_suite",
-    displayName="Data Contract - dim_address",
-    description="Executable test suite for dim_address table",
-    executable=True
-)
-
-test_suite = TestSuites.create(request)
-print(f"Created: {test_suite.fullyQualifiedName}")
 ```
 
 ```java POST /v1/dataQuality/testSuites
-import static org.openmetadata.sdk.fluent.TestSuites.*;
+import org.openmetadata.sdk.fluent.builders.TestSuiteBuilder;
 
 // Create a logical test suite
-var testSuite = TestSuites.builder()
+// Use an initialized OpenMetadataClient named client.
+var testSuite = new TestSuiteBuilder(client)
     .name("critical_data_quality_checks")
     .displayName("Critical Data Quality Checks")
     .description("Groups all critical data quality test cases across production tables")
-    .executable(false)
-    .create();
-
-// Create an executable test suite
-var testSuite = TestSuites.builder()
-    .name("dim_address_test_suite")
-    .displayName("Data Contract - dim_address")
-    .executable(true)
     .create();
 ```
 
@@ -106,19 +91,7 @@ curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
   -d '{
     "name": "critical_data_quality_checks",
     "displayName": "Critical Data Quality Checks",
-    "description": "Groups all critical data quality test cases across production tables",
-    "executable": false
-  }'
-
-# Create an executable test suite
-curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
-  -H "Authorization: Bearer {access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "dim_address_test_suite",
-    "displayName": "Data Contract - dim_address",
-    "description": "Executable test suite for dim_address table",
-    "executable": true
+    "description": "Groups all critical data quality test cases across production tables"
   }'
 ```
 </RequestExample>
@@ -136,7 +109,7 @@ curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
   "updatedBy": "admin",
   "deleted": false,
   "owners": [],
-  "executable": false
+  "basic": false
 }
 ```
 </ResponseExample>
@@ -169,8 +142,8 @@ Returns the created test suite object with all specified properties and system-g
   Description of the test suite.
 </ResponseField>
 
-<ResponseField name="executable" type="boolean">
-  Whether this is an executable (`true`) or logical (`false`) test suite.
+<ResponseField name="basic" type="boolean">
+  Whether this is a basic (`true`) or logical (`false`) test suite. Set by the server.
 </ResponseField>
 
 <ResponseField name="owners" type="array" optional>
@@ -197,9 +170,27 @@ Returns the created test suite object with all specified properties and system-g
 
 ---
 
+## Create a Basic Test Suite
+
+The table must already exist in OpenMetadata. Use its FQN for `basicEntityReference` and the suite name. If the table already has a basic suite, reuse it. Creating a test case automatically creates the table's basic suite when one does not exist.
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testSuites/basic" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sample_data.ecommerce_db.shopify.dim_address",
+    "displayName": "Data Quality - dim_address",
+    "description": "Basic test suite for dim_address",
+    "basicEntityReference": "sample_data.ecommerce_db.shopify.dim_address"
+  }'
+```
+
+The response has `basic: true` and a `basicEntityReference` object identifying the table.
+
 ## Create or Update (PUT)
 
-Use `PUT /v1/dataQuality/testSuites` instead of `POST` to perform an upsert. If a test suite with the same name already exists, it will be updated; otherwise, a new test suite is created. The request body is the same as `POST`.
+Use `PUT /v1/dataQuality/testSuites` for a logical suite, or `PUT /v1/dataQuality/testSuites/basic` for a basic suite, to perform an upsert. If a test suite with the same name already exists, it will be updated; otherwise, a new test suite is created. The request body is the same as `POST`.
 
 ```bash
 curl -X PUT "{base_url}/api/v1/dataQuality/testSuites" \

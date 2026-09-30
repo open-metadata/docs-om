@@ -5,153 +5,102 @@ sidebarTitle: Custom Tests
 ---
 
 # Adding Custom Tests
-While OpenMetadata provides out of the box tests, you may want to write your test results from your own custom quality test suite or define your own data quality tests to be ran inside OpenMetadata.  This is very easy to do using the API and our Python SDK.
+
+You can publish results from an external quality tool or implement a validator that OpenMetadata runs. Steps 1–4 register a custom test and publish its results through the API. Step 5 describes installing a custom validator for execution through OpenMetadata.
+
+Before starting, ingest the target table into OpenMetadata and obtain a bearer token with permission to create test definitions, edit tests on the table, and publish results. Replace `{access_token}` in the examples and use your server URL instead of `http://localhost:8585`. The examples use the existing table `local_redshift.dev.dbt_jaffle.customers`; replace this FQN throughout with your table's FQN.
 
 ### Step 1: Creating a `TestDefinition`
-First, you'll need to create a Test Definition for your test. You can use the following endpoint `/api/v1/dataQuality/testDefinition` using a POST protocol to create your Test Definition. You will need to pass the following data in the body your request at minimum.
 
-```json
-{
-    "description": "<you test definition description>",
-    "entityType": "<TABLE or COLUMN>",
-    "name": "<your_test_name>",
-    "testPlatforms": ["<any of OpenMetadata,GreatExpectations, dbt, Deequ, Soda, Other>"],
-    "parameterDefinition": [
-      {
-        "name": "<name>"
-      },
-      {
-        "name": "<name>"
-      }
-    ]
-}
-```
-
-Here is a complete CURL request
+Send `POST /api/v1/dataQuality/testDefinitions` to register a definition. This example declares a string parameter named `colName` for a test whose results are calculated externally.
 
 ```bash
 curl --request POST 'http://localhost:8585/api/v1/dataQuality/testDefinitions' \
+--header 'Authorization: Bearer {access_token}' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "description": "A demo custom test",
     "entityType": "TABLE",
     "name": "demo_test_definition",
-    "testPlatforms": ["Soda", "dbt"],
+    "testPlatforms": ["Other"],
     "parameterDefinition": [{
-        "name": "ColumnOne"
+        "name": "colName",
+        "dataType": "STRING",
+        "required": true
     }]
 }'
 ```
 
-Make sure to keep the `UUID` from the response as you will need it to create the Test Case.
+Keep the `fullyQualifiedName` from the response (`demo_test_definition` in this example). Test-case creation accepts this name as a string, rather than an ID or an entity-reference object.
 
-**Important:** If you want to have the test definition available through OpenMetadata UI, `testPlatforms` need to include `OpenMetadata`. It will also require extra work that we'll cover below in Step 5. If you are just looking to create new test definition executable through OpenMetadata UI, you can skip ahead to Step 5.
+To make the definition available for execution through OpenMetadata, include `OpenMetadata` in `testPlatforms` and install a matching validator as described in Step 5. Registering a definition alone does not implement or run the test.
 
-### Step 2: Creating a `TestSuite`
-You'll also need to create a Test Suite for your Test Case -- note that you can also use an existing one if you want to. You can use the following endpoint `/api/v1/dataQuality/testSuites/executable` using a POST protocol to create your Test Definition. You will need to pass the following data in the body your request at minimum.
+### Step 2: Creating a `TestSuite` (Optional)
 
-```json
-{
-  "name": "<test_suite_name>",
-  "description": "<test suite description>",
-  "executableEntityReference": "<entityFQN>"
-}
-```
+A **basic test suite** holds the tests for a table. When you create a test case in Step 3, the server reuses the table's basic suite or creates one automatically. You can skip this step unless you want to create the suite explicitly.
 
-Here is a complete CURL request
+To create it explicitly, send `POST /api/v1/dataQuality/testSuites/basic` with the existing table's FQN in `basicEntityReference`. Reuse the suite if the table already has one.
 
 ```bash
-curl --request POST 'http://localhost:8585/api/v1/dataQuality/testSuites/executable' \
+curl --request POST 'http://localhost:8585/api/v1/dataQuality/testSuites/basic' \
+--header 'Authorization: Bearer {access_token}' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-  "name": "<test_suite_name>",
-  "description": "<test suite description>",
-  "executableEntityReference": "<entityFQN>"
+    "name": "local_redshift.dev.dbt_jaffle.customers",
+    "description": "Custom tests for the customers table",
+    "basicEntityReference": "local_redshift.dev.dbt_jaffle.customers"
 }'
 ```
 
-Make sure to keep the `UUID` from the response as you will need it to create the Test Case.
+`POST /api/v1/dataQuality/testSuites` creates a logical grouping instead. Do not send `executable` or `basic` as request fields; the endpoint determines the suite type. Use `basicEntityReference` instead of the deprecated `executableEntityReference` field.
 
+See [Create a Test Suite](/v2.0.x/api-reference/data-quality/test-suites/create) for details.
 
 ### Step 3: Creating a `TestCase`
-Once you have your Test Definition created you can create a Test Case -- which is a specification of your Test Definition. You can use the following endpoint `/api/v1/dataQuality/testCases` using a POST protocol to create your Test Case. You will need to pass the following data in the body your request at minimum.
 
-```json
-{
-    "entityLink": "<#E::table::fqn> or <#E::table::fqn::columns::column name>",
-    "name": "<test_case_name>",
-    "testDefinition": {
-        "FQN": "<test definition FQN>",
-        "type": "testDefinition"
-    },
-    "testSuite": {
-        "FQN": "<test suite FQN>",
-        "type": "testSuite"
-    }
-}
-```
-**Important:** for `entityLink` make sure to include the starting and ending `<>`
+Send `POST /api/v1/dataQuality/testCases` with the test definition's FQN as a string and an `entityLink` identifying the table or column. For a table, use `<#E::table::tableFQN>`; for a column, use `<#E::table::tableFQN::columns::columnName>`. Include the opening and closing angle brackets.
 
-Here is a complete CURL request
+Do not send `testSuite` in the request. The server associates the case with the table's basic suite using `entityLink`. Parameter names must match the definition, and parameter values must be strings.
 
 ```bash
 curl --request POST 'http://localhost:8585/api/v1/dataQuality/testCases' \
+--header 'Authorization: Bearer {access_token}' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "entityLink": "<#E::table::local_redshift.dev.dbt_jaffle.customers>",
     "name": "custom_test_Case",
-    "testDefinition": {
-        "id": "1f3ce6f5-67be-45db-8314-2ee42d73239f",
-        "type": "testDefinition"
-    },
-    "testSuite": {
-        "id": "3192ed9b-5907-475d-a623-1b3a1ef4a2f6",
-        "type": "testSuite"
-    },
-    "parameterValues": [
-        {
-            "name": "colName",
-            "value": 10
-        }
-    ]
+    "testDefinition": "demo_test_definition",
+    "parameterValues": [{
+        "name": "colName",
+        "value": "id"
+    }]
 }'
 ```
 
-Make sure to keep the `UUID` from the response as you will need it to create the Test Case.
+Keep the returned `fullyQualifiedName` for Step 4. For this example it is `local_redshift.dev.dbt_jaffle.customers.custom_test_Case`.
 
+### Step 4: Writing `TestCaseResults` (Optional - for externally executed tests)
 
-### Step 4: Writing `TestCaseResults` (Optional - if not executing test case through OpenMetadata UI)
-Once you have your Test Case created you can write your results to it. You can use the following endpoint `/api/v1/dataQuality/testCases/{test FQN}/testCaseResult` using a PUT protocol to add Test Case Results. You will need to pass the following data in the body your request at minimum.
+After running your external test, send `POST /api/v1/dataQuality/testCases/testCaseResults/{fqn}` with its result. Use the test case's returned FQN, URL-encoded when necessary, in the path. The required fields are `timestamp`, `testCaseStatus`, and `testResultValue`.
 
-```json
-{
-    "result": "<result message>",
-    "testCaseStatus": "<Success or Failed or Aborted>",
-    "timestamp": <Unix timestamp in milliseconds>,
-    "testResultValue": [
-      {
-        "value": "<value>"
-      }
-    ]
-}
-```
-
-Here is a complete CURL request
+The timestamp is Unix epoch time in milliseconds. Replace the example timestamp with the actual execution time.
 
 ```bash
-curl --location --request PUT 'http://localhost:8585/api/v1/dataQuality/testCases/local_redshift.dev.dbt_jaffle.customers.custom_test_Case/testCaseResult' \
+curl --request POST 'http://localhost:8585/api/v1/dataQuality/testCases/testCaseResults/local_redshift.dev.dbt_jaffle.customers.custom_test_Case' \
+--header 'Authorization: Bearer {access_token}' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-    "result": "found 1 values expected n",
+    "result": "All 10 checked rows passed the custom validation",
     "testCaseStatus": "Success",
-    "timestamp": 1662129151000,
+    "timestamp": 1769982800000,
     "testResultValue": [{
+        "name": "rowsChecked",
         "value": "10"
     }]
 }'
 ```
 
-You will now be able to see your test in the Test Suite or the table entity.
+You can now view the result on the table's test case. See [Test Case Results](/v2.0.x/api-reference/data-quality/test-cases/results) to retrieve submitted results.
 
 ### Step 5: Making Custom Test Case Available Through OpenMetadata UI (Optional)
 OpenMetadata offers the flexibility to user to create custom test cases that will be executable through the user interface. To accomplish our goal, we'll be leveraging OpenMetadata namespace `data_quality` submodule .
