@@ -1,6 +1,6 @@
 ---
 title: ODCS Import and Export | OpenMetadata Data Contracts
-description: Which Open Data Contract Standard (ODCS) versions and fields OpenMetadata imports, how ODCS quality rules become test cases, and how to check a contract before you import it.
+description: Which Open Data Contract Standard (ODCS) versions and fields OpenMetadata imports, how ODCS quality rules become test cases, and how to preview an ODCS import before applying it.
 sidebarTitle: ODCS Import and Export
 ---
 
@@ -29,19 +29,34 @@ OpenMetadata reads these `apiVersion` values:
 
 Any other `apiVersion` blocks the import. The document must also have `kind: DataContract` and a valid `status` (`proposed`, `draft`, `active`, `deprecated`, or `retired`).
 
-## Check a Contract Before You Import It
+## Import ODCS
 
 An import reads the file the same way the import report does. Preview the report first to see exactly what the import will do.
 
-### In the UI
+### Using UI
 
-1. On the asset's page, select the **Contract** tab.
-2. Select **Add Contract** > **Import ODCS**. If the asset already has a contract, select **Import ODCS** in the contract's actions menu instead.
+1. On the asset's table details page, click the **Contract** tab.
+
+    <img src="/public/images/how-to-guides/contracts/contract-tab.png" alt="Contract Tab" />
+
+2. Select **Add Contract** > **Import ODCS**.
+
+    <img src="/public/images/how-to-guides/contracts/import-odcs1.png" alt="Import a new ODCS" />
+
+    If the asset already has a contract, click the **Settings** icon and select **Import ODCS** instead.
+
+    <img src="/public/images/how-to-guides/contracts/import-odcs2.png" alt="Import option for an existing contract" />
+
 3. Choose the ODCS YAML file.
+
 4. Optional: If the file contains more than one schema object, select the object that describes this asset.
+
 5. If the asset already has a contract, select **Merge with Existing** to keep the fields the file doesn't set, or **Replace Entire Contract**.
+
 6. Review the status card and the **Import Report** below the preview.
+
 7. Optional: Clear **Create Test Cases from Quality Rules** to keep the quality rules with the contract without running them.
+
 8. Select **Import**, or **Import with Warnings** when the report lists warnings.
 
 The status card shows one of three states:
@@ -61,9 +76,20 @@ The status card also shows how many quality rules run as test cases, for example
 
 Changing the file, the schema object, or the checkbox runs the check again, so the report always matches what the import will do.
 
-### With the API
+### Using API
 
-Send the file to `POST /v1/dataContracts/odcs/validate/yaml`. The response is the contract validation result with an `odcsImportReport` that lists the same blocking issues, warnings, and quality rule outcomes as the UI. For the request parameters and the response format, see the [Import & Export API reference](/v2.1.x-SNAPSHOT/api-reference/data-contracts/odcs#validate-odcs-yaml).
+Optional: Send the file to `POST /v1/dataContracts/odcs/validate/yaml` to get a validation result with an `odcsImportReport`. Validation doesn't create or update a contract.
+
+To import the file, call `PUT /v1/dataContracts/odcs/yaml` with the required `entityId` and `entityType` query parameters. The default `mode=merge` keeps existing fields that the file doesn't set; use `mode=replace` to replace the contract.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataContracts/odcs/yaml?entityId={entity_id}&entityType=table&mode=merge" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @contract.yaml
+```
+
+For validation details and import parameters, see the [Import & Export API reference](/v2.1.x-SNAPSHOT/api-reference/data-contracts/odcs#import-from-odcs).
 
 ### What Blocks an Import
 
@@ -232,7 +258,20 @@ With test case creation turned off, the rules are stored only, and the test case
 
 ## Exporting to ODCS
 
-To export a contract, open the asset's **Contract** tab and select **Export as ODCS** in the actions menu, or call `GET /v1/dataContracts/{id}/odcs/yaml`. The export is an ODCS v3.1.0 document that includes:
+Export a contract as an ODCS document from the UI or the API.
+
+### Using UI
+
+1. On the asset's table details page, click the **Contract** tab.
+2. Click the **Settings** icon and select **Export as ODCS**.
+
+### Using API
+
+Call `GET /v1/dataContracts/{id}/odcs/yaml`.
+
+### What's Exported
+
+The export is an ODCS v3.1.0 document that includes:
 
 - The contract's columns, as the properties of one schema object named after the asset.
 - Owners, as team members with `role: owner`.
