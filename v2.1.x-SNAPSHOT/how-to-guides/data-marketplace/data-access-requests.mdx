@@ -1,7 +1,7 @@
 ---
 title: Data Access Requests | OpenMetadata Governance Guide
 description: Let users request access to a table through OpenMetadata, and have an approved request granted automatically by the Policy Agent.
-slug: /how-to-guides/data-governance/data-access-requests
+slug: /how-to-guides/data-marketplace/data-access-requests
 sidebarTitle: Data Access Requests
 ---
 
@@ -15,7 +15,7 @@ Three pieces work together:
 
 1. **Connector configuration**: An admin enables `policyAgentConfig` on a database service (Snowflake, Databricks, or Unity Catalog today) and declares which access types it supports.
 2. **The request**: A user requests access to a table or data product by creating a task with the access type, permission level, an expiration date, and a reason.
-3. **The Policy Agent**: A governance workflow's **Policy Agent** node runs when the task is approved. It executes the grant against the source system through a Policy Agent ingestion pipeline, then marks the request granted — or falls back to a manual step if the connector or request can't be automated.
+3. **The Policy Agent**: A governance workflow's **Policy Agent** node runs when the task is approved. It executes the grant against the source system through a Policy Agent ingestion pipeline, then marks the request granted, or falls back to a manual step if the connector or request can't be automated.
 
 ## Enabling Data Access Requests on a Connector
 
@@ -46,13 +46,13 @@ Defaults differ by connector:
 
 ## Requesting Access
 
-This is currently an API-only capability — there's no "Request Access" action in the UI yet. Create a task with `taskType: DataAccessRequest` against the table or data product.
+This is currently an API-only capability: there's no "Request Access" action in the UI yet. Create a task with `taskType: DataAccessRequest` against the table or data product.
 
 A request captures:
 
 | Field | Notes |
 |---|---|
-| **Access Type** | **Full Access**, **Column Level**, or **Masked**. Only the types the connector's `policyAgentConfig` supports are offered. On a data product, **Column Level** is always rejected, since a data product can span multiple backing services. |
+| **Access Type** | **Full Access**, **Column Level**, or **Masked**. Only the types the connector's `policyAgentConfig` supports are offered. On a data product, **Column Level** is always rejected, because a data product can span multiple backing services. |
 | **Selected Columns** | Used to scope a Column Level or Masked request to specific columns. |
 | **Permission Level** | **Read**, **Write**, or **Admin**. |
 | **Expiration Date** | When the access should end. Required. |
@@ -67,7 +67,7 @@ An approver acts on the task:
 
 - **Approve**: Optional comment. Once approved, the Policy Agent workflow node runs and applies the grant.
 - **Reject**: Requires a comment explaining why.
-- **Revoke**: Requires a comment. Tears down whatever access the principal currently holds at that scope — a revoke removes everything granted, not just the originally requested level.
+- **Revoke**: Requires a comment. Tears down whatever access the principal currently holds at that scope. A revoke removes everything granted, not just the originally requested level.
 
 ## What the Policy Agent Does
 
@@ -76,7 +76,7 @@ When a request is approved, the workflow's Policy Agent node:
 1. Runs a Policy Agent ingestion pipeline, which executes the grant (or revoke) against the source system.
 2. By default, waits up to 10 minutes for that pipeline to finish before continuing.
 3. Reports back one of these outcomes:
-    - For a grant: **granted**, **denied**, or **manual** (the connector or configuration couldn't apply the grant automatically, and someone needs to apply it by hand).
+    - For a grant: **granted**, **denied**, or **manual** — meaning the connector or configuration couldn't apply the grant automatically, and someone needs to apply it by hand.
     - For a revoke: **revoked** or **manual**.
 
 A workflow can also be configured to always revoke, regardless of what a given request asked for — useful for an offboarding or access-review workflow that needs to tear down access rather than grant it.
