@@ -117,7 +117,7 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 - [ ] **Avoid semicolons in general content** — Flag; suggest splitting the sentence.
 
 ### 4.4 Dashes and Hyphens
-- [ ] **Minimize em dashes in prose** — One, used well, is fine. Flag prose that leans on them as a stylistic crutch (several in one piece, or one used where a period or comma would read more naturally). Prefer a comma, colon, parentheses, or splitting into two sentences. Applies to new content and edits of existing content; not a mandate to sweep existing pages unless asked. Treat as Minor severity, not Critical, unless truly pervasive.
+- [ ] **Use em dashes sparingly in prose** — Use an em dash only where a comma, colon, parentheses, or a separate sentence doesn't work. Flag any em dash where one of those would work, and prose that leans on them as a stylistic crutch. This isn't a ban: an em dash that none of those alternatives can replace is fine. Applies to new content and edits of existing content; not a mandate to sweep existing pages unless asked. Treat as Minor severity, not Critical, unless truly pervasive.
 - [ ] **No spaced en dashes used as em dashes** — Flag " – " used mid-sentence.
 - [ ] **En dash for ranges** — "2020–2026," "pages 10–15" (not hyphens).
 - [ ] **Hyphen in compound modifiers before a noun** — "well-known author" but "the author is well known."
@@ -315,4 +315,4 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 
 - [ ] **No illogical or out-of-order steps** — Flag anything technically wrong, misleading, contradictory, or sequenced incorrectly (e.g. referencing a setting before it's created, a step that depends on a later step).
 - [ ] **No code bugs** — Flag missing imports, undefined variables, or syntax errors in code samples.
-- [ ] **Claims match reality** — For every specific, checkable claim (a version number, a named API/config option, a described product behavior, or "as of version X this changed"), verify it against an authoritative source — not only claims that initially read as suspicious, and not only narrowly "technical" ones. Record confirmed-correct (no output needed), confirmed-wrong (Issues Found row with the source citation), or could-not-be-checked (Issues Found row stating the specific reason, e.g. "no matching release tag found" — never the bare phrase "unable to verify" alone).
+- [ ] **Claims are internally consistent** — For every specific, checkable claim (a count, a version number, a named API/config option, or "as of version X this changed"), check it against the rest of the diff/PR itself, not against an external source repository. Record a confirmed-consistent or contradicted result; do not limit this to claims that initially read off.
