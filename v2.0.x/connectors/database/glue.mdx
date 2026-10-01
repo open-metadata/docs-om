@@ -61,11 +61,17 @@ The connector doesn't map a Glue database to an OpenMetadata database. The Glue 
 
 | AWS Glue | OpenMetadata | Name in OpenMetadata |
 |---|---|---|
-| Data Catalog | Database | The catalog ID, which is your AWS account ID, for example `123456789012`. To use a different name, set **Database Name** in the connection details. |
+| Data Catalog | Database | The catalog ID, which is your AWS account ID, for example `123456789012`, unless you set **Database Name**. |
 | Database | Schema | The Glue database name. |
 | Table or view | Table | The Glue table name. Iceberg tables get the `Iceberg` table type, external tables `External`, views `View`, and all other tables `Regular`. |
 
-**Database Name** only renames the OpenMetadata database. It doesn't choose which Glue databases to ingest. Use the **Schema** filter for that.
+**Database Name** does more than rename the database. When you set it:
+
+- The connector creates one database with that name and stops using the **Database** to select catalogs, so leave that filter empty.
+- Every Glue database the connector can see becomes a schema of that database, even when the Glue databases come from different catalogs. The ingestion run reports a warning when it sees more than one catalog.
+- If two Glue databases from different catalogs share a name, one overwrites the other and its tables go missing.
+
+To keep one database per catalog, leave **Database Name** blank.
 
 ### Filter Patterns
 
@@ -73,7 +79,7 @@ Each filter in [Step 5: Configure Ingestion Options](#step-5-configure-ingestion
 
 | Filter | Matches | Matching example | Non-matching example |
 |---|---|---|---|
-| **Database** | Catalog ID | The rule **is exactly** `123456789012` includes the catalog `123456789012`. | The same rule skips the catalog `210987654321`. A rule that names a Glue database, such as **is exactly** `sales`, matches no catalog ID, so the connector skips the whole catalog. |
+| **Database** | Catalog ID, when **Database Name** is blank | The rule **is exactly** `123456789012` includes the catalog `123456789012`. | The same rule skips the catalog `210987654321`. A rule that names a Glue database, such as **is exactly** `sales`, matches no catalog ID, so the connector skips the whole catalog. |
 | **Schema** | Glue database name | The rule **starts with** `sales_` includes the Glue database `sales_raw`. | The same rule skips the Glue database `marketing_raw`. |
 | **Table** | Glue table name | The rule **starts with** `orders` includes the table `orders_2024`. | The same rule skips the table `customer_orders`. |
 
@@ -181,7 +187,7 @@ Find more information about the [Role Session Name](https://docs.aws.amazon.com/
 - **Assume Role Source Identity**: The source identity specified by the principal that is calling the `AssumeRole` operation. You can use source identity
   information in AWS CloudTrail logs to determine who took actions with a role.
 Find more information about [Source Identity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=Required%3A%20No-,SourceIdentity,-The%20source%20identity).
-- **Database Name (optional)**: The name of the OpenMetadata database that holds your Glue databases. If you leave it blank, the connector uses the catalog ID, which is your AWS account ID. This field only names the database. For more information, see [How Glue Maps to OpenMetadata](#how-glue-maps-to-openmetadata).
+- **Database Name (optional)**: The name of a single OpenMetadata database that holds all your Glue databases. If you leave it blank, the connector creates one database per catalog, named after the catalog ID, which is your AWS account ID. Setting this field also changes how catalogs are mapped and filtered. For more information, see [How Glue Maps to OpenMetadata](#how-glue-maps-to-openmetadata).
 
 #### Test Connection
 
@@ -216,7 +222,7 @@ Leave all filter patterns empty to ingest all databases, schemas, and tables ava
 
 The Database, Schema, and Table sections each include the following filter options:
 
-- **Database**: Controls which catalogs OpenMetadata ingests. Rules match the catalog ID, not Glue database names.
+- **Database**: Controls which catalogs OpenMetadata ingests when **Database Name** is blank. Rules match the catalog ID, not Glue database names.
 - **Schema**: Controls which Glue databases OpenMetadata ingests. Rules match the Glue database name.
 - **Table**: Controls which tables and views within the ingested Glue databases are included.
 
