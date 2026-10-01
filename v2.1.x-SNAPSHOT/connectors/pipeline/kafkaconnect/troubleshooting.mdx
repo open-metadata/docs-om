@@ -7,3 +7,65 @@ import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
 
 
 <Troubleshooting />
+
+## Snowflake Sink Lineage Is Missing
+
+OpenMetadata writes Snowflake sink lineage only when the target table resolves to exactly one Snowflake service. For more information about how that service is chosen, see [Snowflake Sink Lineage](/v2.1.x-SNAPSHOT/connectors/pipeline/kafkaconnect#snowflake-sink-lineage). When the table doesn't resolve, the Kafka Connect Metadata Agent still succeeds. The lineage summary at the end of the run log lists the connector as `FAILED` with the reason `Missing table`, or `Missing both table and topic` when the topic isn't ingested either. The log also carries one of the following warnings. Two of them name **Db Service Names** by its YAML key, `lineageInformation.dbServiceNames`.
+
+### The Table Isn't in the Checked Services
+
+The run log shows:
+
+```
+Table 'ANALYTICS.RAW.SHIPMENTS' was not found in the services bound to this connector (snowflake_prod), so no lineage is written for it until it is ingested there.
+```
+
+The services in parentheses are the ones OpenMetadata checked. Causes, most likely first:
+
+- The table isn't ingested yet. Either the Snowflake Metadata Agent hasn't run since the connector created the table, or its filter patterns exclude the table's database, schema, or table.
+- **Db Service Names** lists only other services of the same account, so the service holding the table isn't checked.
+- The service holding the table spells its **Account** in the other identifier form, while another service's **Account** matches `snowflake.url.name`. Only the matching service is checked.
+
+**Resolution**:
+
+1. Run the Snowflake Metadata Agent for the service that holds the table.
+2. Confirm the table appears under the database and schema named in the warning.
+3. If that service isn't in the parentheses and its **Account** uses a different form from `snowflake.url.name`, change its **Account** to the same form.
+4. If that service isn't in the parentheses and **Db Service Names** lists other services of this account, add it to **Db Service Names**.
+5. Re-run the Kafka Connect Metadata Agent.
+
+### The Table Is in More Than One Service
+
+The run log shows:
+
+```
+Table 'ANALYTICS.RAW.INVOICES' exists in more than one service bound to this connector (snowflake_prod.ANALYTICS.RAW.INVOICES, snowflake_finance.ANALYTICS.RAW.INVOICES), so no lineage is written for it. Set lineageInformation.dbServiceNames on this pipeline service to the service the connector writes to.
+```
+
+More than one of the checked services holds the table, usually because more than one service ingests the same Snowflake account. OpenMetadata can't tell which one the lineage belongs to, so it writes none.
+
+**Resolution**:
+
+1. In the Kafka Connect Metadata Agent, make sure **Db Service Names** lists the service that should carry the lineage and no other service that holds the table.
+2. Re-run the Kafka Connect Metadata Agent.
+
+### No Snowflake Service Matches the Account
+
+The run log shows an informational line followed by a warning:
+
+```
+Snowflake sink 'orders-to-snowflake' writes to account 'xy12345.us-east-1', which matches no Snowflake service's account
+Table 'ANALYTICS.RAW.ORDERS' has no service bound to this connector to be looked up in, so no lineage is written for it. Set lineageInformation.dbServiceNames on this pipeline service to the service holding it.
+```
+
+Causes, most likely first:
+
+- The service's **Account** and the connector's `snowflake.url.name` use different identifier forms, such as an account locator in one and an organization and account name in the other.
+- No Snowflake service in OpenMetadata ingests the account the connector writes to.
+
+**Resolution**:
+
+1. If a Snowflake service ingests the account, add it to **Db Service Names** in the Kafka Connect Metadata Agent.
+2. If none does, create a Snowflake service for the account.
+3. Run that service's Metadata Agent.
+4. Re-run the Kafka Connect Metadata Agent.
