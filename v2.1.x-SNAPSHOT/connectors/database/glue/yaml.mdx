@@ -1,6 +1,6 @@
 ---
 title: Run the Glue Connector Externally
-description: Configure AWS Glue ingestion using YAML to capture ETL job metadata, source-target lineage, and transformation logic.
+description: Configure AWS Glue Data Catalog metadata ingestion, including Iceberg tables, with a YAML workflow that you run externally.
 sidebarTitle: Run Externally
 mode: "wide"
 ---
@@ -22,22 +22,98 @@ import AwsConfig from '/snippets/connectors/yaml/common/aws-config.mdx'
 icon='/public/images/connectors/glue.webp'
 name="Glue"
 stage="PROD"
-availableFeatures={["Metadata", "dbt"]}
+availableFeatures={["Metadata", "dbt", "Iceberg Table Support"]}
 unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures", "Data Profiler", "Data Quality", "Lineage", "Column-level Lineage", "Sample Data", "Auto-Classification"]} />
 In this section, we provide guides and references to use the Glue connector.
 Configure and schedule Glue metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [How Glue Maps to OpenMetadata](#how-glue-maps-to-openmetadata)
 - [Metadata Ingestion](#metadata-ingestion)
 - [dbt Integration](#dbt-integration)
 <ExternalIngestionDeployment />
 ## Requirements
-User must have `glue:GetDatabases` and `glue:GetTables` permissions to ingest the basic metadata.
+
+The connector reads metadata from the AWS Glue Data Catalog through the AWS Glue API. Grant the following AWS Identity and Access Management (IAM) permissions to the AWS identity that the connector uses:
+
+- `glue:GetDatabases`: Lists the Glue databases in the catalog.
+- `glue:GetTables`: Lists the tables and views in each Glue database, with their columns.
+
+Iceberg tables need no additional permissions. For more information, see [Iceberg Table Support](/v2.1.x-SNAPSHOT/connectors/database/glue#iceberg-table-support).
+
+The following policy grants these permissions on every database and table in the catalog. Replace `<AWS_REGION>` and `<ACCOUNT_ID>` with your values.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabases",
+        "glue:GetTables"
+      ],
+      "Resource": [
+        "arn:aws:glue:<AWS_REGION>:<ACCOUNT_ID>:catalog",
+        "arn:aws:glue:<AWS_REGION>:<ACCOUNT_ID>:database/*",
+        "arn:aws:glue:<AWS_REGION>:<ACCOUNT_ID>:table/*/*"
+      ]
+    }
+  ]
+}
+```
+
+If AWS Lake Formation manages the catalog, also grant the identity the `DESCRIBE` permission on the databases and tables to ingest. Without that grant, Glue leaves those databases and tables out of its responses instead of returning an error.
+
 ### Python Requirements
 <PythonRequirements />
 To run the Glue ingestion, you will need to install:
 ```bash
 pip3 install "openmetadata-ingestion[glue]"
 ```
+
+## How Glue Maps to OpenMetadata
+
+The connector doesn't map a Glue database to an OpenMetadata database. The Glue Data Catalog becomes the OpenMetadata database, and each Glue database becomes a schema inside it.
+
+| AWS Glue | OpenMetadata | Name in OpenMetadata |
+|---|---|---|
+| Data Catalog | Database | The catalog ID, which is your AWS account ID, for example `123456789012`. To use a different name, set `databaseName`. |
+| Database | Schema | The Glue database name. |
+| Table or view | Table | The Glue table name. Iceberg tables get the `Iceberg` table type, external tables `External`, views `View`, and all other tables `Regular`. |
+
+`databaseName` only renames the OpenMetadata database. It doesn't choose which Glue databases to ingest. Use `schemaFilterPattern` for that.
+
+### Filter Patterns
+
+Each filter pattern in `sourceConfig` matches the Glue name at its own level of this mapping. Patterns are case-insensitive regular expressions matched from the start of the name.
+
+| Field | Matches | Matching example | Non-matching example |
+|---|---|---|---|
+| `databaseFilterPattern` | Catalog ID | `^123456789012$` includes the catalog `123456789012`. | The same pattern skips the catalog `210987654321`. An include pattern that names a Glue database, such as `^sales$`, matches no catalog ID, so the connector skips the whole catalog. |
+| `schemaFilterPattern` | Glue database name | `^sales_` includes the Glue database `sales_raw`. | The same pattern skips the Glue database `marketing_raw`. |
+| `tableFilterPattern` | Glue table name | `^orders` includes the table `orders_2024`. | The same pattern skips the table `customer_orders`. |
+
+The following `sourceConfig` applies these include patterns:
+
+```yaml
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      databaseFilterPattern:
+        includes:
+          - "^123456789012$"
+      schemaFilterPattern:
+        includes:
+          - "^sales_"
+      tableFilterPattern:
+        includes:
+          - "^orders"
+```
+
+If a pattern contains only digits, such as `123456789012`, wrap it in quotes. Otherwise YAML reads it as a number, and the workflow rejects it because filter patterns must be strings.
+
+If you set `useFqnForFiltering: true`, patterns match the fully qualified name instead. For example, the Glue database `sales_raw` in the catalog `123456789012` of the service `local_glue` has the fully qualified name `local_glue.123456789012.sales_raw`.
+
 ## Metadata Ingestion
 All connectors are defined as JSON Schemas.
 [Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/glueConnection.json)
@@ -67,7 +143,7 @@ Configure the source type and service name for your Glue connector.
 
 <ContentSection id={3} title="Database Name" lines="8">
 
-**databaseName**: Optional name to give to the database in OpenMetadata. If left blank, we will use [Glue Catalog ID](https://docs.aws.amazon.com/glue/latest/dg/glue-specifying-resource-arns.html#data-catalog-resource-arns) as the database name.
+**databaseName**: Optional name for the database in OpenMetadata. If you leave it blank, the connector uses the [Glue Catalog ID](https://docs.aws.amazon.com/glue/latest/dg/glue-specifying-resource-arns.html#data-catalog-resource-arns), which is your AWS account ID. This field only names the database. It doesn't choose which Glue databases to ingest. To do that, use `schemaFilterPattern`.
 
 </ContentSection>
 
@@ -88,6 +164,8 @@ Configure the source type and service name for your Glue connector.
 <ContentSection id={6} title="Source Config" lines="13-56">
 
 <SourceConfigDef />
+
+For Glue, `databaseFilterPattern` matches the catalog ID and `schemaFilterPattern` matches the Glue database name. For examples, see [Filter Patterns](#filter-patterns).
 
 </ContentSection>
 
