@@ -113,17 +113,16 @@ line instead of an empty table.
 **Column definitions:**
 - **#**: Sequential issue number.
 - **Guideline**: For a style issue, the specific rule and section number (e.g. "Contractions, §3.3", "Oxford comma, §4.2"). For a claim the diff/PR contradicts itself on, write "Internal consistency." Never write a vague label like "tone issue."
-- **Severity**: When a finding maps to a rule in `checklist.md`, take its
-  severity from that rule's tag — each item is tagged **(Critical)**,
-  **(Major)**, or **(Minor)**, and that tag is the finding's severity. The
-  checklist tag, not the example descriptions below, decides the level for
-  any checklist-rule finding. For a finding that does not map to a checklist
-  rule (such as an internal-consistency contradiction, or anything else not
-  covered by a tagged rule), Claude judges the severity itself, using the
-  descriptions below. When content will be translated, treat Category 11
-  (Global / Localization) items as **Major** rather than their default
-  **Minor**.
-  - **Critical**: Breaks a core rule (wrong brand name, title-case documentation headings, gendered pronouns, a typo, an illogical step, or a self-contradicting claim).
+- **Severity**: When a finding maps to a rule in `checklist.md`, its
+  severity comes from that rule's tag. Each item carries one of the three
+  severity tags, and that tag is the finding's severity. The checklist tag,
+  not the example descriptions below, decides the level for any
+  checklist-rule finding. Some findings do not map to any checklist rule,
+  such as an internal-consistency contradiction. For those, Claude judges
+  the severity itself, using the descriptions below. When content will be
+  translated, treat Category 11 (Global / Localization) items as **Major**
+  rather than their default **Minor**.
+  - **Critical**: Breaks a core rule (wrong brand name, documentation headings not in title case, gendered pronouns, a typo, an illogical step, or a self-contradicting claim).
   - **Major**: Noticeably degrades quality: jargon, wordiness, a missing Oxford comma, a non-parallel list, a prerequisite buried in a callout.
   - **Minor**: Single small polish item: one number not spelled out, one avoidable em dash, one weak word choice.
 - **Original text**: The exact sentence, phrase, or claim from the content that needs to change or was checked. Always quote verbatim in double quotes. If the issue is structural (e.g. a missing heading), write a short description instead.

@@ -3,9 +3,9 @@
 Full item-by-item checklist derived from the OpenMetadata Writing Style Guide.
 Check every item. Mark each as PASS, FAIL, or N/A.
 
-Each item is tagged with its severity — **(Critical)**, **(Major)**, or
-**(Minor)** — immediately after its bold label. The review report uses this
-tag to categorize every finding. Items tagged **(Exception — not flagged)**
+Each item is tagged with its severity (Critical, Major, or Minor)
+immediately after its bold label. The review report uses this tag to
+categorize every finding. Items tagged **(Exception: not flagged)**
 describe acceptable cases that must never be reported as findings.
 
 ---
@@ -79,7 +79,7 @@ describe acceptable cases that must never be reported as findings.
 
 ### 3.1 Voice
 - [ ] **Active voice preferred** (Major) — Flag passive constructions. E.g., "The file was rejected by the system" → "The system rejected the file."
-- [ ] **Passive voice acceptable when** (Exception — not flagged) — the actor is unknown, or the action matters more than who did it (e.g., "The database was last updated in March"). Do not flag these.
+- [ ] **Passive voice acceptable when** (Exception: not flagged) — the actor is unknown, or the action matters more than who did it (e.g., "The database was last updated in March"). Do not flag these.
 - [ ] **No first-person "we/us/our" in reference or technical content** (Major) — Flag "we read the query log"; describe what the product does instead ("OpenMetadata reads the query log"). Second person ("you") is fine when addressing the reader directly.
 
 ### 3.2 Verbs
@@ -89,7 +89,7 @@ describe acceptable cases that must never be reported as findings.
 
 ### 3.3 Contractions
 - [ ] **Use contractions in general content** (Minor) — Flag missing contractions where formal phrasing sounds stiff: "it is" → "it's," "you will" → "you'll," "do not" → "don't."
-- [ ] **No contractions in** (Exception — not flagged) — legal, compliance, or highly formal documents (these should not be flagged).
+- [ ] **No contractions in** (Exception: not flagged) — legal, compliance, or highly formal documents (these should not be flagged).
 - [ ] **No awkward contractions** (Minor) — Flag "should've," "there'd," "would've" in professional content.
 
 ### 3.4 Sentence Structure
@@ -237,7 +237,7 @@ describe acceptable cases that must never be reported as findings.
 - [ ] **No gendered pronouns in generic references** (Critical) — Flag "he," "his," "she," "her" when referring to unspecified individuals.
 - [ ] **"You" preferred over third person** (Minor) — Use direct address, such as "Access your account," not third person, such as "the user can access their account."
 - [ ] **No "he/she" or "s/he" constructions** (Critical).
-- [ ] **Singular "they" acceptable** (Exception — not flagged) — Flag only if the sentence becomes confusing.
+- [ ] **Singular "they" acceptable** (Exception: not flagged) — Flag only if the sentence becomes confusing.
 
 ### 8.2 People-First Language
 - [ ] **Person before disability** (Critical) — "a user who is blind" not "a blind user" (unless the individual/community prefers identity-first).
