@@ -42,7 +42,7 @@ Filter patterns control which databases, schemas, and tables the profiler target
 - **Classification filter pattern** (Optional): Regex to target tables by classification, tag, tier, or glossary term. The profiler computes metrics only for tables whose classification matches the pattern.
 - **Use FQN For Filtering**: When enabled, regex patterns apply to the fully qualified name (for example, service_name.db_name.schema_name.table_name) instead of the raw asset name. Enable this when different schemas share the same table name across multiple databases.
 
-<img src="/public/images/features/ingestion/workflows/profiler/filter-patterns.png" alt="Fitter patterns" />
+<img src="/public/images/features/ingestion/workflows/profiler/filter-patterns.png" alt="Profiler filter patterns" />
 
 #### Scope & Behaviour
 
@@ -57,27 +57,51 @@ Control which entity types the profiler includes and how it logs activity.
 OpenMetadata 2.0 uses **Dynamic Sampling** by default instead of scanning all rows. Existing customized profiler configurations are preserved; the new defaults apply to pipelines that use the default agent configuration. Cardinality distribution is no longer collected by default. Enable it explicitly if classification, custom rules, or analytics depend on distinct-value counts.
 </Note>
 
-Control sampling strategy, thread usage, metric selection, and system statistics behavior.
-- Sample Config Type: Controls how the profiler selects rows to scan. Select Dynamic (default) or Static.
+Configure sampling, execution, and metrics with the following settings.
 
-    When Dynamic is selected:
-    - **Smart Sampling**: When enabled (default), automatically scales the sample percentage based on table size. The profiler samples 100% of tables with up to 100,000 rows, 50% up to 1 million, 10% up to 10 million, 5% up to 100 million, 1% up to 1 billion, and 0.1% above 1 billion rows.
+##### Sampling Settings
 
-    When Static is selected:
-    - **Profile Sample**: A fixed sample size applied to every profiler run, either as a percentage of rows or an absolute row count.
-    - **Profile Sample Type**: Select Percentage to sample by a fraction of the table, or Row Count to sample by an absolute number of rows.
-    - **Sampling Method Type**: The SQL sampling strategy used when scanning a percentage sample. Select BERNOULLI to sample each row independently at the given probability — more statistically uniform but slower. Select SYSTEM to sample entire disk pages at the given probability — faster but less statistically uniform.
-    Important: Profile Sample is not supported for Druid. Druid does not support RANDOM sampling functions. Use the partitioning or sample query option to limit data scanned.
-- **Thread Count** (Optional): The number of threads used for parallel metric computation. Set to 1 for Snowflake due to a known issue with snowflake-connector-python. Defaults to the system value.
-- **Timeout in Seconds** (Optional): How long a profiling job waits before skipping to the next table. The profiler waits for the current query to finish before timing out. Set a query or connection timeout on your database engine if jobs risk hanging. Defaults to 12 hours (43,200 seconds).
-- **Metrics**: The set of metrics the profiler computes. Cardinality distribution is excluded from the default agent configuration. Enable it explicitly if needed, and deselect other metrics to reduce profiling time or cost.
-- **Include Views**: When enabled, the profiler computes metrics for view entity types. This may reduce profiler performance.
-- **Compute Table Metrics**: When enabled (default), the profiler computes table-level metrics such as row count and column count.
-- **Compute Column Metrics**: When enabled (default), the profiler computes column-level metrics such as null count, distinct count, and mean.
-- **Use System Table Statistics**: When enabled, the profiler reads table metrics from system catalog tables instead of scanning data. Faster than full scans, but requires up-to-date statistics on the database — for example, run ANALYZE on PostgreSQL before profiling. Metrics unavailable in system tables fall back to the default scan method.
-- **Randomized Sample**: When enabled, the profiler randomizes the row order in the sample. Disable for deterministic sampling.
+Use **Sample Config Type** to select **Dynamic** (the default) or **Static** sampling.
 
-<img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced COnfiguration" />
+With **Dynamic** sampling, **Smart Sampling** is enabled by default and scales the sample percentage based on table size:
+
+| Table row count | Sample percentage |
+| --- | --- |
+| Up to 100,000 | 100% |
+| More than 100,000, up to 1 million | 50% |
+| More than 1 million, up to 10 million | 10% |
+| More than 10 million, up to 100 million | 5% |
+| More than 100 million, up to 1 billion | 1% |
+| More than 1 billion | 0.1% |
+
+With **Static** sampling, configure these settings:
+
+- **Profile Sample**: Set a fixed sample size for each profiler run.
+- **Profile Sample Type**: Select **Percentage** for a fraction of the table or **Row Count** for an absolute number of rows.
+- **Sampling Method Type**: For percentage samples, select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
+
+Druid doesn't support **Profile Sample** because it doesn't support the required random sampling functions. Use partitioning or a sample query to limit the data scanned.
+
+**Randomized Sample** controls whether the profiler randomizes the row order in the sample. Disable it for deterministic sampling.
+
+##### Execution Settings
+
+Control concurrency, timeouts, and view inclusion with these settings:
+
+- **Thread Count**: Set the number of threads for parallel metric computation. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler uses the system value.
+- **Timeout in Seconds**: Set how long a profiling job waits before moving to the next table. The default is 43,200 seconds (12 hours). The profiler waits for the current query to finish before timing out. Set a query or connection timeout on the database engine to limit hanging queries.
+- **Include Views**: Enable profiling for views. Including views might reduce profiler performance.
+
+##### Metric Settings
+
+Select the metrics to compute and how to retrieve them:
+
+- **Metrics**: Choose the metrics the profiler computes. Cardinality distribution is excluded from the default agent configuration. Enable it explicitly if needed, and deselect other metrics to reduce profiling time or cost.
+- **Compute Table Metrics**: Compute table-level metrics, such as row count and column count. Enabled by default.
+- **Compute Column Metrics**: Compute column-level metrics, such as null count, distinct count, and mean. Enabled by default.
+- **Use System Table Statistics**: Read available table metrics from system catalogs instead of scanning data. Keep database statistics up to date, for example by running `ANALYZE` on PostgreSQL. Metrics unavailable in system tables use the default scan method.
+
+<img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced profiler configuration" />
 
 ### 3. Schedule and Deploy
 Click **Next** to open the scheduling step.
