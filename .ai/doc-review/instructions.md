@@ -124,7 +124,7 @@ line instead of an empty table.
   rather than their default **Minor**.
   - **Critical**: Breaks a core rule (wrong brand name, documentation headings not in title case, gendered pronouns, a typo, an illogical step, or a self-contradicting claim).
   - **Major**: Noticeably degrades quality: jargon, wordiness, a missing Oxford comma, a non-parallel list, a prerequisite buried in a callout.
-  - **Minor**: Single small polish item: one number not spelled out, one avoidable em dash, one weak word choice.
+  - **Minor**: Single small polish item: a missing contraction, one avoidable em dash, or one weak word choice.
 - **Original text**: The exact sentence, phrase, or claim from the content that needs to change or was checked. Always quote verbatim in double quotes. If the issue is structural (e.g. a missing heading), write a short description instead.
 - **Suggested change**: The corrected version in double quotes, or a clear instruction. For a claim contradicted elsewhere in the same diff/PR: quote the contradicting text and where it appears.
 
