@@ -118,10 +118,10 @@ line instead of an empty table.
   severity tags, and that tag is the finding's severity. The checklist tag,
   not the example descriptions below, decides the level for any
   checklist-rule finding. Some findings do not map to any checklist rule,
-  such as an internal-consistency contradiction. For those, Claude judges
-  the severity itself, using the descriptions below. When content will be
-  translated, treat Category 11 (Global / Localization) items as **Major**
-  rather than their default **Minor**.
+  such as an internal-consistency contradiction. For those, the reviewer
+  judges the severity itself, using the descriptions below. When content
+  will be translated, treat Category 11 (Global / Localization) items as
+  **Major** rather than their mostly-**Minor** default.
   - **Critical**: Breaks a core rule (wrong brand name, documentation headings not in title case, gendered pronouns, a typo, an illogical step, or a self-contradicting claim).
   - **Major**: Noticeably degrades quality: jargon, wordiness, a missing Oxford comma, a non-parallel list, a prerequisite buried in a callout.
   - **Minor**: Single small polish item: a missing contraction, one avoidable em dash, or one weak word choice.
