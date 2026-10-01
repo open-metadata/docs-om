@@ -19,72 +19,72 @@ After the metadata ingestion has been done correctly, we can configure and deplo
 
 This Pipeline will be in charge of feeding the Profiler tab of the Table Entity, as well as running any tests configured in the Entity.
 
-<img src="/public/images/features/ingestion/workflows/profiler/profiler-summary-table.png" alt="Table profile summary page" />
-
-<img src="/public/images/features/ingestion/workflows/profiler/profiler-summary-column.png" alt="Column profile summary page" />
-
 ### 1. Add a Profiler Agent
-From the Service Page, go to the Agents tab to add a new ingestion and click on Add Profiler Agent.
+1. Navigate to **Settings** > **Services**.
+2. Select the service and click the **Agents** tab.
 
-<img src="/public/images/features/ingestion/workflows/profiler/add-profiler-workflow.png" alt="Add a profiler service" />
+    <img src="/public/images/features/ingestion/workflows/profiler/select-agents-tab.png" alt="Select Agents Tab" />
+
+3. Click **Add Agent** and then select **Add Profile Agent**.
+
+    <img src="/public/images/features/ingestion/workflows/profiler/select-profiler-agent.png" alt="Select Profiler Agent" />
 
 ### 2. Configure the Profiler Agent
-Here you can enter the Profiler Agent details.
+In the **Configure Ingestion** step, enter a unique descriptive **Name** and set up the following:
 
+<img src="/public/images/features/ingestion/workflows/profiler/name-profiler.png" alt="Set profiler name" />
 
-#### Profiler Options
+#### Filter Patterns
+Filter patterns control which databases, schemas, and tables the profiler targets. Each pattern field accepts a regex expression with separate include and exclude lists.
+- **Database filter pattern** (Optional): Regex to include or exclude databases by name.
+- **Schema filter pattern** (Optional): Regex to include or exclude schemas by name.
+- **Table filter pattern** (Optional): Regex to include or exclude tables by name.
+- **Classification filter pattern** (Optional): Regex to target tables by classification, tag, tier, or glossary term. The profiler computes metrics only for tables whose classification matches the pattern.
+- **Use FQN For Filtering**: When enabled, regex patterns apply to the fully qualified name (for example, service_name.db_name.schema_name.table_name) instead of the raw asset name. Enable this when different schemas share the same table name across multiple databases.
+
+<img src="/public/images/features/ingestion/workflows/profiler/filter-patterns.png" alt="Fitter patterns" />
+
+#### Scope & Behaviour
+
+Control which entity types the profiler includes and how it logs activity.
+- Enable Debug Log: Enables debug-level logging for the profiler run. Check logs in the Agents tab of the service.
+
+<img src="/public/images/features/ingestion/workflows/profiler/scope-behaviour.png" alt="Scope and Behaviour" />
+
+#### Advanced Configuration
 
 <Note>
 OpenMetadata 2.0 uses **Dynamic Sampling** by default instead of scanning all rows. Existing customized profiler configurations are preserved; the new defaults apply to pipelines that use the default agent configuration. Cardinality distribution is no longer collected by default. Enable it explicitly if classification, custom rules, or analytics depend on distinct-value counts.
 </Note>
 
-**Name**
-Define the name of the Profiler Workflow. While we only support a single workflow for the Metadata and Usage ingestion, users can define different schedules and filters for Profiler workflows.
+Control sampling strategy, thread usage, metric selection, and system statistics behavior.
+- Sample Config Type: Controls how the profiler selects rows to scan. Select Dynamic (default) or Static.
 
-As profiling is a costly task, this enables a fine-grained approach to profiling and running tests by specifying different filters for each pipeline.
+    When Dynamic is selected:
+    - **Smart Sampling**: When enabled (default), automatically scales the sample percentage based on table size. The profiler samples 100% of tables with up to 100,000 rows, 50% up to 1 million, 10% up to 10 million, 5% up to 100 million, 1% up to 1 billion, and 0.1% above 1 billion rows.
 
-**Database filter pattern (Optional)**
-regex expression to filter databases.
+    When Static is selected:
+    - **Profile Sample**: A fixed sample size applied to every profiler run, either as a percentage of rows or an absolute row count.
+    - **Profile Sample Type**: Select Percentage to sample by a fraction of the table, or Row Count to sample by an absolute number of rows.
+    - **Sampling Method Type**: The SQL sampling strategy used when scanning a percentage sample. Select BERNOULLI to sample each row independently at the given probability — more statistically uniform but slower. Select SYSTEM to sample entire disk pages at the given probability — faster but less statistically uniform.
+    Important: Profile Sample is not supported for Druid. Druid does not support RANDOM sampling functions. Use the partitioning or sample query option to limit data scanned.
+- **Thread Count** (Optional): The number of threads used for parallel metric computation. Set to 1 for Snowflake due to a known issue with snowflake-connector-python. Defaults to the system value.
+- **Timeout in Seconds** (Optional): How long a profiling job waits before skipping to the next table. The profiler waits for the current query to finish before timing out. Set a query or connection timeout on your database engine if jobs risk hanging. Defaults to 12 hours (43,200 seconds).
+- **Metrics**: The set of metrics the profiler computes. Cardinality distribution is excluded from the default agent configuration. Enable it explicitly if needed, and deselect other metrics to reduce profiling time or cost.
+- **Include Views**: When enabled, the profiler computes metrics for view entity types. This may reduce profiler performance.
+- **Compute Table Metrics**: When enabled (default), the profiler computes table-level metrics such as row count and column count.
+- **Compute Column Metrics**: When enabled (default), the profiler computes column-level metrics such as null count, distinct count, and mean.
+- **Use System Table Statistics**: When enabled, the profiler reads table metrics from system catalog tables instead of scanning data. Faster than full scans, but requires up-to-date statistics on the database — for example, run ANALYZE on PostgreSQL before profiling. Metrics unavailable in system tables fall back to the default scan method.
+- **Randomized Sample**: When enabled, the profiler randomizes the row order in the sample. Disable for deterministic sampling.
 
-**Schema filter pattern (Optional)**
-regex expression to filter schemas.
-
-**Table filter pattern (Optional)**
-regex expression to filter tables.
-
-**Profile Sample (Optional)**
-Set the sample to be use by the profiler for the specific table.
-- `Percentage`: Value must be between 0 and 100 exclusive (0 < percentage < 100). This will sample the table based on a percentage
-- `Row Count`: The table will be sampled based on a number of rows (i.e. `1,000`, `2,000`), etc.
-
-⚠️ This option is currently not support for Druid. Sampling leverage `RANDOM` functions in most database (some have specific sampling functions) and Druid provides neither of these option. We recommend using the partitioning or sample query option if you need to limit the amount of data scanned.
-
-**Enable Debug Log**
-Set the Enable Debug Log toggle to set the logging level of the process to debug. You can check these logs in the **Agents** tab of the service and dig deeper into any errors you might find.
-
-**Include Views**
-If activated the profiler will compute metric for view entity types. Note that it can have a negative impact on the profiler performance.
-
-**Use FQN For Filtering Views**
-Set this flag when you want to apply the filters on Fully Qualified Names (e.g service_name.db_name.schema_name.table_name) instead of applying them to the raw name of the asset (e.g table_name).
-This Flag is useful in scenarios when you have different schemas with same name in multiple databases, or tables with same name in different schemas, and you want to filter out only one of them.
-
-**Compute Metrics**
-Set the Compute Metrics toggle off to not perform any metric computation during the profiler ingestion workflow. Used in combination with Ingest Sample Data toggle on allows you to only ingest sample data.
-
-**Advanced Configuration**
-
-**Sample Data Rows Count**
-Set the number of rows to ingest when Ingest Sample Data toggle is on. Defaults to 50.
-
-**Thread Count (Optional)**
-Number of thread to use when computing metrics for the profiler. For Snowflake users we recommend setting it to 1. There is a known issue with one of the dependency (`snowflake-connector-python`) affecting projects with certain environments.
-
-**Timeout in Seconds (Optional)**
-This will set the duration a profiling job against a table should wait before interrupting its execution and moving on to profiling the next table. It is important to note that the profiler will wait for the hanging query to terminiate before killing the execution. If there is a risk for your profiling job to hang, it is important to also set a query/connection timeout on your database engine. The default value for the profiler timeout is 12-hours.
+<img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced COnfiguration" />
 
 ### 3. Schedule and Deploy
-After clicking Next, you will be redirected to the Scheduling form. This will be the same as the Metadata and Usage Ingestions. Select your desired schedule and click on Deploy to find the usage pipeline being added to the Service Ingestions.
+Click **Next** to open the scheduling step.
+1. Select how the profiler runs:
+    - **Schedule**: Set a recurring schedule to run the profiler automatically at a fixed interval.
+    - **On Demand**: Run the profiler manually whenever needed.
+2. Click **Deploy**.
 
 ### 4. Updating Profiler setting at the table level
 Once you have created your profiler you can adjust some behavior at the table level by going to the table and clicking on the profiler tab
