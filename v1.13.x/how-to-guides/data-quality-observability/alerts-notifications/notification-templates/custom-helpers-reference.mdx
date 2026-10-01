@@ -1,12 +1,12 @@
 ---
 title: Custom Helpers Reference
-description: Complete reference for all 22 OpenMetadata custom Handlebars helpers.
+description: Complete reference for all 24 OpenMetadata custom Handlebars helpers and the standard lookup helper.
 sidebarTitle: Custom Helpers Reference
 ---
 
 # Custom Helpers Reference
 
-OpenMetadata provides 22 custom helpers to format and manipulate event data. These are in addition to standard Handlebars features. Use these helpers to transform data in your notification templates.
+OpenMetadata provides 24 custom helpers to format and manipulate event data. This page also covers the standard Handlebars `lookup` helper. Use these helpers to transform data in your notification templates.
 
 <Tip>
 Combine multiple helpers to create powerful template logic. For example, use `filter` to show only failed tests, then `limit` to display only the first 5 items.
@@ -251,6 +251,24 @@ You can customize the HTML tags used for insertions and deletions:
 
 - `insTag`: HTML tag for inserted text (default: `"b"`)
 - `delTag`: HTML tag for deleted text (default: `"s"`)
+
+
+
+### `truncate` - Shorten text
+
+Shortens text to a maximum length. When the text exceeds the limit, the helper replaces the final character with an ellipsis (`…`) so the result remains within the requested length.
+
+**Syntax:**
+```handlebars
+{{truncate text maxLength}}
+```
+
+**Example:**
+```handlebars
+{{truncate entity.description 100}}
+```
+
+Returns the original text when it is within the limit. A missing or invalid limit also returns the original text.
 
 
 
@@ -535,17 +553,46 @@ Extracts entity information from entity link strings.
 
 **Syntax:**
 ```handlebars
-{{#with (parseEntityLink linkString) as |entity|}}
-  {{entity.name}}
+{{#with (parseEntityLink linkString) as |link|}}
+  {{link.entityFQN}}
 {{/with}}
 ```
 
 **Example:**
 ```handlebars
-{{#with (parseEntityLink entity.relatedEntity) as |related|}}
-  Related to: {{related.name}}
+{{#with (parseEntityLink entity.entityLink) as |link|}}
+  Tested entity: {{link.entityFQN}}
+  Tested column: {{link.arrayField}}
 {{/with}}
 ```
+
+The returned object contains `entityType`, `entityFQN`, `field`, `arrayField`, and `arrayValue`. For a column test, `arrayField` contains the column name.
+
+
+
+### `renderTableSample` - Show a table of failed rows
+
+Draws a small table with a sample of the rows that failed a data quality test. Use it in templates for test case alerts.
+
+**Simple version**: Show up to 10 columns and three rows.
+
+```handlebars
+{{{renderTableSample entity.failedRowsSample}}}
+```
+
+**Full version**: Show the tested column in bold and set the maximum number of columns and rows.
+
+```handlebars
+{{#with (parseEntityLink entity.entityLink) as |link|}}
+  {{{renderTableSample entity.failedRowsSample link.arrayField 10 3}}}
+{{/with}}
+```
+
+- `10` is the maximum number of columns to show.
+- `3` is the maximum number of rows to show.
+- `link.arrayField` is the name of the column that the test checks.
+
+When more data is available, the table adds `... and N more`. Use three curly braces (`{{{ }}}`). With two curly braces, the notification displays the table as raw code.
 
 
 
