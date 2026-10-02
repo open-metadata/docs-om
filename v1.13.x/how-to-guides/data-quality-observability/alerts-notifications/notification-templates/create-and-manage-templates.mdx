@@ -142,27 +142,35 @@ Your template is now active and will be used for all notifications from this sub
 
 ## Show Failed Rows in a Data Quality Alert
 
-Test case alerts use the default **Entity Updated Notification** template. They don't use a separate data quality template. The default template's test case section already displays the failed row count and sample table, so use it as the starting point for a custom template.
+Test case alerts use the default **Entity Updated Notification** template. There is no separate data quality template. The default template already shows the failed row count and a table of failed rows, so if your alert uses it, steps 1 to 3 below are all you need. Step 4 is only for alerts that use a custom template.
 
 To show failed rows in an alert:
 
 1. In the test settings, turn on **Compute Row Count**. The failed row count and sample aren't available when this option is off.
-2. Under **Settings** > **Notifications** > **Templates**, open the default **Entity Updated Notification** template.
-3. Copy the test case section into your custom template.
-4. Run a test that fails.
-5. In the resulting notification, confirm that the failed row count and sample table appear.
+2. Check that the test type collects a sample. Only these tests do: Column Values To Be Between, Column Values To Be In Set, Column Values To Be Not In Set, Column Values To Be Not Null, Column Values To Be Unique, Column Values To Match Regex Pattern, Column Values To Not Match Regex, Column Value Lengths To Be Between, and Custom SQL Query. Other tests don't produce a table.
+3. Under **Settings** > **Preferences** > **Profiler Configuration**, check that **Enable Storing of Sample Data** is on. It is on by default. When it is off, no sample is collected.
+4. If your alert uses a custom template, add the snippet below to the template body. In OpenMetadata, custom templates are created and edited through the API (`/api/v1/notificationTemplates`).
+5. Run a test that fails.
+6. In the resulting notification, confirm that the failed row count and sample table appear.
 
-At minimum, use the following expression to display the sample table:
+The snippet below shows the failed row count and a table of up to 10 columns and 3 failed rows, with the tested column in bold:
 
 ```handlebars
-{{{renderTableSample entity.failedRowsSample}}}
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+{{#if (and (eq event.entityType 'testCase') (hasFieldInChanges changes 'testCaseResult'))}}
+{{#if entity.testCaseResult.failedRows}}Failed rows: {{entity.testCaseResult.failedRows}} ({{math entity.testCaseResult.failedRowsPercentage 'round' 2}}%){{/if}}
+{{#with (parseEntityLink entity.entityLink) as |link|}}{{{renderTableSample entity.failedRowsSample link.arrayField 10 3}}}{{/with}}
+{{/if}}
+{{/with}}
 ```
+
+Copy all six lines. The first two make the block appear only when a new test result arrives, and the last two close them.
 
 The sample only appears when the test fails.
 
 OpenMetadata masks columns tagged `PII.Sensitive` in the sample. If the table has the `PII.Sensitive` tag, OpenMetadata masks every column.
 
-The template editor's **Preview** uses generated data without a failed result or failed-row sample, so the test case section stays empty. To view this section, run a test that fails and inspect the actual notification.
+Previewing a template with the `/api/v1/notificationTemplates/render` API uses sample data without a failed result or failed-row sample, so the failed rows part stays empty. To see it, run a test that fails and check the actual notification.
 
 For more information about configuring the table output, see the [Custom Helpers Reference](/v1.13.x/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference).
 
