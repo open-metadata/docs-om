@@ -267,8 +267,9 @@ If a large indexing run needs to be stopped (for example, before a maintenance w
 curl -X POST "$OM_HOST/api/v1/apps/stop/RdfIndexApp" -H "Authorization: Bearer $TOKEN"
 ```
 
-RDF indexing runs distributed across available server instances by default. Only one reindex job can be active per
-cluster at a time.
+Starting in OpenMetadata 2.0.3, an RDF reindex job runs on one server. A cluster-wide lock allows only one active reindex job at a time. Entity loading can use multiple reader threads, but writes pass through a single writer because Fuseki accepts one write transaction at a time.
+
+The `producerThreads` setting controls reader concurrency: Its default is 4, with a supported range of 1–10. The settings `consumerThreads`, `queueSize`, `useDistributedIndexing`, and `partitionSize` were removed from the RDF indexing application configuration in 2.0.3. Remove them from custom app configurations and automation that supplies these settings.
 
 ## Performance Considerations
 
@@ -296,12 +297,12 @@ reachable yet when the server started.
 
 ### Another RDF reindex job is already active
 
-Distributed indexing blocks a new run while an existing job is in `READY`, `RUNNING`, or `STOPPING` state. If a
-previous job is stuck (for example, after a server restart mid-index), restarting the server pods alone does not
-clear this state.
+The cluster-wide lock allows only one active reindex job at a time, so a new run is blocked while an existing job is
+in `READY`, `RUNNING`, or `STOPPING` state. If a previous job is stuck (for example, after a server restart
+mid-index), restarting the server pods alone does not clear this state.
 
 - Stop the stuck job explicitly: `POST /api/v1/apps/stop/RdfIndexApp`.
-- If that doesn't clear it, wait for the distributed lock to go stale (a few minutes) before retrying.
+- If that doesn't clear it, wait for the cluster-wide lock to go stale (a few minutes) before retrying.
 
 ### Reindex fails with "Failed to clear RDF data" or a SPARQL update times out
 
