@@ -20,13 +20,27 @@ import ExternalIngestionDeployment from '/snippets/v2.0.x/connectors/external-in
 icon='/public/images/connectors/mode.webp'
 name="Mode"
 stage="PROD"
-availableFeatures={["Dashboards", "Charts", "Lineage"]}
-unavailableFeatures={["Owners", "Tags", "Datamodels", "Projects"]} />
+availableFeatures={["Dashboards", "Charts", "Lineage", "Datamodels"]}
+unavailableFeatures={["Owners", "Tags", "Projects"]} />
 In this section, we provide guides and references to use the Mode connector.
 Configure and schedule Mode metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
 <ExternalIngestionDeployment />
+## Metadata Mapping
+
+Starting in OpenMetadata 2.0.3, Mode metadata is mapped as follows:
+
+| Mode resource | OpenMetadata asset |
+| --- | --- |
+| Report | Dashboard |
+| Report visualization | Chart |
+| Report query | Dashboard data model, including the query name, SQL text, and source URL |
+
+Query data models have an empty column list because Mode’s query response does not provide result-column metadata. When the SQL can be parsed and the source tables resolved, lineage connects those tables to the query data model and then to the report dashboard. If data model ingestion is disabled or a query data model is filtered out, lineage connects the tables directly to the dashboard.
+
+The API token must have access to the spaces, reports, queries, charts, and data sources you want to ingest.
+
 ## Requirements
 OpenMetadata relies on Mode's API, which is exclusive to members of the Mode Business Workspace. This means that only resources that belong to a Mode Business Workspace can be accessed via the API.
 ### Python Requirements
@@ -75,7 +89,7 @@ For detailed information visit [here](https://mode.com/developer/api-reference/i
 Name of the mode workspace from where the metadata is to be fetched.
 </ContentSection>
 <ContentSection id={6} title="filterQueryParam" lines="11">
-**filterQueryParam**: Filter query parameter for some of the Mode API calls.
+**filterQueryParam**: The `filter` argument passed to Mode’s spaces API when discovering reports. Supported values are `all` and `custom`. If left empty, `all` is used.
 </ContentSection>
 
 <ContentSection id={7} title="Source Config" lines="12-54">
