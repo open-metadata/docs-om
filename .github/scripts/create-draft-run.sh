@@ -80,12 +80,16 @@ status=0
 CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 \
 CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS=1 CLAUDE_CODE_PROMPT_CACHE_TTL=5m \
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+# Fresh, empty config dir: no user or project settings, hooks, env
+# or MCP servers from the checkout can load (auth is the env token).
+# (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller\'s login.)
+[ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || export CLAUDE_CONFIG_DIR="$(mktemp -d)"
 claude -p --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
   --system-prompt-file "$WORK/system.md" \
   --add-dir "$CTX" \
   --tools Read,Grep,Edit,Write --allowedTools "${ALLOW[@]}" \
-  --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Grep(//proc/**)" "Read(./.git/**)" "Grep(./.git/**)" \
-  --disable-slash-commands --setting-sources project --no-session-persistence --strict-mcp-config \
+  --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Grep(//proc/**)" "Read(./.git/**)" "Grep(./.git/**)" "Read(**/.github/**)" "Grep(**/.github/**)" "Glob(**/.github/**)" \
+  --disable-slash-commands --setting-sources user --strict-mcp-config --no-session-persistence \
   --json-schema "$SCHEMA" --output-format json "$prompt" \
   > "$WORK/result.json" 2> "$WORK/stderr.txt" || status=$?
 

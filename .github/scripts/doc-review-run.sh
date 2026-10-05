@@ -36,7 +36,17 @@ INLINE_MAX=300000
 WORK="$(mktemp -d)"
 CTX=("$CONTEXT_DIR/pr-diff.patch" "$CONTEXT_DIR/pr-review-discussion.json"
      "$CONTEXT_DIR/pr-inline-review-comments.json" "$CONTEXT_DIR/pr-submitted-reviews.json")
-CTX_NOTE=("the diff between REVIEWED BASE SHA and REVIEWED HEAD SHA"
+# The review never looks at CI configuration: files under .github/ are
+# dropped from the reviewed diff (and the model is denied reading them).
+strip_github() {
+  awk '/^diff --git / { skip = ($0 ~ /^diff --git "?a\/\.github\// || $0 ~ / "?b\/\.github\//) } !skip' "$1"
+}
+strip_github "${CTX[0]}" > "$CONTEXT_DIR/pr-diff.docs.patch"
+if ! cmp -s "${CTX[0]}" "$CONTEXT_DIR/pr-diff.docs.patch"; then
+  echo "Dropped .github/ files from the reviewed diff."
+  CTX[0]="$CONTEXT_DIR/pr-diff.docs.patch"
+fi
+CTX_NOTE=("the diff between REVIEWED BASE SHA and REVIEWED HEAD SHA (files under .github/ excluded)"
           "PR title/body plus filtered top-level comments"
           "filtered inline review comments"
           "filtered submitted PR reviews")
@@ -230,7 +240,8 @@ if [ -z "$prev" ] && [ "${REVIEW_INCREMENTAL:-0}" = "1" ]; then
     old_head=$(grep -oE ' head:[0-9a-f]+ policy' <<< "$last_body" | head -1 | sed -E 's/ head:([0-9a-f]+) policy/\1/' || true)
     if [ -n "$old_base" ] && [ -n "$old_head" ] && \
        gh api -H "Accept: application/vnd.github.v3.diff" \
-         "repos/${GITHUB_REPOSITORY}/compare/${old_base}...${old_head}" > "$WORK/old.patch" 2>/dev/null; then
+         "repos/${GITHUB_REPOSITORY}/compare/${old_base}...${old_head}" > "$WORK/old.full.patch" 2>/dev/null; then
+      strip_github "$WORK/old.full.patch" > "$WORK/old.patch"
       awk -v out="$CONTEXT_DIR/changed-files.patch" -f "$WORK/hunks.awk" \
         pass=1 "$WORK/old.patch" pass=2 "${CTX[0]}" > "$WORK/delta.tsv"
       printf '%s\n' "$last_body" | report_of > "$CONTEXT_DIR/previous-report.md"
@@ -311,13 +322,17 @@ else
   CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 \
   CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS=1 CLAUDE_CODE_PROMPT_CACHE_TTL=5m \
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+  # Fresh, empty config dir: no user or project settings, hooks, env
+  # or MCP servers from the checkout can load (auth is the env token).
+  # (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller\'s login.)
+  [ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || export CLAUDE_CONFIG_DIR="$(mktemp -d)"
   claude -p --model "$MODEL" --effort "$EFFORT" --max-turns 12 \
     --system-prompt-file "$WORK/system.md" \
     --add-dir "$CONTEXT_DIR" \
     --tools "$TOOLS" --allowedTools "$TOOLS" \
-    --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Read(./.git/**)" \
+    --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Read(./.git/**)" "Read(**/.github/**)" "Grep(**/.github/**)" "Glob(**/.github/**)" \
       "Grep(//proc/**)" "Grep(./.git/**)" "Glob(//proc/**)" "Glob(./.git/**)" \
-    --disable-slash-commands --setting-sources project --no-session-persistence \
+    --disable-slash-commands --setting-sources user --strict-mcp-config --no-session-persistence \
     --output-format json < "$WORK/prompt.md" > "$WORK/result.json" 2> "$WORK/stderr.txt" || true
   report=$(jq -r '.result // empty' "$WORK/result.json" 2>/dev/null || true)
   if [ -z "$report" ] || [ "$(jq -r '.is_error' "$WORK/result.json")" = "true" ]; then

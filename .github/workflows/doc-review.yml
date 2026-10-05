@@ -100,18 +100,25 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "::notice::Reviewing PR #${PR_NUMBER} at frozen head commit ${head_sha} (base ${base_sha})"
 
-      - name: Check Out Trusted Base At Workspace Root
+      - name: Fetch Trusted Base Tree (data only)
         if: steps.permission.outputs.trusted == 'true'
-        # The review session runs at the workspace root, so this checks out
-        # the trusted base commit (never PR/attacker content) as the tree it
-        # may read for context; it does not change how PR content is
-        # reviewed below -- the frozen diff computed in the next step remains
-        # the source of truth for that.
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ steps.revisions.outputs.base_sha }}
-          fetch-depth: 1
-          persist-credentials: false
+        # The review session may read the base commit's docs for context.
+        # They are downloaded as a plain file tree (no git checkout, no
+        # .github/), and nothing in it is ever executed: the review runner
+        # comes from this workflow's own commit, and Claude Code loads no
+        # settings, hooks, or MCP servers from its working directory. The
+        # frozen diff computed in the next step remains the source of truth
+        # for what is reviewed.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ steps.revisions.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/base-tree"
+          gh api "repos/${GITHUB_REPOSITORY}/tarball/${BASE_SHA}" \
+            | tar -xz --strip-components=1 --exclude='*/.github' -C "${RUNNER_TEMP}/base-tree"
+          chmod -R a-w "${RUNNER_TEMP}/base-tree"
 
       - name: Compute Frozen PR Diff
         # Diff the exact base/head commits resolved above via the REST compare
@@ -296,6 +303,8 @@ jobs:
             Return the Review Report in the exact policy format as your final response, and nothing
             else. Do not edit files, commit, push, post comments, create inline comments, or submit
             a PR review. The workflow posts your report as this run's single summary comment.
+        # Runs inside the data-only base tree (see Fetch Trusted Base Tree).
+        working-directory: ${{ runner.temp }}/base-tree
         run: bash "${GITHUB_WORKSPACE}/.review-runner/.github/scripts/doc-review-run.sh"
 
       - name: Clean Up Prior Review Comments

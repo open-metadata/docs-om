@@ -48,12 +48,16 @@ $files"
   # The model gets Read and Grep only. Reads stay inside this checkout and
   # $OUT; /proc is denied outright so the token in this process's
   # environment cannot be read back.
+  # Fresh, empty config dir: no user or project settings, hooks, env
+  # or MCP servers from the checkout can load (auth is the env token).
+  # (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller\'s login.)
+  [ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || export CLAUDE_CONFIG_DIR="$(mktemp -d)"
   if ! claude -p --model claude-sonnet-5-5 --effort high --max-turns "$MAX_TURNS" \
       --system-prompt-file .ai/release-watchers/scan-system-prompt.md \
       --add-dir "$OUT" \
       --tools Read,Grep --allowedTools Read Grep \
-      --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Grep(//proc/**)" \
-      --disable-slash-commands --setting-sources project --no-session-persistence \
+      --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Grep(//proc/**)" "Read(**/.github/**)" "Grep(**/.github/**)" "Glob(**/.github/**)" \
+      --disable-slash-commands --setting-sources user --strict-mcp-config --no-session-persistence \
       --json-schema "$SCHEMA" --output-format json "$prompt" \
       > "$dir/result.json" 2> "$dir/stderr.txt"; then
     status=failed

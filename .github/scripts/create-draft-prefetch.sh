@@ -66,6 +66,8 @@ for p in "${VALID[@]}"; do
   fetch_to "$CTX/pr/$id.json" gh pr view "$n" --repo "$SOURCE_REPO" \
     --json number,title,url,state,baseRefName,mergedAt,labels,files,body
   fetch_to "$CTX/pr/$id.diff" gh pr diff "$n" --repo "$SOURCE_REPO"
+  # CI configuration (.github/) never reaches the model.
+  awk '/^diff --git / { skip = ($0 ~ /^diff --git "?a\/\.github\// || $0 ~ / "?b\/\.github\//) } !skip' "$CTX/pr/$id.diff" > "$CTX/pr/$id.diff.tmp" && mv "$CTX/pr/$id.diff.tmp" "$CTX/pr/$id.diff"
   jq -r '.body // ""' "$CTX/pr/$id.json" > "$CTX/pr/$id.body.md"
   printf '%s\t%s\t%s\n' "$r" "$n" "$(jq -r .url "$CTX/pr/$id.json")" >> "$CTX/sources.tsv"
 

@@ -291,6 +291,12 @@ bundle_cmd() {
   # Fetch every PR's diff once, in parallel.
   jq -r '"\(.repo) \(.number)"' "$OUT/all.jsonl" \
     | xargs -P 8 -L 1 bash -c 'for t in 1 2 3; do $SRC pr diff "$2" --repo "open-metadata/$1" > "'"$OUT"'/pr/$1-$2.diff" 2>/dev/null && break; sleep $((t * 5)); done' _
+  # Upstream CI configuration (.github/) is never part of what the model
+  # reviews: drop those file sections from the stored full diffs too.
+  for f in "$OUT"/pr/*.diff; do
+    [ -e "$f" ] || continue
+    awk '/^diff --git / { skip = ($0 ~ /^diff --git "?a\/\.github\// || $0 ~ / "?b\/\.github\//) } !skip' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  done
   while read -r c; do
     jq -r '.body_full' <<< "$c" > "$OUT/pr/$(jq -r '"\(.repo)-\(.number)"' <<< "$c").body.md"
   done < "$OUT/all.jsonl"
