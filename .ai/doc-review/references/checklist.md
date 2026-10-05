@@ -3,24 +3,29 @@
 Full item-by-item checklist derived from the OpenMetadata Writing Style Guide.
 Check every item. Mark each as PASS, FAIL, or N/A.
 
+Each item is tagged with its severity (Critical, Major, or Minor)
+immediately after its bold label. The review report uses this tag to
+categorize every finding. Items tagged **(Exception: not flagged)**
+describe acceptable cases that must never be reported as findings.
+
 ---
 
 ## Category 1: Voice & Tone
 
 ### 1.1 Brand Voice
-- [ ] **Warm and clear** — Does the content feel like a knowledgeable colleague rather than a formal institution? Flag overly stiff or robotic phrasing.
-- [ ] **Honest and confident** — Does it say what it means without overselling, hedging excessively, or obscuring issues?
-- [ ] **Human and inclusive** — Is it written for real people, not a faceless audience?
+- [ ] **Warm and clear** (Minor) — Does the content feel like a knowledgeable colleague rather than a formal institution? Flag overly stiff or robotic phrasing.
+- [ ] **Honest and confident** (Minor) — Does it say what it means without overselling, hedging excessively, or obscuring issues?
+- [ ] **Human and inclusive** (Minor) — Is it written for real people, not a faceless audience?
 
 ### 1.2 Conversational Naturalness
-- [ ] **Read-aloud test** — Would this sound natural spoken aloud? Flag anything that wouldn't be said in a meeting.
-- [ ] **No corporate filler** — Flag: "synergize," "leverage" (when "use" works), "holistic approach," "move the needle," "circle back," "deep dive," "best-in-class."
-- [ ] **No Latin abbreviations in body text** — Flag "i.e." (use "that is"), "e.g." (use "for example"), "etc." (use "and so on").
-- [ ] **"Please" used sparingly** — Flag "please" outside genuine requests or apologies; don't use it to soften routine instructions.
-- [ ] **No "let's" framing** — Flag "let's configure..." → "Configure..."
+- [ ] **Read-aloud test** (Minor) — Would this sound natural spoken aloud? Flag anything that wouldn't be said in a meeting.
+- [ ] **No corporate filler** (Major) — Flag: "synergize," "leverage" (when "use" works), "holistic approach," "move the needle," "circle back," "deep dive," "best-in-class."
+- [ ] **No Latin abbreviations in body text** (Major) — Flag "i.e." (use "that is"), "e.g." (use "for example"), "etc." (use "and so on").
+- [ ] **"Please" used sparingly** (Minor) — Flag "please" outside genuine requests or apologies; don't use it to soften routine instructions.
+- [ ] **No "let's" framing** (Minor) — Flag "let's configure..." → "Configure..."
 
 ### 1.3 Tone Matching
-- [ ] Is the tone appropriate for the content type?
+- [ ] **Tone appropriate for the content type** (Minor) — Is the tone appropriate for the content type?
   - Customer support: empathetic, patient, solution-focused
   - Technical docs: precise, neutral, instructional
   - Marketing: energetic, confident, benefit-led
@@ -32,14 +37,14 @@ Check every item. Mark each as PASS, FAIL, or N/A.
 ## Category 2: Clarity & Conciseness
 
 ### 2.1 Sentence Length & Complexity
-- [ ] **Short sentences** — Flag sentences with more than two commas plus end punctuation. Suggest breaking them up.
-- [ ] **One idea per sentence** — Flag sentences that try to do too much.
-- [ ] **No modifier stacks** — Flag long chains of nouns used as modifiers (e.g., "extremely well thought-out Windows migration project plan").
+- [ ] **Short sentences** (Major) — Flag sentences with more than two commas plus end punctuation. Suggest breaking them up.
+- [ ] **One idea per sentence** (Minor) — Flag sentences that try to do too much.
+- [ ] **No modifier stacks** (Minor) — Flag long chains of nouns used as modifiers (e.g., "extremely well thought-out Windows migration project plan").
 
 ### 2.2 Word Economy
-- [ ] **No "you can"** — Flag "you can [verb]" and suggest replacing with the direct imperative or verb alone. E.g., "You can export the report" → "Export the report."
-- [ ] **No "there is/are/were"** — Flag and suggest rewriting. E.g., "There are three options available" → "Three options are available."
-- [ ] **No redundant phrases** — Flag:
+- [ ] **No "you can"** (Minor) — Flag "you can [verb]" and suggest replacing with the direct imperative or verb alone. E.g., "You can export the report" → "Export the report."
+- [ ] **No "there is/are/were"** (Minor) — Flag and suggest rewriting. E.g., "There are three options available" → "Three options are available."
+- [ ] **No redundant phrases** (Major) — Flag:
   - "in order to" → "to"
   - "at this point in time" → "now"
   - "due to the fact that" → "because"
@@ -48,10 +53,10 @@ Check every item. Mark each as PASS, FAIL, or N/A.
   - "with regard to" → "about"
   - "in the event that" → "if"
   - "on a regular basis" → "regularly"
-- [ ] **"Lets you" over "allows you to"** — Flag "allows you to [verb]"; prefer the shorter "lets you [verb]."
+- [ ] **"Lets you" over "allows you to"** (Minor) — Flag "allows you to [verb]"; prefer the shorter "lets you [verb]."
 
 ### 2.3 Word Choice
-- [ ] **Simple over complex** — Flag:
+- [ ] **Simple over complex** (Minor) — Flag:
   - "utilize" → "use"
   - "initiate" → "start"
   - "facilitate" → "help"
@@ -59,260 +64,260 @@ Check every item. Mark each as PASS, FAIL, or N/A.
   - "endeavour" → "try"
   - "ascertain" → "find out"
   - "commence" → "start" or "begin"
-- [ ] **Jargon check** — Is every technical term necessary and understandable to the target audience? Flag undefined jargon.
-- [ ] **Consistent terminology** — Is the same concept always called the same thing? Flag synonyms used interchangeably for the same concept.
-- [ ] **"Can" vs. "might" vs. "may"** — Use "can" for capability or permission, "might" for uncertain possibility. Flag "may" for either — it's ambiguous between the two.
-- [ ] **"Because" vs. "since"** — Use "because" for causation. Reserve "since" for time-based meaning only ("since version 1.5," not "since it's faster").
+- [ ] **Jargon check** (Major) — Is every technical term necessary and understandable to the target audience? Flag undefined jargon.
+- [ ] **Consistent terminology** (Major) — Is the same concept always called the same thing? Flag synonyms used interchangeably for the same concept.
+- [ ] **"Can" vs. "might" vs. "may"** (Minor) — Use "can" for capability or permission, "might" for uncertain possibility. Flag "may" for either — it's ambiguous between the two.
+- [ ] **"Because" vs. "since"** (Minor) — Use "because" for causation. Reserve "since" for time-based meaning only ("since version 1.5," not "since it's faster").
 
 ### 2.4 Front-Loading
-- [ ] **Key point first** — Does the most important information appear in the first sentence or paragraph?
-- [ ] **Purpose clear early** — In emails and articles, is the purpose stated in the first two sentences?
+- [ ] **Key point first** (Major) — Does the most important information appear in the first sentence or paragraph?
+- [ ] **Purpose clear early** (Major) — In emails and articles, is the purpose stated in the first two sentences?
 
 ---
 
 ## Category 3: Grammar & Language
 
 ### 3.1 Voice
-- [ ] **Active voice preferred** — Flag passive constructions. E.g., "The file was rejected by the system" → "The system rejected the file."
-- [ ] **Passive voice acceptable when** — the actor is unknown, or the action matters more than who did it (e.g., "The database was last updated in March"). Do not flag these.
-- [ ] **No first-person "we/us/our" in reference or technical content** — Flag "we read the query log"; describe what the product does instead ("OpenMetadata reads the query log"). Second person ("you") is fine when addressing the reader directly.
+- [ ] **Active voice preferred** (Major) — Flag passive constructions. E.g., "The file was rejected by the system" → "The system rejected the file."
+- [ ] **Passive voice acceptable when** (Exception: not flagged) — the actor is unknown, or the action matters more than who did it (e.g., "The database was last updated in March"). Do not flag these.
+- [ ] **No first-person "we/us/our" in reference or technical content** (Major) — Flag "we read the query log"; describe what the product does instead ("OpenMetadata reads the query log"). Second person ("you") is fine when addressing the reader directly.
 
 ### 3.2 Verbs
-- [ ] **Strong verbs** — Flag verb-to-noun conversions: "make a decision" → "decide," "carry out an implementation" → "implement."
-- [ ] **Imperative mood in instructions** — Instructions should use imperative: "Select the file," not "You should select the file."
-- [ ] **Present tense where possible** — Especially for product descriptions and instructions.
+- [ ] **Strong verbs** (Minor) — Flag verb-to-noun conversions: "make a decision" → "decide," "carry out an implementation" → "implement."
+- [ ] **Imperative mood in instructions** (Major) — Instructions should use imperative: "Select the file," not "You should select the file."
+- [ ] **Present tense where possible** (Minor) — Especially for product descriptions and instructions.
 
 ### 3.3 Contractions
-- [ ] **Use contractions in general content** — Flag missing contractions where formal phrasing sounds stiff: "it is" → "it's," "you will" → "you'll," "do not" → "don't."
-- [ ] **No contractions in** legal, compliance, or highly formal documents (these should not be flagged).
-- [ ] **No awkward contractions** — Flag "should've," "there'd," "would've" in professional content.
+- [ ] **Use contractions in general content** (Minor) — Flag missing contractions where formal phrasing sounds stiff: "it is" → "it's," "you will" → "you'll," "do not" → "don't."
+- [ ] **No contractions in** (Exception: not flagged) — legal, compliance, or highly formal documents (these should not be flagged).
+- [ ] **No awkward contractions** (Minor) — Flag "should've," "there'd," "would've" in professional content.
 
 ### 3.4 Sentence Structure
-- [ ] **Standard word order** — Subject + verb + object. Flag inverted or convoluted structures.
-- [ ] **Modifiers close to what they modify** — Flag dangling modifiers and misplaced "only."
-- [ ] **No more than two clauses joined by and/or/but** — Flag run-ons; suggest splitting or using a list.
+- [ ] **Standard word order** (Minor) — Subject + verb + object. Flag inverted or convoluted structures.
+- [ ] **Modifiers close to what they modify** (Major) — Flag dangling modifiers and misplaced "only."
+- [ ] **No more than two clauses joined by and/or/but** (Minor) — Flag run-ons; suggest splitting or using a list.
 
 ### 3.5 Spelling
-- [ ] **No typos or misspellings** — Flag any misspelled word.
+- [ ] **No typos or misspellings** (Critical) — Flag any misspelled word.
 
 ---
 
 ## Category 4: Punctuation
 
 ### 4.1 End Punctuation
-- [ ] **Every sentence ends with a period** — Even two-word sentences.
-- [ ] **One space after periods** — Flag double spaces.
-- [ ] **No multiple exclamation marks** — Flag "!!" or "!!!".
-- [ ] **Exclamation marks used sparingly** — Flag if more than one appears in a short document.
+- [ ] **Every sentence ends with a period** (Minor) — Even two-word sentences.
+- [ ] **One space after periods** (Minor) — Flag double spaces.
+- [ ] **No multiple exclamation marks** (Critical) — Flag "!!" or "!!!".
+- [ ] **Exclamation marks used sparingly** (Minor) — Flag if more than one appears in a short document.
 
 ### 4.2 Commas
-- [ ] **Oxford (serial) comma used** — "files, folders, and documents" not "files, folders and documents."
-- [ ] **Comma after introductory clause** — Flag missing commas after opening subordinate clauses.
-- [ ] **No comma splice** — Two independent clauses must not be joined by a comma alone without a conjunction.
-- [ ] **No "&" as a stand-in for "and"** — Flag ampersands in prose or headings; reserve "&" for literal UI labels being referenced.
+- [ ] **Oxford (serial) comma used** (Major) — "files, folders, and documents" not "files, folders and documents."
+- [ ] **Comma after introductory clause** (Minor) — Flag missing commas after opening subordinate clauses.
+- [ ] **No comma splice** (Major) — Two independent clauses must not be joined by a comma alone without a conjunction.
+- [ ] **No "&" as a stand-in for "and"** (Minor) — Flag ampersands in prose or headings; reserve "&" for literal UI labels being referenced.
 
 ### 4.3 Colons and Semicolons
-- [ ] **Colon before a list** — Used at the end of an introducing phrase, not a complete sentence that already contains a list.
-- [ ] **First word after colon** — Capitalize if it begins an independent clause.
-- [ ] **Avoid semicolons in general content** — Flag; suggest splitting the sentence.
+- [ ] **Colon before a list** (Minor) — Used at the end of an introducing phrase, not a complete sentence that already contains a list.
+- [ ] **First word after colon** (Minor) — Capitalize if it begins an independent clause.
+- [ ] **Avoid semicolons in general content** (Minor) — Flag; suggest splitting the sentence.
 
 ### 4.4 Dashes and Hyphens
-- [ ] **Use em dashes sparingly in prose** — Use an em dash only where a comma, colon, parentheses, or a separate sentence doesn't work. Flag any em dash where one of those would work, and prose that leans on them as a stylistic crutch. This isn't a ban: an em dash that none of those alternatives can replace is fine. Applies to new content and edits of existing content; not a mandate to sweep existing pages unless asked. Treat as Minor severity, not Critical, unless truly pervasive.
-- [ ] **No spaced en dashes used as em dashes** — Flag " – " used mid-sentence.
-- [ ] **En dash for ranges** — "2020–2026," "pages 10–15" (not hyphens).
-- [ ] **Hyphen in compound modifiers before a noun** — "well-known author" but "the author is well known."
-- [ ] **No hyphen after -ly adverbs** — "a highly effective tool" not "a highly-effective tool."
+- [ ] **Use em dashes sparingly in prose** (Minor) — Use an em dash only where a comma, colon, parentheses, or a separate sentence doesn't work. Flag any em dash where one of those would work, and prose that leans on them as a stylistic crutch. This isn't a ban: an em dash that none of those alternatives can replace is fine. Applies to new content and edits of existing content; not a mandate to sweep existing pages unless asked. Treat as Minor severity, not Critical, unless truly pervasive.
+- [ ] **No spaced en dashes used as em dashes** (Minor) — Flag " – " used mid-sentence.
+- [ ] **En dash for ranges** (Minor) — "2020–2026," "pages 10–15" (not hyphens).
+- [ ] **Hyphen in compound modifiers before a noun** (Minor) — "well-known author" but "the author is well known."
+- [ ] **No hyphen after -ly adverbs** (Minor) — "a highly effective tool" not "a highly-effective tool."
 
 ### 4.5 Apostrophes
-- [ ] **No apostrophe in plurals** — "PDFs" not "PDF's," "the 1990s" not "the 1990's."
-- [ ] **Correct possessives** — "the team's results," "OpenMetadata's brand."
+- [ ] **No apostrophe in plurals** (Major) — "PDFs" not "PDF's," "the 1990s" not "the 1990's."
+- [ ] **Correct possessives** (Major) — "the team's results," "OpenMetadata's brand."
 
 ### 4.6 Quotation Marks
-- [ ] **Periods and commas inside quotes** — Place commas and periods inside the closing quotation mark, as in "like this."
-- [ ] **Colons and semicolons outside quotes.**
-- [ ] **No scare quotes for emphasis** — Use precise wording instead of ironic quotes.
+- [ ] **Periods and commas inside quotes** (Minor) — Place commas and periods inside the closing quotation mark, as in "like this."
+- [ ] **Colons and semicolons outside quotes** (Minor).
+- [ ] **No scare quotes for emphasis** (Minor) — Use precise wording instead of ironic quotes.
 
 ### 4.7 Parentheses
-- [ ] **No important information in parentheses** — Some readers skip parenthetical content; don't hide anything the reader needs there.
-- [ ] **Keep parenthetical asides brief** — If a parenthetical would run long (e.g., a list of code identifiers), split it into a separate sentence or use a dash instead.
+- [ ] **No important information in parentheses** (Major) — Some readers skip parenthetical content; don't hide anything the reader needs there.
+- [ ] **Keep parenthetical asides brief** (Minor) — If a parenthetical would run long (e.g., a list of code identifiers), split it into a separate sentence or use a dash instead.
 
 ---
 
 ## Category 5: Capitalization
 
 ### 5.1 Heading Case
-- [ ] **Headings use title case on this site** — Capitalize all major words (e.g., "Bulk Import Test Cases"). This is a deliberate house style across the OpenMetadata docs — do not flag title-case headings as a violation.
-- [ ] **List items start with a capital letter.**
-- [ ] **No all-caps for emphasis** — Flag ANY WORD IN ALL CAPS used for emphasis. Italic is acceptable.
-- [ ] **No all-lowercase as a style choice.**
+- [ ] **Headings use title case on this site** (Critical) — Capitalize all major words (e.g., "Bulk Import Test Cases"). This is a deliberate house style across the OpenMetadata docs — do not flag title-case headings as a violation.
+- [ ] **List items start with a capital letter** (Major).
+- [ ] **No all-caps for emphasis** (Critical) — Flag ANY WORD IN ALL CAPS used for emphasis. Italic is acceptable.
+- [ ] **No all-lowercase as a style choice** (Major).
 
 ### 5.2 Proper Nouns
-- [ ] **Product and service names capitalized** — Flag lowercase product names.
-- [ ] **"OpenMetadata" always capitalized** — Flag "openmetadata," "Openmetadata," or "OPENMETADATA."
-- [ ] **Acronyms in full caps** — API, SLA, CRM (no mixed case like "Api").
+- [ ] **Product and service names capitalized** (Major) — Flag lowercase product names.
+- [ ] **"OpenMetadata" always capitalized** (Critical) — Flag "openmetadata," "Openmetadata," or "OPENMETADATA."
+- [ ] **Acronyms in full caps** (Critical) — API, SLA, CRM (no mixed case like "Api").
 
 ### 5.3 What Not to Capitalize
-- [ ] **Generic job titles lowercase** — "the engineering manager" (not "Engineering Manager") unless used as a formal title before a name.
-- [ ] **Common tech terms lowercase** — "application," "platform," "database" (not "Platform" or "Database").
-- [ ] **Spelled-out acronyms lowercase** — "application programming interface" not "Application Programming Interface."
+- [ ] **Generic job titles lowercase** (Minor) — "the engineering manager" (not "Engineering Manager") unless used as a formal title before a name.
+- [ ] **Common tech terms lowercase** (Minor) — "application," "platform," "database" (not "Platform" or "Database").
+- [ ] **Spelled-out acronyms lowercase** (Minor) — "application programming interface" not "Application Programming Interface."
 
 ---
 
 ## Category 6: Numbers & Dates
 
 ### 6.1 Numbers
-- [ ] **Spell out zero through nine** — "three options" not "3 options" (unless in a technical/measurement context).
-- [ ] **Numerals for 10 and above** — "15 users" not "fifteen users."
-- [ ] **Numerals always for** measurements, percentages, version numbers, money, technical specs.
-- [ ] **No sentence starting with a numeral** — Rewrite or spell out.
-- [ ] **Commas in 4+ digit numbers** — "1,000" not "1000."
+- [ ] **Spell out zero through nine** (Critical) — "three options" not "3 options" (unless in a technical/measurement context).
+- [ ] **Numerals for 10 and above** (Critical) — "15 users" not "fifteen users."
+- [ ] **Numerals always for** (Major) — measurements, percentages, version numbers, money, technical specs.
+- [ ] **No sentence starting with a numeral** (Minor) — Rewrite or spell out.
+- [ ] **Commas in 4+ digit numbers** (Major) — "1,000" not "1000."
 
 ### 6.2 Dates
-- [ ] **Month spelled out** — "May 12, 2026" not "5/12/2026" or "12/5/2026."
-- [ ] **No ordinals in dates** — "June 1" not "June 1st."
-- [ ] **En dash for date ranges** — "May 10–14, 2026."
+- [ ] **Month spelled out** (Major) — "May 12, 2026" not "5/12/2026" or "12/5/2026."
+- [ ] **No ordinals in dates** (Minor) — "June 1" not "June 1st."
+- [ ] **En dash for date ranges** (Major) — "May 10–14, 2026."
 
 ### 6.3 Time
-- [ ] **12-hour clock with AM/PM in capitals with a space** — "9:00 AM" not "9am" or "9:00am."
-- [ ] **"noon" and "midnight"** — not "12:00 PM" or "12:00 AM."
+- [ ] **12-hour clock with AM/PM in capitals with a space** (Major) — "9:00 AM" not "9am" or "9:00am."
+- [ ] **"noon" and "midnight"** (Minor) — not "12:00 PM" or "12:00 AM."
 
 ### 6.4 Percentages & Currency
-- [ ] **% symbol with numerals** — "45%" not "45 percent" (except at the start of a sentence).
-- [ ] **Currency symbol with numeral** — "$500" not "500 dollars."
+- [ ] **% symbol with numerals** (Minor) — "45%" not "45 percent" (except at the start of a sentence).
+- [ ] **Currency symbol with numeral** (Minor) — "$500" not "500 dollars."
 
 ---
 
 ## Category 7: Formatting & Structure
 
 ### 7.1 Headings
-- [ ] **Every section has a clear, descriptive heading.**
-- [ ] **Parallel structure in headings** — Same grammatical form within the same section.
-- [ ] **No period at end of headings** — Question marks are acceptable.
-- [ ] **No heading immediately after another heading, or immediately before a code block,** with no body text between — every heading needs at least one sentence of body text before the next heading or code block.
+- [ ] **Every section has a clear, descriptive heading** (Major).
+- [ ] **Parallel structure in headings** (Major) — Same grammatical form within the same section.
+- [ ] **No period at end of headings** (Critical) — Question marks are acceptable.
+- [ ] **No heading immediately after another heading, or immediately before a code block** (Major) — with no body text between — every heading needs at least one sentence of body text before the next heading or code block.
 
 ### 7.2 Lists
-- [ ] **At least 2 items** — Single-item lists should be prose.
-- [ ] **No more than 7 items** — Suggest grouping if more.
-- [ ] **Parallel structure** — All items use the same grammatical form.
-- [ ] **Introduced with a complete sentence or colon-ending phrase.**
-- [ ] **No semicolons or commas at end of list items.**
-- [ ] **Period only if items are complete sentences or complete an introductory fragment.**
-- [ ] **Numbered only for sequential steps** — Use a numbered list only when items must be done in a specific order (see §7.4). Every other set of items — options, examples, non-ordered facts — uses bullets.
+- [ ] **At least 2 items** (Minor) — Single-item lists should be prose.
+- [ ] **No more than 7 items** (Minor) — Suggest grouping if more.
+- [ ] **Parallel structure** (Major) — All items use the same grammatical form.
+- [ ] **Introduced with a complete sentence or colon-ending phrase** (Minor).
+- [ ] **No semicolons or commas at end of list items** (Major).
+- [ ] **Period only if items are complete sentences or complete an introductory fragment** (Minor).
+- [ ] **Numbered only for sequential steps** (Major) — Use a numbered list only when items must be done in a specific order (see §7.4). Every other set of items — options, examples, non-ordered facts — uses bullets.
 
 ### 7.3 Bold & Italic
-- [ ] **Bold used only for** key terms on first use, UI element names, or critical warnings. Not for general emphasis.
-- [ ] **No underline** except hyperlinks.
-- [ ] **Italic used for** titles of works or introducing new technical terms.
-- [ ] **Bold before the colon in inline labels** — "**Example**:" not "**Example:**" — the colon sits outside the bold markers.
+- [ ] **Bold used only for** (Critical) — key terms on first use, UI element names, or critical warnings. Not for general emphasis.
+- [ ] **No underline** (Critical) — except hyperlinks.
+- [ ] **Italic used for** (Minor) — titles of works or introducing new technical terms.
+- [ ] **Bold before the colon in inline labels** (Major) — "**Example**:" not "**Example:**" — the colon sits outside the bold markers.
 
 ### 7.4 Instructions
-- [ ] **Numbered list for steps** — Not bullets, not prose.
-- [ ] **One action per step.**
-- [ ] **Imperative verb starts each step** — "Select," "Enter," "Open."
-- [ ] **Location stated first in step** — "On the Settings page, select..."
-- [ ] **Optional steps marked with "Optional:"** — Flag optional steps indicated by parentheses instead; use "Optional: ..." at the start of the step.
-- [ ] **Goal-first phrasing where it reads naturally** — Prefer "To do X, do Y" over burying the goal at the end of the step.
+- [ ] **Numbered list for steps** (Critical) — Not bullets, not prose.
+- [ ] **One action per step** (Major).
+- [ ] **Imperative verb starts each step** (Major) — "Select," "Enter," "Open."
+- [ ] **Location stated first in step** (Minor) — "On the Settings page, select..."
+- [ ] **Optional steps marked with "Optional:"** (Major) — Flag optional steps indicated by parentheses instead; use "Optional: ..." at the start of the step.
+- [ ] **Goal-first phrasing where it reads naturally** (Minor) — Prefer "To do X, do Y" over burying the goal at the end of the step.
 
 ### 7.5 Notices & Callouts
-- [ ] **Used sparingly** — Flag more than one Note/Tip/Warning stacked back-to-back; overuse diminishes their effectiveness.
-- [ ] **Right type for the content** — Note = non-critical, skippable information; Warning = risk of data loss, security issues, or other irreversible harm; Tip = optional helpful suggestion.
-- [ ] **Not used for prerequisites** — Information the reader needs before starting belongs in the main flow, not a callout.
-- [ ] **Not used for essential information** — If the reader can't succeed without it, it isn't a Note — put it in the body text.
-- [ ] **Not used for cross-references** — Link to related content directly in the body text rather than via a callout.
-- [ ] **Not used for procedural steps** — Full steps belong in the numbered instructions, not offset in a box.
+- [ ] **Used sparingly** (Minor) — Flag more than one Note/Tip/Warning stacked back-to-back; overuse diminishes their effectiveness.
+- [ ] **Right type for the content** (Major) — Note = non-critical, skippable information; Warning = risk of data loss, security issues, or other irreversible harm; Tip = optional helpful suggestion.
+- [ ] **Not used for prerequisites** (Major) — Information the reader needs before starting belongs in the main flow, not a callout.
+- [ ] **Not used for essential information** (Major) — If the reader can't succeed without it, it isn't a Note — put it in the body text.
+- [ ] **Not used for cross-references** (Minor) — Link to related content directly in the body text rather than via a callout.
+- [ ] **Not used for procedural steps** (Minor) — Full steps belong in the numbered instructions, not offset in a box.
 
 ### 7.6 UI Navigation Paths
-- [ ] **No arrow character (`→`)** — Flag `**Settings → Database**`; convert to `**Settings** > **Database**` (each segment separately bolded, plain `>` separator).
+- [ ] **No arrow character (`→`)** (Critical) — Flag `**Settings → Database**`; convert to `**Settings** > **Database**` (each segment separately bolded, plain `>` separator).
 
 ---
 
 ## Category 8: Inclusive Language
 
 ### 8.1 Gender-Neutral Language
-- [ ] **No gendered pronouns in generic references** — Flag "he," "his," "she," "her" when referring to unspecified individuals.
-- [ ] **"You" preferred over third person** — Use direct address, such as "Access your account," not third person, such as "the user can access their account."
-- [ ] **No "he/she" or "s/he" constructions.**
-- [ ] **Singular "they" acceptable** — Flag only if the sentence becomes confusing.
+- [ ] **No gendered pronouns in generic references** (Critical) — Flag "he," "his," "she," "her" when referring to unspecified individuals.
+- [ ] **"You" preferred over third person** (Minor) — Use direct address, such as "Access your account," not third person, such as "the user can access their account."
+- [ ] **No "he/she" or "s/he" constructions** (Critical).
+- [ ] **Singular "they" acceptable** (Exception: not flagged) — Singular "they" for an unspecified person is acceptable. Do not flag it.
 
 ### 8.2 People-First Language
-- [ ] **Person before disability** — "a user who is blind" not "a blind user" (unless the individual/community prefers identity-first).
-- [ ] **No pity language** — Flag "suffering from," "afflicted with," "victim of."
-- [ ] **Disability mentioned only if relevant.**
+- [ ] **Person before disability** (Critical) — "a user who is blind" not "a blind user" (unless the individual/community prefers identity-first).
+- [ ] **No pity language** (Critical) — Flag "suffering from," "afflicted with," "victim of."
+- [ ] **Disability mentioned only if relevant** (Major).
 
 ### 8.3 Culturally Sensitive Language
-- [ ] **No unconscious bias in technical terms** — Flag "master/slave" → "primary/secondary"; "whitelist/blacklist" → "allowlist/blocklist."
-- [ ] **No idioms or colloquialisms** that may not translate or that assume shared cultural background.
-- [ ] **No assumptions about holidays, sports, or political systems** unless directly relevant.
+- [ ] **No unconscious bias in technical terms** (Critical) — Flag "master/slave" → "primary/secondary"; "whitelist/blacklist" → "allowlist/blocklist."
+- [ ] **No idioms or colloquialisms** (Minor) — that may not translate or that assume shared cultural background.
+- [ ] **No assumptions about holidays, sports, or political systems** (Critical) — unless directly relevant.
 
 ### 8.4 Age & Generational Language
-- [ ] **No age stereotypes** — Do not assume older users cannot use technology or younger users lack professionalism.
+- [ ] **No age stereotypes** (Critical) — Do not assume older users cannot use technology or younger users lack professionalism.
 
 ### 8.5 Ableist Language
-- [ ] **No ableist terms** — Flag "sanity check" → "validation check," "blind spot" → "gap," "stand-alone" used pejoratively, and similar terms that use disability as a metaphor.
+- [ ] **No ableist terms** (Critical) — Flag "sanity check" → "validation check," "blind spot" → "gap," "stand-alone" used pejoratively, and similar terms that use disability as a metaphor.
 
 ---
 
 ## Category 9: Accessibility
 
 ### 9.1 Structure
-- [ ] **Heading levels reflect hierarchy** — Don't use bold as a substitute for a heading.
-- [ ] **No directional language as sole locator** — "the table on the left" → "the following table."
-- [ ] **Descriptive link text** — Flag "click here," "read more," "learn more" without context. Suggest "Download the Q1 report" or "Learn more about data privacy."
-- [ ] **Link text matches the destination** — Where reasonable, link text should match the title or heading of the page it points to.
-- [ ] **No duplicate links** — Flag the same destination linked more than once on a page, unless linking to distinct sections.
-- [ ] **"For more information, see [X]"** — Use this as the standard phrasing when a full sentence is dedicated to a cross-reference.
-- [ ] **Punctuation outside link text** — Don't include trailing punctuation inside the link. Link text also isn't wrapped in quotation marks.
+- [ ] **Heading levels reflect hierarchy** (Major) — Don't use bold as a substitute for a heading.
+- [ ] **No directional language as sole locator** (Major) — "the table on the left" → "the following table."
+- [ ] **Descriptive link text** (Major) — Flag "click here," "read more," "learn more" without context. Suggest "Download the Q1 report" or "Learn more about data privacy."
+- [ ] **Link text matches the destination** (Major) — Where reasonable, link text should match the title or heading of the page it points to.
+- [ ] **No duplicate links** (Minor) — Flag the same destination linked more than once on a page, unless linking to distinct sections.
+- [ ] **"For more information, see [X]"** (Major) — Use this as the standard phrasing when a full sentence is dedicated to a cross-reference.
+- [ ] **Punctuation outside link text** (Minor) — Don't include trailing punctuation inside the link. Link text also isn't wrapped in quotation marks.
 
 ### 9.2 Images & Media (if described or included)
-- [ ] **Alt text described or present** for all meaningful images.
-- [ ] **No information conveyed only through color.**
+- [ ] **Alt text described or present** (Critical) — for all meaningful images.
+- [ ] **No information conveyed only through color** (Critical).
 
 ### 9.3 Plain Language
-- [ ] **Abbreviations and acronyms spelled out on first use** — "application programming interface (API)" not just "API."
-- [ ] **Consistent terminology throughout** — No synonyms for the same concept.
+- [ ] **Abbreviations and acronyms spelled out on first use** (Major) — "application programming interface (API)" not just "API."
+- [ ] **Consistent terminology throughout** (Major) — No synonyms for the same concept.
 
 ### 9.4 Interaction Language
-- [ ] **Generic interaction verbs** — "enter" not "type," "activate" not "tap." Do not flag "click" or suggest "select" in its place.
+- [ ] **Generic interaction verbs** (Minor) — "enter" not "type," "activate" not "tap." Do not flag "click" or suggest "select" in its place.
 
 ---
 
 ## Category 10: OpenMetadata Branding
 
 ### 10.1 Project Name
-- [ ] **"OpenMetadata" — correct capitalization** — Flag "openmetadata," "Openmetadata," "OPENMETADATA," "Open Metadata" (as two words), or "OM" as a stand-in.
-- [ ] **First mention in a document uses "OpenMetadata"** — Subsequent uses may also use "OpenMetadata."
-- [ ] **No unofficial abbreviations** — Flag informal shorthand in prose (code identifiers and config keys are exempt).
+- [ ] **"OpenMetadata" — correct capitalization** (Critical) — Flag "openmetadata," "Openmetadata," "OPENMETADATA," "Open Metadata" (as two words), or "OM" as a stand-in.
+- [ ] **First mention in a document uses "OpenMetadata"** (Minor) — Subsequent uses may also use "OpenMetadata."
+- [ ] **No unofficial abbreviations** (Major) — Flag informal shorthand in prose (code identifiers and config keys are exempt).
 
 ### 10.2 Product Names
-- [ ] **Exact registered product/feature names used** — No abbreviations, shortened forms, or unofficial variants.
-- [ ] **Product names capitalized as proper nouns.**
-- [ ] **Version numbers formatted correctly** — "OpenMetadata 1.5" not "OpenMetadata v1.5" or "OM 1.5."
+- [ ] **Exact registered product/feature names used** (Major) — No abbreviations, shortened forms, or unofficial variants.
+- [ ] **Product names capitalized as proper nouns** (Major).
+- [ ] **Version numbers formatted correctly** (Major) — "OpenMetadata 1.5" not "OpenMetadata v1.5" or "OM 1.5."
 
 ### 10.3 Collate References
-- [ ] **No "Collate" in prose** — These docs describe the open-source OpenMetadata project, not the commercial Collate product built on top of it. Flag any prose mention of "Collate"; code identifiers are exempt only if they genuinely appear that way in shared source.
+- [ ] **No "Collate" in prose** (Major) — These docs describe the open-source OpenMetadata project, not the commercial Collate product built on top of it. Flag any prose mention of "Collate"; code identifiers are exempt only if they genuinely appear that way in shared source.
 
 ### 10.4 Customer-Facing Tone
-- [ ] **Customer addressed as "you"** — Not "the user," "the client," or third person in direct communications.
-- [ ] **Error messages and notifications state result or action first** — "Your file was saved" not "File save operation completed successfully."
-- [ ] **Error messages explain what went wrong + what to do next** — No raw error codes without explanation.
-- [ ] **No unofficial taglines or slogans** — Only approved project language in external content.
-- [ ] **No unapproved product claims** — Performance commitments require maintainer sign-off.
+- [ ] **Customer addressed as "you"** (Major) — Not "the user," "the client," or third person in direct communications.
+- [ ] **Error messages and notifications state result or action first** (Major) — "Your file was saved" not "File save operation completed successfully."
+- [ ] **Error messages explain what went wrong + what to do next** (Major) — No raw error codes without explanation.
+- [ ] **No unofficial taglines or slogans** (Major) — Only approved project language in external content.
+- [ ] **No unapproved product claims** (Critical) — Performance commitments require maintainer sign-off.
 
 ---
 
 ## Category 11: Global / Localization (apply when content will be translated)
 
-- [ ] **No idioms or culture-specific expressions.**
-- [ ] **No list items completing an introductory sentence fragment** — These are hard to translate.
-- [ ] **No noun stacks** — Long modifier chains often can't be translated.
-- [ ] **No humor, wordplay, or puns** in content intended for translation.
-- [ ] **UI strings under 80 characters** where possible (translations are often longer).
-- [ ] **Time zones specified** in international scheduling content.
+- [ ] **No idioms or culture-specific expressions** (Minor).
+- [ ] **No list items completing an introductory sentence fragment** (Minor) — These are hard to translate.
+- [ ] **No noun stacks** (Minor) — Long modifier chains often can't be translated.
+- [ ] **No humor, wordplay, or puns** (Minor) — in content intended for translation.
+- [ ] **UI strings under 80 characters** (Minor) — where possible (translations are often longer).
+- [ ] **Time zones specified** (Major) — in international scheduling content.
 
 ---
 
 ## Category 12: Technical & Logical Accuracy
 
-- [ ] **No illogical or out-of-order steps** — Flag anything technically wrong, misleading, contradictory, or sequenced incorrectly (e.g. referencing a setting before it's created, a step that depends on a later step).
-- [ ] **No code bugs** — Flag missing imports, undefined variables, or syntax errors in code samples.
-- [ ] **Claims are internally consistent** — For every specific, checkable claim (a count, a version number, a named API/config option, or "as of version X this changed"), check it against the rest of the diff/PR itself, not against an external source repository. Record a confirmed-consistent or contradicted result; do not limit this to claims that initially read off.
+- [ ] **No illogical or out-of-order steps** (Critical) — Flag anything technically wrong, misleading, contradictory, or sequenced incorrectly (e.g. referencing a setting before it's created, a step that depends on a later step).
+- [ ] **No code bugs** (Critical) — Flag missing imports, undefined variables, or syntax errors in code samples.
+- [ ] **Claims are internally consistent** (Critical) — For every specific, checkable claim (a count, a version number, a named API/config option, or "as of version X this changed"), check it against the rest of the diff/PR itself, not against an external source repository. Record a confirmed-consistent or contradicted result; do not limit this to claims that initially read off.
