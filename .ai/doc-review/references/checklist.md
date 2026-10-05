@@ -193,7 +193,7 @@ describe acceptable cases that must never be reported as findings.
 - [ ] **Every section has a clear, descriptive heading** (Major).
 - [ ] **Parallel structure in headings** (Major) — Same grammatical form within the same section.
 - [ ] **No period at end of headings** (Critical) — Question marks are acceptable.
-- [ ] **No heading immediately after another heading, or immediately before a code block** (Major) — with no body text between: every heading needs at least one sentence of body text before the next heading or code block.
+- [ ] **No heading immediately after another heading, or immediately before a code block** (Major) — with no body text between — every heading needs at least one sentence of body text before the next heading or code block.
 
 ### 7.2 Lists
 - [ ] **At least 2 items** (Minor) — Single-item lists should be prose.
@@ -237,7 +237,7 @@ describe acceptable cases that must never be reported as findings.
 - [ ] **No gendered pronouns in generic references** (Critical) — Flag "he," "his," "she," "her" when referring to unspecified individuals.
 - [ ] **"You" preferred over third person** (Minor) — Use direct address, such as "Access your account," not third person, such as "the user can access their account."
 - [ ] **No "he/she" or "s/he" constructions** (Critical).
-- [ ] **Singular "they" acceptable** (Exception: not flagged) — Singular "they" for an unspecified person is acceptable; do not flag it.
+- [ ] **Singular "they" acceptable** (Exception: not flagged) — Singular "they" for an unspecified person is acceptable. Do not flag it.
 
 ### 8.2 People-First Language
 - [ ] **Person before disability** (Critical) — "a user who is blind" not "a blind user" (unless the individual/community prefers identity-first).
