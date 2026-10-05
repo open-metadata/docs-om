@@ -117,9 +117,13 @@ line instead of an empty table.
   severity comes from that rule's tag. Each item carries one of the three
   severity tags, or is marked **(Exception: not flagged)**. The checklist
   tag, not the example descriptions below, decides the level for any
-  checklist-rule finding. Some findings do not map to any checklist rule,
-  such as an internal-consistency contradiction. For those, the reviewer
-  judges the severity itself, using the descriptions below. When content
+  checklist-rule finding. A contradiction between a specific, checkable
+  claim (a count, a version number, or a named API or config option) and
+  the rest of the same diff or PR maps to Category 12's **Claims are
+  internally consistent** (Critical). Other findings map to no checklist
+  rule at all, such as two passages that give contradictory instructions.
+  For those, the reviewer judges the severity itself, using the
+  descriptions below. When content
   will be translated, treat Category 11 (Global / Localization) items as
   **Major** rather than their mostly Minor default.
   - **Critical**: Breaks a core rule (wrong brand name, documentation headings not in title case, gendered pronouns, a typo, an illogical step, or a self-contradicting claim).
