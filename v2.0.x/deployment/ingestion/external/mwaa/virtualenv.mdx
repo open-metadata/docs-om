@@ -25,7 +25,9 @@ We need to update the `requirements.txt` file from the MWAA environment to add t
 virtualenv
 ```
 
-Then, we need to set up a custom plugin in MWAA. Create a file named virtual_python_plugin.py. Note that you may need to update the python version (eg, python3.7 -> python3.10) depending on what your MWAA environment is running.
+Use an MWAA environment whose worker Python version is 3.10 or later. A virtual environment isolates dependencies but does not install a newer Python interpreter.
+
+The following plugin adapts the legacy Airflow 2 virtualenv helper used by this example. If your MWAA version can create virtual environments without it, omit the plugin. Otherwise, create `virtual_python_plugin.py`. The command uses the worker’s interpreter instead of a hardcoded Python installation path.
 ```python
 """
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -47,10 +49,11 @@ from airflow.plugins_manager import AirflowPlugin
 import airflow.utils.python_virtualenv
 from typing import List
 import os
+import sys
 
 
 def _generate_virtualenv_cmd(tmp_dir: str, python_bin: str, system_site_packages: bool) -> List[str]:
-    cmd = ['python3', '/usr/local/airflow/.local/lib/python3.7/site-packages/virtualenv', tmp_dir]
+    cmd = [sys.executable, '-m', 'virtualenv', tmp_dir]
     if system_site_packages:
         cmd.append('--system-site-packages')
     if python_bin is not None:
@@ -102,7 +105,6 @@ YAML config
     workflow = MetadataWorkflow.create(workflow_config)
     workflow.execute()
     workflow.raise_from_status()
-    workflow.print_status()
     workflow.stop()
 
 with DAG(
@@ -116,10 +118,8 @@ with DAG(
     ingest_task = PythonVirtualenvOperator(
         task_id="ingest_redshift",
         python_callable=metadata_ingestion_workflow,
-        requirements=['openmetadata-ingestion[redshift]~=2.0.2.0',
-            'apache-airflow==2.4.3',  # note, v2.4.3 is the first version that does not conflict with OpenMetadata's 'tabulate' requirements
-            'apache-airflow-providers-amazon==6.0.0',  # Amazon Airflow provider is necessary for MWAA
-            'watchtower',],
+        requirements=['openmetadata-ingestion[redshift]~=2.0.3.0'],
+        expect_airflow=False,
         system_site_packages=False,
         dag=dag,
     )
@@ -128,8 +128,8 @@ with DAG(
 Where you can update the YAML configuration and workflow classes accordingly. Further examples on how to
 run the ingestion can be found on the documentation (e.g., [Snowflake](/v2.0.x/connectors/database/snowflake)).
 
-You will also need to determine the OpenMetadata ingestion extras and Airflow providers you need. The OpenMetadata ingestion package should match your server minor version. For example, use a `2.0.x` ingestion package with a `2.0.x` server, and include the connector extras required by your YAML, such as `openmetadata-ingestion[mysql,snowflake,s3]~=2.0.2.0`.
-For Airflow providers, you will want to pull the provider versions from [the matching constraints file](https://raw.githubusercontent.com/apache/airflow/constraints-2.4.3/constraints-3.7.txt). Since this example installs Airflow Providers v2.4.3 on Python 3.7, we use that constraints file.
+You will also need to determine the OpenMetadata ingestion extras and Airflow providers you need. The OpenMetadata ingestion package should match your server's full version. For example, use a `2.0.3.x` ingestion package with a `2.0.3` server, and include the connector extras required by your YAML, such as `openmetadata-ingestion[mysql,snowflake,s3]~=2.0.3.0`.
+This callable only runs the ingestion workflow and does not use Airflow context or operators inside the virtual environment. It therefore does not install Airflow, Amazon Airflow providers, or `watchtower` there. `expect_airflow=False` disables the operator’s expectation that Airflow is installed in the isolated environment. Keep MWAA’s own Airflow and provider dependencies in the host environment, managed according to your MWAA version.
 
 Also note that the ingestion workflow function must be entirely self-contained as it will run by itself in the virtualenv. Any imports it needs, including the configuration, must exist within the function itself.
 
