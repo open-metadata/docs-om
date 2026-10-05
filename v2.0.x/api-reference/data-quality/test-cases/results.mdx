@@ -2,7 +2,7 @@
 title: Test Case Results
 description: Get and add test case execution results
 sidebarTitle: Test Case Results
-api: GET /v1/dataQuality/testCases/{id}/testCaseResult
+api: GET /v1/dataQuality/testCases/testCaseResults/{fqn}
 ---
 
 # Test Case Results
@@ -11,8 +11,8 @@ Retrieve test case execution results or add new results programmatically. Each r
 
 ## Get Test Case Results
 
-<ParamField path="id" type="string" required>
-  UUID of the test case.
+<ParamField path="fqn" type="string" required>
+  Fully qualified name (FQN) returned when creating the test case. URL-encode it when necessary.
 </ParamField>
 
 <ParamField query="startTs" type="integer">
@@ -25,10 +25,10 @@ Retrieve test case execution results or add new results programmatically. Each r
 
 ## Add a Test Case Result
 
-Use `PUT /v1/dataQuality/testCases/{id}/testCaseResult` to add a new test result.
+Use `POST /v1/dataQuality/testCases/testCaseResults/{fqn}` to add a new test result.
 
-<ParamField path="id" type="string" required>
-  UUID of the test case.
+<ParamField path="fqn" type="string" required>
+  Fully qualified name (FQN) returned when creating the test case. URL-encode it when necessary.
 </ParamField>
 
 ### Body Parameters
@@ -45,7 +45,7 @@ Use `PUT /v1/dataQuality/testCases/{id}/testCaseResult` to add a new test result
   Human-readable summary of the test result.
 </ParamField>
 
-<ParamField body="testResultValue" type="array">
+<ParamField body="testResultValue" type="array" required>
   Array of detailed result values produced by the test.
 
   <Expandable title="properties">
@@ -60,70 +60,17 @@ Use `PUT /v1/dataQuality/testCases/{id}/testCaseResult` to add a new test result
 </ParamField>
 
 <RequestExample dropdown>
-```python GET /v1/dataQuality/testCases/{id}/testCaseResult
-from metadata.sdk import configure
-from metadata.sdk.entities import TestCases
-
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
-)
-
-# Get test case results
-results = TestCases.get_test_case_results("c1bce355-fa2f-48c6-ab4d-fad722a56ed7")
-for r in results.data:
-    print(f"{r.timestamp}: {r.testCaseStatus} - {r.result}")
-
-# Get results within a time range
-results = TestCases.get_test_case_results(
-    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
-    start_ts=1769900000000,
-    end_ts=1769990000000
-)
-
-# Add a test result
-TestCases.add_test_case_result(
-    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
-    timestamp=1769982800000,
-    testCaseStatus="Success",
-    result="Max value 42 is between 1 and 100",
-    testResultValue=[
-        {"name": "maxValue", "value": "42"}
-    ]
-)
-```
-
-```java GET /v1/dataQuality/testCases/{id}/testCaseResult
-import static org.openmetadata.sdk.fluent.TestCases.*;
-
-// Get test case results
-var results = TestCases.getTestCaseResults("c1bce355-fa2f-48c6-ab4d-fad722a56ed7");
-
-for (var r : results.getData()) {
-    System.out.println(r.getTimestamp() + ": " + r.getTestCaseStatus());
-}
-
-// Add a test result
-TestCases.addTestCaseResult(
-    "c1bce355-fa2f-48c6-ab4d-fad722a56ed7",
-    new TestCaseResult()
-        .timestamp(1769982800000L)
-        .testCaseStatus("Success")
-        .result("Max value 42 is between 1 and 100")
-);
-```
-
-```bash GET /v1/dataQuality/testCases/{id}/testCaseResult
+```bash GET /v1/dataQuality/testCases/testCaseResults/{fqn}
 # Get test results
-curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult" \
+curl "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between" \
   -H "Authorization: Bearer {access_token}"
 
 # Get results with time range
-curl "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult?startTs=1769900000000&endTs=1769990000000" \
+curl "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between?startTs=1769900000000&endTs=1769990000000" \
   -H "Authorization: Bearer {access_token}"
 
 # Add a test result
-curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad722a56ed7/testCaseResult" \
+curl -X POST "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -175,7 +122,7 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad
 
 ## Returns
 
-**Get results** returns a paginated list of test case result objects, ordered by timestamp (newest first).
+**Get results** returns a list of test case result objects for the requested FQN and time range.
 
 **Add result** returns the test case result object that was created.
 
@@ -220,14 +167,6 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad
     <ResponseField name="total" type="integer">
       Total count of results.
     </ResponseField>
-
-    <ResponseField name="after" type="string" optional>
-      Cursor for the next page.
-    </ResponseField>
-
-    <ResponseField name="before" type="string" optional>
-      Cursor for the previous page.
-    </ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -237,8 +176,8 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad
 
 | Status | Description |
 |--------|-------------|
-| `Success` | The test passed -- all assertions were met |
-| `Failed` | The test failed -- one or more assertions were not met |
+| `Success` | The test passed all assertions |
+| `Failed` | The test failed one or more assertions |
 | `Aborted` | The test was aborted due to an error or timeout |
 
 ---
@@ -249,4 +188,4 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases/c1bce355-fa2f-48c6-ab4d-fad
 |------|-----------|-------------|
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to view or add test results |
-| `404` | `NOT_FOUND` | Test case with given ID does not exist |
+| `404` | `NOT_FOUND` | Test case with given FQN does not exist |
