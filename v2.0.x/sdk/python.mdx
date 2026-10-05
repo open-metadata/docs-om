@@ -15,10 +15,10 @@ We are now going to present a high-level Python API as a type-safe and gentle wr
 - The Python SDK is part of the `openmetadata-ingestion` base package. You can install it from [PyPI](https://pypi.org/project/openmetadata-ingestion/).
 
 - Make sure to use the same `openmetadata-ingestion` version as your server version. For example, if you have the OpenMetadata
-server at version 2.0.2, you will need to install:
+server at version 2.0.3, you will need to install:
 
 ```python
-pip install "openmetadata-ingestion~=2.0.2.0"
+pip install "openmetadata-ingestion~=2.0.3.0"
 ```
 
 </div>
@@ -173,7 +173,7 @@ from metadata.generated.schema.entity.services.connections.metadata.openMetadata
 from metadata.generated.schema.security.client.openMetadataJWTClientConfig import OpenMetadataJWTClientConfig
 
 server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
+    hostPort="https://your-company.open-metadata.org/api",
     authProvider=AuthProvider.openmetadata,
     securityConfig=OpenMetadataJWTClientConfig(
         jwtToken="<YOUR-INGESTION-BOT-JWT-TOKEN>",
@@ -184,7 +184,11 @@ metadata = OpenMetadata(server_config)
 
 For local development, we can get a JWT token for the ingestion bot as described [here](/v2.0.x/deployment/security/enable-jwt-tokens#generate-token) and use that when we specify the `jwtToken`. For a real-world deployment, we can also use [different authentication methods](/v2.0.x/deployment/security) and specify other settings of the connection (such as `sslConfig`).
 
-Below is an example of how the user can configure `sslConfig` using `Python SDK`.
+For the `OpenMetadataConnection` client, use `verifySSL="validate"` with `sslConfig.caCertificate` to validate an HTTPS server using your CA certificate.
+
+The fluent SDK (`metadata.sdk.configure`) uses separate options: `verify_ssl=True` verifies the server certificate against the system trust store, or against `ca_bundle` when supplied. OpenMetadata 2.0.3 fixes a bug that disabled verification when `verify_ssl=True`. Install the matching 2.0.3 ingestion package to receive this fix.
+
+The following example configures certificate validation with `OpenMetadataConnection`:
 
 ```python
 from metadata.generated.schema.security.ssl.validateSSLClientConfig import ValidateSslClientConfig
@@ -197,12 +201,12 @@ from metadata.ingestion.ometa.ometa_api import OpenMetadata
 
 
 server_config = OpenMetadataConnection(
-    hostPort="http://localhost:8585/api",
+    hostPort="https://your-company.open-metadata.org/api",
     authProvider=AuthProvider.openmetadata,
     securityConfig=OpenMetadataJWTClientConfig(
         jwtToken="<YOUR-INGESTION-BOT-JWT-TOKEN>",
     ),
-    verifySSL="validate" # ignore, validate or no-ssl,
+    verifySSL="validate",  # Validate using the CA certificate below
     sslConfig=ValidateSslClientConfig(caCertificate="/path/to/rootCert"),
 )
 
