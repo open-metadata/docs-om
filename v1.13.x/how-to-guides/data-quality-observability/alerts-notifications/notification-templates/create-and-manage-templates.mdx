@@ -14,7 +14,7 @@ In OpenMetadata, notification templates are managed through the REST API. OpenMe
 
 Create a notification template by sending a `POST` request to the `/api/v1/notificationTemplates` API. Provide the template fields described in [Filling in Template Details](#filling-in-template-details): the name, subject, and body are required, and the display name and description are optional.
 
-A subscription uses a template by referencing it by name. If a subscription references no template, the system default template applies. See [Linking Templates to Event Subscriptions](#linking-templates-to-event-subscriptions).
+A subscription uses a template by referencing its ID. If a subscription references no template, the system default template applies. See [Linking Templates to Event Subscriptions](#linking-templates-to-event-subscriptions).
 
 ### Filling in Template Details
 
@@ -34,7 +34,7 @@ Document when and why this template should be used.
 ##### Subject (Required)
 The email subject line or notification title.
 
-**Constraints**: Maximum 256 characters
+**Constraints**: Maximum 255 characters
 
 **Example**:
 ```
@@ -50,7 +50,7 @@ Keep subjects concise (under 100 characters) as they appear in email clients whe
 ##### Body (Required)
 The main template content in HTML with Handlebars.
 
-**Constraints**: Maximum 10,240 characters
+**Constraints**: Maximum 65,536 characters
 
 **Example**:
 ```html
@@ -85,15 +85,15 @@ Changes take effect immediately for any subscriptions using the template.
 
 System templates (pre-built by OpenMetadata) can be partially edited:
 
-- You can modify: Subject and Body
-- You cannot modify: Name and Display Name
-- System templates track if you've customized them
+- You can modify: Subject, Body, Display Name, and Description
+- You cannot modify: Name
+- System templates track if you've customized the subject or body
 
 **Important**: If you don't customize a system template, it automatically updates when OpenMetadata releases improvements. Once you customize it, you're responsible for maintaining it.
 
 ## Linking Templates to Event Subscriptions
 
-Templates become useful when connected to event subscriptions. A subscription references the template it uses by name.
+Templates become useful when connected to event subscriptions. A subscription references its template by ID, in the `notificationTemplate` field: `{"id": "<template id>", "type": "notificationTemplate"}`.
 
 ### Step 1: Choose the Subscription
 
@@ -101,11 +101,10 @@ Create a new subscription or edit an existing one.
 
 ### Step 2: Reference a Template
 
-Set the subscription's notification template to the template you want to use:
+Set the subscription's `notificationTemplate` field to one of:
 
-- **System templates** - Pre-built templates for common entity types
-- **User templates** - Custom templates you've created
-- **(unset)** - Use default formatting per channel
+- **A user template** - A custom template you've created. System templates can't be assigned to a subscription.
+- **(unset)** - The system default template for the event applies. To change how it looks, edit the system template itself.
 
 ### Step 3: Configure Other Settings
 
@@ -166,7 +165,9 @@ Preview a template with the render API before you use it, to catch formatting is
 
 ### Testing with Real Data
 
-OpenMetadata has no in-product test-send action. To verify a template with real data, trigger an event that matches the subscription. For example, run a test that fails for a test case alert, then check the destination.
+To send a test notification, call the `/api/v1/notificationTemplates/send` API. It fills the template with sample data and sends it to the destinations you list (email, Slack, Microsoft Teams, Google Chat, or webhook).
+
+Sample data can't show everything. For example, it has no failed test result or failed-row sample. To check those, trigger a real event that matches the subscription. For a test case alert, run a test that fails, then check the destination.
 
 Checking a real notification helps you:
 - Verify links and dynamic content render correctly
@@ -208,17 +209,17 @@ Delete a user template you created by sending a `DELETE` request to the `/api/v1
 
 ### System Templates
 
-System templates cannot be deleted. They're read-only by default.
+System templates cannot be deleted.
 
-If you've customized a system template and want to revert to the original, reset it through the API. After resetting, the template again stays synchronized with the OpenMetadata-provided system default, unless you modify it again.
+If you've customized a system template and want to revert to the original, send a `PUT` request to `/api/v1/notificationTemplates/name/{name}/reset`. After resetting, the template again stays synchronized with the OpenMetadata-provided system default, unless you modify it again.
 
 ## Troubleshooting Template Issues
 
 ### Template Request Fails
 
 **Common causes**:
-- Body exceeds 10,240 characters - simplify the content
-- Subject exceeds 256 characters - shorten the subject
+- Body exceeds 65,536 characters - simplify the content
+- Subject exceeds 255 characters - shorten the subject
 - Invalid Handlebars syntax - check brackets are balanced
 - Required fields are empty - fill in Name, Subject, and Body
 
