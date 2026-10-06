@@ -18,3 +18,11 @@ Flag a PR if any of:
   behavior change.
 
 Call out anything labeled/described as a breaking change on its own line.
+
+## Where this is applied
+
+The deterministic prefilter (`.github/scripts/watcher-prefetch.sh`) only
+flags obvious noise (dependency bots, test/CI/lockfile/asset-only PRs,
+conventional `test:`/`ci:`/`chore:` titles) and keeps those PRs in the
+verify session's index. The filter above is applied by the verify session
+through `scan-system-prompt.md`; keep the two in sync when editing either.

@@ -82,12 +82,23 @@ repo already goes through.
   writes anything — useful for previewing before trusting a new filter
   tweak, not just something built for this one round of testing. A
   workflow-level `FORCE_DRY_RUN` switch additionally forces this on
-  regardless of trigger (schedule included), by removing the write tools
-  from Claude's allowed list outright -- see "First live rollout" below.
-  Because no issue-write tools exist in that mode, there's no digest issue
-  to read afterward -- the notify job instead writes what it would have
-  created or updated to `dry-run-preview.md`, which a deterministic step
-  publishes to the workflow run's job summary.
+  regardless of trigger (schedule included) -- see "First live rollout"
+  below. The notify job runs no model at all: `.github/scripts/watcher-notify.sh`
+  only calls `gh issue create/edit/comment` when neither is set (any
+  value other than an explicit `false` counts as dry), and otherwise
+  writes what it would have created, updated, or commented to the run's
+  job summary, since a dry run creates no digest issue to read.
+- **Deterministic work stays out of the model.** Listing PRs (exhaustively,
+  splitting the date range whenever a query hits GitHub's 1,000-result
+  cap), dropping noise, backport and bug-fix classification, diff
+  fetching and trimming, doc-coverage grepping, the Part B completeness
+  check, and every issue write are plain bash/jq
+  (`watcher-prefetch.sh`, `watcher-assemble.sh`, `watcher-notify.sh`, the
+  same scripts docs-collate runs, configured by env). The model only
+  judges prefiltered candidates and returns verdicts through
+  `--json-schema`; URLs, counts, versions, and tracking references are
+  filled in from prefetch data, so the model cannot invent a PR, a
+  version, or a count.
 - **Drafting and publishing run in separate jobs.** The drafting model
   reads source PRs with a read-only token. A deterministic step packages
   only documentation changes, and a fresh runner validates the patch
@@ -99,6 +110,41 @@ repo already goes through.
   binary call.
 
 ---
+
+## Token budget (lossless)
+
+Before this design each watcher ran one `claude-code-action` session that
+listed, fetched, and judged PRs turn by turn through `gh`. None of the
+three recorded runs on 2026-10-01..05 produced a handoff file (5 to 39
+permission denials each, then "summary.json missing"), at $0.33-1.00 per
+scan. The current design, the same one docs-collate uses:
+
+- **Every scanned PR reaches a model session.** PRs the prefilter flags
+  (noise, dependency bots, and in major mode `backport_found` /
+  `bugfix_type`) stay in the session's index with the path of their full
+  diff; the model can promote any of them.
+- **Trimmed views, full files on disk.** Each candidate's view keeps one
+  context line, lists schema/config/UI files first, drops imports, tests,
+  lockfiles, and assets, and caps the diff (9 KB minor, 7 KB major). The
+  complete body and untrimmed diff sit next to it, and the prompt requires
+  reading them whenever a view is truncated or leaves something out.
+- **No session grows until it compacts.** Candidates are split into chunks
+  of about 160 KB; `watcher-verify.sh` runs one fresh `claude -p` session
+  per chunk (Claude Code 2.1.285, pinned, Sonnet 5.5 at `--effort high`,
+  Read/Grep only, `/proc` denied, custom system prompt, no CLAUDE.md,
+  skills, MCP, or subagents, five-minute prompt cache).
+- **Every candidate ends with a verdict.** One a session skips becomes
+  NEEDS A LOOK in the digest.
+
+Local replays (2026-10-05): minor window from 2026-10-01, 14 PRs and 13
+candidates in one session, 11 turns, about $0.20. Major window from
+2026-09-20, 472 PRs and 171 candidates in 9 sessions; one session of 22
+candidates took 37 turns, about $0.52, so roughly $4.5 per biweekly run.
+65 of those candidates are backported PRs this repo does not track yet,
+which the major watcher keeps reviewing by design (see A3).
+
+Prompts and schemas: `.ai/release-watchers/scan-system-prompt.md` and
+`verdicts.schema.json`.
 
 ## Workflow 1 — Minor Release Watcher
 
@@ -113,16 +159,15 @@ a deliberate scope decision, not an oversight.
 
 | Step | What it does | Where |
 |---|---|---|
-| Lookback | Finds the last successful live run of this workflow on `main`, scheduled or manual, via `gh run list --branch main` plus a check that the label step actually ran; a live run with none found fails, and a preview run falls back to a 4-day window; a `since` input overrides all of this outright | Deterministic bash step, `id: cadence` |
-| Version | Parses the current version out of this repo's own `snippets/releases/latest.mdx`, then computes the next minor version, the minor release branch name, and the current version's doc directory | Deterministic bash step, `id: version` |
-| 1. Read config | Uses the already-computed version values above, and reads `upstream-watch-config.md` for the doc-relevance filter rules | Prompt step 1 |
-| 2. Scan | `gh pr list --base <minor-release-branch>` since the lookback cutoff; splits the date range whenever a query comes back full, so nothing past the result limit is missed | Prompt step 2 |
-| 3. Filter | Applies the doc-relevance filter, including to backports, which is how most changes reach a patch release; for survivors, reads the real PR body/diff and writes a plain-English evidence note — never guesses from the title | Prompt step 3 |
-| 4. Verify | Classifies each survivor as **HELD** (PR discloses it's unverified/unapproved), **RULED OUT** (bug fix restoring existing behavior, checked against this repo's actual docs), **NEEDS A LOOK** (genuinely inconclusive), or **CONFIRMED** | Prompt step 4 |
-| 5. Group | Groups CONFIRMED PRs belonging to the same feature; cumulative across runs, never guesses whether a feature is "done" | Prompt step 5 |
-| 6. Notify | Dedups three ways before creating anything: (i) this PR's number under *either* marker prefix — old `daily-watcher:pr-X` or this workflow's `minor-watcher:pr-X`, (ii) a shared "Fixes #X" tracking issue, (iii) a shared original PR if this item is itself a backport ("Backport #Y"). Creates or updates one issue; assigns `DAILY_WATCHER_ASSIGNEES` if set | Prompt step 6 |
-| 7. Digest | Posts a comment to a persistent "Minor Release Watcher — Scan Digest" issue every run, listing all four categories — this is what makes routine, uneventful runs visible too | Prompt step 7 |
-| 8. Slack | Only if something was CONFIRMED this run (and not forced/dry-run): writes `slack-digest.txt`, which a separate non-AI step posts to `SLACK_WEBHOOK_URL` | Prompt step 8 + final bash step |
+| Lookback | Finds the last successful live run of this workflow on `main`, scheduled or manual, via `gh run list --branch main` plus a check that the label step actually ran, and starts at that run's exact start time; a live run with none found fails, and a preview run falls back to a 4-day window; a validated `since` input overrides all of this outright | `prepare` job, `id: cadence` |
+| Version | Parses the current version out of this repo's own `snippets/releases/latest.mdx`, then computes the next minor version, the minor release branch name, and the current version's doc directory | `prepare` job, `id: version` |
+| 1. Select | `gh pr list --base <minor-release-branch>` since the lookback, split by date range until no query is cut off (fails if one day alone hits the cap); flags noise titles, dependency bots, and PRs touching only tests/CI/locks/assets as `skipped` (still indexed). Backports stay candidates | `watcher-prefetch.sh select minor` |
+| 2. Bundle | Full body and diff of every PR on disk; trimmed candidate views with doc-coverage hints grepped in `CURRENT_VERSION_DIR` and its snippets (release notes and other versions excluded); chunks with per-session indexes | `watcher-prefetch.sh bundle` |
+| 3. Verify | One Sonnet session per chunk: **HELD**, **RULED OUT**, **NEEDS A LOOK**, or **CONFIRMED**, each citing a path, a quoted diff line, or a docs page; same-feature PRs grouped | `watcher-verify.sh`, `scan-system-prompt.md` |
+| 4. Assemble + validate | Builds `summary.json` from verdicts plus prefetch data (candidates without a verdict become NEEDS A LOOK); validated before upload and again in the notify job: fixed shape, `target_version` equal to the computed version, every source URL an `open-metadata/OpenMetadata` PR, no blank titles or reasons | `watcher-assemble.sh`, `validate-watcher-summary.sh` |
+| 5. Notify | Dedups by exact hidden markers before creating anything: this PR, a shared tracking issue, or the original PR of a backport, under `minor-watcher`, `major-watcher`, or the legacy `daily-watcher` prefix, on issues filed by `github-actions[bot]` (or the hand-filed legacy ones). Creates or updates one issue with `<!-- minor-watcher:pr-<n> -->` markers; assigns `DAILY_WATCHER_ASSIGNEES` if set | `watcher-notify.sh` |
+| 6. Digest | Comments on "Minor Release Watcher -- Scan Digest" every run, listing counts and every needs-a-look/held item | `watcher-notify.sh` |
+| 7. Slack | Only if something was CONFIRMED this run (and not forced/dry-run): the notify job writes `slack-digest.txt`, which the separate `slack` job posts to `SLACK_WEBHOOK_URL` | `watcher-notify.sh` + `slack` job |
 
 ---
 
@@ -141,20 +186,20 @@ major `2.1`). Does two jobs in one run:
 
 | Step | What it does |
 |---|---|
-| A1. Read config | Uses the already-computed version values (current version, minor release branch, next major version, next major's doc directory) |
-| A2. Scan | `gh pr list --base main` since the lookback; splits the date range whenever a query comes back full, and fails the run if a single day still does |
-| A3. Classify major vs. minor | **The judgment call this workflow exists to make.** A `main` merge isn't automatically major-only — it might just be minor work that hasn't been backported yet. First checks for a backport PR on the current minor branch (upstream's own "Backport #X to Y" title convention). If one exists, the PR is excluded only once this repo already tracks the change under either PR number; otherwise it's still reviewed here, so a change can't fall between the two watchers. If none exists, reads the PR's own "Type of change": a bug/security fix is treated as provisionally minor-bound (excluded here) since those almost always get backported eventually; a genuinely new capability is the real major-only signal. Genuinely ambiguous cases become their own NEEDS A LOOK item instead of a guess |
-| A4. Filter + Verify | Same four-way classification as the minor watcher, applied to whatever survived A3 |
+| A1. Config | Uses the already-computed version values (current version, minor release branch, next major version, next major's doc directory) |
+| A2. Scan | `gh pr list --base main` since the lookback (`watcher-prefetch.sh select major`); splits the date range whenever a query comes back full, and fails the run if a single day still does |
+| A3. Classify major vs. minor (bash) | **The judgment call this workflow exists to make.** A `main` merge isn't automatically major-only — it might just be minor work that hasn't been backported yet. First checks for a backport PR on the current minor branch (upstream's own "Backport #X to Y" title convention). If one exists, the PR is excluded only once this repo already tracks the change under either PR number; otherwise it's still reviewed here, so a change can't fall between the two watchers. If none exists, reads the PR's own "Type of change": a bug/security fix is treated as provisionally minor-bound (excluded here) since those almost always get backported eventually; a genuinely new capability is the real major-only signal. Genuinely ambiguous cases become their own NEEDS A LOOK item instead of a guess |
+| A4. Filter + Verify | Same bundle and verify steps as the minor watcher, doc hints grepped in `NEXT_MAJOR_DIR`; excluded PRs stay in the index, and the model can promote any of them |
 | A5. Group | Same cumulative grouping as the minor watcher |
-| A6. Notify | Same three-way dedup as the minor watcher (own prefix, old prefix, shared tracking issue, shared original PR) |
+| A6. Notify | Same marker dedup as the minor watcher, with `<!-- major-watcher:pr-<n> -->` markers |
 
 ### Part B — completeness check on already-tracked features
 
 | Step | What it does |
 |---|---|
-| B1. Find candidates | Open issues containing more than one `major-watcher:pr-X` marker — single-PR issues have nothing to check here |
+| B1. Find candidates (bash) | Open issues filed by `github-actions[bot]` containing more than one `major-watcher:pr-X` marker — single-PR issues have nothing to check here (`watcher-prefetch.sh completeness`) |
 | B2. Check completeness | For each linked PR, finds its real tracking issue upstream and checks: is it closed, and are *all* PRs referencing it actually merged (not just the ones already known about) |
-| B3. Report back | Comments on the *existing* issue (never opens a new one) with **COMPLETE** (ready to draft now), **INCOMPLETE** (how many still outstanding), or **UNCLEAR** (the exact conflicting evidence quoted, not summarized away) |
+| B3. Report back | After a deterministic check that every target is an open, bot-filed issue carrying the exact marker of every PR named (any mismatch fails the job), comments on the *existing* issue (never opens a new one) with **COMPLETE** (ready to draft now), **INCOMPLETE** (how many still outstanding), or **UNCLEAR** (the exact conflicting evidence quoted, not summarized away) |
 
 ### Part C / D — Digest and Slack
 
@@ -168,9 +213,8 @@ Part B in one comment per run.
 
 Both workflows carry a workflow-level `env: FORCE_DRY_RUN: "true"`. While
 set, this overrides `dry_run` regardless of trigger (schedule included),
-and Claude's allowed tools have the write commands (`gh issue
-create`/`edit`/`comment`) removed outright -- not just described as
-off-limits in the prompt. This makes the first pass after merging safe by
+and the bash notify step skips every `gh issue create`/`edit`/`comment`;
+no model is involved in that decision. This makes the first pass after merging safe by
 construction: the schedule can fire for real before anyone tests it
 manually, and that run can only ever read and report.
 
@@ -178,8 +222,7 @@ The intended sequence once merged:
 1. Run each workflow via `workflow_dispatch` from `main`.
 2. Open that run's job summary in the Actions UI and sanity-check the
    dry-run preview against what's actually open upstream -- forced
-   dry-run creates no digest issue to read instead, since the tools to
-   create one aren't available in that mode.
+   dry-run creates no digest issue to read instead.
 3. Flip `FORCE_DRY_RUN` to `"false"` in its own separate, reviewable
    commit -- that's the actual go-live moment.
 
@@ -218,9 +261,10 @@ Projects (v2) write access if that's wanted later.
 - **Email notification was scoped, not built** — parked pending a decision
   on sending method (SMTP vs. a transactional API) and frequency.
 - **Old pre-split tracked issues (#428, #450, #452) use the original
-  `daily-watcher:pr-X` marker.** Dedup searches by number rather than
-  prefix specifically to keep recognizing these, but they were never
-  retroactively migrated to carry a `minor-watcher`/`major-watcher`
+  `daily-watcher:pr-X` marker** and were filed by hand (`kiran1287`).
+  Dedup matches exact markers under all three prefixes, and those issues'
+  author is listed in `TRUSTED_AUTHOR_RE` in both workflows so they keep
+  counting; they were never migrated to a `minor-watcher`/`major-watcher`
   marker of their own.
 - **First run for each workflow has no history to look back on** — the
   `since` input handles this deliberately. Without it, a live run fails
@@ -260,8 +304,8 @@ what had actually been confirmed.
 
 **NOT yet verified — and can't be, before this merges:**
 `schedule`, `workflow_dispatch`, and `issue_comment` only fire from a
-repo's default branch. The actual `claude-code-action` step (the part
-that reads real PRs and would create/update issues) has never executed
-successfully in a real run yet — only the surrounding bash/`gh` logic
+repo's default branch. The prefetch, verify, assemble, validate, and
+dry-run notify steps were replayed locally against live data (see "Token
+budget"), but have not executed inside a real Actions run yet — only the surrounding bash/`gh` logic
 above has been proven live. See "First live rollout" above for how this
 is being handled safely.
