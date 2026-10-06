@@ -72,6 +72,8 @@ jobs:
         if: steps.permission.outputs.trusted == 'true'
         id: revisions
         shell: bash
+        env:
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
         run: |
           set -euo pipefail
           base_sha='${{ github.event.pull_request.base.sha }}'
@@ -84,14 +86,26 @@ jobs:
             echo "Expected a full commit SHA for head_sha, got: $head_sha" >&2
             exit 1
           fi
+          if [[ ! "$CHANGED_FILES" =~ ^[0-9]+$ ]]; then
+            echo "Expected a numeric changed-file count, got: $CHANGED_FILES" >&2
+            exit 1
+          fi
+          review=true
+          if (( CHANGED_FILES > 50 )); then
+            review=false
+          fi
           {
             echo "base_sha=$base_sha"
             echo "head_sha=$head_sha"
+            echo "changed_files=$CHANGED_FILES"
+            echo "review=$review"
           } >> "$GITHUB_OUTPUT"
-          echo "::notice::Reviewing PR #${{ github.event.pull_request.number }} at frozen head commit ${head_sha} (base ${base_sha})"
+          if [[ "$review" == "true" ]]; then
+            echo "::notice::Reviewing PR #${{ github.event.pull_request.number }} at frozen head commit ${head_sha} (base ${base_sha})"
+          fi
 
       - name: Fetch Trusted Base Tree (data only)
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         # The review session may read the base commit's docs for context.
         # They are downloaded as a plain file tree (no git checkout, no
         # .github/), and nothing in it is ever executed: the review runner
@@ -121,7 +135,7 @@ jobs:
         # CodeQL already flags on the sibling doc-review.yml (issue_comment +
         # write permissions). The compare API returns the same diff text
         # without ever fetching those objects.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -140,7 +154,7 @@ jobs:
         # running a script *path inside the checked-out tree* matches that
         # shape regardless of the ref actually being the trusted base.
         # Content fetched this way is never executed from within the checkout.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -166,7 +180,7 @@ jobs:
         # Submitted reviews (Approve/Request Changes/Comment) carry their own
         # summary body separate from inline comments, so they're fetched and
         # filtered the same way.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         id: context
         shell: bash
         env:
@@ -219,7 +233,7 @@ jobs:
         # here: strip invisible/bidi characters and hidden markdown/HTML
         # attributes that could carry hidden instructions, and redact common
         # credential formats.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -232,14 +246,14 @@ jobs:
             "${RUNNER_TEMP}/pr-submitted-reviews.json"
 
       - name: Install Claude Code CLI
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         shell: bash
         run: npm install -g @anthropic-ai/claude-code@2.1.285
 
       - name: Check Out Review Runner
         # The runner script only, from this workflow's own revision, in a
         # separate path so it never mixes with the trusted base checkout.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.sha }}
@@ -261,7 +275,7 @@ jobs:
         # since this workflow's last report keep its findings, changed files
         # get the complete checklist, and the full current diff stays the
         # cross-file reference. Any doubt falls back to a full review.
-        if: steps.permission.outputs.trusted == 'true'
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -327,7 +341,7 @@ jobs:
         # (`.path`). Comments from doc-review.yml (the on-demand
         # /content-review trigger) resolve to a different file and are left
         # alone.
-        if: steps.permission.outputs.trusted == 'true' && (steps.review.outcome == 'success')
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true' && (steps.review.outcome == 'success')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -467,7 +481,7 @@ jobs:
         # formats) instead of failing on a format the base policy doesn't
         # define yet. Once that instructions.md is on the base branch, this
         # fallback is never reached.
-        if: steps.permission.outputs.trusted == 'true' && (steps.review.outcome == 'success')
+        if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true' && (steps.review.outcome == 'success')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
