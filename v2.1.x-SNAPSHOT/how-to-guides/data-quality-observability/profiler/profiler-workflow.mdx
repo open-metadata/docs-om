@@ -21,11 +21,13 @@ This Pipeline will be in charge of feeding the Profiler tab of the Table Entity,
 
 ### 1. Add a Profiler Agent
 1. Navigate to **Settings** > **Services**.
-2. Select the service and click the **Agents** tab.
+2. Select the service.
+3. Click the **Agents** tab.
 
     <img src="/public/images/features/ingestion/workflows/profiler/select-agents-tab.png" alt="Select Agents Tab" />
 
-3. Click **Add Agent** and then select **Add Profile Agent**.
+4. Click **Add Agent**.
+5. Select **Add Profiler Agent**.
 
     <img src="/public/images/features/ingestion/workflows/profiler/select-profiler-agent.png" alt="Select Profiler Agent" />
 
@@ -46,16 +48,13 @@ Filter patterns control which databases, schemas, and tables the profiler target
 
 #### Scope & Behaviour
 
-Control which entity types the profiler includes and how it logs activity.
-- Enable Debug Log: Enables debug-level logging for the profiler run. Check logs in the Agents tab of the service.
+**Enable Debug Log** logs the profiler run at debug level. Check the logs in the **Agents** tab of the service.
 
 <img src="/public/images/features/ingestion/workflows/profiler/scope-behaviour.png" alt="Scope and Behaviour" />
 
-#### Advanced Configuration
+#### Advanced Config
 
-<Note>
-OpenMetadata 2.0 uses **Dynamic Sampling** by default instead of scanning all rows. Existing customized profiler configurations are preserved; the new defaults apply to pipelines that use the default agent configuration. Cardinality distribution is no longer collected by default. Enable it explicitly if classification, custom rules, or analytics depend on distinct-value counts.
-</Note>
+OpenMetadata 2.0 uses **Dynamic Sampling** by default instead of scanning all rows. Existing customized profiler configurations are preserved. The new defaults apply to pipelines that use the default agent configuration. Cardinality distribution is no longer collected by default. Add it to **Metrics** if classification, custom rules, or analytics depend on value distributions.
 
 Configure sampling, execution, and metrics with the following settings.
 
@@ -74,21 +73,23 @@ With **Dynamic** sampling, **Smart Sampling** is enabled by default and scales t
 | More than 100 million, up to 1 billion | 1% |
 | More than 1 billion | 0.1% |
 
+If you turn off **Smart Sampling**, use **Thresholds** to define custom row-count thresholds and sample percentages. If you leave **Thresholds** empty, the profiler applies no sampling and scans all rows.
+
 With **Static** sampling, configure these settings:
 
 - **Profile Sample**: Set a fixed sample size for each profiler run.
-- **Profile Sample Type**: Select **Percentage** for a fraction of the table or **Row Count** for an absolute number of rows.
-- **Sampling Method Type**: For percentage samples, select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
+- **Profile Sample Type**: Select **Percentage** for a fraction of the table or **Rows** for an absolute number of rows.
+- **Sampling Method Type**: For percentage samples on PostgreSQL and Snowflake, select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. This setting applies only to PostgreSQL and Snowflake. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
 
-Druid doesn't support **Profile Sample** because it doesn't support the required random sampling functions. Use partitioning or a sample query to limit the data scanned.
+Druid doesn't support **Profile Sample** because it lacks the required random sampling functions. Use partitioning or a sample query to limit the data scanned.
 
-**Randomized Sample** controls whether the profiler randomizes the row order in the sample. Disable it for deterministic sampling.
+**Randomized Sample** is off by default. When enabled, a **Rows** sample picks random rows instead of the first N rows. It has no effect on **Percentage** samples.
 
 ##### Execution Settings
 
 Control concurrency, timeouts, and view inclusion with these settings:
 
-- **Thread Count**: Set the number of threads for parallel metric computation. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler uses the system value.
+- **Thread Count**: Set the number of threads for parallel metric computation. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler calculates it from the number of metrics.
 - **Timeout in Seconds**: Set how long a profiling job waits before moving to the next table. The default is 43,200 seconds (12 hours). The profiler waits for the current query to finish before timing out. Set a query or connection timeout on the database engine to limit hanging queries.
 - **Include Views**: Enable profiling for views. Including views might reduce profiler performance.
 
