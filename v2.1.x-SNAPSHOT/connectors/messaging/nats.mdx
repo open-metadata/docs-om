@@ -24,9 +24,9 @@ Configure and schedule NATS JetStream metadata workflows from the OpenMetadata U
 
 ## Requirements
 
-The connector talks to the NATS **JetStream** API, so JetStream must be enabled on your NATS server. Metadata is read from the JetStream management subjects (for example `$JS.API.STREAM.LIST`), so the credentials you supply must be allowed to publish to and receive replies from the `$JS.API.>` subjects.
+The connector talks to the NATS JetStream API, so JetStream must be enabled on your NATS server. The connector reads metadata from the JetStream management subjects (for example `$JS.API.STREAM.LIST`), so the credentials you supply must be allowed to publish to and receive replies from the `$JS.API.>` subjects.
 
-If you want schema ingestion, store your schemas in a JetStream **KV bucket** (see the [Schema KV Bucket](#schema-kv-bucket) option below). To read them, the credentials must also be able to access the underlying KV stream subjects.
+If you want schema ingestion, store your schemas in a JetStream **KV bucket** and configure the bucket with **Schema KV Bucket**. To read them, the credentials must also be able to access the underlying KV stream subjects.
 
 The only mandatory connection field is **NATS Servers**. All authentication fields are optional. Leaving them empty connects anonymously.
 
@@ -39,7 +39,7 @@ NATS JetStream supports several ways to authenticate. Choose the one that matche
 - **Token**: A single shared authentication token.
 - **NKey Seed**: NKey-based authentication using the account's seed (the private key that begins with `S`).
 
-Any of the above can be combined with **Transport Layer Security (TLS)** for an encrypted connection. TLS is configured separately through the [TLS Configuration](#tls-configuration) option and can also be used for mutual TLS (mTLS) by supplying a client certificate and key.
+Any of the above can be combined with **Transport Layer Security (TLS)** for an encrypted connection. Configure TLS separately with **TLS Configuration**. You can also use mutual TLS (mTLS) by supplying a client certificate and key.
 
 ## Metadata Ingestion
 
@@ -74,7 +74,7 @@ The service name can't be changed after it is set.
 
 ### Step 4: Configure Connection Options
 
-Specify your source credentials and verify the connection. The right-hand panel in the UI displays inline help for each field.
+Specify your source credentials and verify the connection. The UI displays inline help for each field in the help panel.
 
 #### Enter Connection Details
 
@@ -85,8 +85,8 @@ Specify your source credentials and verify the connection. The right-hand panel 
     - **Username and Password**: Provide a **Username** and **Password** for basic authentication.
     - **Token**: Provide a single **Token** for token-based authentication.
     - **NKey Seed**: Provide an **NKey Seed** (the private key seed beginning with `S`) for NKey authentication.
-- **TLS Configuration** *(Optional)*: TLS/SSL configuration for secure connections. Provide the **CA Certificate** used to validate the server. For mutual TLS, also provide the **SSL Certificate** (client certificate) and **SSL Key** (the private key for that certificate). Both must be supplied together. See [TLS Configuration](#tls-configuration).
-- **Schema KV Bucket** *(Optional)*: Name of the JetStream KV bucket where schemas are stored. Keys must match stream names and values should be Avro JSON, Protobuf (`.proto`), or JSON Schema text. See [Schema KV Bucket](#schema-kv-bucket).
+- **TLS Configuration** *(Optional)*: TLS/SSL configuration for secure connections. Provide the **CA Certificate** used to validate the server. For mutual TLS, also provide the **SSL Certificate** (client certificate) and **SSL Key** (the private key for that certificate). Both must be supplied together. For more information, see [TLS Configuration](#tls-configuration).
+- **Schema KV Bucket** *(Optional)*: Name of the JetStream KV bucket where schemas are stored. Keys must match stream names and values should be Avro JSON, Protobuf (`.proto`), or JSON Schema text. For more information, see [Schema KV Bucket](#schema-kv-bucket).
 - **Additional NATS Config** *(Optional)*: Additional NATS client configuration options passed through to the client. See the [NATS Python client documentation](https://nats-io.github.io/nats.py/). Connection-managed keys (`servers`, `user`, `password`, `token`, `nkeys_seed`, `nkeys_seed_str`, `tls`, `user_credentials`, `signature_cb`, `user_jwt_cb`) are reserved and can't be set here.
 
 #### Test Connection
@@ -146,6 +146,6 @@ During ingestion, OpenMetadata looks up the latest value for each stream name in
 
 ## Sample Data
 
-When **Generate Sample Data** is enabled in the ingestion configuration, OpenMetadata fetches a sample of the most recent messages from each stream (up to 10 messages, scanning the last 100 sequences, capped at 1 MB total). Only UTF-8 text messages are included. Binary payloads are skipped. Sample data collection also respects the global sample-data storage setting. If sample data storage is disabled server-wide, no sample messages are collected.
+When **Generate Sample Data** is enabled in the ingestion configuration, OpenMetadata fetches up to 10 messages from the last 100 sequences of each stream. The total sample is capped at 1 MB. Only UTF-8 text messages are included. Binary payloads are skipped. Sample data collection also respects the global sample-data storage setting. If sample data storage is disabled server-wide, no sample messages are collected.
 
 <Related />
