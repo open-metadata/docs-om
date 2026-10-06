@@ -28,10 +28,15 @@ The Rill connector reads metadata from a Rill runtime over its REST API. It work
 - **Rill Developer**: a local or self-hosted Rill runtime. Point **Host and Port** at the runtime URL (for example, `http://localhost:9009`). An API token is optional.
 - **Rill Cloud**: a hosted project. Point **Host and Port** at the project endpoint (for example, `https://admin.rilldata.com/v1/orgs/<org>/projects/<project>`). An **API Token** is required.
 
-The token must have read access to the project's resources so OpenMetadata can list dashboards (Explore and Canvas), charts (Canvas components), data models (SQL models and metrics views), and the relationships between them.
+The token must have read access to the project's resources. OpenMetadata uses that access to list the following:
+
+- Dashboards, including Explore and Canvas dashboards
+- Charts, including Canvas components
+- Data models, including SQL models and metrics views
+- Relationships between these assets
 
 <Note>
-Rill Cloud branch-level routing is not supported yet. If your project URL includes a `/branch/<name>` segment, remove it before configuring the connection.
+The connector doesn't support Rill Cloud branch-level routing yet. If your project URL includes a `/branch/<name>` segment, remove it before configuring the connection.
 </Note>
 
 ## Metadata Ingestion
@@ -71,7 +76,7 @@ Specify your source credentials and verify the connection.
 
 #### Enter Connection Details
 
-Enter the connection details for Rill. The right-hand panel in the UI displays inline help for each field.
+Enter the connection details for Rill. The inline help panel in the UI describes each field.
 
 ![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Dashboard/connection-details/rill.png)
 
@@ -87,14 +92,9 @@ After you add the credentials, click **Test Connection**, then click **Save**.
 
 ### Step 5: Configure Ingestion Options
 
-In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your dashboard service. Filter patterns use regular expressions applied to asset names.
+In the **What to Ingest** step, configure filter rules for dashboards, charts, and data models. Each rule matches asset names using one of five match types:
 
-#### How Filter Patterns Work
-
-- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
-- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
-
-Rules match asset names using one of five expressions:
+#### How Filter Rules Work
 
 - **Contains**: Matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
 - **Starts with**: Matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
@@ -102,28 +102,22 @@ Rules match asset names using one of five expressions:
 - **Is exactly**: Matches the exact name only. For example, `analytics` matches only `analytics`.
 - **Matches regex**: Matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
 
-When both Include and Exclude are set, Exclude takes priority.
+When include and exclusion rules both match an asset, the exclusion rule takes priority.
 
 <Tip>
-Leave all filter patterns empty to ingest all dashboards, charts, and data models available in the source.
+Leave all filter rules empty to ingest all dashboards, charts, and data models available in the source.
 </Tip>
 
 #### Filter Options
 
-The Dashboard, Chart, and Data Model sections each include the following filter options:
-
-- **Dashboard**: Controls which dashboards OpenMetadata ingests from the source.
-- **Chart**: Controls which charts within the ingested dashboards are included.
-- **Data Model**: Controls which data models are included in metadata ingestion.
-
-Each section provides the following controls:
+The **Dashboard**, **Chart**, and **Data Model** sections control ingestion for the corresponding asset type. Each section provides the following controls:
 
 - **Scan Mode**: Choose one of the following scan modes:
     - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
     - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
 - **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
 - **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
-- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+- **Include rules**: In **Only specific** mode, click **+ Add** to define a rule. Added rules appear as chips. OpenMetadata includes an asset if it matches any rule.
 
 ### Step 6: Create & Deploy
 
