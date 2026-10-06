@@ -1,0 +1,146 @@
+---
+title: Run the Salesforce Data360 Connector Externally
+description: Use YAML to configure the Salesforce Data360 pipeline connector for ingestion of data streams, calculated insights, data transforms, status, and lineage.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/pipeline/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/pipeline/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/data360.png'
+name="Salesforce Data360"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Tags"]}
+unavailableFeatures={["Owners", "Usage"]} />
+In this section, we provide guides and references to use the Salesforce Data360 pipeline connector.
+
+Configure and schedule Salesforce Data360 metadata workflows from the CLI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+
+OpenMetadata connects to Salesforce Data360 through the Salesforce REST API using a **connected app** that authenticates with the OAuth 2.0 client credentials flow. You will need a connected app configured for the client credentials flow (which provides the **Consumer Key** and **Consumer Secret**), granted the Data 360 (Data Cloud) API scopes, and an integration user with permission to view the data streams, calculated insights, and data transforms you want to ingest. To resolve lineage, ingest the Salesforce Data360 database first and point the `data360DbServiceName` at that service.
+
+### Python Requirements
+<PythonRequirements />
+To run the Salesforce Data360 pipeline ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[data360pipeline]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/pipeline/data360PipelineConnection.json)
+you can find the structure to create a connection to Salesforce Data360.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for Salesforce Data360:
+
+<CodePreview>
+
+<ContentPanel>
+
+<SourceConfigDef />
+<IngestionSinkDef />
+<WorkflowConfigDef />
+
+<ContentSection id={1} title="Source Configuration" lines="1-6">
+
+Configure the source type and service name for your Salesforce Data360 connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Consumer Key" lines="7">
+
+**consumerKey**: The consumer key from your Salesforce connected app. This is the client identifier used for OAuth authentication.
+
+</ContentSection>
+
+<ContentSection id={3} title="Consumer Secret" lines="8">
+
+**consumerSecret**: The consumer secret from your Salesforce connected app. This is the client secret used for OAuth authentication.
+
+</ContentSection>
+
+<ContentSection id={4} title="Salesforce API Version" lines="9">
+
+**salesforceApiVersion**: The Salesforce REST API version to call. Defaults to `63.0`. Change this only if your Salesforce org requires a different version.
+
+</ContentSection>
+
+<ContentSection id={5} title="Salesforce Domain" lines="10">
+
+**salesforceDomain**: The domain of your Salesforce instance, used to build the login URL. Defaults to `login`. Use `test` for a sandbox, or your My Domain subdomain for a custom domain.
+
+</ContentSection>
+
+<ContentSection id={6} title="Data 360 Database Service Name" lines="11">
+
+**data360DbServiceName**: The name of the Salesforce Data360 database service in OpenMetadata to use for lineage resolution. Set this to the service you created with the Data360 database connector so pipeline lineage can link to the right tables.
+
+</ContentSection>
+
+<ContentSection id={7} title="Service Mapping" lines="12">
+
+**serviceMapping**: A JSON object mapping a Data360 connector or data source name to the OpenMetadata service that holds it, used to resolve the upstream table of a Data Stream. For example: `{"S3_Connector": "my-s3-service"}`. Defaults to `{}`.
+
+</ContentSection>
+
+<ContentSection id={8} title="Include Bulk Lineage" lines="13">
+
+**includeBulkLineage**: When enabled, OpenMetadata also ingests lineage from Data Lake Objects to Data Model Objects for every data space. This walks all Data Model Objects in the configured Data360 database service, so it is off by default.
+
+</ContentSection>
+
+<ContentSection id={9} title="Pagination Limit" lines="14">
+
+**paginationLimit**: How many Data360 objects to request per page when listing pipeline objects. Defaults to `10`; valid values are `1`–`200`.
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="data360pipeline_config.yaml">
+
+```yaml
+source:
+  type: data360pipeline
+  serviceName: local_data360_pipeline
+  serviceConnection:
+    config:
+      type: Data360Pipeline
+      consumerKey: <consumer key>  # REQUIRED
+      consumerSecret: <consumer secret>  # REQUIRED
+      # salesforceApiVersion: "63.0"
+      # salesforceDomain: login
+      # data360DbServiceName: <data360 database service name>
+      # serviceMapping: '{"S3_Connector": "my-s3-service"}'
+      # includeBulkLineage: false
+      # paginationLimit: 10
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />

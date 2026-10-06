@@ -1,0 +1,35 @@
+---
+title: Salesforce Data360 Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common Salesforce Data360 pipeline connector issues in OpenMetadata, including connected app authentication, lineage resolution, and run status.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Salesforce Data360-Specific Issues
+
+The following issues are specific to the Salesforce Data360 pipeline connector.
+
+### Connection Test Fails on "CheckAccess" or Authentication
+
+OpenMetadata authenticates with the Consumer Key and Consumer Secret from your Salesforce connected app using the OAuth 2.0 client credentials flow. If the connection test fails before listing any data:
+
+- Confirm the Consumer Key and Consumer Secret were copied correctly and have not been rotated in Salesforce.
+- Confirm the connected app has the client credentials flow enabled and is granted the Data 360 (Data Cloud) API scopes.
+- Check the **Salesforce Domain** value. Use `login` for production, `test` for a sandbox, or your My Domain subdomain for a custom domain.
+
+### Pipelines Are Ingested but No Lineage Appears
+
+Lineage links each pipeline to the tables it reads from and writes to, which requires the Data360 tables to already exist in OpenMetadata.
+
+- Ingest the [Salesforce Data360 database connector](/v2.1.x-SNAPSHOT/connectors/database/data360) first, then set **Data 360 Database Service Name** to that service.
+- For Data Streams that pull from systems outside Data360, add a **Service Mapping** entry that maps each upstream connector or data source name to the OpenMetadata service that holds it, for example `{"S3_Connector": "my-s3-service"}`.
+- Data Lake Object to Data Model Object lineage is only ingested when **Include Bulk Lineage** is enabled.
+
+### A Pipeline Is Missing or Has No Run Status
+
+- Only objects with an `ACTIVE` status are ingested. Data streams, calculated insights, or data transforms in any other state are filtered out and reported in the ingestion logs.
+- Run status is only recorded when Data360 returns both a start and end timestamp for a run. Runs without a usable time window are skipped and logged as warnings.
+- Run status is limited to the lookback window set by the ingestion's status lookback days. Older runs are not ingested.
