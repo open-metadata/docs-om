@@ -1,6 +1,6 @@
 ---
 title: ClickZetta Connector | OpenMetadata Database Integration
-description: Connect ClickZetta to OpenMetadata with our comprehensive database connector guide. Step-by-step setup, configuration examples, and metadata extraction tips.
+description: Connect ClickZetta to OpenMetadata with the database connector guide. Step-by-step setup, configuration examples, and metadata extraction tips.
 sidebarTitle: Overview
 ---
 
@@ -14,7 +14,7 @@ name="ClickZetta"
 stage="BETA"
 availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Auto-Classification"]}
 unavailableFeatures={["Owners", "Tags", "Stored Procedures"]} />
-In this section, we provide guides and references to use the ClickZetta connector.
+This section provides guides and references for the ClickZetta connector.
 Configure and schedule ClickZetta metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
@@ -34,11 +34,11 @@ GRANT USAGE ON VCLUSTER <virtual_cluster> TO ROLE <role>;
 GRANT SELECT ON SCHEMA <workspace>.<schema_name> TO ROLE <role>;
 ```
 
-### Profiler & Data Quality
+### Profiler and Data Quality
 
-Running the profiler workflow, data quality tests, or data diff requires `SELECT` on the tables and schemas being profiled or tested. ClickZetta's native sampling is used to keep profiling efficient. More information on the profiler workflow setup can be found [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and on data quality tests [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+Running the profiler workflow, data quality tests, or data diff requires `SELECT` on the tables and schemas being profiled or tested. The profiler uses ClickZetta's native sampling to keep profiling efficient. For more information, see [Profiler Workflow](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and [Data Quality](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
 
-### Usage & Lineage
+### Usage and Lineage
 
 Query Usage and query-based lineage read from a ClickZetta query-history source. Grant `SELECT` on the query-history view you configure and make sure the user can read it:
 
@@ -49,7 +49,7 @@ GRANT SELECT ON TABLE information_schema.job_history TO ROLE <role>;
 GRANT SELECT ON TABLE sys.information_schema.job_history TO ROLE <role>;
 ```
 
-You can find more information on the usage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+For more information, see [Usage Workflow](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/usage) and [Lineage Workflow](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
 
 ## Metadata Ingestion
 
@@ -79,7 +79,7 @@ From the service type dropdown, select **Database Services**, then click the **C
 ![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Database/service-name/clickzetta.png)
 
 <Note>
-**Note**: The service name cannot be changed after it is set.
+The service name can't be changed after it is set.
 </Note>
 
 ### Step 4: Configure Connection Options
@@ -88,7 +88,7 @@ Specify your source credentials and verify the connection.
 
 #### Enter Connection Details
 
-Enter the connection details for ClickZetta. The right-hand panel in the UI displays inline help for each field.
+Enter the connection details for ClickZetta. The inline help panel in the UI describes each field.
 
 ![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/clickzetta.png)
 
@@ -98,62 +98,51 @@ Enter the connection details for ClickZetta. The right-hand panel in the UI disp
 - **Virtual Cluster**: The ClickZetta virtual cluster used to run the metadata extraction queries.
 - **Password**: Password to connect to ClickZetta.
 - **Database Schema**: Optional schema restriction. When left blank, OpenMetadata attempts to scan all schemas.
-- **Query History Table**: Optional ClickZetta table or view used for usage and query-lineage extraction. Set this to `information_schema.job_history` for workspace-local native history or `sys.information_schema.job_history` for cross-workspace native history; the connector maps their native columns and scopes them to the configured workspace and schema. Custom tables or views must expose `query_text`, `query_type`, `user_name`, `database_name`, `schema_name`, `start_time`, `end_time`, `duration`, `aborted`, and `cost` columns.
+- **Query History Table**: Optional ClickZetta table or view used for usage and query-lineage extraction. Set this to `information_schema.job_history` for workspace-local native history. Use `sys.information_schema.job_history` for cross-workspace native history. The connector maps the native columns from either source and scopes them to the configured workspace and schema. Custom tables or views must expose `query_text`, `query_type`, `user_name`, `database_name`, `schema_name`, `start_time`, `end_time`, `duration`, `aborted`, and `cost` columns.
 - **Protocol**: Protocol used to connect to ClickZetta. Choose `https` (default) or `http`.
 
 #### Advanced Configuration
 
-Database Services have an Advanced Configuration section, where you can pass extra arguments to the connector and, if needed, change the connection Scheme. This would only be required to handle advanced connectivity scenarios or customizations.
+Use the **Advanced Configuration** section to pass extra arguments to the connector or change the connection scheme. These settings support advanced connectivity scenarios and customizations.
 
 - **Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
 - **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent during the connection. These details must be added as Key-Value pairs.
 
 #### Test Connection
 
-Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+After you add the credentials, click **Test Connection**, then click **Save**.
 
 <img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
 
 ### Step 5: Configure Ingestion Options
 
-In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your database service. Filter patterns use regular expressions applied to asset names.
+In the **What to Ingest** step, configure filter rules for databases, schemas, and tables. Each rule matches asset names using one of five match types:
 
-#### How Filter Patterns Work
+#### How Filter Rules Work
 
-- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
-- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+- **Contains**: Matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **Starts with**: Matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **Ends with**: Matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **Is exactly**: Matches the exact name only. For example, `analytics` matches only `analytics`.
+- **Matches regex**: Matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
 
-Rules match asset names using one of five expressions:
-
-- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
-- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
-- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
-- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
-- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
-
-When both Include and Exclude are set, Exclude takes priority.
+When include and exclusion rules both match an asset, the exclusion rule takes priority.
 
 <Tip>
-Leave all filter patterns empty to ingest all databases, schemas, and tables available in the source.
+Leave all filter rules empty to ingest all databases, schemas, and tables available in the source.
 </Tip>
 
-**Filter Options**
+#### Filter Options
 
-The Database, Schema, and Table sections each include the following filter options:
+The **Database**, **Schema**, and **Table** sections control ingestion for the corresponding asset type. Each section provides the following controls:
 
-- **Database**: Controls which databases OpenMetadata ingests from the source.
-- **Schema**: Controls which schemas within the ingested databases are included.
-- **Table**: Controls which tables and views within the ingested schemas are included.
-
-Each section provides the following controls:
-
-- **Scan Mode**: You can choose between the following scan modes:
+- **Scan Mode**: Choose one of the following scan modes:
     - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
     - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
 - **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
 - **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
 - **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
-- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+- **Include rules**: In **Only specific** mode, click **+ Add** to define a rule. Added rules appear as chips. OpenMetadata includes an asset if it matches any rule.
 
 ### Step 6: Create & Deploy
 
