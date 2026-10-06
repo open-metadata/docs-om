@@ -1,6 +1,6 @@
 ---
 title: Salesforce Data360 Connector | OpenMetadata Pipeline Integration
-description: Connect Salesforce Data360 (formerly Data Cloud) pipelines to OpenMetadata for data stream, calculated insight, and data transform lineage, status, and metadata.
+description: Connect Salesforce Data360 (formerly Data Cloud) pipelines to OpenMetadata for Data Streams, Calculated Insights, and Data Transforms, including lineage, status, and metadata.
 sidebarTitle: Overview
 ---
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
@@ -13,9 +13,15 @@ name="Salesforce Data360"
 stage="BETA"
 availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Tags"]}
 unavailableFeatures={["Owners", "Usage"]} />
-In this section, we provide guides and references to use the Salesforce Data360 pipeline connector.
+Use this guide to configure the Salesforce Data360 pipeline connector.
 
-The Salesforce Data360 pipeline connector brings in the data movement and processing objects in Data360 (formerly Data Cloud) as pipelines: **Data Streams**, **Calculated Insights**, and **Data Transforms**. For each, OpenMetadata ingests the pipeline definition, its latest run status, and lineage to the tables it reads from and writes to. Only objects with an `ACTIVE` status are ingested.
+The Salesforce Data360 pipeline connector brings data movement and processing objects from Data360 (formerly Data Cloud) into OpenMetadata as pipelines:
+
+- **Data Streams**
+- **Calculated Insights**
+- **Data Transforms**
+
+For each object, OpenMetadata ingests the pipeline definition, its latest run status, and lineage to the tables it reads from and writes to. OpenMetadata ingests only objects with an `ACTIVE` status.
 
 Configure and schedule Salesforce Data360 metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
@@ -24,21 +30,21 @@ Configure and schedule Salesforce Data360 metadata workflows from the OpenMetada
 
 ## Requirements
 
-OpenMetadata connects to Salesforce Data360 through the Salesforce REST API using a **connected app** that authenticates with the OAuth 2.0 client credentials flow. You will need:
+OpenMetadata connects to Salesforce Data360 through the Salesforce REST API using a **connected app** that authenticates with the OAuth 2.0 client credentials flow. You'll need:
 
-- A Salesforce connected app configured for the OAuth 2.0 **client credentials** flow. This gives you the **Consumer Key** and **Consumer Secret** that OpenMetadata uses to authenticate. See the Salesforce documentation on [creating a connected app](https://help.salesforce.com/s/articleView?id=sf.connected_app_create.htm) for the setup steps.
-- The connected app must be granted the Data 360 (Data Cloud) API scopes so it can list data streams, calculated insights, and data transforms and read their run history.
-- The integration user the connected app runs as needs permission to view these objects. The connection test verifies this by listing each object type.
+- Configure a Salesforce connected app for the OAuth 2.0 **client credentials** flow. This gives you the **Consumer Key** and **Consumer Secret** that OpenMetadata uses to authenticate. See the Salesforce documentation on [creating a connected app](https://help.salesforce.com/s/articleView?id=sf.connected_app_create.htm) for the setup steps.
+- Grant the connected app the Data360 (Data Cloud) API scopes so it can list Data Streams, Calculated Insights, and Data Transforms and read their run history.
+- Give the integration user permission to view these objects. The connection test verifies this by listing each object type.
 
 ### Requirements for Lineage
 
-Lineage connects each Data360 pipeline to the tables it reads from and writes to. For OpenMetadata to resolve those tables, ingest the **Salesforce Data360 database** first with the [Data360 database connector](/v2.1.x-SNAPSHOT/connectors/database/data360), then point this pipeline service at it using the **Data 360 Database Service Name** field.
+Lineage connects each Data360 pipeline to the tables it reads from and writes to. For OpenMetadata to resolve those tables, ingest the **Salesforce Data360 database** first with the Data360 database connector. Then point this pipeline service to it using the **Data360 Database Service Name** field.
 
 Data Streams can pull from upstream systems outside Data360 (for example, an S3 bucket or a Snowflake warehouse). To draw lineage to those upstream tables, use **Service Mapping** to map each Data360 connector or data source name to the OpenMetadata service that already holds it.
 
 ## Metadata Ingestion
 
-To ingest metadata from Salesforce Data360, you need to create a service connection. The service connects Salesforce Data360 with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+To ingest metadata from Salesforce Data360, create a service connection. The service connects Salesforce Data360 with OpenMetadata. After you create the service and deploy the metadata agent, OpenMetadata starts ingesting metadata.
 
 ### Step 1: Add New Service
 
@@ -58,13 +64,13 @@ From the service type dropdown, select **Pipeline Services**, then click the **S
 
 ### Step 3: Add Service Name and Description
 
-- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Salesforce Data360 services you are ingesting metadata from.
-- Optional: Enter a **Description** for the service.
+1. Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Salesforce Data360 services you are ingesting metadata from.
+2. Optional: Enter a **Description** for the service.
 
 ![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/data360-pipeline.png)
 
 <Note>
-**Note**: The service name cannot be changed after it is set.
+You can't change the service name after you set it.
 </Note>
 
 ### Step 4: Configure Connection Options
@@ -73,62 +79,59 @@ Specify your source credentials and verify the connection.
 
 #### Enter Connection Details
 
-Enter the connection details for Salesforce Data360. The right-hand panel in the UI displays inline help for each field.
+Enter the connection details for Salesforce Data360. The help panel in the UI describes each field.
 
 ![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/data360-pipeline.png)
 
 - **Salesforce API Version**: The Salesforce REST API version to call. Defaults to `63.0`. Change this only if your Salesforce org requires a different version.
 - **Salesforce Domain**: The domain of your Salesforce instance, used to build the login URL. Defaults to `login`. Use `test` for a sandbox, or your My Domain subdomain for a custom domain.
-- **Data 360 Database Service Name**: The name of the Salesforce Data360 database service in OpenMetadata to use for lineage resolution. Set this to the service you created with the Data360 database connector so pipeline lineage can link to the right tables.
+- **Data360 Database Service Name**: The name of the Salesforce Data360 database service in OpenMetadata to use for lineage resolution. Set this to the service you created with the Data360 database connector so pipeline lineage can link to the right tables.
 - **Service Mapping**: A JSON object mapping a Data360 connector or data source name to the OpenMetadata service that holds it, used to resolve the upstream table of a Data Stream. For example: `{"S3_Connector": "my-s3-service"}`. Defaults to `{}`.
-- **Pagination Limit**: How many Data360 objects to request per page when listing pipeline objects. Defaults to `10`; valid values are `1`–`200`.
+- **Pagination Limit**: How many Data360 objects to request per page when listing pipeline objects. Defaults to `10`. Valid values are `1`–`200`.
 - **Include Bulk Lineage**: When enabled, OpenMetadata also ingests lineage from Data Lake Objects to Data Model Objects for every data space. This walks all Data Model Objects in the configured Data360 database service, so it is off by default.
 - **Consumer Key**: The consumer key from your Salesforce connected app. This is the client identifier used for OAuth authentication.
 - **Consumer Secret**: The consumer secret from your Salesforce connected app. This is the client secret used for OAuth authentication.
 
 #### Test Connection
 
-Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+After you add the credentials, click **Test Connection**, then click **Save**.
 
 <img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
 
 ### Step 5: Configure Ingestion Options
 
-In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Salesforce Data360 service. Filter patterns use regular expressions applied to pipeline names.
+In the **What to Ingest** step, configure filter rules for pipelines.
 
-#### How Filter Patterns Work
+#### How Filter Rules Work
 
-- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
-- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+Each rule matches pipeline names using one of five match types:
 
-Rules match asset names using one of five expressions:
+- **Contains**: Matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **Starts with**: Matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **Ends with**: Matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **Is exactly**: Matches the exact name only. For example, `analytics` matches only `analytics`.
+- **Matches regex**: Matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
 
-- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
-- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
-- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
-- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
-- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
-
-When both Include and Exclude are set, Exclude takes priority.
+When include rules and exclude rules both match a pipeline, the exclude rule takes priority.
 
 <Tip>
-Leave the filter pattern empty to ingest all pipelines available in the source.
+Leave all filter rules empty to ingest all pipelines available in the source.
 </Tip>
 
 #### Filter Options
 
-The Pipeline section includes the following filter options:
+The **Pipeline** section controls pipeline ingestion:
 
 - **Pipeline**: Controls which pipelines OpenMetadata ingests from Salesforce Data360.
 
-Each section provides the following controls:
+The section provides the following controls:
 
 - **Scan Mode**: Choose between the following scan modes:
     - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
     - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
-- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
-- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
-- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+- **Always exclude**: Add permanent exclusion rules (shown in red). OpenMetadata never ingests pipelines that match these rules, regardless of include rules.
+- **Preview**: View a real-time summary of what's in scope based on your current rules.
+- **Include rules**: In **Only specific** mode, click **+ Add** to define a rule. Added rules appear as chips. OpenMetadata includes a pipeline if it matches any rule.
 
 ### Step 6: Create & Deploy
 
