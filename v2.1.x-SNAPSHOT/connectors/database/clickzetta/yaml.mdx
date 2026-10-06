@@ -1,0 +1,210 @@
+---
+title: Run the ClickZetta Connector Externally
+description: Use YAML to configure ClickZetta database connections with metadata ingestion, usage, lineage, profiling, and data quality.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/v2.1.x-SNAPSHOT/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import QueryUsage from '/snippets/connectors/yaml/query-usage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/clickzetta.svg'
+name="ClickZetta"
+stage="BETA"
+availableFeatures={["Metadata", "Query Usage", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Owners", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the ClickZetta connector.
+Configure and schedule ClickZetta metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Query Usage](#query-usage)
+- [Lineage](#lineage)
+- [Data Profiler](#data-profiler)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+
+<ExternalIngestionDeployment />
+## Requirements
+
+OpenMetadata connects to ClickZetta with a SQLAlchemy driver, using a username and password and a virtual cluster to run its read-only queries. The connecting user needs to be able to use that virtual cluster and to read the catalog, the tables you want to ingest, and the query-history view.
+
+Grant the following to the role your ingestion user connects with:
+
+```sql
+-- Allow the user's role to run queries on the virtual cluster used for ingestion
+GRANT USAGE ON VCLUSTER <virtual_cluster> TO ROLE <role>;
+
+-- Allow reading metadata and data from the schemas you want to ingest
+GRANT SELECT ON SCHEMA <workspace>.<schema_name> TO ROLE <role>;
+```
+
+### Profiler & Data Quality
+
+Running the profiler workflow, data quality tests, or data diff requires `SELECT` on the tables and schemas being profiled or tested. ClickZetta's native sampling is used to keep profiling efficient. More information on the profiler workflow setup can be found [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and on data quality tests [here](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+
+### Usage & Lineage
+
+Query Usage and query-based lineage read from a ClickZetta query-history source. Grant `SELECT` on the query-history view you configure (`information_schema.job_history` for workspace-local history or `sys.information_schema.job_history` for cross-workspace history). You can find more information on the usage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/usage) and the lineage workflow [here](/v2.1.x-SNAPSHOT/connectors/ingestion/workflows/lineage).
+
+### Python Requirements
+<PythonRequirements />
+To run the ClickZetta ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[clickzetta]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/clickzettaConnection.json)
+you can find the structure to create a connection to ClickZetta.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your ClickZetta connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Username" lines="7">
+
+**username**: Username to connect to ClickZetta. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={3} title="Password" lines="8">
+
+**password**: Password to connect to ClickZetta.
+
+</ContentSection>
+
+<ContentSection id={4} title="Host Port" lines="9">
+
+**hostPort**: Complete ClickZetta instance and service host, with an optional port (for example, `your-instance.clickzetta.com` or `your-instance.clickzetta.com:443`).
+
+</ContentSection>
+
+<ContentSection id={5} title="Workspace" lines="10">
+
+**databaseName**: The ClickZetta workspace to ingest.
+
+</ContentSection>
+
+<ContentSection id={6} title="Virtual Cluster" lines="11">
+
+**virtualCluster**: The ClickZetta virtual cluster used to run the metadata extraction queries.
+
+</ContentSection>
+
+<ContentSection id={7} title="Database Schema" lines="12">
+
+**databaseSchema**: Optional schema restriction. When left blank, OpenMetadata attempts to scan all schemas.
+
+</ContentSection>
+
+<ContentSection id={8} title="Query History Table" lines="13">
+
+**queryHistoryTable**: Optional ClickZetta table or view used for usage and query-lineage extraction. Set this to `information_schema.job_history` for workspace-local native history or `sys.information_schema.job_history` for cross-workspace native history; the connector maps their native columns and scopes them to the configured workspace and schema. Custom tables or views must expose `query_text`, `query_type`, `user_name`, `database_name`, `schema_name`, `start_time`, `end_time`, `duration`, `aborted`, and `cost` columns.
+
+</ContentSection>
+
+<ContentSection id={9} title="Protocol" lines="14">
+
+**protocol**: Protocol used to connect to ClickZetta. Choose `https` (default) or `http`.
+
+</ContentSection>
+
+<ContentSection id={10} title="Connection Options" lines="15">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={11} title="Connection Arguments" lines="17">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={12} title="Source Config" lines="19-62">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={13} title="Sink Configuration" lines="63-65">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={14} title="Workflow Configuration" lines="66-82">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="clickzetta_config.yaml">
+
+```yaml
+source:
+  type: clickzetta
+  serviceName: local_clickzetta
+  serviceConnection:
+    config:
+      type: Clickzetta
+      username: <username>  # REQUIRED
+      password: <password>  # REQUIRED
+      hostPort: <hostPort>  # REQUIRED - format: host or host:port
+      databaseName: <workspace>  # REQUIRED
+      virtualCluster: <virtual_cluster>  # REQUIRED
+      # databaseSchema: schema
+      # queryHistoryTable: information_schema.job_history
+      # protocol: https  # https (default) or http
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<QueryUsage connector="clickzetta" />
+<Lineage connector="clickzetta" />
+<DataProfiler connector="clickzetta" />
+<AutoClassification connector="clickzetta" />
+<DataQuality />
+## dbt Integration
+You can learn more about how to ingest dbt models' definitions and their lineage [here](/v2.1.x-SNAPSHOT/connectors/database/dbt).
