@@ -28,14 +28,14 @@ Counts refer to grouped table rows, not individual occurrences. Use the exact he
 
 **Content type:** Documentation
 **Overall verdict:** PASS / NEEDS WORK / FAIL
-**Reason**: <counts or No issues found>
-**Reviewed revision**: <short head SHA>
+**Reason**: [counts or No issues found]
+**Reviewed revision**: [short head SHA]
 **Findings**: `Critical=<n> Major=<n> Minor=<n>`
 
 #### Issues Found
 
 | # | Guideline | Severity | Original text | Suggested change |
 |---|-----------|----------|---------------|-----------------|
-| 1 | <checklist rule and category> | Critical / Major / Minor | "<exact fragment>" (<file:line; other affected locations>) | <replacement or action; conflicting evidence for contradictions> |
+| 1 | [checklist rule and category] | Critical / Major / Minor | "[exact fragment]" ([file:line; other affected locations]) | [replacement or action; conflicting evidence for contradictions] |
 
 Number rows sequentially. Escape literal pipes in table cells. With zero findings, write "No issues found." instead of an empty table. Omit Reviewed revision and Findings for a standalone file or pasted text.
