@@ -97,6 +97,7 @@ export const Integrations = () => {
                 { name: 'Qlik Sense', image: '/public/images/connectors/qlik-sense.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/qliksense' },
                 { name: 'QuickSight', image: '/public/images/connectors/quicksight.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/quicksight' },
                 { name: 'Domo Dashboard', image: '/public/images/connectors/domo.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/domo-dashboard' },
+                { name: 'Rill', image: '/public/images/connectors/rill.svg', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/rill' },
             ],
         },
         {
