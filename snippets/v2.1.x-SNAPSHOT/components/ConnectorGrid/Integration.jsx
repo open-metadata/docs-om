@@ -22,6 +22,7 @@ export const Integrations = () => {
                 { name: 'BigTable', image: '/public/images/connectors/big-table.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/bigtable' },
                 { name: 'Cassandra', image: '/public/images/connectors/cassandra.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/cassandra' },
                 { name: 'ClickHouse', image: '/public/images/connectors/clickhouse.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/clickhouse' },
+                { name: 'ClickZetta', image: '/public/images/connectors/clickzetta.svg', link: '/v2.1.x-SNAPSHOT/connectors/database/clickzetta' },
                 { name: 'Cockroach', image: '/public/images/connectors/cockroach.png', link: '/v2.1.x-SNAPSHOT/connectors/database/cockroach' },
                 { name: 'Couchbase', image: '/public/images/connectors/couchbase.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/couchbase' },
                 { name: 'Delta Lake', image: '/public/images/connectors/delta-lake.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/deltalake' },
