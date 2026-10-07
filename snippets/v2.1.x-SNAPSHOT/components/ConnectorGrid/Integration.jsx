@@ -73,6 +73,7 @@ export const Integrations = () => {
                 { name: 'Kafka', image: '/public/images/connectors/kafka.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/kafka' },
                 { name: 'Redpanda', image: '/public/images/connectors/redpanda.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/redpanda' },
                 { name: 'Kinesis', image: '/public/images/connectors/kinesis.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/kinesis' },
+                { name: 'NATS JetStream', image: '/public/images/connectors/nats.png', link: '/v2.1.x-SNAPSHOT/connectors/messaging/nats' },
                 { name: 'Pub/Sub', image: '/public/images/connectors/pubsub.svg', link: '/v2.1.x-SNAPSHOT/connectors/messaging/pubsub' },
             ],
         },
