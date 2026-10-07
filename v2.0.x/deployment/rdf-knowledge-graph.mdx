@@ -150,7 +150,18 @@ helm repo update
 
 ### Step 3: Deploy Fuseki
 
-Prepare a values file that enables only Fuseki. The `resources`, `jvmArgs`, and `persistence` values below are the chart's production defaults -- scale them to your catalog size:
+Prepare a values file that enables only Fuseki. The `resources`, `jvmArgs`, and `persistence` values below are the chart's production defaults -- scale them to your catalog size.
+
+<Note>
+
+**Use the OpenMetadata Fuseki image, not stock Apache Jena Fuseki.** OpenMetadata relies on a small extension and a setting (`unionDefaultGraph`) that only the OpenMetadata-built Fuseki image provides. A stock `apache-jena-fuseki` image cannot satisfy them, and RDF indexing will fail:
+
+- On **2.0.2**, the server refuses to start indexing at all, with `RDF storage is not ready: Fuseki dataset requires the OpenMetadata Graph Store extension and unionDefaultGraph=true`.
+- On **2.0.3 and later**, the header checks were relaxed to warnings, but `unionDefaultGraph` is still required, so indexing against a stock image still fails its readiness probe.
+
+The Docker Compose path does not hit this because its compose files build the correct image for you. The Helm path does **not** build it, so you must point it at the published image `openmetadata/fuseki:6.2.0` (amd64 and arm64), as the values file below does. The chart's own default Fuseki image is stock Apache Jena Fuseki, so you must override it.
+
+</Note>
 
 ```yaml
 # fuseki-values.yaml
@@ -164,8 +175,10 @@ airflow:
 fuseki:
   enabled: true
   image:
-    repository: daschswiss/apache-jena-fuseki
-    tag: "6.0.0"
+    # Must be the OpenMetadata Fuseki image, never stock Apache Jena Fuseki.
+    # See the note above.
+    repository: openmetadata/fuseki
+    tag: "6.2.0"
   resources:
     requests:
       cpu: "1500m"
@@ -199,8 +212,10 @@ kubectl get pods -n <namespace> -l app=fuseki
 kubectl logs -n <namespace> deploy/fuseki
 ```
 
-You don't need to create the Fuseki dataset yourself: on startup, the OpenMetadata server checks for the configured
-dataset and creates it through the Fuseki admin API if it doesn't already exist.
+You don't need to create the Fuseki dataset yourself: the OpenMetadata Fuseki image ships with a configuration that
+creates the `openmetadata` dataset (with `unionDefaultGraph` turned on) when Fuseki first starts. Do **not** create
+the dataset by hand through Fuseki's admin API: datasets created that way have `unionDefaultGraph` off and will fail the
+server's readiness check.
 
 ### Step 4: Point OpenMetadata at Fuseki
 
@@ -294,6 +309,24 @@ reachable yet when the server started.
 - Confirm `RDF_ENDPOINT` is reachable from the server pod/container (not just from your local machine).
 - Check the server startup logs for the underlying `JenaFusekiStorage` / `RdfRepository` log lines -- they indicate
   which step failed (dataset creation, ontology load, connection).
+
+### Indexing fails with 405, "read-only", or "requires the OpenMetadata Graph Store extension"
+
+This means Fuseki is a stock `apache-jena-fuseki` image rather than the OpenMetadata Fuseki image. Symptoms include a
+`405 Method Not Allowed` on RDF writes, a readiness error naming a "read-only" Graph Store, or (on 2.0.2) `RDF storage
+is not ready: Fuseki dataset requires the OpenMetadata Graph Store extension and unionDefaultGraph=true`. The Helm chart
+does not build the required image, so a stock image is the usual cause.
+
+To confirm what image you're running, send an `OPTIONS` request to the dataset's data endpoint from inside the cluster:
+
+```bash
+kubectl exec -n <namespace> deploy/openmetadata -- \
+  curl -is -X OPTIONS -u "admin:<password>" "http://fuseki:3030/openmetadata/data"
+```
+
+The OpenMetadata image returns `Allow: GET,HEAD,OPTIONS,PUT,POST` along with several `X-OpenMetadata-*` headers. A stock
+image returns neither. Fix it by deploying the OpenMetadata Fuseki image -- see [Step 3: Deploy Fuseki](#step-3-deploy-fuseki)
+above -- then re-run the index.
 
 ### Another RDF reindex job is already active
 
