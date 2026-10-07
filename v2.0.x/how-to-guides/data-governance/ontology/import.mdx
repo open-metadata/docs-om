@@ -1,7 +1,6 @@
 ---
 title: Import an OWL/SKOS Ontology | OpenMetadata Knowledge Graph Guide
 description: Import an existing OWL or SKOS ontology into a glossary as glossary terms and typed relations.
-slug: /how-to-guides/data-governance/ontology/import
 sidebarTitle: Import an Ontology
 ---
 
@@ -9,7 +8,7 @@ sidebarTitle: Import an Ontology
 
 If your organization already maintains an ontology or taxonomy as an OWL (Web Ontology Language) or SKOS (Simple Knowledge Organization System) file, OpenMetadata lets you import it directly into a glossary instead of recreating it by hand. OpenMetadata converts the ontology's concepts, classes, and relationships into glossary terms and typed relations.
 
-This is currently an API-only capability: there's no import button in the UI yet.
+Import an ontology from the glossary's manage menu, or use the API.
 
 ## What Gets Imported
 
@@ -19,10 +18,21 @@ This is currently an API-only capability: there's no import button in the UI yet
 | `skos:broader` or `rdfs:subClassOf` | The term's parent in the glossary hierarchy |
 | `skos:closeMatch`, `skos:exactMatch`, and other `skos:*Match` properties | A concept mapping on the term |
 | `owl:ObjectProperty` edges | A typed related term |
+| `owl:DatatypeProperty` definitions | Per-concept attributes |
 
 If [RDF (Resource Description Framework) indexing](/v2.0.x/deployment/rdf-knowledge-graph) is enabled on your instance, the glossary terms created by the import are automatically mirrored into the RDF triplestore, the same as terms created any other way.
 
 ## Importing an Ontology
+
+You need **Edit All** permission on the target glossary. Only an admin can introduce new relation types or custom properties. Non-admin imports use the types and properties already defined.
+
+1. Open the target glossary from **Govern** > **Glossary**.
+2. Open the glossary's manage (**⋮**) menu and select **Import Ontology**.
+3. Upload an ontology file. The dialog detects its format and runs a dry run without saving changes.
+4. Review the import summary and any issues. It summarizes terms, relationships, concept mappings, and custom properties.
+5. Click **Import** to apply the changes. If the import reports issues, review them in the dialog.
+
+## Importing Through the API
 
 Send the ontology file's contents as the request body to:
 
@@ -46,7 +56,7 @@ curl -X PUT "$OM_HOST/api/v1/glossaries/name/product-taxonomy/importRdf?format=t
   --data-binary @taxonomy.ttl
 ```
 
-The target glossary (`product-taxonomy` above) must already exist. Importing requires **Edit All** permission on the glossary. Only an admin user can introduce new relation types or custom properties the ontology requires that don't already exist in OpenMetadata. A non-admin's import is restricted to the relation types and properties already defined.
+This example imports into an existing glossary named `product-taxonomy`.
 
 ## Import Result
 
@@ -55,7 +65,7 @@ The response summarizes what the import did (or would do, for a dry run):
 | Field | Meaning |
 |---|---|
 | `dryRun` | Whether this was a dry run |
-| `glossariesCreated` | Glossaries created (0 if importing into an existing glossary) |
+| `glossariesCreated` | Glossaries created (zero for the existing-glossary flow documented here) |
 | `termsCreated` | New glossary terms created |
 | `termsUpdated` | Existing glossary terms updated |
 | `relationsAdded` | Parent and related-term relations added |
