@@ -49,6 +49,7 @@ export const Integrations = () => {
                 { name: 'Presto', image: '/public/images/connectors/presto.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/presto' },
                 { name: 'Redshift', image: '/public/images/connectors/redshift.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/redshift' },
                 { name: 'Salesforce', image: '/public/images/connectors/salesforce.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/salesforce' },
+                { name: 'Salesforce Data360', image: '/public/images/connectors/data360.png', link: '/v2.1.x-SNAPSHOT/connectors/database/data360' },
                 { name: 'SAP ERP', image: '/public/images/connectors/sap-erp.png', link: '/v2.1.x-SNAPSHOT/connectors/database/sap-erp' },
                 { name: 'SAP HANA', image: '/public/images/connectors/sap-hana.png', link: '/v2.1.x-SNAPSHOT/connectors/database/sap-hana' },
                 { name: 'Snowflake', image: '/public/images/connectors/snowflakes.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/snowflake' },
