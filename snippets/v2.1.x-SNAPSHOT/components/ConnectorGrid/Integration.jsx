@@ -115,6 +115,7 @@ export const Integrations = () => {
                 { name: 'NiFi', image: '/public/images/connectors/apachenifi.webp', link: '/v2.1.x-SNAPSHOT/connectors/pipeline/nifi' },
                 { name: 'OpenLineage', image: '/public/images/connectors/openlineage.png', link: '/v2.1.x-SNAPSHOT/connectors/pipeline/openlineage' },
                 { name: 'Prefect', image: '/public/images/connectors/prefect.svg', link: '/v2.1.x-SNAPSHOT/connectors/pipeline/prefect' },
+                { name: 'Salesforce Data 360 Pipeline', image: '/public/images/connectors/data360.png', link: '/v2.1.x-SNAPSHOT/connectors/pipeline/data360-pipeline' },
                 { name: 'Spline', image: '/public/images/connectors/spline.webp', link: '/v2.1.x-SNAPSHOT/connectors/pipeline/spline' },
             ],
         },
