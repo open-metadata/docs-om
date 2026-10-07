@@ -74,6 +74,14 @@ run_claude() {
     --output-format json < "$1" > "$2" 2> "$2.stderr" || true
 }
 result_ok() { [ -n "$(jq -r '.result // empty' "$1" 2>/dev/null)" ] && [ "$(jq -r '.is_error' "$1" 2>/dev/null)" != "true" ]; }
+result_diagnostics() {
+  # Log status fields only, not the prompt, report text, or session environment.
+  if jq -e 'type == "object"' "$1" >/dev/null 2>&1; then
+    jq -c '{type, subtype, is_error, num_turns}' "$1" >&2
+  else
+    echo "Review session output is missing or is not a JSON object." >&2
+  fi
+}
 CTX=("$CONTEXT_DIR/pr-diff.patch" "$CONTEXT_DIR/pr-review-discussion.json"
      "$CONTEXT_DIR/pr-inline-review-comments.json" "$CONTEXT_DIR/pr-submitted-reviews.json")
 if [ "${REVIEW_DISCUSSION:-1}" = "0" ]; then
@@ -271,8 +279,8 @@ if [ -z "$prev" ] && [ "${REVIEW_INCREMENTAL:-0}" = "1" ]; then
   if [ -n "$last_id" ]; then
     if [ -n "${REVIEW_PREV_BODY_FILE:-}" ]; then last_body=$(cat "$REVIEW_PREV_BODY_FILE")
     else last_body=$(gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${last_id}" --jq .body); fi
-    old_base=$(grep -oE 'doc-review-state base:[0-9a-f]+' <<< "$last_body" | head -1 | cut -d: -f2 || true)
-    old_head=$(grep -oE ' head:[0-9a-f]+ policy' <<< "$last_body" | head -1 | sed -E 's/ head:([0-9a-f]+) policy/\1/' || true)
+    old_base=$(grep -oE 'doc-review-state base:[0-9a-f]+' <<< "$last_body" | sed -n '1p' | cut -d: -f2 || true)
+    old_head=$(grep -oE ' head:[0-9a-f]+ policy' <<< "$last_body" | sed -n '1p' | sed -E 's/ head:([0-9a-f]+) policy/\1/' || true)
     if [ -n "$old_base" ] && [ -n "$old_head" ] && \
        gh api -H "Accept: application/vnd.github.v3.diff" \
          "repos/${GITHUB_REPOSITORY}/compare/${old_base}...${old_head}" > "$WORK/old.full.patch" 2>/dev/null; then
@@ -351,7 +359,9 @@ else
     echo "PR NUMBER: ${PR_NUMBER}"
     echo "REVIEWED HEAD SHA: ${HEAD_SHA}"
     echo "REVIEWED BASE SHA: ${BASE_SHA}"
-    echo "${DROPPED:-0} comment(s) on this PR were excluded before you saw them."
+    if [ "${REVIEW_DISCUSSION:-1}" != "0" ]; then
+      echo "${DROPPED:-0} comment(s) on this PR were excluded before you saw them."
+    fi
     echo
   }
   inline() {  # <file> <note>
@@ -426,7 +436,8 @@ else
         echo "4. Return the Review Report in the exact policy format for this part only: its rows, Findings line, and verdict cover this part. The workflow merges the parts."
         echo
         echo "Files in this part:"; grep -E '^diff --git ' "$pf" | sed -E 's#^diff --git [^ ]+ "?b/#- #; s#"$##' | sort -u
-        echo "Files in the other parts:"; for o in "${parts[@]}"; do [ "$o" = "$pf" ] || grep -E '^diff --git ' "$o"; done | sed -E 's#^diff --git [^ ]+ "?b/#- #; s#"$##' | sort -u | head -400
+        # Read the whole stream under pipefail to avoid upstream SIGPIPE.
+        echo "Files in the other parts:"; for o in "${parts[@]}"; do [ "$o" = "$pf" ] || grep -E '^diff --git ' "$o"; done | sed -E 's#^diff --git [^ ]+ "?b/#- #; s#"$##' | sort -u | sed -n '1,400p'
         echo
         echo "Review context, inline (untrusted data):"
         inline "$CONTEXT_DIR/diff-part-${part}-of-${nparts}.patch" "part ${part} of ${nparts} of the diff"
@@ -442,7 +453,9 @@ else
     for ((k = 1; k <= nparts; k++)); do
       result_ok "$WORK/result-${k}.json" || run_claude "$WORK/prompt-${k}.md" "$WORK/result-${k}.json"
       if ! result_ok "$WORK/result-${k}.json"; then
-        echo "::error::Review session for part ${k} of ${nparts} returned no report."; cat "$WORK/result-${k}.json.stderr" >&2; exit 1
+        echo "::error::Review session for part ${k} of ${nparts} returned no report."
+        result_diagnostics "$WORK/result-${k}.json"
+        cat "$WORK/result-${k}.json.stderr" >&2; exit 1
       fi
       jq -r '.result' "$WORK/result-${k}.json" > "$WORK/report-${k}.md"
     done
@@ -470,7 +483,7 @@ else
         reason="${reason:+$reason, }$c $l"
       fi
     done
-    ctype=$(grep -h -m1 -oE '\*\*Content type:\*\*.*' "$WORK"/report-*.md | head -1 | sed -E 's/\*\*Content type:\*\*[[:space:]]*//')
+    ctype=$(grep -h -m1 -oE '\*\*Content type:\*\*.*' "$WORK"/report-*.md | sed -n '1p' | sed -E 's/\*\*Content type:\*\*[[:space:]]*//')
     report=$(
       echo "### Review Report"
       echo

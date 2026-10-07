@@ -99,6 +99,7 @@ class ReviewTests(unittest.TestCase):
             self.assertGreater(len(prompts), 1 if chunked else 0)
             self.assertIn("Critical=0 Major=0 Minor=0", output.read_text())
             joined = "\n".join(prompts)
+            self.assertEqual("comment(s) on this PR were excluded" in joined, discussion)
             self.assertIn("v2.0.x/page.mdx", joined)
             self.assertIn("v2.1.x-SNAPSHOT/page.mdx", joined)
             self.assertEqual("INLINE_CANARY" in joined, discussion)
@@ -114,6 +115,20 @@ class ReviewTests(unittest.TestCase):
 
     def test_chunked_automatic_without_discussion_files(self):
         self.run_review(False, chunked=True)
+
+    def test_chunk_lists_consume_large_streams(self):
+        source = (SCRIPTS / "doc-review-run.sh").read_text()
+        line = next(line for line in source.splitlines() if 'echo "Files in the other parts:"' in line)
+        with tempfile.TemporaryDirectory() as directory:
+            current = Path(directory) / "current.patch"
+            other = Path(directory) / "other.patch"
+            current.write_text(patch("current.mdx"))
+            other.write_text("".join(patch(f"large/{index:05d}-{'x' * 100}.mdx") for index in range(5000)))
+            script = 'set -euo pipefail\nparts=("$1" "$2"); pf="$1"\n' + line
+            result = subprocess.run(["bash", "-c", script, "test", str(current), str(other)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 401)
 
     def check_gate(self, workflow):
         # Extract the actual last workflow step; do not duplicate its logic.

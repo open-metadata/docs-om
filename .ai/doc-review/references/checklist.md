@@ -2,7 +2,7 @@
 
 Review only changed user-facing content. Report only rules below, group repeated violations, and ignore personal preferences. Exempt code, commands, paths, identifiers, quoted text, and literal UI labels from prose rules.
 
-**Critical** = technical errors, contradictions, safety/accessibility risks, discriminatory language, or wrong branding. **Major** = essential terminology, grammar, heading structure, prerequisites, or procedure clarity. **Minor** = style, formatting, and editorial polish. **Exception: not flagged** = never report.
+**Critical** = technical errors, contradictions, safety/accessibility risks, discriminatory language, or wrong branding. **Major** = essential terminology, grammar, heading structure, prerequisites, procedure clarity, or explicitly tagged formatting rules. **Minor** = other style, formatting, and editorial polish. **Exception: not flagged** = never report.
 
 ## Category 1: Voice & Tone
 
@@ -36,7 +36,7 @@ Review only changed user-facing content. Report only rules below, group repeated
 
 - [ ] **Official names are exact** (Major) — Preserve verified names and capitalization; spell “OpenMetadata” correctly.
 - [ ] **Title-case headings** (Major) — Capitalize major words in headings.
-- [ ] **Heading introductions** (Minor) — Use descriptive, parallel headings; add body text before another heading or code block.
+- [ ] **Heading introductions** (Minor) — Use descriptive, parallel headings without trailing periods; add body text before another heading or code block.
 - [ ] **Capitalization** (Minor) — Start list items with capitals; preserve proper names without capitalizing generic technical terms.
 - [ ] **Acronym capitalization** (Minor) — Use official uppercase forms, such as API.
 
@@ -53,7 +53,7 @@ Review only changed user-facing content. Report only rules below, group repeated
 - [ ] **Tasks are executable** (Major) — Put prerequisites first and keep steps complete, correctly ordered, and technically possible.
 - [ ] **Procedure structure is clear** (Major) — Number sequential steps; use parallel bullets for options or reference information.
 - [ ] **Risks are explicit** (Critical) — Warn about data loss, security exposure, downtime, or irreversible actions.
-- [ ] **Optional step** (Minor) — Label optional steps “(Optional)”.
+- [ ] **Optional step** (Minor) — Label optional steps “(Optional)” or “Optional:”; keep the form consistent within a procedure.
 - [ ] **Step orientation** (Minor) — State the location first; use goal-first phrasing when natural.
 - [ ] **List shape** (Minor) — Introduce lists, prefer 2–10 items or grouped lists, and use periods for complete sentences.
 - [ ] **Bold before colon** (Major) — Write “**Example**:” rather than “**Example:**”.
@@ -77,7 +77,7 @@ Review only changed user-facing content. Report only rules below, group repeated
 ## Category 10: OpenMetadata Scope
 
 - [ ] **Scope and claims are valid** (Major) — Don't present Collate features as OpenMetadata or make unsupported performance, security, compatibility, or availability claims.
-- [ ] **Use OpenMetadata branding** (Critical) — Use OpenMetadata names, terminology, and assets; don't use Collate branding, logos, or product language in OpenMetadata documentation.
+- [ ] **Use OpenMetadata branding** (Critical) — Present OpenMetadata with its names, terminology, and assets, not Collate branding. Permit accurate, intentional cross-product references (such as “managed by Collate”), comparisons, links, literal UI labels, and code identifiers (packages, environment variables, API fields, commands, and paths).
 - [ ] **Customer-facing messages** (Minor) — Address the reader as “you” not users; state the result/action first and explain failures with a next step.
 - [ ] **Approved product wording** (Minor) — Avoid unofficial abbreviations, taglines, and shortened product names.
 - [ ] **Product version format** (Minor) — Write “OpenMetadata 2.0.4”, not “OpenMetadata v2.0.4” or unofficial shorthand.
@@ -89,6 +89,6 @@ Review only changed user-facing content. Report only rules below, group repeated
 
 ## Category 12: Technical & Logical Accuracy
 
-- [ ] **No technical errors** (Critical) — Code, commands, schemas, APIs, configuration, links, navigation, and expected behavior must work with the available PR evidence.
+- [ ] **No technical errors** (Critical) — Code, commands, schemas, APIs, configuration, navigation instructions, and expected behavior must work with the available PR evidence. Link validity belongs to automated link checks.
 - [ ] **Claims are internally consistent** (Critical) — Check names, counts, versions, fields, defaults, availability, examples, and the PR description for contradictions.
 - [ ] **Unknown is not wrong** (Exception: not flagged) — Request verification when evidence is missing; don't invent a contradiction.
