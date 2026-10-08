@@ -150,13 +150,15 @@ helm repo update
 
 ### Step 3: Deploy Fuseki
 
-Prepare a values file that enables only Fuseki. Use the `openmetadata-dependencies` chart **2.0.3 or later** (run `helm repo update` first). From 2.0.3 the chart defaults to the OpenMetadata Fuseki image and injects the environment that creates the datasets, enables the union default graph, and turns on the OpenMetadata extension. The `resources`, `heap`, and `persistence` values below match the chart's defaults (16Gi memory, `heap: "8g"`) -- scale them to your catalog size.
+Prepare a values file that enables only Fuseki. Run `helm repo update`, then use the `openmetadata-dependencies` chart **2.0.3 or later**. From 2.0.3 the chart defaults to the OpenMetadata Fuseki image and injects the environment that creates the datasets, enables the union default graph, and turns on the OpenMetadata extension. The `resources`, `heap`, and `persistence` values below match the chart's defaults (16Gi memory, `heap: "8g"`). Scale them to your catalog size.
+
+On chart 2.0.3 and later, the chart does this setup, not the image. The `openmetadata-dependencies` chart already uses the OpenMetadata Fuseki image (`openmetadata/fuseki:6.2.0`, published for amd64 and arm64) by default. It passes the environment that creates these datasets: `openmetadata`, `openmetadata_a`, and `openmetadata_b`. It also sets `FUSEKI_UNION_DEFAULT_GRAPH=true` and `OPENMETADATA_EXTENSION_ENABLED=true`. The pod runs with `fsGroup: 1000`. The `image:` block in the values file below is an explicit pin, not a requirement: on 2.0.3 and later it matches the default.
+
+Charts before 2.0.3 default to stock Apache Jena Fuseki (`daschswiss/apache-jena-fuseki`) and pass only `JVM_ARGS` and `ADMIN_PASSWORD`, with no `securityContext`. On those versions no `openmetadata` dataset is created. Upgrade the chart to 2.0.3 or later rather than overriding the image.
 
 <Warning>
 
-On chart 2.0.3 and later, the chart does this setup, not the image. The `openmetadata-dependencies` chart already uses the OpenMetadata Fuseki image (`openmetadata/fuseki:6.2.0`, published for amd64 and arm64) by default. It passes the environment that creates the `openmetadata`, `openmetadata_a`, and `openmetadata_b` datasets, sets `FUSEKI_UNION_DEFAULT_GRAPH=true` and `OPENMETADATA_EXTENSION_ENABLED=true`, and runs the pod with `fsGroup: 1000`. The `image:` block in the values file below is an explicit pin, not a requirement: on 2.0.3 and later it matches the default.
-
-Charts before 2.0.3 default to stock Apache Jena Fuseki (`daschswiss/apache-jena-fuseki`) and pass only `JVM_ARGS` and `ADMIN_PASSWORD`, with no `securityContext`. On those versions no `openmetadata` dataset is created and the pod can crash-loop with `/fuseki is not writable`. Upgrade the chart to 2.0.3 or later rather than overriding the image.
+On charts before 2.0.3, the Fuseki pod can crash-loop with `/fuseki is not writable`.
 
 </Warning>
 
