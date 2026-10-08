@@ -20,7 +20,8 @@ After the metadata ingestion has been done correctly, we can configure and deplo
 This Pipeline will be in charge of feeding the Profiler tab of the Table Entity, as well as running any tests configured in the Entity.
 
 ### 1. Add a Profiler Agent
-1. Navigate to **Settings** > **Services**.
+Create and deploy a profiler agent on the database service:
+1. Navigate to **Settings** > **Services** > **Databases**.
 2. Select the service.
 3. Click the **Agents** tab.
 
@@ -54,7 +55,7 @@ Filter patterns control which databases, schemas, and tables the profiler target
 
 #### Advanced Config
 
-Profiler agents created in the UI default to **Dynamic** sampling instead of scanning all rows. This default has applied since OpenMetadata 1.13. Existing customized profiler configurations are preserved. The default profiler agent configuration doesn't collect cardinality distribution. Add it to **Metrics** if custom rules, analytics, or the column-profile cardinality chart depend on value distributions.
+Profiler agents created in the UI default to **Dynamic** sampling instead of scanning all rows. This default has applied since OpenMetadata 1.13. Upgrading keeps your existing sample settings as **Static**, but turns **Randomized Sample** off and removes the deprecated Compute Metrics setting. The default **Metrics** list doesn't include `histogram`, `cardinalityDistribution`, or `system`, among others. Add them to **Metrics** if you use the column distribution charts or system (DML) metrics.
 
 Configure sampling, execution, and metrics with the following settings.
 
@@ -89,7 +90,7 @@ Druid doesn't support **Profile Sample** because it lacks the required random sa
 
 Control concurrency, timeouts, and view inclusion with these settings:
 
-- **Thread Count**: Set the number of threads for parallel metric computation. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler calculates it from the number of metrics.
+- **Thread Count**: Set the number of threads for parallel metric computation, from 1 to 20. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler calculates it from the number of metrics.
 - **Timeout (in sec.)**: Set how long a profiling job waits before moving to the next table. The default is 43,200 seconds (12 hours). The profiler waits for the current query to finish before timing out. Set a query or connection timeout on the database engine to limit hanging queries.
 - **Include Views**: Enable profiling for views. Including views might reduce profiler performance.
 
@@ -184,7 +185,7 @@ This is a sample config for the profiler:
 
 <Steps>
 <Step title="computeTableMetrics">
-**computeTableMetrics**: Option to turn on/off computing table-level metrics. Turn both this and `computeColumnMetrics` off when you only want to ingest sample data with the profiler workflow and not any other information.
+**computeTableMetrics**: Option to turn on/off computing table-level metrics. Turn both this and `computeColumnMetrics` off to run the profiler without computing metrics. To collect sample data, use Auto Classification instead.
 </Step>
 <Step title="computeColumnMetrics">
 **computeColumnMetrics**: Option to turn on/off computing column-level metrics.
@@ -333,7 +334,7 @@ On a table asset, you have the possibility to add a sample percentage/rows and a
 For sampling, you can set a sampling percentage at the workflow level.
 
 ### 3. Excluding/Including Specific Columns/Metrics
-By default, the profiler will compute all the metrics against all the columns. This behavior can be fine-tuned only to include or exclude specific columns and specific metrics.
+By default, the profiler computes a standard set of metrics (see **Metrics** under Advanced Config) for all columns. This behavior can be fine-tuned only to include or exclude specific columns and specific metrics.
 
 For example, excluding `id` columns will reduce the number of columns against which the metrics are computed.
 
