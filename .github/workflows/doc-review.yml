@@ -99,19 +99,16 @@ jobs:
             echo "Expected a numeric changed-file count, got: $changed_files" >&2
             exit 1
           fi
-          review=true
-          if (( changed_files > 50 )); then
-            review=false
-          fi
+          # The size limit is enforced after compaction inside the runner
+          # (doc-review-run.sh), where identical version copies are collapsed
+          # first, so this step always lets the review proceed.
           {
             echo "base_sha=$base_sha"
             echo "head_sha=$head_sha"
             echo "changed_files=$changed_files"
-            echo "review=$review"
+            echo "review=true"
           } >> "$GITHUB_OUTPUT"
-          if [[ "$review" == "true" ]]; then
-            echo "::notice::Reviewing PR #${PR_NUMBER} at frozen head commit ${head_sha} (base ${base_sha})"
-          fi
+          echo "::notice::Reviewing PR #${PR_NUMBER} at frozen head commit ${head_sha} (base ${base_sha})"
 
       - name: Fetch Trusted Base Tree (data only)
         if: steps.permission.outputs.trusted == 'true' && steps.revisions.outputs.review == 'true'

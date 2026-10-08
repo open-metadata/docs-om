@@ -130,6 +130,59 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(len(result.stdout.splitlines()), 401)
 
+    def _run_runner(self, diff_text, env_extra):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = root / "context"
+            context.mkdir()
+            captures = root / "captures"
+            captures.mkdir()
+            (context / "pr-diff.patch").write_text(diff_text)
+            (context / "pr-review-discussion.json").write_text(json.dumps({"title": "T", "body": "B"}))
+            cli = root / "claude"
+            cli.write_text(
+                "#!" + sys.executable + "\n"
+                "import json, os, pathlib, sys\n"
+                "text = sys.stdin.read()\n"
+                "pathlib.Path(os.environ['CAPTURES'], str(os.getpid()) + '.txt').write_text(text)\n"
+                "print(json.dumps({'result': '### Review Report\\n**Findings**: `Critical=0 Major=0 Minor=0`\\n', 'is_error': False, 'num_turns': 1, 'duration_ms': 1}))\n"
+            )
+            cli.chmod(0o755)
+            output = root / "report.md"
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"],
+                       CAPTURES=str(captures), CONTEXT_DIR=str(context),
+                       POLICY_DIR=str(SCRIPTS.parent.parent / ".ai/doc-review"),
+                       GITHUB_REPOSITORY="example/docs", PR_NUMBER="1",
+                       BASE_SHA="a" * 40, HEAD_SHA="b" * 40, RUN_URL="https://example.com/run",
+                       REVIEW_REUSE="0", REVIEW_INCREMENTAL="0", REVIEW_POST="0",
+                       REVIEW_OUT=str(output), REVIEW_DISCUSSION="0", REVIEW_DEDUP="1",
+                       REVIEW_INLINE_MAX="300000", REVIEW_CHUNK_MAX="1500",
+                       CLAUDE_CONFIG_DIR_OVERRIDE="inherit")
+            env.update(env_extra)
+            subprocess.run(["bash", str(SCRIPTS / "doc-review-run.sh")], cwd=root, env=env,
+                           check=True, capture_output=True, text=True)
+            return output.read_text(), len(list(captures.iterdir()))
+
+    def test_oversize_diff_skipped_after_compaction(self):
+        # 60 distinct pages: over the 50-file limit, skipped without a model
+        # call, but visibly (a SKIPPED comment carrying a passing Findings line).
+        many = "".join(patch(f"d/{i:03d}.mdx", "x " * 5) for i in range(60))
+        report, prompts = self._run_runner(many, {"REVIEW_MAX_FILES": "50"})
+        self.assertIn("SKIPPED", report)
+        self.assertIn("skipped: 60 files > 50", report)
+        self.assertIn("Critical=0 Major=0 Minor=0", report)
+        self.assertEqual(prompts, 0)
+
+    def test_version_copies_collapse_under_limit(self):
+        # 20 pages x 3 version trees = 60 raw files, but identical copies
+        # collapse to 20 after compaction: under the limit, so the review runs.
+        dup = "".join(patch(f"{v}/p{i:02d}.mdx", "x " * 5)
+                      for i in range(20)
+                      for v in ("v1.13.x", "v2.0.x", "v2.1.x-SNAPSHOT"))
+        report, prompts = self._run_runner(dup, {"REVIEW_MAX_FILES": "50"})
+        self.assertNotIn("SKIPPED", report)
+        self.assertGreater(prompts, 0)
+
     def check_gate(self, workflow):
         # Extract the actual last workflow step; do not duplicate its logic.
         source = (SCRIPTS.parent / "workflows" / workflow).read_text()

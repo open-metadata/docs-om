@@ -339,6 +339,37 @@ else
     fi
     echo "Diff input bytes: $before original, $after compacted"
   fi
+  # Size gate, measured after compaction: count the distinct changed files
+  # left once identical version copies are collapsed. Over the limit, skip
+  # the model call -- but visibly, with a posted comment and a step-summary
+  # line, not a silent green check. REVIEW_MAX_FILES overrides the default.
+  changed_after_compaction=$(grep -cE '^diff --git ' "${CTX[0]}" || true)
+  if [ "${changed_after_compaction:-0}" -gt "${REVIEW_MAX_FILES:-50}" ]; then
+    {
+      echo "### Review Report"
+      echo
+      echo "**Content type:** Documentation"
+      echo "**Overall verdict:** SKIPPED"
+      echo "**Reason**: ${changed_after_compaction} changed files (after collapsing identical version copies) exceed the ${REVIEW_MAX_FILES:-50}-file limit; automated review skipped."
+      echo
+      echo "**Reviewed revision**: ${HEAD_SHA:0:7}"
+      echo
+      echo "**Findings**: \`Critical=0 Major=0 Minor=0\`"
+      echo
+      echo "<!-- doc-review-footer -->"
+      echo "<sub>[View job](${RUN_URL}) · skipped: ${changed_after_compaction} files > ${REVIEW_MAX_FILES:-50}</sub>"
+      echo "$marker"
+      echo "$state"
+    } > "$WORK/comment.md"
+    if [ "${REVIEW_POST:-1}" = "1" ]; then
+      gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -F body=@"$WORK/comment.md" --jq .html_url
+    else
+      cp "$WORK/comment.md" "${REVIEW_OUT:-./review-comment.md}"
+    fi
+    echo "Review: skipped ($changed_after_compaction files > ${REVIEW_MAX_FILES:-50})"
+    [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "### Review skipped: ${changed_after_compaction} changed files (after compaction) > ${REVIEW_MAX_FILES:-50}" >> "$GITHUB_STEP_SUMMARY"
+    exit 0
+  fi
   # The context goes inline, each file fenced by a per-run nonce that the
   # untrusted content cannot know, so it cannot fake its own end marker.
   nonce=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
