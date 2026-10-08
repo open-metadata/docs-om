@@ -1,0 +1,45 @@
+---
+title: NATS JetStream Connector Troubleshooting Guide | OpenMetadata Support
+description: Troubleshoot NATS JetStream ingestion errors including JetStream access, authentication, TLS, and schema KV bucket problems.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## NATS JetStream-Specific Issues
+
+The following issues are specific to the NATS JetStream connector.
+
+### JetStream API Error When Listing Streams
+
+The connector reads metadata from the JetStream management subjects (for example `$JS.API.STREAM.LIST`). If the connection fails or the GetTopics test step errors:
+
+- Confirm JetStream is enabled on the NATS server. The connector only ingests JetStream streams. A core NATS server without JetStream has nothing to list.
+- Confirm the credentials are permitted to publish to and receive replies from the `$JS.API.>` subjects. Restrictive NATS permissions can block the management API even when the connection itself succeeds.
+
+### Authentication Failures
+
+Provide exactly one authentication type, matching your server configuration:
+
+- Choose one of **Username and Password**, **Token**, or **NKey Seed**.
+- Leave all authentication fields empty only if the server allows anonymous access.
+- For **NKey Seed**, supply the account *seed* (the private key beginning with `S`), not the public NKey.
+
+### Transport Layer Security (TLS) and mutual TLS (mTLS) Errors
+
+- When using mutual TLS, both the **SSL Certificate** and **SSL Key** must be provided together. Supplying only one results in the error *"Both the TLS client certificate and key must be configured together."*
+- Provide the **CA Certificate** when the server uses a certificate that isn't signed by a publicly trusted authority, so OpenMetadata can validate the server.
+
+### Schema KV Bucket Unavailable
+
+The CheckSchemaKvBucket test step and schema ingestion require a reachable JetStream key-value (KV) bucket:
+
+- Set **Schema KV Bucket** to the exact bucket name. The connector reads the backing KV stream (`KV_<bucket>`), so the credentials must be able to access those subjects.
+- Store one entry per stream, keyed by the stream (topic) name, with the schema text (Avro JSON, Protobuf, or JSON Schema) as the value.
+- Streams without a matching key in the bucket are still ingested, just without a schema.
+
+### Reserved Additional Config Keys
+
+**Additional NATS Config** can't override connection-managed keys. The following keys are reserved: `servers`, `user`, `password`, `token`, `nkeys_seed`, `nkeys_seed_str`, `tls`, `user_credentials`, `signature_cb`, and `user_jwt_cb`. Setting any of these raises a "reserved connection options" error. Configure servers, authentication, and TLS through their dedicated fields instead.
