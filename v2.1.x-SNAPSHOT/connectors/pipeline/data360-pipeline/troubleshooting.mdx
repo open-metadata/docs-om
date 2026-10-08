@@ -1,0 +1,39 @@
+---
+title: Salesforce Data 360 Pipeline Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common Salesforce Data 360 pipeline connector issues in OpenMetadata, including connected app authentication, lineage resolution, and run status.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Salesforce Data 360-Specific Issues
+
+The following issues are specific to the Salesforce Data 360 pipeline connector.
+
+### Connection Test Fails on "CheckAccess" or Authentication
+
+OpenMetadata authenticates with the Consumer Key and Consumer Secret from your Salesforce connected app using the OAuth 2.0 client credentials flow. If the connection test fails before listing any data:
+
+- Confirm you copied the Consumer Key and Consumer Secret correctly and haven't rotated them in Salesforce.
+- Confirm the connected app has the client credentials flow and the **Manage Data Cloud** and **Access Data Cloud APIs** scopes enabled.
+- Check the **Salesforce Domain** value. Use `login` for production, `test` for a sandbox, or your My Domain subdomain for a custom domain.
+
+### Pipelines Are Ingested but No Lineage Appears
+
+Lineage links each pipeline to the tables it reads from and writes to, which requires the Data 360 tables to already exist in OpenMetadata.
+
+- Confirm that you created and deployed a separate **Lineage Agent**. The Metadata agent doesn't ingest lineage.
+- Ingest metadata from Salesforce Data 360 with the database connector first, then set **Data 360 Database Service Name** to that service.
+- Add a **Service Mapping** entry for Data Streams that pull from systems outside Data 360. Map each upstream connector or data source name to the OpenMetadata service that holds it, for example `{"S3_Connector": "my-s3-service"}`.
+- Enable **Include Bulk Lineage** to ingest Data Lake Object-to-Data Model Object lineage.
+
+### A Pipeline Is Missing or Has No Run Status
+
+If a pipeline doesn't appear in OpenMetadata or shows no run status, check the following:
+
+- Confirm that you created and deployed a separate **Usage Agent**. The Metadata agent doesn't ingest Pipeline Status.
+- Check that the object has an `ACTIVE` status. OpenMetadata filters out Data Streams, Calculated Insights, and Data Transforms in any other state and reports them in the ingestion logs.
+- Check that Data 360 returns both a start and end timestamp for the run. OpenMetadata skips runs without a usable time window and logs them as warnings.
+- Set **Status Lookback Days** to include the run. OpenMetadata doesn't ingest runs outside this window.
