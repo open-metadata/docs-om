@@ -225,13 +225,13 @@ helm repo update
 
 ### Step 3: Deploy Fuseki
 
-Prepare a values file that enables only Fuseki. The `resources`, `jvmArgs`, and `persistence` values below are the chart's production defaults -- scale them to your catalog size.
+Prepare a values file that enables only Fuseki. Use the `openmetadata-dependencies` chart **2.0.3 or later** (run `helm repo update` first). From 2.0.3 the chart defaults to the OpenMetadata Fuseki image and injects the environment that creates the datasets, enables the union default graph, and turns on the OpenMetadata extension. The `resources`, `heap`, and `persistence` values below match the chart's defaults (16Gi memory, `heap: "8g"`) -- scale them to your catalog size.
 
 <Warning>
 
-Point the values file at the OpenMetadata Fuseki image, not stock Apache Jena Fuseki. The published `openmetadata/fuseki:6.2.0` image ships the `openmetadata` dataset with `tdb2:unionDefaultGraph true` already set. It also advertises the timeout and upload-size guarantees OpenMetadata relies on at scale. The image is published for amd64 and arm64. The Helm chart's default image is stock Apache Jena Fuseki, so set the image explicitly, as the values file below does.
+On chart 2.0.3 and later, the chart does this setup, not the image. The `openmetadata-dependencies` chart already uses the OpenMetadata Fuseki image (`openmetadata/fuseki:6.2.0`, published for amd64 and arm64) by default. It passes the environment that creates the `openmetadata`, `openmetadata_a`, and `openmetadata_b` datasets, sets `FUSEKI_UNION_DEFAULT_GRAPH=true` and `OPENMETADATA_EXTENSION_ENABLED=true`, and runs the pod with `fsGroup: 1000`. The `image:` block in the values file below is an explicit pin, not a requirement: on 2.0.3 and later it matches the default.
 
-A stock `apache-jena-fuseki` image also works, but only if its `openmetadata` dataset has `tdb2:unionDefaultGraph true`. Datasets created through Fuseki's admin API have that setting off. Indexing fails its readiness check without it, so you must enable it yourself. Without the OpenMetadata image's extension, the timeout and upload-size guarantees are also absent. Indexing still runs, but it falls back to the client's own timeouts and upload budget.
+Charts before 2.0.3 default to stock Apache Jena Fuseki (`daschswiss/apache-jena-fuseki`) and pass only `JVM_ARGS` and `ADMIN_PASSWORD`, with no `securityContext`. On those versions no `openmetadata` dataset is created and the pod can crash-loop with `/fuseki is not writable`. Upgrade the chart to 2.0.3 or later rather than overriding the image.
 
 </Warning>
 
@@ -247,18 +247,18 @@ airflow:
 fuseki:
   enabled: true
   image:
-    # Must be the OpenMetadata Fuseki image, never stock Apache Jena Fuseki.
+    # Explicit pin of the OpenMetadata Fuseki image (already the chart 2.0.3+ default).
     # See the warning above.
     repository: openmetadata/fuseki
     tag: "6.2.0"
   resources:
     requests:
       cpu: "1500m"
-      memory: "10Gi"
+      memory: "16Gi"
     limits:
       cpu: "2500m"
-      memory: "12Gi"
-  jvmArgs: "-Xmx8g -Xms8g"
+      memory: "16Gi"
+  heap: "8g"   # sets -Xms/-Xmx; set jvmArgs only to override the heap entirely
   persistence:
     enabled: true
     size: 100Gi
@@ -284,10 +284,13 @@ kubectl get pods -n <namespace> -l app=fuseki
 kubectl logs -n <namespace> deploy/fuseki
 ```
 
-You don't need to create the Fuseki dataset yourself. The OpenMetadata Fuseki image ships with a configuration that
-creates the `openmetadata` dataset with `tdb2:unionDefaultGraph true` set when Fuseki first starts. Don't create the
-dataset by hand through Fuseki's admin API. Datasets created that way have `unionDefaultGraph` off and will fail the
-server's readiness check.
+You don't need to create the Fuseki datasets yourself. On chart 2.0.3 and later, the chart sets `FUSEKI_DATASETS` to
+`openmetadata,openmetadata_a,openmetadata_b` and `FUSEKI_UNION_DEFAULT_GRAPH=true`, so the image creates all three
+datasets with the union default graph enabled on first start. The `_a` and `_b` datasets back the blue/green reindex,
+so all three must exist. Don't create datasets by hand through Fuseki's admin API: datasets created that way have
+`unionDefaultGraph` off and fail the server's readiness check. If you deploy Fuseki without the chart, set
+`FUSEKI_DATASETS`, `FUSEKI_UNION_DEFAULT_GRAPH=true`, `OPENMETADATA_EXTENSION_ENABLED=true`, and `fsGroup: 1000`
+yourself.
 
 ### Step 4: Point OpenMetadata at Fuseki
 
@@ -384,20 +387,25 @@ reachable yet when the server started.
 
 ### Indexing Fails With 405 or a Read-Only Graph Store
 
-This means Fuseki is a stock `apache-jena-fuseki` image rather than the OpenMetadata Fuseki image. Symptoms include a
+Usually the dataset is served read-only, or Fuseki is a stock `apache-jena-fuseki` image. Symptoms include a
 `405 Method Not Allowed` on RDF writes, a read-only Graph Store readiness error, or a missing `tdb2:unionDefaultGraph`
-setting. The Helm chart doesn't build the required image, so a stock image is the usual cause.
+setting. On chart 2.0.3 and later the OpenMetadata image is the default, so a 405 or read-only store usually points to
+a dataset that isn't served read-write rather than to a stock image.
 
-To confirm what image you're running, send an `OPTIONS` request to the dataset's data endpoint from inside the cluster:
+To inspect the dataset, send an `OPTIONS` request to its data endpoint. The server image has no `curl`, so port-forward
+the Fuseki service and run `curl` from your own machine:
 
 ```bash
-kubectl exec -n <namespace> deploy/openmetadata -- \
-  curl -is -X OPTIONS -u "admin:<password>" "http://fuseki:3030/openmetadata/data"
+kubectl port-forward -n <namespace> svc/fuseki 3030:3030
+# then, from your machine:
+curl -is -X OPTIONS -u "admin:<password>" "http://localhost:3030/openmetadata/data"
 ```
 
-The OpenMetadata Fuseki image returns `Allow: GET,HEAD,OPTIONS,PUT,POST` along with several `X-OpenMetadata-*` headers.
-A stock image returns neither. Fix it by deploying the OpenMetadata Fuseki image, then re-run the index. For more
-information, see [Step 3: Deploy Fuseki](#step-3-deploy-fuseki).
+The `X-OpenMetadata-*` headers (such as `X-OpenMetadata-Union-Default-Graph`) mean the OpenMetadata extension is active.
+An `Allow` header without `POST` means the Graph Store is read-only, so indexing writes fail. Stock Fuseki still returns
+an `Allow` header, so it's the absence of the `X-OpenMetadata-*` headers, not the `Allow` header itself, that marks a
+stock image. Fix a read-only store by serving the dataset read-write. Fix a stock image by upgrading to chart 2.0.3 or
+later. Then re-run the index. For more information, see [Step 3: Deploy Fuseki](#step-3-deploy-fuseki).
 
 ### Another RDF reindex job is already active
 
