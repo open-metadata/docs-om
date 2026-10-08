@@ -25,7 +25,7 @@ Review only changed user-facing content. Report only rules below, group repeated
 ## Category 4: Mechanics
 
 - [ ] **Meaning is unambiguous** (Minor) — Keep sentence structure unambiguous; apply the explicit mechanics rules below.
-- [ ] **No typos** (Minor) — Flag misspelled prose words.
+- [ ] **No typos** (Critical) — Flag misspelled prose words.
 - [ ] **Oxford comma** (Minor) — Use a comma before the final conjunction in a list.
 - [ ] **Correct apostrophes and clauses** (Minor) — Avoid apostrophes in plurals and comma splices; use correct possessives.
 - [ ] **Sentence punctuation** (Minor) — End sentences with periods, use one space afterward, and punctuate introductory clauses.
@@ -35,8 +35,9 @@ Review only changed user-facing content. Report only rules below, group repeated
 ## Category 5: Names & Headings
 
 - [ ] **Official names are exact** (Major) — Preserve verified names and capitalization; spell “OpenMetadata” correctly.
-- [ ] **Title-case headings** (Major) — Capitalize major words in headings.
-- [ ] **Heading introductions** (Minor) — Use descriptive, parallel headings without trailing periods; add body text before another heading or code block.
+- [ ] **Title-case headings** (Critical) — Capitalize major words in headings.
+- [ ] **No periods in headings** (Critical) — Do not end headings with periods; question marks are acceptable.
+- [ ] **Heading introductions** (Minor) — Use descriptive, parallel headings; add body text before another heading or code block.
 - [ ] **Capitalization** (Minor) — Start list items with capitals; preserve proper names without capitalizing generic technical terms.
 - [ ] **Acronym capitalization** (Minor) — Use official uppercase forms, such as API.
 
@@ -53,13 +54,13 @@ Review only changed user-facing content. Report only rules below, group repeated
 - [ ] **Tasks are executable** (Major) — Put prerequisites first and keep steps complete, correctly ordered, and technically possible.
 - [ ] **Procedure structure is clear** (Major) — Number sequential steps; use parallel bullets for options or reference information.
 - [ ] **Risks are explicit** (Critical) — Warn about data loss, security exposure, downtime, or irreversible actions.
-- [ ] **Optional step** (Minor) — Label optional steps “(Optional)” or “Optional:”; keep the form consistent within a procedure.
+- [ ] **Optional step** (Major) — Label optional steps “(Optional)” or “Optional:”; keep the form consistent within a procedure.
 - [ ] **Step orientation** (Minor) — State the location first; use goal-first phrasing when natural.
 - [ ] **List shape** (Minor) — Introduce lists, prefer 2–10 items or grouped lists, and use periods for complete sentences.
 - [ ] **Bold before colon** (Major) — Write “**Example**:” rather than “**Example:**”.
 - [ ] **Bold and underline** (Minor) — Reserve bold for first-use terms, UI names, and critical warnings; underline only hyperlinks.
 - [ ] **Callouts fit their purpose** (Major) — Use Note for nonessential information, Warning for irreversible risk, and Tip for optional help.
-- [ ] **Navigation separators** (Major) — Write “**Settings** > **Database**”, with each segment bold; do not use arrows.
+- [ ] **Navigation separators** (Critical) — Write “**Settings** > **Database**”, with each segment bold; do not use arrows.
 
 ## Category 8: Inclusive Language
 

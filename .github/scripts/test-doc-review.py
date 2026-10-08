@@ -177,6 +177,21 @@ class ReviewTests(unittest.TestCase):
     def test_manual_gate_thresholds(self):
         self.check_gate("doc-review.yml")
 
+    def test_checklist_severities_are_locked(self):
+        # Severity drift between this repo and docs-collate lets the same
+        # mistake FAIL in one and PASS in the other. Lock the severities that
+        # are easiest to misgrade (kept in step with docs-collate #719).
+        policy = (SCRIPTS.parent.parent / ".ai/doc-review/references/checklist.md").read_text()
+        for entry in (
+            "**No typos** (Critical)",
+            "**Title-case headings** (Critical)",
+            "**No periods in headings** (Critical)",
+            "**Optional step** (Major)",
+            "**Navigation separators** (Critical)",
+            "**Use OpenMetadata branding** (Critical)",
+        ):
+            self.assertIn(entry, policy)
+
 
 if __name__ == "__main__":
     unittest.main()
