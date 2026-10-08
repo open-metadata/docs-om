@@ -10,6 +10,13 @@
 #        GITHUB_STEP_SUMMARY (optional).
 set -euo pipefail
 
+# Self-check: a comment line right after a `\` continuation silently ends
+# the command (that once printed the environment and dropped this script's
+# session settings). Refuse to run if one is ever reintroduced.
+if ! awk 'prev ~ /\\$/ && $0 ~ /^[[:space:]]*#/ { bad = 1 } { prev = $0 } END { exit bad }' "${BASH_SOURCE[0]}"; then
+  echo "::error::${BASH_SOURCE[0]} has a comment line after a backslash continuation; fix the script."; exit 1
+fi
+
 NOTE="${1:?mode note}"
 OUT="${OUT:?OUT is required}"
 MAX_TURNS="${MAX_TURNS:-30}"
