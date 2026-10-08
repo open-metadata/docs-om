@@ -19,6 +19,13 @@
 #        GITHUB_STEP_SUMMARY (optional).
 set -euo pipefail
 
+# Self-check: a comment line right after a `\` continuation silently ends
+# the command (that once printed the environment and dropped this script's
+# session settings). Refuse to run if one is ever reintroduced.
+if ! awk 'prev ~ /\\$/ && $0 ~ /^[[:space:]]*#/ { bad = 1 } { prev = $0 } END { exit bad }' "${BASH_SOURCE[0]}"; then
+  echo "::error::${BASH_SOURCE[0]} has a comment line after a backslash continuation; fix the script."; exit 1
+fi
+
 CTX="${CTX:?CTX is required}"
 HANDOFF="${HANDOFF:?HANDOFF is required}"
 ISSUE_NUMBER="${ISSUE_NUMBER:?ISSUE_NUMBER is required}"
@@ -77,14 +84,20 @@ Context file: ${CTX}/context.md
 Read it and every diff view it lists, in parallel, in your first turn."
 
 status=0
-CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 \
-CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS=1 CLAUDE_CODE_PROMPT_CACHE_TTL=5m \
-CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-# Fresh, empty config dir: no user or project settings, hooks, env
-# or MCP servers from the checkout can load (auth is the env token).
-# (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller\'s login.)
-[ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || export CLAUDE_CONFIG_DIR="$(mktemp -d)"
-claude -p --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
+# The model's environment, as an array so no line break or comment can drop
+# a setting (an earlier inline `VAR=1 \` chain was cut short by a comment,
+# so none of these reached the session): no GitHub token, no CLAUDE.md
+# auto-load (it is appended above as text), memory, or subagents, a
+# five-minute cache, and a fresh empty config dir, so no user or project
+# settings, hooks, env, or MCP servers from the checkout can load (auth is
+# the env token).
+cenv=(-u GH_TOKEN -u GITHUB_TOKEN
+  CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+  CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS=1 CLAUDE_CODE_PROMPT_CACHE_TTL=5m
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1)
+# (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller's login.)
+[ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || cenv+=("CLAUDE_CONFIG_DIR=$(mktemp -d)")
+env "${cenv[@]}" claude -p --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
   --system-prompt-file "$WORK/system.md" \
   --add-dir "$CTX" \
   --tools Read,Grep,Edit,Write --allowedTools "${ALLOW[@]}" \
