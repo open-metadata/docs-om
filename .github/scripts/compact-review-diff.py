@@ -57,4 +57,8 @@ def compact(text):
 
 
 if __name__ == "__main__":
-    sys.stdout.write(compact(sys.stdin.read()))
+    # Decode permissively: a diff can carry non-UTF-8 bytes (latin-1 source,
+    # binary hunks), and a strict read would crash the whole review. Round-trip
+    # the undecodable bytes unchanged through surrogateescape on the way out.
+    text = sys.stdin.buffer.read().decode("utf-8", errors="surrogateescape")
+    sys.stdout.buffer.write(compact(text).encode("utf-8", errors="surrogateescape"))
