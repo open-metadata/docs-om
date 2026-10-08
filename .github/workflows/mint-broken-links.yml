@@ -3,58 +3,21 @@ name: Mint Broken Links
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  # Pull request runs can only restore caches saved from the base branch, so
-  # these events keep the pinned Mint CLI cached on main. They never run the
-  # link check itself.
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/mint-broken-links.yml
-  schedule:
-    - cron: "0 5 * * 1" # Mondays: refresh before the 7-day cache eviction
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mint-broken-links-${{ github.event.pull_request.number || github.ref }}
+  group: mint-broken-links-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
+  # Keep in sync with mint-cli-cache.yml, which caches this version on main.
   MINT_VERSION: 4.2.797
 
 jobs:
-  warm-mint-cache:
-    name: Cache Mint CLI
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 22
-
-      - name: Restore Mint CLI
-        id: mint-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/mint-cli
-          key: mint-cli-${{ runner.os }}-node22-${{ env.MINT_VERSION }}
-
-      - name: Install Mint CLI
-        if: steps.mint-cache.outputs.cache-hit != 'true'
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
-          MINT_CLI_DIR: ${{ runner.temp }}/mint-cli
-        run: |
-          npm install --no-save --package-lock=false --prefix "$MINT_CLI_DIR" \
-            "mint@${MINT_VERSION}"
-
   broken-links:
     name: Check Documentation Links
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -109,10 +72,12 @@ jobs:
             echo "No documentation or configuration files changed."
           fi
 
+      # Restore only: pull request runs never write the cache, so content
+      # from a pull request can't reach the cache that main saves.
       - name: Restore Mint CLI
         id: mint-cache
         if: steps.changed.outputs.has_files == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/mint-cli
           key: mint-cli-${{ runner.os }}-node22-${{ env.MINT_VERSION }}
