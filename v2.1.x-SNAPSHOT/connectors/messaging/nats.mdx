@@ -1,0 +1,163 @@
+---
+title: NATS JetStream Connector | OpenMetadata Messaging Services
+description: Connect OpenMetadata to NATS JetStream with the messaging connector. Ingest stream metadata as topics, sample messages, and extract schemas from JetStream KV buckets.
+sidebarTitle: Overview
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentMessaging from '/snippets/connectors/metadata-agent/messaging.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/nats.png'
+name="NATS JetStream"
+stage="BETA"
+availableFeatures={["Topics", "Sample Data"]}
+unavailableFeatures={[]} />
+This section covers how to use the NATS JetStream connector.
+
+The connector ingests NATS JetStream **streams** as OpenMetadata **topics**. For each stream, the connector collects its state and configuration. The configuration includes subjects, storage type, retention policy, replication factor, and limits on message count and size. The connector can optionally fetch a sample of recent messages and read each stream's schema from a JetStream key-value (KV) bucket.
+
+Configure and schedule NATS JetStream metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/messaging/nats/troubleshooting)
+
+## Requirements
+
+The connector communicates with the NATS JetStream API, so JetStream must be enabled on your NATS server. The connector reads metadata from the JetStream management subjects (for example `$JS.API.STREAM.LIST`), so the credentials you supply must be allowed to publish to and receive replies from the `$JS.API.>` subjects.
+
+If you want schema ingestion, store your schemas in a JetStream **KV bucket** and configure the bucket with **Schema KV Bucket**. To read them, the credentials must also be able to access the underlying KV stream subjects.
+
+The only mandatory connection field is **NATS Servers**. All authentication fields are optional. Leaving them empty connects anonymously.
+
+### Supported Authentication Types
+
+NATS JetStream supports several ways to authenticate. Choose the one that matches your server configuration:
+
+- **Anonymous**: No credentials. Leave the authentication fields empty. Use this when your NATS server allows unauthenticated access.
+- **Username and Password**: Basic authentication with a NATS user and password.
+- **Token**: A single shared authentication token.
+- **NKey Seed**: NKey-based authentication using the account's seed (the private key that begins with `S`).
+
+Any of the above can be combined with **Transport Layer Security (TLS)** for an encrypted connection. Configure TLS separately with **TLS Configuration**. Use mutual TLS (mTLS) by supplying a client certificate and key.
+
+## Metadata Ingestion
+
+To ingest metadata from NATS JetStream, you need to create a service connection. The service connects NATS JetStream with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Messaging Services**, then click the **Nats** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Messaging/select-service/nats.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other NATS JetStream services you're ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Messaging/service-name/nats.png)
+
+<Note>
+The service name can't be changed after it's set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection. The UI displays inline help for each field in the help panel.
+
+#### Enter Connection Details
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Messaging/connection-details/nats.png)
+
+- **NATS Servers**: NATS server URLs as comma-separated values. Each entry uses the `nats://host:port` form (the default NATS port is `4222`). Example: `nats://host1:4222,nats://host2:4222`. This is the only required field.
+- **Authentication Type**: The method used to authenticate to NATS. Leave empty for anonymous access, or choose one of the following:
+    - **Username and Password**: Provide a **Username** and **Password** for basic authentication.
+    - **Token**: Provide a single **Token** for token-based authentication.
+    - **NKey Seed**: Provide an **NKey Seed** (the private key seed beginning with `S`) for NKey authentication.
+- **TLS Configuration** *(Optional)*: TLS/SSL configuration for secure connections. Provide the **CA Certificate** used to validate the server. For mutual TLS, also provide the **SSL Certificate** (client certificate) and **SSL Key** (the private key for that certificate). Both must be supplied together. For more information, see [TLS Configuration](#tls-configuration).
+- **Schema KV Bucket** *(Optional)*: Name of the JetStream KV bucket where schemas are stored. Keys must match stream names and values should be Avro JSON, Protobuf (`.proto`), or JSON Schema text. For more information, see [Schema KV Bucket](#schema-kv-bucket).
+- **Additional NATS Config** *(Optional)*: Additional NATS client configuration options passed through to the client. See the [NATS Python client documentation](https://nats-io.github.io/nats.py/). The following connection-managed keys are reserved and can't be set here: `servers`, `user`, `password`, `token`, `nkeys_seed`, `nkeys_seed_str`, `tls`, `user_credentials`, `signature_cb`, and `user_jwt_cb`.
+
+#### Test Connection
+
+After you add the credentials, click **Test Connection**, then click **Save**.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+The test runs two checks:
+
+- **GetTopics**: Lists JetStream streams to confirm the connection and JetStream access.
+- **CheckSchemaKvBucket**: Confirms the configured Schema KV bucket is reachable. This check is optional. When no **Schema KV Bucket** is set, it reports a failure that you can ignore; the overall test still passes.
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, configure filter rules for the topics (JetStream streams) OpenMetadata ingests.
+
+#### How Filter Rules Work
+
+Each rule matches topic names using one of five match types:
+
+- **Contains**: Matches any name containing the value. For example, `orders` matches `prod_orders` and `orders_2024`.
+- **Starts with**: Matches names beginning with the value. For example, `prod_` matches `prod_orders` and `prod_events`.
+- **Ends with**: Matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **Is exactly**: Matches the exact name only. For example, `orders` matches only `orders`.
+- **Matches regex**: Matches names using a regular expression. For example, `^orders_.*_v\d+$` matches `orders_eu_v1`.
+
+When include and exclusion rules both match a topic, the exclusion rule takes priority.
+
+<Tip>
+Leave all filter rules empty to ingest all topics available in the source.
+</Tip>
+
+#### Filter Options
+
+The **Topic** section controls which NATS JetStream streams OpenMetadata ingests. It provides the following controls:
+
+- **Scan Mode**: Choose one of the following scan modes:
+    - **Scan all**: Ingests every topic the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only topics matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Topics matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules**: In **Only specific** mode, click **+ Add** to define a rule. Added rules appear as chips. OpenMetadata includes a topic if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentMessaging />
+
+## TLS Configuration
+
+To establish secure connections between OpenMetadata and NATS, configure the **TLS Configuration** option. Provide the **CA Certificate** used to validate the NATS server's certificate.
+
+If your server requires mutual TLS (mTLS), also provide the **SSL Certificate** (the client certificate) and the **SSL Key** (the private key associated with that certificate). The client certificate and key must always be supplied together. Configuring only one of them results in a connection error.
+
+## Schema KV Bucket
+
+NATS JetStream doesn't have a built-in schema registry. To ingest topic schemas, store them in a JetStream **KV bucket** and set the **Schema KV Bucket** option to that bucket's name.
+
+- Each key in the bucket must match a stream (topic) name.
+- Each value should be schema text in Avro JSON, Protobuf (`.proto`), or JSON Schema format.
+
+During ingestion, OpenMetadata looks up the latest value for each stream name in the bucket. It then detects the schema type, parses the fields, and attaches the schema to the corresponding topic. Streams without a matching key in the bucket are still ingested, just without a schema.
+
+## Sample Data
+
+When **Generate Sample Data** is enabled in the ingestion configuration, OpenMetadata fetches up to 10 messages from the last 100 sequences of each stream. The total sample is capped at 1 MB. Only UTF-8 text messages are included. Binary payloads are skipped. Sample data collection also respects the global sample-data storage setting. If sample data storage is disabled server-wide, no sample messages are collected.
+
+<Related />

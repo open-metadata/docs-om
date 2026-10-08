@@ -74,6 +74,7 @@ export const Integrations = () => {
                 { name: 'Kafka', image: '/public/images/connectors/kafka.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/kafka' },
                 { name: 'Redpanda', image: '/public/images/connectors/redpanda.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/redpanda' },
                 { name: 'Kinesis', image: '/public/images/connectors/kinesis.webp', link: '/v2.1.x-SNAPSHOT/connectors/messaging/kinesis' },
+                { name: 'NATS JetStream', image: '/public/images/connectors/nats.png', link: '/v2.1.x-SNAPSHOT/connectors/messaging/nats' },
                 { name: 'Pub/Sub', image: '/public/images/connectors/pubsub.svg', link: '/v2.1.x-SNAPSHOT/connectors/messaging/pubsub' },
             ],
         },
@@ -98,6 +99,7 @@ export const Integrations = () => {
                 { name: 'Qlik Sense', image: '/public/images/connectors/qlik-sense.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/qliksense' },
                 { name: 'QuickSight', image: '/public/images/connectors/quicksight.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/quicksight' },
                 { name: 'Domo Dashboard', image: '/public/images/connectors/domo.webp', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/domo-dashboard' },
+                { name: 'Rill', image: '/public/images/connectors/rill.svg', link: '/v2.1.x-SNAPSHOT/connectors/dashboard/rill' },
             ],
         },
         {
