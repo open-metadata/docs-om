@@ -1,0 +1,75 @@
+---
+title: Ingest Data Products from dbt | OpenMetadata Data Product Assignment Guide
+description: Assign dbt models to OpenMetadata Data Products by declaring them in the dbt meta field. Learn the schema.yml syntax, requirements, and error handling.
+slug: /connectors/database/dbt/ingest-dbt-data-products
+sidebarTitle: Ingest dbt Data Products
+---
+
+# Ingest Data Products from dbt
+
+Assign tables to Data Products from your dbt project. List the Data Products under `meta.openmetadata.dataProducts` in your dbt model. During dbt ingestion, OpenMetadata adds the table as an asset of each listed Data Product.
+
+A Data Product is a curated group of data assets that is managed and shared as a single unit. To learn more, see [Data Products](/v2.1.x-SNAPSHOT/how-to-guides/data-marketplace/data-products).
+
+## Requirements
+
+The Data Product must already exist in OpenMetadata before ingestion. OpenMetadata never creates Data Products from dbt. If a listed Data Product is not found, a warning is logged and ingestion continues.
+
+If the Data Product belongs to a Domain, the table's Domain must match it. Otherwise OpenMetadata rejects the assignment. To set the table's Domain from dbt, see [Ingest Domain from dbt](/v2.1.x-SNAPSHOT/connectors/database/dbt/ingest-dbt-domain).
+
+## Steps for ingesting dbt Data Products
+
+### 1. Create or Select a Data Product in OpenMetadata
+
+Create the Data Product in OpenMetadata, or use an existing one. Note its name.
+
+For more information, see [Add a Data Product](/v2.1.x-SNAPSHOT/how-to-guides/data-marketplace/data-products#add-a-data-product).
+
+### 2. Add Data Products in the schema.yml file
+
+Add a list of Data Product names under `model->name->meta->openmetadata->dataProducts` in your `schema.yml` file. A table can belong to more than one Data Product.
+
+For more details on the dbt meta field, see the [dbt documentation](https://docs.getdbt.com/reference/resource-configs/meta).
+
+```yml
+models:
+  - name: customers
+    meta:
+      openmetadata:
+        dataProducts:
+          - "Marketing"
+          - "Customer360"
+    description: This table has basic information about a customer, as well as some derived facts based on a customer's orders
+```
+
+After you add the Data Products, run your dbt workflow. The generated `manifest.json` file then reflects the assignment under `node_name->config->meta->openmetadata->dataProducts`.
+
+```json
+"model.jaffle_shop.customers": {
+  "resource_type": "model",
+  "database": "dev",
+  "schema": "dbt_jaffle",
+  "config": {
+    "meta": {
+      "openmetadata": {
+        "dataProducts": ["Marketing", "Customer360"]
+      }
+    }
+  }
+}
+```
+
+### 3. View the Data Products on tables
+
+After ingestion, the table appears in the **Assets** of each Data Product. It also shows the Data Products on its details page.
+
+<img src="/public/images/features/ingestion/workflows/dbt/dbt-features/dbt-data-products.png" alt="Data Products section on a table details page showing the Data Product assigned from dbt" />
+
+## Validation and Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Data Product not found in OpenMetadata | Warning logged, that Data Product is skipped, ingestion continues |
+| Assignment fails, for example because the table's Domain does not match the Data Product's Domain | Warning logged, that Data Product is skipped, ingestion continues |
+| `dataProducts` not set | No Data Product assignment |
+| Workflow re-run | No duplicates. A table already in the Data Product stays as it is |
