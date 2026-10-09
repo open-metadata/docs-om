@@ -1,0 +1,32 @@
+---
+title: Salesforce Data360 Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common Salesforce Data360 database connector issues in OpenMetadata, including connected app authentication and API access errors.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Salesforce Data360-Specific Issues
+
+The following issues are specific to the Salesforce Data360 database connector.
+
+### Connection Test Fails on "CheckAccess" or Authentication
+
+OpenMetadata authenticates with the Consumer Key and Consumer Secret from your Salesforce connected app using the OAuth 2.0 client credentials flow. If the connection test fails before listing any data:
+
+- Confirm the Consumer Key and Consumer Secret were copied correctly and haven't been rotated in Salesforce.
+- Confirm the connected app has the client credentials flow enabled and is granted the Data360 (Data Cloud) API scopes.
+- Check the **Salesforce Domain** value. Use `login` for production, `test` for a sandbox, or your My Domain subdomain for a custom domain. A wrong domain sends the login request to the wrong Salesforce URL.
+
+### Connection Test Passes but No Data Spaces or Tables Are Ingested
+
+The connection test lists the data spaces and the objects in the first one. If the test passes but ingestion returns nothing:
+
+- Confirm the integration user the connected app runs as can see the data spaces and their Data Lake Objects, Data Model Objects, and Calculated Insights.
+- Check your database, schema, and table filter patterns. An overly broad exclude pattern can filter out everything.
+
+### Some Tables Are Missing After a Run
+
+If a Data360 API call fails while listing the objects in a schema, OpenMetadata skips deletion reconciliation for that schema so a transient failure isn't mistaken for every object being removed. The missing objects are reported as warnings in the ingestion logs. Re-run the ingestion once the API is reachable again, and review the logs for the specific error.

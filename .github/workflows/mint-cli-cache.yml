@@ -1,0 +1,48 @@
+name: Mint CLI Cache
+
+# Pull request runs can only restore caches saved from the base branch, so
+# this keeps the pinned Mint CLI that mint-broken-links.yml uses cached on
+# main. It installs from npm only; it never checks out pull request code.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/mint-broken-links.yml
+      - .github/workflows/mint-cli-cache.yml
+  schedule:
+    - cron: "0 5 * * 1" # Mondays: refresh before the 7-day cache eviction
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with mint-broken-links.yml.
+  MINT_VERSION: 4.2.797
+
+jobs:
+  cache-mint-cli:
+    name: Cache Mint CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+
+      - name: Restore Mint CLI
+        id: mint-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mint-cli
+          key: mint-cli-${{ runner.os }}-node22-${{ env.MINT_VERSION }}
+
+      - name: Install Mint CLI
+        if: steps.mint-cache.outputs.cache-hit != 'true'
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+          MINT_CLI_DIR: ${{ runner.temp }}/mint-cli
+        run: |
+          npm install --no-save --package-lock=false --prefix "$MINT_CLI_DIR" \
+            "mint@${MINT_VERSION}"
