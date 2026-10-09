@@ -36,3 +36,27 @@ Below are the configuration types to set up the LDAP Authentication:
 </CardGroup>
 
 <ConfigureIngestion />
+
+## Troubleshooting
+
+This section covers common LDAP authentication problems and how to fix them.
+
+### Some Users Can't Log In With Error `data 52e`
+
+Some users log in normally, but others with correct passwords get "You have entered an invalid username or password." The server log shows:
+
+```text
+LdapAuthenticator - LDAP error during authentication: 80090308: LdapErr: DSID-0C090532,
+comment: AcceptSecurityContext error, data 52e
+```
+
+`data 52e` means the directory (for example, Active Directory) rejected the credentials in the bind. If the stack trace includes `validatePassword` or `performLdapBind`, the failing bind is the user's own login, not the lookup (admin) account.
+
+**Known issue in 2.0.x**: Passwords that contain non-ASCII characters (for example `ü`, `ç`, or `€`) are corrupted before they reach the LDAP server, so the directory rejects them ([#28694](https://github.com/open-metadata/OpenMetadata/issues/28694)). The fix is included in 2.1.0.
+
+To work around it on 2.0.x:
+
+- Don't change the LDAP admin (lookup) password. It isn't the cause.
+- Check whether the affected users have non-ASCII characters in their passwords. Until you upgrade to 2.1.0, they can use a password with only ASCII characters.
+- Compare the LDAP attributes (for example `mail` and `userPrincipalName`) of affected users who use only ASCII characters with those of a user who can log in.
+- Confirm those users are under the configured `userBaseDN`.
