@@ -43,6 +43,34 @@ The server associates the test case with the basic suite of the table in `entity
   Description of the test case in Markdown format.
 </ParamField>
 
+<ParamField body="displayName" type="string">
+  Human-readable display name for the test case.
+</ParamField>
+
+<ParamField body="reviewers" type="array">
+  Array of reviewer references (users or teams). Each item accepts the same fields as `owners`.
+</ParamField>
+
+<ParamField body="computePassedFailedRowCount" type="boolean">
+  Compute the passed and failed row count for the test case. Defaults to `false`.
+</ParamField>
+
+<ParamField body="useDynamicAssertion" type="boolean">
+  Use dynamic assertion to evaluate the test case, if the test definition supports it. Defaults to `false`.
+</ParamField>
+
+<ParamField body="dimensionColumns" type="array">
+  Names of the columns to group test results by. When set, the test runs overall and grouped by these columns. Defaults to `[]`.
+</ParamField>
+
+<ParamField body="topDimensions" type="integer">
+  Number of top dimension values to show before the rest are grouped as `Others`. Accepts 1 to 50. Defaults to 5.
+</ParamField>
+
+<ParamField body="dataQualityDimension" type="string">
+  Name of the data quality dimension for this test case. Defaults to the dimension of the test definition. Accepts a built-in dimension or any custom dimension registered in **Settings** > **Preferences** > **Data Quality**.
+</ParamField>
+
 <ParamField body="owners" type="array">
   Array of owner references (users or teams) to assign.
 
@@ -267,6 +295,39 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases" \
 `PUT` updates an existing entity instead of returning a `409` conflict error.
 
 ---
+
+## Custom SQL Test Cases
+
+A test case passes values to a SQL-based test definition through `parameterValues`. The server rejects any parameter that the test definition does not declare in `parameterDefinition`, and requires every parameter marked `required`.
+
+The built-in `tableCustomSQLQuery` test definition runs a SQL query against a table. It accepts these parameters:
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `sqlExpression` | Yes | SQL query to run against the table. |
+| `strategy` | No | `ROWS` runs the query as written. `COUNT` runs it as a `COUNT` query. Defaults to `ROWS`. |
+| `operator` | No | Comparison between the query result and `threshold`: `==`, `>`, `>=`, `<`, `<=`, or `!=`. |
+| `threshold` | No | Value to compare the result against. Defaults to `0`. |
+| `partitionExpression` | No | Partition expression used to compute the passed and failed row count when `computePassedFailedRowCount` is enabled. |
+| `thresholdUnit` | No | How to read `threshold`: `ABSOLUTE` for a raw count of failures, or `PERCENTAGE` for a share of the evaluated rows. Defaults to `ABSOLUTE`. |
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "orders_no_negative_amounts",
+    "testDefinition": "tableCustomSQLQuery",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.orders>",
+    "parameterValues": [
+      {"name": "sqlExpression", "value": "SELECT * FROM orders WHERE amount < 0"},
+      {"name": "strategy", "value": "ROWS"}
+    ],
+    "computePassedFailedRowCount": true
+  }'
+```
+
+For a custom test definition that uses `{{ paramName }}` placeholders, pass one `parameterValues` entry per placeholder. For more information, see [Create a Test Definition](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
 
 ## Error Handling
 
