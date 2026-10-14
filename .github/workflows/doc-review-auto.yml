@@ -337,10 +337,10 @@ jobs:
 
           body = pathlib.Path(sys.argv[1]).read_text()
           lines = body.splitlines()
-          if re.search(r'^\*\*Overall verdict:\*\*\s*SKIPPED\s*$', body, re.M):
+          if re.search(r'^\*\*Overall verdict(?::\*\*|\*\*:)\s*SKIPPED\s*$', body, re.M):
               print("Review skipped (size limit): report accepted without findings validation.")
               sys.exit(0)
-          verdicts = re.findall(r'^\*\*Overall verdict:\*\*\s*(PASS|NEEDS WORK|FAIL)\s*$', body, re.M)
+          verdicts = re.findall(r'^\*\*Overall verdict(?::\*\*|\*\*:)\s*(PASS|NEEDS WORK|FAIL)\s*$', body, re.M)
           if len(verdicts) != 1:
               fail("Review needs exactly one Overall verdict line")
 
@@ -454,7 +454,7 @@ jobs:
           # `|| true`: under pipefail, grep finding no match (expected while
           # the base policy predates the Findings line) would otherwise abort
           # the script before reaching the fallback below.
-          if grep -qE '^\*\*Overall verdict:\*\*[[:space:]]*SKIPPED[[:space:]]*$' <<< "$body"; then
+          if grep -qE '^\*\*Overall verdict(:\*\*|\*\*:)[[:space:]]*SKIPPED[[:space:]]*$' <<< "$body"; then
             echo "Review skipped (size limit) -- not blocking merge."
             exit 0
           fi
@@ -483,7 +483,7 @@ jobs:
           fi
 
           echo "::warning::Review comment has no **Findings** summary line -- the base branch's instructions.md predates that requirement. Falling back to the **Overall verdict** line."
-          verdict_line="$(grep -oE '\*\*Overall verdict:\*\*[[:space:]]*(PASS|NEEDS WORK|FAIL)' <<< "$body" | head -1 || true)"
+          verdict_line="$(grep -oE '\*\*Overall verdict(:\*\*|\*\*:)[[:space:]]*(PASS|NEEDS WORK|FAIL)' <<< "$body" | head -1 || true)"
           if [[ -z "$verdict_line" ]]; then
             echo "::error::Review comment has neither a **Findings** line nor a parseable **Overall verdict** line -- cannot determine findings."
             exit 1

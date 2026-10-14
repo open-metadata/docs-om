@@ -79,7 +79,7 @@ class ReviewTests(unittest.TestCase):
                 "import json, os, pathlib, sys\n"
                 "text = sys.stdin.read()\n"
                 "pathlib.Path(os.environ['CAPTURES'], str(os.getpid()) + '.txt').write_text(text)\n"
-                "report = '### Review Report\\n\\n**Content type:** Documentation\\n**Overall verdict:** PASS\\n**Reason**: No issues found\\n**Reviewed revision**: bbbbbbb\\n**Findings**: `Critical=0 Major=0 Minor=0`\\n\\n#### Issues Found\\n\\nNo issues found.'\n"
+                "report = '### Review Report\\n\\n**Content type**: Documentation\\n**Overall verdict**: PASS\\n**Reason**: No issues found\\n**Reviewed revision**: bbbbbbb\\n**Findings**: `Critical=0 Major=0 Minor=0`\\n\\n#### Issues Found\\n\\nNo issues found.'\n"
                 "print(json.dumps({'result': report, 'is_error': False, 'num_turns': 1, 'duration_ms': 1}))\n"
             )
             cli.chmod(0o755)
@@ -115,6 +115,53 @@ class ReviewTests(unittest.TestCase):
 
     def test_chunked_automatic_without_discussion_files(self):
         self.run_review(False, chunked=True)
+
+    def test_chunked_repeated_findings_are_grouped_before_verdict(self):
+        # The same Major correction found independently in four chunks is one
+        # grouped finding, so it must remain NEEDS WORK rather than becoming a
+        # four-Major FAIL. Every affected location must survive the merge.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = root / "context"
+            context.mkdir()
+            (context / "pr-diff.patch").write_text(
+                "".join(patch(f"page-{number}.mdx", "new " * 300) for number in range(4)))
+            (context / "pr-review-discussion.json").write_text(
+                json.dumps({"title": "Title", "body": "Description"}))
+            cli = root / "claude"
+            cli.write_text(
+                "#!" + sys.executable + "\n"
+                "import json, re, sys\n"
+                "text = sys.stdin.read()\n"
+                "part = re.search(r'part (\\d+) of', text).group(1)\n"
+                "report = f'''### Review Report\n\n**Content type**: Documentation\n"
+                "**Overall verdict**: NEEDS WORK\n**Reason**: 1 Major issue\n"
+                "**Reviewed revision**: bbbbbbb\n**Findings**: `Critical=0 Major=1 Minor=0`\n\n"
+                "#### Issues Found\n\n| # | Guideline | Severity | Original text | Suggested change |\n"
+                "|---|-----------|----------|---------------|-----------------|\n"
+                "| 1 | Same rule | Major | \\\"bad\\\" (page-{part}.mdx:1) | Use good wording. |'''\n"
+                "print(json.dumps({'result': report, 'is_error': False, 'num_turns': 1, 'duration_ms': 1}))\n"
+            )
+            cli.chmod(0o755)
+            output = root / "report.md"
+            env = dict(
+                os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"],
+                CONTEXT_DIR=str(context), POLICY_DIR=str(SCRIPTS.parent.parent / ".ai/doc-review"),
+                GITHUB_REPOSITORY="example/docs", PR_NUMBER="1", BASE_SHA="a" * 40,
+                HEAD_SHA="b" * 40, RUN_URL="https://example.com/run", REVIEW_REUSE="0",
+                REVIEW_INCREMENTAL="0", REVIEW_POST="0", REVIEW_OUT=str(output),
+                REVIEW_DISCUSSION="0", REVIEW_DEDUP="0", REVIEW_INLINE_MAX="100",
+                REVIEW_CHUNK_MAX="1500", CLAUDE_CONFIG_DIR_OVERRIDE="inherit",
+            )
+            subprocess.run(
+                ["bash", str(SCRIPTS / "doc-review-run.sh")], cwd=root, env=env,
+                check=True, capture_output=True, text=True)
+            report = output.read_text()
+            self.assertIn("**Overall verdict**: NEEDS WORK", report)
+            self.assertIn("Critical=0 Major=1 Minor=0", report)
+            self.assertEqual(report.count("| 1 | Same rule | Major |"), 1)
+            for number in range(1, 5):
+                self.assertIn(f"page-{number}.mdx:1", report)
 
     def test_chunk_lists_consume_large_streams(self):
         source = (SCRIPTS / "doc-review-run.sh").read_text()
@@ -169,7 +216,7 @@ class ReviewTests(unittest.TestCase):
         # zero-finding Findings line -- an unreviewed PR is not a pass.
         many = "".join(patch(f"d/{i:03d}.mdx", "x " * 5) for i in range(60))
         report, prompts = self._run_runner(many, {"REVIEW_MAX_FILES": "50"})
-        self.assertIn("**Overall verdict:** SKIPPED", report)
+        self.assertIn("**Overall verdict**: SKIPPED", report)
         self.assertIn("skipped: 60 files > 50", report)
         self.assertNotIn("Critical=0 Major=0 Minor=0", report)
         self.assertNotIn("**Findings**:", report)
@@ -191,7 +238,7 @@ class ReviewTests(unittest.TestCase):
         # that previously failed "exactly one Overall verdict line".
         many = "".join(patch(f"d/{i:03d}.mdx", "x " * 5) for i in range(60))
         report, _ = self._run_runner(many, {"REVIEW_MAX_FILES": "50"})
-        self.assertIn("**Overall verdict:** SKIPPED", report)
+        self.assertIn("**Overall verdict**: SKIPPED", report)
 
         for workflow in ("doc-review-auto.yml", "doc-review.yml"):
             with self.subTest(workflow=workflow, stage="validator"):
@@ -263,7 +310,7 @@ class ReviewTests(unittest.TestCase):
             for critical, major, minor, expected in cases:
                 with self.subTest(workflow=workflow, critical=critical, major=major, minor=minor):
                     verdict = "FAIL" if expected else "NEEDS WORK" if major or minor else "PASS"
-                    report = (f"**Overall verdict:** {verdict}\n"
+                    report = (f"**Overall verdict**: {verdict}\n"
                               f"**Findings**: `Critical={critical} Major={major} Minor={minor}`\n")
                     env = dict(os.environ, PATH=directory + os.pathsep + os.environ["PATH"],
                                COMMENT_ID="123", GITHUB_REPOSITORY="example/docs", MOCK_REPORT=report)

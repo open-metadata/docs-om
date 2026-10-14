@@ -132,8 +132,9 @@ cat "$POLICY_DIR/instructions.md" "$POLICY_DIR/references/checklist.md" >> "$WOR
 # This script is part of what the review reads (its prompts), so a change
 # to it invalidates both reuse and incremental matching.
 COMPACTOR="$(dirname "${BASH_SOURCE[0]}")/compact-review-diff.py"
-input_hash=$( { cat "$WORK/system.md" "${CTX[@]}" "${BASH_SOURCE[0]}" "$COMPACTOR"; echo "$MODEL $EFFORT $TOOLS ${REVIEW_DISCUSSION:-1} ${REVIEW_DEDUP:-0}"; } | sha256sum | cut -c1-32)
-policy_hash=$( { cat "$WORK/system.md" "${BASH_SOURCE[0]}" "$COMPACTOR"; echo "$MODEL $EFFORT $TOOLS ${REVIEW_DISCUSSION:-1} ${REVIEW_DEDUP:-0}"; } | sha256sum | cut -c1-16)
+FINDINGS_MERGER="$(dirname "${BASH_SOURCE[0]}")/merge-review-findings.py"
+input_hash=$( { cat "$WORK/system.md" "${CTX[@]}" "${BASH_SOURCE[0]}" "$COMPACTOR" "$FINDINGS_MERGER"; echo "$MODEL $EFFORT $TOOLS ${REVIEW_DISCUSSION:-1} ${REVIEW_DEDUP:-0}"; } | sha256sum | cut -c1-32)
+policy_hash=$( { cat "$WORK/system.md" "${BASH_SOURCE[0]}" "$COMPACTOR" "$FINDINGS_MERGER"; echo "$MODEL $EFFORT $TOOLS ${REVIEW_DISCUSSION:-1} ${REVIEW_DEDUP:-0}"; } | sha256sum | cut -c1-16)
 marker="<!-- doc-review-input:${input_hash} -->"
 # Lets a later push find the revision and policy this report reviewed.
 state="<!-- doc-review-state base:${BASE_SHA} head:${HEAD_SHA} policy:${policy_hash} -->"
@@ -348,8 +349,8 @@ else
     {
       echo "### Review Report"
       echo
-      echo "**Content type:** Documentation"
-      echo "**Overall verdict:** SKIPPED"
+      echo "**Content type**: Documentation"
+      echo "**Overall verdict**: SKIPPED"
       echo "**Reason**: ${changed_after_compaction} changed files (after collapsing identical version copies) exceed the ${REVIEW_MAX_FILES:-50}-file limit; automated review skipped."
       echo
       echo "**Reviewed revision**: ${HEAD_SHA:0:7}"
@@ -491,16 +492,15 @@ else
       jq -r '.result' "$WORK/result-${k}.json" > "$WORK/report-${k}.md"
     done
 
-    # Merge: every part's Issues Found rows, renumbered in order, with the
-    # Findings line and verdict recomputed from those rows by the policy's
-    # own rule (FAIL = any Critical or more than 3 Major; NEEDS WORK = any
-    # issue; PASS = none).
-    awk '/^\|[[:space:]]*[0-9]+[[:space:]]*\|/' "$WORK"/report-*.md \
-      | awk -F'|' 'BEGIN { OFS = "|" } { $2 = " " NR " "; print }' > "$WORK/rows.md"
+    # Merge equivalent rows across parts by guideline, severity, and suggested
+    # correction. This keeps every affected original/location while ensuring
+    # repeated occurrences count once, as required by the review policy.
+    python3 "$FINDINGS_MERGER" "$WORK"/report-*.md > "$WORK/rows.md"
+    python3 "$FINDINGS_MERGER" --severities "$WORK"/report-*.md > "$WORK/severities.txt"
     crit=0; maj=0; minr=0
     while IFS= read -r sev; do
       case "$sev" in Critical*) crit=$((crit + 1)) ;; Major*) maj=$((maj + 1)) ;; Minor*) minr=$((minr + 1)) ;; esac
-    done < <(awk -F'|' '{ s = $4; gsub(/^[[:space:]*]+|[[:space:]*]+$/, "", s); print s }' "$WORK/rows.md")
+    done < "$WORK/severities.txt"
     nrows=$(wc -l < "$WORK/rows.md" | tr -d ' ')
     if [ "$nrows" -ne $((crit + maj + minr)) ]; then
       echo "::error::Merged ${nrows} rows but only $((crit + maj + minr)) have a Critical/Major/Minor severity; refusing to post a miscounted report."; exit 1
@@ -514,12 +514,14 @@ else
         reason="${reason:+$reason, }$c $l"
       fi
     done
-    ctype=$(grep -h -m1 -oE '\*\*Content type:\*\*.*' "$WORK"/report-*.md | sed -n '1p' | sed -E 's/\*\*Content type:\*\*[[:space:]]*//')
+    # Accept the old colon-inside-bold form while this PR is tested against
+    # the trusted base policy; all reports emitted here use the corrected form.
+    ctype=$(grep -h -m1 -oE '\*\*Content type(:\*\*|\*\*:).*' "$WORK"/report-*.md | sed -n '1p' | sed -E 's/\*\*Content type(:\*\*|\*\*:)[[:space:]]*//')
     report=$(
       echo "### Review Report"
       echo
-      echo "**Content type:** ${ctype:-Documentation}"
-      echo "**Overall verdict:** ${verdict}"
+      echo "**Content type**: ${ctype:-Documentation}"
+      echo "**Overall verdict**: ${verdict}"
       echo "**Reason**: ${reason:-No issues found}"
       echo
       echo "**Reviewed revision**: ${HEAD_SHA:0:7}"

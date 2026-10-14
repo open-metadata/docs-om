@@ -27,8 +27,8 @@ Counts refer to grouped table rows, not individual occurrences. Use the exact he
 
 ### Review Report
 
-**Content type:** Documentation
-**Overall verdict:** PASS / NEEDS WORK / FAIL
+**Content type**: Documentation
+**Overall verdict**: PASS / NEEDS WORK / FAIL
 **Reason**: [counts or No issues found]
 **Reviewed revision**: [short head SHA]
 **Findings**: `Critical=<n> Major=<n> Minor=<n>`
