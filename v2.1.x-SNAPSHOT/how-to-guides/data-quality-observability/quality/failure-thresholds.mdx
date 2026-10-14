@@ -1,0 +1,180 @@
+---
+title: Failure Thresholds | How Data Quality Tests Tolerate Failures
+description: How the Failure Threshold and Threshold Unit parameters decide whether a data quality test passes, for each kind of test, under sampling, and across dimensions.
+sidebarTitle: Failure Thresholds
+---
+
+# Failure Thresholds
+
+A failure threshold sets how much a test can fail before OpenMetadata marks it as failed. By default the threshold is `0`, so a single failing row fails the test. Raise it to tolerate a known level of bad data, such as a column that's allowed to be up to 1% null.
+
+This page explains what the threshold means for each kind of test. To set one in the UI, see [Set a Failure Threshold](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/create-quality-test-cases#set-a-failure-threshold-optional).
+
+## Threshold Parameters
+
+A threshold is two test parameters that work together:
+
+| Parameter | UI label | Values | Default |
+|---|---|---|---|
+| `threshold` | **Failure Threshold** | A number that isn't negative | `0` |
+| `thresholdUnit` | **Threshold Unit** | `ABSOLUTE` or `PERCENTAGE` | `ABSOLUTE` |
+
+The unit decides how the number is read:
+- **`ABSOLUTE`** is a fixed amount, such as 10 failing rows.
+- **`PERCENTAGE`** is a share, such as 1% of the rows the test evaluated.
+
+The **Threshold Unit** options name what the test measures rather than showing `ABSOLUTE` and `PERCENTAGE`:
+
+| Kind of test | `ABSOLUTE` option | `PERCENTAGE` option |
+|---|---|---|
+| [Row-level tests](#row-level-tests) | **rows** | **% of rows**, or **% of non-null values** for tests that only count non-null values |
+| [Statistical tests](#statistical-tests) | **units** | **% of the bound** |
+| [Custom SQL Query](#custom-sql-query) | **rows** | **% of table rows** |
+
+The comparison is inclusive. A test with a threshold of 5% and exactly 5% failing rows passes.
+
+## How Each Test Applies the Threshold
+
+How a test reads the threshold depends on what it checks. The **Preview** in the test case form restates the rule for the selected test, for example "Fail when more than 1% of rows in `email` fail this test."
+
+### Row-Level Tests
+
+Row-level tests count the rows that break the rule. The test fails when that count is above the threshold. Under `PERCENTAGE`, the count is divided by the denominator in this table.
+
+| Test | Failing rows | `PERCENTAGE` denominator |
+|---|---|---|
+| Column Values to be Not Null | Null rows | All rows |
+| Column Values to be Unique | Duplicate values | Non-null values |
+| Column Values to Match Regex Pattern | Non-null values that don't match | Non-null values |
+| Column Values to Not Match Regex | Values that match | All rows. Nulls count as passing. |
+| Column Values to be in Set | Rows whose value isn't in the set | All rows |
+| Column Values to be Not in Set | Rows whose value is in the set | All rows |
+| Column Values to be Between | Rows outside the range | All rows |
+| Column Value Lengths to be Between | Rows whose length is outside the range | All rows |
+
+For these tests a `PERCENTAGE` threshold can't be higher than 100.
+
+A few tests have extra rules:
+- **Column Values to be in Set** only applies the threshold when **Match enum** is on. With it off, the test passes as soon as one allowed value occurs, so it has no failing rows to tolerate. OpenMetadata rejects a non-zero threshold in that mode.
+- **Column Values to be Between** and **Column Value Lengths to be Between** don't widen the range. The threshold is the number or share of rows allowed outside it. A null value doesn't count as outside the range.
+- **Column Values to be at Expected Location** shows the threshold fields but doesn't apply them yet. It's still evaluated with no tolerance, and the form shows a warning.
+
+### Statistical Tests
+
+Statistical tests compare one measured value, such as a mean or a row count, with a range or an expected value. For these tests the threshold widens what's accepted, so a small deviation doesn't fail the test.
+
+| Test | Compares the measured value with |
+|---|---|
+| Column Value Max. to be Between | A range |
+| Column Value Mean to be Between | A range |
+| Column Value Median to be Between | A range |
+| Column Value Min. to be Between | A range |
+| Column Value Std Dev to be Between | A range |
+| Column Values Sum to be Between | A range |
+| Table Column Count to be Between | A range |
+| Table Row Count to be Between | A range |
+| Table Row Inserted Count to be Between | A range |
+| Column Values Missing Count | An expected value |
+| Table Column Count to Equal | An expected value |
+| Table Row Count to Equal | An expected value |
+
+How the threshold widens the check depends on the unit:
+- **`ABSOLUTE`**: The range `[min, max]` becomes `[min − threshold, max + threshold]`. An expected value passes when the measured value is within `threshold` of it.
+- **`PERCENTAGE`**: Each bound moves outward by that percentage of its own value. An expected value passes when the measured value is within that percentage of it.
+
+| Range | Threshold | Accepted range |
+|---|---|---|
+| 100 to 200 | 10 `ABSOLUTE` | 90 to 210 |
+| 100 to 200 | 10% | 90 to 220 |
+| −100 to 100 | 5% | −105 to 105 |
+
+A `PERCENTAGE` threshold above 100 is allowed for statistical tests. The widening also applies to bounds that a dynamic assertion learns. The **Preview** and each run's details show the configured range and the effective range side by side.
+
+### Custom SQL Query
+
+**Custom SQL Query** keeps its own **Threshold** and **Operator**. Its threshold is the value the query result is compared with, using the operator, rather than a number of failures to tolerate. The form shows each operator as words, such as **at most** for `<=` and **at least** for `>=`.
+
+**Threshold Unit** changes what's compared:
+- **`ABSOLUTE`**: This is the default. The number of rows the query returns, or the number it returns under the **COUNT** strategy, is compared with the threshold.
+- **`PERCENTAGE`**: That number is first turned into a percentage of the table's row count, and then compared with the threshold.
+
+Under `PERCENTAGE`, OpenMetadata runs an exact `COUNT(*)` on the whole table to get the row count. If you set a **Partition Expression**, the count is filtered by it. If the query returns rows but the row count can't be computed, the run is marked **Aborted**.
+
+### Custom SQL Expression Tests
+
+A test definition you create in the [Test Library](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/test-library) supports a failure threshold when it declares both a `threshold` and a `thresholdUnit` parameter. Each row the SQL expression returns counts as one failing row. Under `PERCENTAGE`, the denominator is the row count of the whole table. A definition that doesn't declare `thresholdUnit` keeps the original rule: the test fails if the expression returns any row.
+
+## Thresholds and Sampling
+
+When a table's profiler is configured with a sample, most tests only read the sampled rows. The unit you choose decides whether your threshold still means the same thing:
+- **`PERCENTAGE`** is stable under sampling. A 1% share of a sample estimates a 1% share of the table, within sampling error.
+- **`ABSOLUTE`** isn't. A limit of 10 failing rows is checked against the sample, so it doesn't carry over to the full table.
+
+Prefer `PERCENTAGE` on sampled tables. OpenMetadata doesn't scale sampled counts up to the full table.
+
+Each run records what it read. The run details show a **Sampled** or **Partitioned** badge when the run didn't read the whole table, and the result message ends with the scope, for example "Evaluated on a 10% sample of the table." When a sampled run uses an `ABSOLUTE` threshold, the message also says that the count doesn't carry over to the full table.
+
+Some tests have extra sampling caveats in their result message:
+- Tests that add rows up read a smaller total on a sample. These are Column Values Missing Count, Column Values Sum to be Between, Table Row Count to Equal, Table Row Count to be Between, and Table Row Inserted Count to be Between.
+- Tests that look at extremes might miss the table's real minimum or maximum. These are Column Value Max. to be Between, Column Value Min. to be Between, Column Values to be Between, and Column Value Lengths to be Between.
+
+### Tests That Read the Whole Table
+
+**Custom SQL Query** and custom SQL expression tests from the Test Library run their SQL as written. The configured sample and partition filter don't apply to them, and their result message says so. Their `PERCENTAGE` denominator is also taken from the whole table.
+
+For how to configure sampling and partitioning, see [Sampling and Partitioning your Tables](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow#2-sampling-and-partitioning-your-tables).
+
+## Bounds of Zero With a Percentage Threshold
+
+A `PERCENTAGE` threshold on a statistical test is a percentage of the bound. When a bound is `0`, the tolerance on that side is also `0`, so that side stays strict:
+- A range of 0 to 100 with a 10% threshold accepts 0 to 110. Any negative value still fails.
+- An expected value of `0` with a 10% threshold still fails on a measured value of `1`.
+
+To tolerate a deviation around `0`, use an `ABSOLUTE` threshold instead. For example, an expected value of `0` with a threshold of 5 `ABSOLUTE` accepts −5 to 5. The form shows a warning when a percentage threshold meets a bound of `0`.
+
+## Thresholds in Dimension-Level Tests
+
+A [dimension-level test](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/dimensional-validation) evaluates each dimension group with the same threshold as the overall result. Under `PERCENTAGE`, each group uses its own denominator, so 1% means 1% of that group's rows.
+
+### Dimension Failure Policy
+
+The **Dimension Failure Policy** decides whether group results can change the test case status:
+
+| Option in the form | Value | Behavior |
+|---|---|---|
+| **only the overall result decides** | `OVERALL_ONLY` (default) | Only the overall result sets the status. Group results are reported but don't fail the test. |
+| **any breaching group fails the test** | `ANY_DIMENSION` | The test fails when the overall result or any group breaches the threshold. The result message names the failing groups. |
+
+A dimension that couldn't be evaluated, for example because its query failed, doesn't change the status under either policy.
+
+### The Others Group Is Only Checked Together
+
+Groups outside the **Top Dimensions** are merged into one **Others** group, which is checked like any other group. Because the tail groups are only checked together, one failing small group can be hidden by the healthy groups merged with it. To check a group on its own, raise **Top Dimensions** so it's ranked inside the top groups.
+
+### Minimum Rows per Dimension
+
+Under `PERCENTAGE`, a very small group can breach the threshold by chance. With 10 rows, a single null is already 10%. **Minimum Rows per Dimension** keeps groups with fewer rows than this from failing the test.
+
+An excluded group is still evaluated, and it keeps its own status. The run details mark it **Excluded from roll-up**, and the result message lists the small groups that failed without failing the test.
+
+**Minimum Rows per Dimension** only has an effect with both the `ANY_DIMENSION` policy and a `PERCENTAGE` threshold, and the form only shows it then. The default is `0`, which excludes no group. It's available on the row-level column tests.
+
+## Row Inserted Count Window and Partitioning
+
+**Table Row Inserted Count to be Between** has its own time window, set by **Column Name**, **Range Type**, and **Range Interval**. For example, a **Range Type** of `DAY` and a **Range Interval** of `1` count the rows from the last day. This window is a test parameter. It's separate from the partition settings in the table's profiler configuration.
+
+If the profiler configuration also sets a partition or a sample, the test applies it on top of the window. To count every row in the window, don't configure a partition or sample that would remove rows from it.
+
+## Validation Errors
+
+OpenMetadata checks threshold values when you save a test case. It rejects a test case and returns an error when:
+- The threshold isn't a number.
+- The threshold is negative.
+- A row-level test has a `PERCENTAGE` threshold above 100.
+- **Column Values to be in Set** has a non-zero threshold while **Match enum** is off.
+
+These checks don't apply to **Custom SQL Query**, whose threshold is a comparison value.
+
+## Existing Test Cases
+
+Test cases created before failure thresholds existed don't have the threshold parameters. They run with a threshold of `0` and the `ABSOLUTE` unit, so their results don't change. Existing **Custom SQL Query** test cases keep comparing their threshold with the number of rows, as before.
