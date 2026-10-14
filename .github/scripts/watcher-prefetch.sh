@@ -68,47 +68,58 @@ MARKER_JQ='def markers($pfx): [.body // "" | scan("<!-- (?:" + $pfx + "):pr-(?:(
   | {repo: (.[0] // $primary), number: (.[1] | tonumber)}] | unique;'
 
 # Large `pr list` pages (bodies + files) sometimes fail mid-response on
-# GitHub's side; retry with backoff and fail the step only if all tries do.
+# GitHub's side (504 on the GraphQL API); retry with backoff and fail the
+# step only if all tries do.
 src_to() {
   local out="$1"; shift
   local try
-  for try in 1 2 3; do
+  for try in 1 2 3 4 5; do
     if $SRC "$@" > "$out.tmp" && jq -e . "$out.tmp" > /dev/null 2>&1; then
       mv "$out.tmp" "$out"; return 0
     fi
-    echo "gh-source-read.sh $1 $2 failed (attempt $try/3); retrying" >&2
-    sleep $((try * 10))
+    echo "gh-source-read.sh $1 $2 failed (attempt $try/5); retrying" >&2
+    [ "$try" -lt 5 ] && sleep $((try * 15))
   done
   rm -f "$out.tmp"; return 1
 }
 
-# Exhaustive merged-PR listing. `gh pr list` stops at --limit and GitHub
-# search never returns more than 1,000 results, so a full page is treated
-# as cut off: the range is split in half until every part fits, and the
-# step fails if a single day still does not.
-list_merged() {
-  local repo="$1" base="$2" out="$3"
-  src_to "$out" pr list --repo "$repo" --state merged --base "$base" \
-    --search "merged:>=$LOOKBACK" \
-    --json number,title,url,body,labels,mergedAt,files,author \
-    --limit "$LIST_LIMIT"
-  [ "$(jq length "$out")" -lt "$LIST_LIMIT" ] && return 0
-  echo "$repo: $LIST_LIMIT PRs since $LOOKBACK (cut off); splitting the range" >&2
+# Exhaustive PR listing in small date windows. One `gh pr list` over the
+# whole lookback pages 100 PRs at a time and restarts from page 1 whenever
+# any page 504s, so each window is its own call with its own retries.
+# `gh pr list` stops at --limit and GitHub search never returns more than
+# 1,000 results, so a full page is treated as cut off: the window is split
+# in half until every part fits, and the step fails if a single day still
+# does not. Callers set (via `local`, read here by dynamic scope):
+# LIST_STATE, LIST_QUAL (search qualifier: merged|created), LIST_JSON.
+list_windowed() {
+  local repo="$1" base="$2" from="$3" step="$4" out="$5"
+  local today cur end
+  today=$(date -u +%Y-%m-%d)
   rm -f "$out".part-*
-  split_range "$repo" "$base" "$LOOKBACK" "$(date -u +%Y-%m-%d)" "$out"
-  jq -s 'add | unique_by(.number)' "$out".part-* > "$out"
+  cur="$from"
+  while [ "$cur" = "$today" ] || [[ "$cur" < "$today" ]]; do
+    end=$(date -u -d "$cur +$((step - 1)) days" +%Y-%m-%d)
+    [[ "$end" > "$today" ]] && end="$today"
+    split_range "$repo" "$base" "$cur" "$end" "$out"
+    cur=$(date -u -d "$end +1 day" +%Y-%m-%d)
+  done
+  if ls "$out".part-* > /dev/null 2>&1; then
+    jq -s 'add | unique_by(.number)' "$out".part-* > "$out"
+  else
+    echo '[]' > "$out"
+  fi
   rm -f "$out".part-*
 }
 split_range() {
   local repo="$1" base="$2" from="$3" to="$4" out="$5" part
   part="$out.part-$from-$to"
-  src_to "$part" pr list --repo "$repo" --state merged --base "$base" \
-    --search "merged:$from..$to" \
-    --json number,title,url,body,labels,mergedAt,files,author \
+  src_to "$part" pr list --repo "$repo" --state "$LIST_STATE" --base "$base" \
+    --search "$LIST_QUAL:$from..$to" \
+    --json "$LIST_JSON" \
     --limit "$LIST_LIMIT"
   [ "$(jq length "$part")" -lt "$LIST_LIMIT" ] && return 0
   if [ "$from" = "$to" ]; then
-    echo "::error::$repo: $LIST_LIMIT PRs merged on $from alone; cannot list them exhaustively." >&2
+    echo "::error::$repo: $LIST_LIMIT PRs on $from alone; cannot list them exhaustively." >&2
     exit 1
   fi
   local days mid
@@ -117,6 +128,13 @@ split_range() {
   rm -f "$part"
   split_range "$repo" "$base" "$from" "$mid" "$out"
   split_range "$repo" "$base" "$(date -u -d "$mid +1 day" +%Y-%m-%d)" "$to" "$out"
+}
+
+list_merged() {
+  local repo="$1" base="$2" out="$3"
+  local LIST_STATE=merged LIST_QUAL=merged
+  local LIST_JSON=number,title,url,body,labels,mergedAt,files,author
+  list_windowed "$repo" "$base" "$LOOKBACK" 3 "$out"
 }
 
 # Major + BACKPORT_NEEDS_TRACKING: PR numbers this repo's issues already
@@ -129,6 +147,38 @@ tracked_numbers() {
       --search "$p in:body" --json number,body,author
   done | jq -s -c --arg pfx "$pfx" --arg primary "$PRIMARY_REPO" --arg authors "$TRUSTED_AUTHOR_RE" "$MARKER_JQ"'
     [.[][] | select(.author.login // "" | test($authors)) | markers($pfx)[]] | unique' > "$OUT/raw/tracked-prs.json"
+}
+
+# Major release tracking ledger: the table in the release tracker issue
+# ("[<ver>] Documentation tracker") listing every source PR the watcher has
+# already filed, with its area, sub-issue, status, and docs PR. Humans edit
+# the Status and Docs PR cells; every PR listed there is skipped. Writes
+# $OUT/raw/ledger.tsv (pr, area, sub-issue, status, docs PR) and
+# $OUT/areas.md (area names already used for this release).
+# The tracker may be created by this workflow or by a maintainer listed in
+# NOTIFY_USERNAMES; nobody else's issue counts (public repos let anyone
+# open an issue with the same title).
+tracker_author_re() {
+  local re="$TRUSTED_AUTHOR_RE" u
+  for u in $(tr "," " " <<< "${NOTIFY_USERNAMES:-}"); do re="$re|^${u}\$"; done
+  echo "$re"
+}
+
+load_ledger() {
+  : > "$OUT/raw/ledger.tsv"; : > "$OUT/areas.md"
+  [ -n "${TARGET_VERSION:-}" ] || return 0
+  local title="[${TARGET_VERSION}] Documentation tracker" num body
+  num=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 50 \
+          --search "\"$title\" in:title" --json number,title,author \
+        | jq -r --arg t "$title" --arg a "$(tracker_author_re)" \
+            '[.[] | select(.title == $t and (.author.login // "" | test($a)))] | first | .number // empty')
+  [ -n "$num" ] || return 0
+  body=$(gh issue view "$num" --repo "$GITHUB_REPOSITORY" --json body -q .body)
+  grep -E '^\| [A-Za-z0-9_.-]+#[0-9]+ \|' <<< "$body" \
+    | awk -F'|' '{ for (i = 2; i <= 6; i++) { gsub(/^ +| +$/, "", $i) } print $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 }' \
+    > "$OUT/raw/ledger.tsv" || true
+  cut -f2 "$OUT/raw/ledger.tsv" | sort -u | sed '/^$/d' > "$OUT/areas.md" || true
+  echo "ledger: $(wc -l < "$OUT/raw/ledger.tsv" | tr -d ' ') PR(s) already tracked in #$num"
 }
 
 select_cmd() {
@@ -145,6 +195,18 @@ select_cmd() {
   if [ "$mode" = "major" ] && [ "$BACKPORT_NEEDS_TRACKING" = "1" ]; then
     needtrack=true; tracked_numbers
   fi
+  if [ "$mode" = "major" ]; then
+    load_ledger
+    # Everything an existing issue already references, in any marker style,
+    # plus the ledger's own PR column: one list of PRs never to file again.
+    : > "$OUT/raw/tracked-refs.txt"
+    if [ -n "${TARGET_VERSION:-}" ]; then
+      PRIMARY_REPO="$PRIMARY_REPO" bash "$(dirname "$0")/watcher-issue-refs.sh" "$TARGET_VERSION" > "$OUT/raw/issue-refs.txt" \
+        || { echo "::warning::Could not read existing issues for dedup; relying on the ledger only."; : > "$OUT/raw/issue-refs.txt"; }
+      { cut -f1 "$OUT/raw/ledger.tsv"; cat "$OUT/raw/issue-refs.txt"; } | sed '/^$/d' | sort -u > "$OUT/raw/tracked-refs.txt"
+      echo "already referenced by existing $TARGET_VERSION issues or the ledger: $(wc -l < "$OUT/raw/tracked-refs.txt" | tr -d ' ') PR(s)"
+    fi
+  fi
   for repo in "${REPOS[@]}"; do
     local name; name=$(repo_name "$repo")
     CLASSIFIED+=("$OUT/raw/$name.classified.json")
@@ -155,8 +217,11 @@ select_cmd() {
     local refs='[]' bp='{}' tracked='[]'
     if [ "$mode" = "major" ]; then
       local since_bp; since_bp=$(date -u -d "$LOOKBACK -60 days" +%Y-%m-%d)
-      src_to "$OUT/raw/$name-minor.json" pr list --repo "$repo" --state all --base "$MINOR_RELEASE_BRANCH" \
-        --search "created:>=$since_bp" --json "$($needtrack && echo number,title,body || echo title,body)" --limit 1000
+      (
+        LIST_STATE=all LIST_QUAL=created
+        LIST_JSON=number,title,body
+        list_windowed "$repo" "$MINOR_RELEASE_BRANCH" "$since_bp" 10 "$OUT/raw/$name-minor.json"
+      )
       refs=$(jq -c '[.[] | (.title + " " + (.body // "")) | scan("#([0-9]+)") | .[0] | tonumber] | unique' \
                "$OUT/raw/$name-minor.json")
       if $needtrack; then
@@ -167,7 +232,9 @@ select_cmd() {
       fi
     fi
 
-    jq -c --arg repo "$name" --arg mode "$mode" --argjson refs "$refs" --arg ts "${LOOKBACK_TS:-}" \
+    local led='[]'
+    [ -s "$OUT/raw/tracked-refs.txt" ] && led=$(awk -F'#' -v r="$name" '$1 == r { print $2 }' "$OUT/raw/tracked-refs.txt" | jq -Rsc '[split("\n")[] | select(. != "") | tonumber]')
+    jq -c --arg repo "$name" --arg mode "$mode" --argjson refs "$refs" --arg ts "${LOOKBACK_TS:-}" --argjson led "$led" \
       --argjson needtrack "$needtrack" --argjson bp "$bp" --argjson tracked "$tracked" \
       --arg np "$NOISE_PATH" --arg nt "$NOISE_TITLE" --argjson bodycap "$BODY_CAP_CHARS" '
       # Only dependency bots: app/gh-bot-collate authors real backports.
@@ -202,6 +269,7 @@ select_cmd() {
            drop: (if is_bot then "bot"
                   elif (.title | test($nt; "i")) and (breaking | not) then "noise_title"
                   elif ($real | length) == 0 then "noise_paths"
+                  elif ($led | index($p.number)) then "ledger_tracked"
                   elif $mode == "major" and ($refs | index($p.number)) then
                     # docs-om: a backport only settles the PR once this repo
                     # tracks it (or its backport); until then it is reviewed.
@@ -225,13 +293,16 @@ select_cmd() {
             backport_found: (map(select(.drop == "backport_found")) | length),
             bugfix_type: (map(select(.drop == "bugfix_type")) | length)
           },
+          excluded_as_tracked: (map(select(.drop == "ledger_tracked")) | length),
           candidates: map(select(.drop == null) | del(.drop)),
-          others: map(select(.drop != null))
+          # Ledger-tracked PRs are not shown to the model at all, so it
+          # cannot promote one into a second issue.
+          others: map(select(.drop != null and .drop != "ledger_tracked"))
         }' "${CLASSIFIED[@]}" > "$OUT/candidates.json"
 
   local n; n=$(jq '.candidates | length' "$OUT/candidates.json")
   echo "candidate_count=$n" >> "${GITHUB_OUTPUT:-/dev/null}"
-  echo "Scanned $(jq -c .scanned "$OUT/candidates.json"); prefiltered out $(jq -c .prefiltered_out "$OUT/candidates.json"); excluded as minor $(jq -c .excluded_as_minor "$OUT/candidates.json"); candidates: $n"
+  echo "Scanned $(jq -c .scanned "$OUT/candidates.json"); prefiltered out $(jq -c .prefiltered_out "$OUT/candidates.json"); excluded as minor $(jq -c .excluded_as_minor "$OUT/candidates.json"); already tracked $(jq -c .excluded_as_tracked "$OUT/candidates.json"); candidates: $n"
 }
 
 # Doc-coverage hints: names a doc page would mention (connector, new schema
@@ -389,6 +460,7 @@ bundle_cmd() {
           + " | full: \($out)/pr/\(.repo)-\(.number).diff"' "$OUT/candidates.json"
     } | shorten_paths > "$dir/index.md"
     wc -l < "$dir/candidates.jsonl" | tr -d ' ' > "$dir/count"
+    [ -s "$OUT/areas.md" ] && cp "$OUT/areas.md" "$dir/areas.md"
     i=$((i + 1))
   done
 

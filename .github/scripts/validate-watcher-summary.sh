@@ -78,7 +78,11 @@ case "$KIND" in
         (.suggested_title | type == "string") and
         (.breaking | type == "boolean") and
         (.tracking_issue == null or ((.tracking_issue.repo | type == "string") and (.tracking_issue.number | type == "number"))) and
-        (.original_pr == null or ((.original_pr.repo | type == "string") and (.original_pr.number | type == "number")))
+        (.original_pr == null or ((.original_pr.repo | type == "string") and (.original_pr.number | type == "number"))) and
+        (.area | type == "string") and
+        (.summary | type == "string") and
+        (.checkboxes | type == "array") and
+        (all(.checkboxes[]?; type == "string"))
       )) and
       (.reviewed_items | type == "array") and
       (all(.reviewed_items[]?;

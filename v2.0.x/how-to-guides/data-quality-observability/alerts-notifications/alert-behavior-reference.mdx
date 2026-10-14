@@ -1,0 +1,200 @@
+---
+title: Alert Behavior Reference | OpenMetadata
+description: Reference for how OpenMetadata alerts work, including the sources, triggers, and filters available for each alert type, exactly when an alert fires, and how Observability alerts differ from Notification alerts.
+sidebarTitle: Alert Behavior Reference
+---
+
+# Alert Behavior Reference
+
+This page describes how alerts behave once you create them. It covers the available sources, triggers, and filters. It also explains when an alert fires and which kind of alert covers which kind of event. Use it when you design an integration, such as a webhook receiver or a ticketing sync. It tells you what OpenMetadata sends and when.
+
+For the step-by-step UI procedures, see [Data Observability Alerts](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/data-observability-alerts) and [System & Governance Notifications](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/system-governance-notifications). For what a webhook receives, see [Webhook Payloads and Delivery](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery).
+
+## Alert Building Blocks
+
+Every alert is built from the same parts:
+
+- **Source**: the type of asset or event stream the alert watches, such as **Table** or **Test Case**. An alert has exactly one source.
+- **Trigger**: the specific kind of change that should fire the alert, such as a test case status update. Only Observability alerts have triggers.
+- **Filter**: an optional condition that narrows which events from the source qualify, such as only assets owned by a given team.
+- **Destination**: where the alert is delivered, such as a Slack channel, an email address, or a webhook.
+
+OpenMetadata evaluates each event in this order: source, then filters, then triggers. An event must pass all of them to be delivered. Each filter and trigger has an **Include** or **Exclude** setting. Include delivers the event when the condition matches. Exclude silences the event when the condition matches.
+
+When you combine several filters, each one is joined to the previous one with **AND** or **OR**. The default is AND.
+
+An Observability alert with no filters and no triggers fires on every event for its source, including asset creation and deletion. Always select at least one trigger for a focused alert.
+
+## Observability Alerts and Notifications
+
+OpenMetadata has two kinds of alerts. They use the same engine and the same destinations, but they watch different things.
+
+| | Observability alerts | Notification alerts |
+|---|---|---|
+| **Where to create them** | **Observability** > **Alerts** | **Settings** > **Notifications** > **Alerts** |
+| **Purpose** | Data health: test results, pipeline status, schema and metric changes, data contract status | Metadata and collaboration events: ownership, tags, descriptions, glossary changes, tasks, conversations, announcements |
+| **Sources available** | Eight | 28 |
+| **Triggers** | Yes. Each source has one or more triggers. | No. Notification alerts use filters only. |
+| **Covers incidents** | No | Yes, through the **Task** source or the **All** source |
+
+Use an Observability alert when you want to know that a data asset is unhealthy. For example, a test case failed or an ingestion run failed. Use a Notification alert when you want to know that something changed or that someone needs to act. For example, an asset's owner changed or an incident was assigned.
+
+### Which Alert Covers Incidents
+
+Incidents are covered by **Notification** alerts only. An incident is a task, so it appears as a **Task** event:
+
+- Use the **Task** source to receive task events. The only filter available for this source narrows by the users or teams mentioned in the task.
+- Use the **All** source if you need to filter by event type, asset name, or other fields.
+
+No Observability source reports incident status. An Observability alert on a **Test Case** fires when a test result is posted, which is usually at about the same time an incident is opened. It doesn't fire when someone acknowledges, assigns, or resolves the incident.
+
+A failing test result creates an incident automatically, or reuses the incident that is already open for that test case. See [Incident Manager](/v2.0.x/how-to-guides/data-quality-observability/incident-manager) for the workflow.
+
+## Observability Alerts: Sources, Triggers, and Filters
+
+Observability alerts watch eight sources. Each source has one or more triggers and a set of filters.
+
+### Sources and Triggers
+
+This table lists each source with its triggers and what each trigger fires on.
+
+| Source | Trigger | What it fires on |
+|---|---|---|
+| **Table** | Schema Changes | A change to the table's columns, data model, or joins |
+| **Table** | Metric Updates | A change to the table's profile or custom metrics |
+| **Topic** | Schema Changes | A change to the topic's message schema |
+| **Container** | Schema Changes | A change to the container's parent or children |
+| **Pipeline** | Pipeline Status | A pipeline run reports one of the statuses you select: **Successful**, **Failed**, **Pending**, or **Skipped** |
+| **Ingestion Pipeline** | Ingestion Pipeline Status | An ingestion pipeline run reports one of the states you select: **queued**, **running**, **success**, **partialSuccess**, **failed**, or **stopped** |
+| **Test Case** | Test Case Status | A test result is posted for the test case with one of the statuses you select: **Success**, **Failed**, **Aborted**, or **Queued** |
+| **Test Case** | Test Case Status Under Suite | A test result with one of the statuses you select is posted for a test case that belongs to a test suite you select |
+| **Test Suite** | Test Suite Status | A test suite pipeline run completes and the suite's results include one of the statuses you select |
+| **Data Contract** | Data Contract Status | A data contract validation result has one of the statuses you select |
+
+The data contract status options in the UI are **Success**, **Failed**, **Running**, and **Aborted**. OpenMetadata doesn't emit an event for a **Running** result, so an alert that selects only **Running** never fires.
+
+### Filters
+
+This table lists the filters available for an Observability alert and the sources that support them.
+
+| Filter | What it does | Available on |
+|---|---|---|
+| **Entity Specific Name** | Matches the asset's fully qualified name. A listed name also matches every asset below it. For example, listing a schema matches its tables. A test case also matches when you list its test suite. | All sources |
+| **Domain** | Matches assets that belong to one of the listed domains. A test case without a domain uses the domains of its test suites. | All sources |
+| **Owner Name** | Matches assets owned by one of the listed users or teams. A test case without owners uses the owners of its test suites. | All sources |
+| **Table Name Test Case Belongs To** | Matches test cases whose table is one of the listed tables. This is an exact match on the table name, not a prefix match. | **Test Case** |
+| **Entity Name** | Matches data contracts whose target asset is one of the listed names. | **Data Contract** |
+| **Filter By Updater Is Bot** | Matches events made by a bot, such as an ingestion pipeline, rather than a person. Use Exclude to ignore bot activity. | All sources |
+
+## Notification Alerts: Sources and Filters
+
+Notification alerts watch 28 sources and use filters only. They have no triggers.
+
+### Sources
+
+Notification alerts can watch these sources:
+
+- **All**, which matches every event type
+- Data assets: **Table**, **Topic**, **Dashboard**, **Chart**, **Dashboard Data Model**, **Pipeline**, **ML Model**, **Database**, **Database Schema**
+- Services: **Database Service**, **Dashboard Service**, **Messaging Service**, **Pipeline Service**, **ML Model Service**, **Storage Service**, **Metadata Service**
+- Ingestion: **Ingestion Pipeline**
+- Governance: **Glossary**, **Glossary Term**, **Tag**, **Classification**, **Domain**, **Data Product**
+- Collaboration: **Task**, **Conversation**, **Announcement**, **User**
+
+### Filters
+
+This table lists the filters available on Notification alerts.
+
+| Filter | What it does |
+|---|---|
+| **Owner Name** | Matches assets owned by one of the listed users or teams. |
+| **Entity Specific Name** | Matches an asset by fully qualified name, including assets below it. |
+| **Event Type** | Matches the kind of event, such as created, updated, or deleted. |
+| **Updater Name** | Matches events made by one of the listed users. |
+| **Domain** | Matches assets in one of the listed domains. |
+| **General Metadata Events** | Matches changes to an asset's description or tags. |
+| **Filter By Updater Is Bot** | Matches events made by a bot. |
+| **Entity ID** | Matches a specific asset by its ID. Available on the **All** source only. |
+| **Mentioned Name** | Matches task and conversation events where one of the listed users or teams is mentioned. Use `all` to match every event. This is the only filter for **Task** and **Conversation**. |
+
+Not every filter is available on every source:
+
+- **User** doesn't support **Owner Name** or **General Metadata Events**.
+- **Domain** doesn't support the **Domain** filter.
+- **Announcement** supports no filters.
+- **Task** and **Conversation** support **Mentioned Name** only.
+
+### Event Types
+
+Match these event types with the **Event Type** filter:
+
+- `entityCreated`, `entityUpdated`, `entitySoftDeleted`, `entityDeleted`, and `entityRestored`
+- `threadCreated`, `threadUpdated`, `postCreated`, and `postUpdated`
+- `taskResolved` and `taskClosed`
+- `logicalTestCaseAdded` and the lineage events `entityLineageAdded`, `entityLineageUpdated`, and `entityLineageDeleted`, on the **All** source only
+
+## When an Alert Fires
+
+This section explains how OpenMetadata reads events and which events fire an alert.
+
+### How OpenMetadata Delivers Events
+
+When something changes in OpenMetadata, it records a change event. Each alert reads new change events on its own schedule. It applies its source, filters, and triggers, then sends the matching events to its destinations.
+
+- **New events only**: an alert considers only events recorded after you create it. It doesn't replay history.
+- **Polling interval**: OpenMetadata checks for new events periodically. When you create an alert through the API without setting `pollInterval`, OpenMetadata checks every 10 seconds. Delivery is therefore near real time, not instant.
+- **Independent alerts**: each alert tracks its own position. One event can match several alerts, and OpenMetadata delivers it once to each.
+- **Disabled alerts**: a disabled alert doesn't read or deliver events.
+- **One delivery per destination type**: if an alert has several destinations of the same type, OpenMetadata sends the event once for that type to the combined recipients.
+- **No ordering guarantee**: OpenMetadata doesn't guarantee that events in the same polling batch are sent in the order they happened.
+
+### Test Cases: Every Matching Result Fires
+
+A **Test Case** alert fires on every posted test result that matches the trigger, not only when the status changes.
+
+- If a test case fails on every run and your trigger selects **Failed**, you receive one alert for each failed run.
+- OpenMetadata doesn't compare a result with the previous result.
+- A test case that moves from **Failed** back to **Success** fires only if your trigger selects **Success**.
+
+To reduce repeated alerts:
+
+- Alert on a **Test Suite** instead of individual test cases. A test suite alert fires once per completed test suite run.
+- Use filters (for example **Domain** or **Owner Name**) to limit which test cases notify.
+- Use the incident workflow to track a failing test case as one item. OpenMetadata reuses the open incident for a test case while it keeps failing, instead of opening a new one for every run.
+
+The status carried in the alert is the test case's latest stored result. If you backfill an older result, the alert can show the latest result rather than the one you just posted.
+
+### Test Suites: One Alert Per Run
+
+A **Test Suite** alert isn't sent per test case result. OpenMetadata records one event when a test suite ingestion pipeline run finishes with a **success**, **failed**, or **partialSuccess** state. The event includes a summary of the results for the suite. A test suite alert with trigger **Test Suite Status** matches if that summary contains one of the statuses you selected.
+
+### Pipelines and Ingestion Pipelines
+
+- **Pipeline**: OpenMetadata ignores a pipeline status that it has already recorded for the same timestamp, so a repeated report of the same run doesn't fire again. A new or changed status fires. OpenMetadata ignores a run that ended before you created the alert.
+- **Ingestion Pipeline**: every state change for a run produces an event, for example **queued**, then **running**, then **failed**. The alert fires for each event whose state you selected.
+
+### Schema, Metric, and Other Changes
+
+Schema and metric triggers fire on any update to the listed fields, from any source of change, including ingestion runs. A single ingestion run that changes several columns can fire the alert more than once.
+
+### Data Contracts
+
+A data contract alert fires when OpenMetadata records a validation result. A contract that includes data quality expectations can record an initial result and then another result after the quality checks finish, so one validation can produce more than one event.
+
+### Incidents
+
+For incidents:
+
+- A failing test result opens an incident for the test case, or reuses the incident that is already open.
+- If automatic incident closure is enabled, a passing result resolves the open incident.
+- Each incident status change, such as acknowledge, assign, or resolve, is expected to produce one `entityUpdated` event with entity type `task`.
+- Log a few real events from your environment to confirm the payload before you build on it.
+- A Notification alert on the **Task** or **All** source can deliver those events. See [Which Alert Covers Incidents](#which-alert-covers-incidents).
+
+## Failed Deliveries
+
+If OpenMetadata can't deliver an event to a destination, it records the event as a failed event and moves on. A failed delivery doesn't block later events for that alert.
+
+- Failed and successfully sent events are available through the [alerts API](/v2.0.x/api-reference/alerts).
+- OpenMetadata removes old change events and delivery records according to the Data Retention application, which keeps them for 7 days by default.
+- OpenMetadata doesn't currently redeliver a failed event automatically. See [Webhook Payloads and Delivery](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery#delivery-guarantees) for details and how to design around it.

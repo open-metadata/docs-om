@@ -1,0 +1,209 @@
+---
+title: Create an Alert
+description: Create an alert (event subscription) through the OpenMetadata REST API or Python SDK, including a complete Observability alert that sends test case failures to a webhook.
+sidebarTitle: Create Alert
+api: POST /v1/events/subscriptions
+---
+
+# Create an Alert
+
+Create an alert with `POST`, or use `PUT` to create it if it doesn't exist and update it if it does. With `PUT`, OpenMetadata matches on `name`.
+
+The request body is described in the [Alerts overview](/v2.1.x-SNAPSHOT/api-reference/alerts#request-schema).
+
+## Examples
+
+The example creates an Observability alert on the **Test Case** source. It fires when a test result with status `Failed` is posted for any test case under `svc.db.schema.orders`, and it sends the event to a webhook signed with a hash-based message authentication code (HMAC) secret.
+
+<RequestExample dropdown>
+```bash POST /v1/events/subscriptions
+curl -X POST "https://your-company.open-metadata.org/api/v1/events/subscriptions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dq-failed-tests-to-webhook",
+    "displayName": "DQ failed tests to webhook",
+    "description": "Notify the endpoint when a test case fails.",
+    "alertType": "Observability",
+    "resources": ["testCase"],
+    "enabled": true,
+    "input": {
+      "filters": [
+        {
+          "name": "filterByFqn",
+          "effect": "include",
+          "prefixCondition": "AND",
+          "arguments": [{ "name": "fqnList", "input": ["svc.db.schema.orders"] }]
+        }
+      ],
+      "actions": [
+        {
+          "name": "GetTestCaseStatusUpdates",
+          "effect": "include",
+          "prefixCondition": "AND",
+          "arguments": [{ "name": "testResultList", "input": ["Failed"] }]
+        }
+      ]
+    },
+    "destinations": [
+      {
+        "category": "External",
+        "type": "Webhook",
+        "timeout": 10,
+        "readTimeout": 12,
+        "enabled": true,
+        "config": {
+          "endpoint": "https://hooks.example.com/openmetadata",
+          "httpMethod": "POST",
+          "headers": { "X-Source": "openmetadata" },
+          "authType": { "type": "bearer", "secretKey": "<hmac-secret>" }
+        }
+      }
+    ]
+  }'
+```
+
+```python PUT /v1/events/subscriptions
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.generated.schema.events.api.createEventSubscription import (
+    CreateEventSubscription,
+)
+from metadata.generated.schema.events.eventSubscription import (
+    AlertType,
+    Destination,
+    SubscriptionCategory,
+    SubscriptionType,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+request = CreateEventSubscription(
+    name="dq-failed-tests-to-webhook",
+    alertType=AlertType.Observability,
+    resources=["testCase"],
+    input={
+        "filters": [
+            {
+                "name": "filterByFqn",
+                "effect": "include",
+                "prefixCondition": "AND",
+                "arguments": [{"name": "fqnList", "input": ["svc.db.schema.orders"]}],
+            }
+        ],
+        "actions": [
+            {
+                "name": "GetTestCaseStatusUpdates",
+                "effect": "include",
+                "prefixCondition": "AND",
+                "arguments": [{"name": "testResultList", "input": ["Failed"]}],
+            }
+        ],
+    },
+    destinations=[
+        Destination(
+            category=SubscriptionCategory.External,
+            type=SubscriptionType.Webhook,
+            config={
+                "endpoint": "https://hooks.example.com/openmetadata",
+                "authType": {"type": "bearer", "secretKey": "<hmac-secret>"},
+            },
+        )
+    ],
+    enabled=True,
+)
+
+# PUT creates the alert, or updates it when the name already exists
+alert = metadata.create_or_update(data=request)
+print(alert.fullyQualifiedName)
+```
+</RequestExample>
+
+## Sources, Filters, and Triggers
+
+The valid sources, filters, triggers, and arguments depend on the alert type and source. To list them, see [Available Sources, Filters, and Triggers](/v2.1.x-SNAPSHOT/api-reference/alerts/list#available-sources-filters-and-triggers). The table shows the names for each Observability source. For what each one does, see the [Alert Behavior Reference](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/alert-behavior-reference).
+
+| Source (`resources`) | Trigger names (`input.actions`) | Filter names (`input.filters`) |
+|---|---|---|
+| `table` | `GetTableSchemaChanges`, `GetTableMetricsUpdates` | `filterByFqn`, `filterByDomain`, `filterByOwner`, `filterByUpdaterIsBot` |
+| `topic` | `GetTopicSchemaChanges` | same as `table` |
+| `container` | `GetContainerSchemaChanges` | same as `table` |
+| `pipeline` | `GetPipelineStatusUpdates` | same as `table` |
+| `ingestionPipeline` | `GetIngestionPipelineStatusUpdates` | same as `table` |
+| `testCase` | `GetTestCaseStatusUpdates`, `GetTestCaseStatusUpdatesUnderSuite` | `filterByFqn`, `filterByDomain`, `filterByOwner`, `filterByTableNameTestCaseBelongsTo`, `filterByUpdaterIsBot` |
+| `testSuite` | `GetTestSuiteStatusUpdates` | `filterByFqn`, `filterByDomain`, `filterByOwner`, `filterByUpdaterIsBot` |
+| `dataContract` | `GetDataContractStatusUpdates` | `filterByFqn`, `filterByDomain`, `filterByOwner`, `filterByEntityName`, `filterByUpdaterIsBot` |
+
+Argument names and values:
+
+- `filterByFqn` takes `fqnList`, `filterByDomain` takes `domainList`, `filterByOwner` takes `ownerNameList`, and `filterByTableNameTestCaseBelongsTo` takes `tableNameList`. `filterByUpdaterIsBot` takes no arguments.
+- `GetTestCaseStatusUpdates` and `GetTestSuiteStatusUpdates` take `testResultList` with values `Success`, `Failed`, `Aborted`, or `Queued`.
+- `GetTestCaseStatusUpdatesUnderSuite` takes `testStatusList` and `testSuiteList`.
+- `GetPipelineStatusUpdates` takes `pipelineStateList` with values `Successful`, `Failed`, `Pending`, or `Skipped`.
+- `GetIngestionPipelineStatusUpdates` takes `ingestionPipelineStateList` with values `queued`, `running`, `success`, `partialSuccess`, `failed`, or `stopped`.
+
+<Tip>
+Call the resources endpoint to confirm the exact argument names for your version before you automate alert creation.
+</Tip>
+
+## Alert for Incident Events
+
+To receive a webhook when an incident changes status, create a `Notification` alert on the `task` source, because incidents are tasks. The `task` source accepts only the `filterByMentionedName` filter, so omit `input` and filter the events in your receiver. Log a few real events from your environment to confirm the payload before you build on it.
+
+```json
+{
+  "name": "incident-events-to-webhook",
+  "alertType": "Notification",
+  "resources": ["task"],
+  "destinations": [
+    {
+      "category": "External",
+      "type": "Webhook",
+      "config": { "endpoint": "https://hooks.example.com/incidents" }
+    }
+  ]
+}
+```
+
+## Response
+
+Returns the created alert. The response includes these fields:
+
+- `id`, `fullyQualifiedName`, and `version`
+- `filteringRules`: the filters and triggers as expanded conditions
+- `statusDetails`: an object on each destination
+
+## Test a Destination Before You Create the Alert
+
+`POST /v1/events/subscriptions/testDestination` sends a test message to one or more destinations and returns the result for each. At least one destination is required.
+
+```json
+{
+  "destinations": [
+    {
+      "category": "External",
+      "type": "Webhook",
+      "config": { "endpoint": "https://hooks.example.com/openmetadata" }
+    }
+  ]
+}
+```
+
+## Errors
+
+The endpoint can return these errors:
+
+| Status | Cause |
+|---|---|
+| `400` | More than one `resources` value, an unsupported filter or trigger for the source, an empty required argument, or an invalid destination `config` (for example a missing `endpoint`). |
+| `403` | The caller lacks **Create** permission on the `EventSubscription` entity. |

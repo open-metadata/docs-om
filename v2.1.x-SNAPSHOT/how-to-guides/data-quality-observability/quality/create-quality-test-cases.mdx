@@ -1,0 +1,330 @@
+---
+title: Create Quality Test Cases
+description: Create no-code data quality tests at the table, column, and dimension level from the OpenMetadata UI, set failure thresholds, schedule runs, and review results.
+sidebarTitle: Create Quality Test Cases
+---
+
+# Create Quality Test Cases
+
+Run data quality tests at the table, column, and dimension level across all supported database connectors. Tests range from business validations, which confirm data meets real-world expectations, to technical checks such as ensuring required columns are never null and identifier columns hold only unique values.
+
+You don't need a YAML or JSON config file. Set up everything from the UI by choosing a test level, filling in the details, and creating the test.
+
+Before you start, make sure you have permission to create tests on the table.
+
+## How to Create a Test
+
+1. Go to the table you want to test and click the **Data Observability** tab.
+2. Click **Add Test**.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/quality/test1.png" alt="Add Test menu on the Data Observability tab" />
+
+3. Select a **Table**, **Column**, or **Dimension** level test.
+4. Enter the test details. See [Table Level Test](#table-level-test), [Column Level Test](#column-level-test), and [Dimension Level Test](#dimension-level-test) for the fields of each level.
+5. Click **Create** to save the test.
+
+## Table Level Test
+
+A **Table Level Test** validates properties of the whole table, such as row counts or column structure. It can also check insert freshness or custom SQL logic.
+
+Enter the following details:
+- **Name**: A name that describes your test case.
+- **Test Type**: The validation to run. The fields below it depend on the test type.
+- **Description**: What the test validates.
+
+OpenMetadata currently supports the following table level test types:
+- Table Column Count to be Between: Define the Min. and Max.
+- Table Column Count to Equal: Define a number.
+- Table Column Name to Exist: Define a column name.
+- Table Column Names to Match Set: Add comma separated column names to match. Also verify whether the column names are in order.
+- Custom SQL Query: Define a SQL expression. Select a strategy if it should apply for Rows or for Count. Define a threshold to determine if the test passes or fails.
+- Table Row Count to be Between: Define the Min. and Max.
+- Table Row Count to Equal: Define a number.
+- Table Row Inserted Count to be Between: Define the Min. and Max. row count. This test will work for columns whose values are of the type Timestamp, Date, and Date Time field. Specify the range type in terms of Hour, Day, Month, or Year. Define the interval based on the range type selected.
+- Compare 2 Tables for Differences: Compare 2 tables for differences. Checks integrity between the two tables.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/quality/test4.png" alt="Configure a Table Level Test" />
+
+For the fields and behavior of each test, see [Tests in the OpenMetadata UI](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/tests-ui).
+
+## Column Level Test
+
+A **Column Level Test** validates the values of one column, such as null counts or value ranges. It can also check uniqueness and pattern matching.
+
+Enter the following details:
+- **Column**: The column to test. A summary of the column appears next to the form.
+- **Name**: A name that describes your test case.
+- **Test Type**: The validation to run. The fields below it depend on the test type.
+- **Description**: What the test validates.
+
+OpenMetadata currently supports the following column level test types:
+- Column Value Lengths to be Between: Define the Min. and Max.
+- Column Value Max. to be Between: Define the Min. and Max.
+- Column Value Mean to be Between: Define the Min. and Max.
+- Column Value Median to be Between: Define the Min. and Max.
+- Column Value Min. to be Between: Define the Min. and Max.
+- Column Values Missing Count: Define the number of missing values. Also match all null and empty values as missing. Also configure additional missing strings like N/A.
+- Column Values Sum to be Between: Define the Min. and Max.
+- Column Value Std Dev to be Between: Define the Min. and Max.
+- Column Values to be Between: Define the Min. and Max.
+- Column Values to be in Set: Add an array of allowed values.
+- Column Values to be Not in Set: Add an array of forbidden values.
+- Column Values to be Not Null
+- Column Values to be Unique
+- Column Values to Match Regex Pattern: Define the regular expression that the column entries should match.
+- Column Values to Not Match Regex: Define the regular expression that the column entries should not match.
+- Column Values To Be At Expected Location: Define a geographic area, such as a radius around an expected location, that latitude and longitude values must fall within.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/quality/test2.png" alt="Configure a Column Level Test" />
+
+For the fields and behavior of each test, see [Column Tests - UI Config](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/tests-ui/column-tests).
+
+### Set a Failure Threshold (Optional)
+
+Many test definitions let you choose how many failures to tolerate before the test is marked as failed. By default no failures are tolerated, so a single failing row fails the test. The form shows **Failure Threshold** and **Threshold Unit** fields for the tests listed in [Tests That Support a Failure Threshold](#tests-that-support-a-failure-threshold).
+
+1. In **Select Test Type**, pick a test, for example **Column Values To Be Not Null**.
+2. In **Failure Threshold**, enter the number of failures to tolerate. It can't be negative.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/failure-threshold-form.png" alt="Add Test case form showing the Failure Threshold and Threshold Unit fields with the Preview" />
+
+3. In **Threshold Unit**, choose how the threshold is measured:
+    - **rows**: a count of failing rows. In the API this is `ABSOLUTE`.
+    - **% of rows**: a share of the rows evaluated. For row-level tests the value can't be higher than 100. In the API this is `PERCENTAGE`.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/threshold-unit-dropdown.png" alt="Add Test case form with the Threshold Unit dropdown open, showing the rows and % of rows options" />
+
+4. Check the **Preview**. It restates your choice, for example "Fail when more than 0 row(s) in column fail this test." A second line shows what the check is measured on, for example "Measured on the 100% sample this table is profiled with."
+5. Optional: Turn on **Compute Row Count**.
+6. Confirm the **Data Quality Dimension**.
+7. Enter a name.
+8. Click **Create**.
+
+Keep **Show Hint** on to read each field description in the **Form Hint** panel.
+
+How the threshold is applied depends on the test:
+- **Row-level tests** count the rows that break the rule. They fail when that count, or its share of the evaluated rows, is above the threshold.
+- **Statistical tests** widen the accepted bounds by the threshold, so small deviations don't fail the test.
+
+If you enter an invalid value, such as a negative threshold, OpenMetadata rejects the test case with an error when you save it.
+
+Two tests behave differently:
+- **Column Values to be in Set** rejects a non-zero threshold when its `matchEnum` option is off, because that mode has no failing rows to tolerate. A threshold of `0` is always accepted.
+- **Custom SQL Query** has its own **Threshold** and **Operator**. Its threshold is a value that the query result is compared with, not a number of failures to tolerate. The form adds only a **Threshold Unit** field.
+
+#### Tests That Support a Failure Threshold
+
+The following tables show which tests have the threshold fields.
+
+##### Table Level Tests
+
+This table shows which table level tests support the threshold fields.
+
+| Test | Failure Threshold and Threshold Unit |
+|---|---|
+| Table Column Count to be Between | Supported |
+| Table Column Count to Equal | Supported |
+| Table Row Count to be Between | Supported |
+| Table Row Count to Equal | Supported |
+| Table Row Inserted Count to be Between | Supported |
+| Custom SQL Query | **Threshold Unit** only. It keeps its own **Threshold** and **Operator**. |
+| Table Column Name to Exist | Not applicable |
+| Table Column Names to Match Set | Not applicable |
+| Compare 2 Tables for Differences | Not applicable. It has its own **Threshold**, the number of differing rows allowed. |
+
+##### Column Level Tests
+
+This table shows which column level tests support the threshold fields.
+
+| Test | Failure Threshold and Threshold Unit |
+|---|---|
+| Column Value Lengths to be Between | Supported |
+| Column Value Max. to be Between | Supported |
+| Column Value Mean to be Between | Supported |
+| Column Value Median to be Between | Supported |
+| Column Value Min. to be Between | Supported |
+| Column Values Missing Count | Supported |
+| Column Values Sum to be Between | Supported |
+| Column Value Std Dev to be Between | Supported |
+| Column Values to be Between | Supported |
+| Column Values to be in Set | Supported, with the `matchEnum` rule above |
+| Column Values to be Not in Set | Supported |
+| Column Values to be Not Null | Supported |
+| Column Values to be Unique | Supported |
+| Column Values to Match Regex Pattern | Supported |
+| Column Values to Not Match Regex | Supported |
+| Column Values To Be At Expected Location | Supported |
+
+For a worked example, see [Column Values to Be Not Null](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/tests-ui/column-tests#column-values-to-be-not-null).
+
+## Dimension Level Test
+
+A dimension level test is a column test whose results are split by one or more dimension columns, to show which segment of the data is failing. See [Dimensional Validation](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/dimensional-validation) for concepts, setup, and examples.
+
+## View Test Results
+
+After you create a test, it appears in the **Data Quality** tab. Edit its display name and description there.
+
+<img src="/public/images/how-to-guides/quality/test3.png" alt="Test case listed in the Data Quality tab" />
+
+### Filter Test Cases by Status
+
+Navigate to **Observability** > **Data Quality** and select the **Test Cases** tab. The filter bar has **Advanced**, **Table**, **Type**, **Status**, and **Tags** filters. Use **Clear All** to reset them.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/test-cases-status-filter.png" alt="Test Cases tab on the Data Quality page with the filter bar" />
+
+The **Status** filter accepts several values at once. To filter by more than one status:
+
+1. Click **Status**.
+2. Select one or more of **Aborted**, **Failed**, **Queued**, and **Success**.
+3. Click **Apply**. The button shows how many statuses you selected, for example **Apply (2)**.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/test-cases-status-dropdown.png" alt="Status filter with Queued and Success selected and the Apply (2) button" />
+
+A test case matches if it has any selected status. A number next to **Status** shows how many statuses are applied. Click **Clear all** in the dropdown to remove the selection, or **Cancel** to close it without changes.
+
+### Open Test Cases From the Summary Tab
+
+The **Summary** tab of **Data Quality** shows **Data Health** cards. In the **Healthy Data Assets** card, select the **Healthy** or **Unhealthy** segment to open the **Test Cases** tab with the matching statuses already applied:
+- **Healthy**: `Success` and `Queued`.
+- **Unhealthy**: `Failed` and `Aborted`.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/data-health-healthy-assets.png" alt="Healthy Data Assets card on the Data Quality Summary tab, showing Healthy and Unhealthy counts" />
+
+### Review Result History
+
+To see how a test case has performed over time, open it from **Data Quality** > **Test Cases**. The **Test Case Results** tab shows:
+- **Last run**:
+    - The latest status and a message with the measured value and the expected range.
+    - The **Result / Expected** values.
+    - The run time and when the next run is due, or **Not Scheduled**.
+- **Result history**: a chart of the measured value over time. The caption shows what is measured and what it is compared against, for example "Column count vs. allowed range 2–10". A dashed line marks the allowed limit.
+- **Configuration**, **Description**, **Test Suites**, **Tags**, **Glossary Term**, and **Data Products** panels beside the chart.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/result-history-card.png" alt="Test case details page showing the Last run banner, the Result history chart, and the date range picker" />
+
+To change the time window:
+
+1. Click the date range on the **Result history** card. By default it covers the last 30 days and ends today.
+2. Choose a time range in one of two ways:
+    - Select a preset: **Today**, **Yesterday**, **This week**, **Last week**, **This month**, **Last month**, **This year**, **Last year**, or **All time**.
+    - Pick start and end dates on the calendars, or type them in the date fields.
+3. Click **Apply**.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/result-history-date-range.png" alt="Date range picker with presets, two calendars, start and end date fields, and the Cancel and Apply buttons" />
+
+Below the chart, five tiles summarize the selected window:
+
+| Tile | Meaning |
+|---|---|
+| Runs | All runs, including queued runs |
+| Passed | Runs that succeeded |
+| Failed | Runs that failed |
+| Aborted | Runs that stopped before finishing |
+| Success rate | Passed runs as a share of completed runs |
+
+Queued runs count toward **Runs** but not toward the success rate, so the tiles might not add up to **Runs**. The success rate shows a dash when no run has completed.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/result-history-tiles-run-details.png" alt="Result history chart with the Runs, Passed, Failed, Aborted, and Success rate tiles and the Run Details card" />
+
+### Review Run Details
+
+Below the tiles, the **Run Details** card shows the latest run by default. Hover over a point on the chart to see its time and status. Select a point to show that run. The card then shows a **Selected run** label, and **Back to latest** returns to the latest run.
+
+The card shows the run status and time, and the test definition. It also shows the **Expected**, **Found**, and **Difference** values. For an aborted run, **Found** and **Difference** show a dash, because the run didn't produce a result.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/run-details-aborted.png" alt="Run Details card for an aborted run, with the Selected run label and the Back to latest link" />
+
+For an aborted run, the card also shows an **Execution error** section below the values. It shows the error message from the failed run, for example a database connection error. Long messages are shortened. Click **more** to read the rest.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/run-details-execution-error.png" alt="Run Details card for an aborted run showing the Execution error section with a database connection error message and a more link" />
+
+<Warning>The error message can include host names, SQL text, and file paths from the ingestion run. Anyone who can view test results can see it.</Warning>
+
+## Set Up a Pipeline
+
+Set up a pipeline to run test cases at a regular interval, or on demand.
+
+1. Open the test suite and click the **Pipeline** tab.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/quality/test5.png" alt="Set up a Pipeline" />
+
+2. Click **Add Pipeline**. The **Add Ingestion** form opens, titled **Scheduler for Test Cases**.
+3. In **Name**, enter a name for the pipeline.
+4. Under **Scheduler for Test Cases**, choose how the pipeline runs:
+    - **Schedule**: the test cases run repeatedly on your schedule.
+    - **On Demand**: the test cases run once, when you start them.
+5. For **Schedule**, choose a **Frequency**: **Hourly**, **Daily**, **Weekly**, **Monthly**, or **Custom**.
+6. Set the **Time**. A line below it summarizes the result, for example "Test Cases scheduled to run At 12:00 AM, every day". The time zone is UTC.
+7. Optional: Turn on **Enable Debug Log** to capture detailed logs.
+8. Optional: Turn off **Raise on Error**, which is on by default and stops the run when an error occurs.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/test-pipeline-scheduler.png" alt="Add Ingestion form with the Schedule and On Demand options, the Frequency buttons, the Time field, and the Enable Debug Log and Raise on Error toggles" />
+
+9. Choose the test cases to run:
+    - Turn on **Select All Test Cases** to run every test case in the suite.
+    - Or leave it off and select test cases in the **Test case** list. Use **Search Test Cases** and the **Status**, **Test Type**, and **Column** filters to find them. The list shows how many you have selected.
+
+    <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/test-pipeline-select-test-cases.png" alt="Add Ingestion form with the Select All Test Cases toggle and a list of test cases to select" />
+
+10. Click **Submit**.
+
+The pipeline runs at the scheduled time. The results update in the **Data Quality** tab.
+
+<img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/quality/test7.png" alt="Pipeline Scheduled" />
+
+<img src="/public/images/how-to-guides/quality/test8.png" alt="Data Quality Tests" />
+
+Create several pipelines for one suite, each with its own schedule and its own test cases. This lets you run different test cases at different times.
+
+## Handle Test Failures
+
+If a test fails, set its status to **New**, **Acknowledged**, or **Resolved**.
+
+1. In the **Status** column, click the status icon of the failed test.
+
+    <img src="/public/images/how-to-guides/quality/test9.png" alt="Failed Test: Edit Status" />
+
+2. Select a test **Status**.
+
+    <img src="/public/images/how-to-guides/quality/test10.png" alt="Edit Test Status" />
+
+3. If you mark the test as **Resolved**, you must give a **Reason** for the failure and add a **Comment**. The reasons are Duplicates, False Positive, Missing Data, Other, or Out of Bounds.
+
+    <img src="/public/images/how-to-guides/quality/test11.png" alt="Resolved Status: Reason" />
+
+4. Click **Submit**.
+
+Set up [alerts](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/data-observability-alerts) to be notified when a test fails.
+
+## Delete and Restore a Test Case
+
+<Info>
+**Note**: Deleting a test case from a table's own **Data Observability** tab is a hard delete. Soft delete and restore are only available from the platform-wide Test Cases list described below.
+</Info>
+
+1. Navigate to **Observability** > **Data Quality**, and click **Test Cases**.
+2. Find the test case and open its row actions menu, then select **Delete**.
+
+    <img src="/public/images/how-to-guides/data-quality-observability/quality/delete-test-case.png" alt="Delete option in the test case row menu" />
+
+3. The **Delete "\<name\>" Test Case** dialog offers two options:
+    - **Soft Delete** (selected by default): Turn off this test case. Restore it later.
+    - **Permanently Delete**: Delete this test case and all its metadata forever. This can't be undone.
+
+    Choose **Soft Delete** and click **Delete** to keep the test case's execution history and results while turning it off.
+
+    <img src="/public/images/how-to-guides/data-quality-observability/quality/delete-option-test-case.png" alt="Soft Delete and Permanently Delete options" />
+
+4. Toggle **Show Deleted** on the Test Cases page to find soft-deleted test cases.
+5. Open the row actions menu on a deleted test case and select **Restore**, then confirm. The test case becomes editable and resumes on its existing schedule with its history intact.
+
+    <img src="/public/images/how-to-guides/data-quality-observability/quality/restore-test-case.png" alt="Restore option for a soft-deleted test case" />
+
+<Info>
+**Note**: Restoring a test case requires **EditAll** permission on test cases. Also restore a deleted test case from its own details page, which stays read-only until it's restored.
+</Info>
+
+ <Card title="How to Set Alerts for Test Case Fails" href="/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/data-observability-alerts" >
+    Get notified when a data quality test fails.
+  </Card>

@@ -67,7 +67,12 @@ jq -n --arg mode "$MODE" --arg target "$TARGET" \
          suggested_title: ((if ($e.suggested_title | test("\\S")) then $e.suggested_title else $all[$e.prs[0]].title end) | clean | .[0:120]),
          breaking: ($e.breaking or ($e.prs | any($all[.].breaking))),
          tracking_issue: ([$e.prs[] | $all[.].tracking_issue | select(. != null)] | first // null),
-         original_pr: ([$e.prs[] | $all[.].original_pr | select(. != null)] | first // null)} ],
+         original_pr: ([$e.prs[] | $all[.].original_pr | select(. != null)] | first // null)}
+        + (if $mode == "major" then {
+            area: (($e.area // "" | clean | gsub("[|\n\r]"; " ") | gsub("^ +| +$"; "") | .[0:60]) | if test("\\S") then . else "Other" end),
+            summary: ($e.summary // "" | clean),
+            checkboxes: [($e.checkboxes // [])[] | clean | gsub("[\n\r]"; " ") | .[0:160] | select(test("\\S"))][0:8]
+          } else {} end) ],
     reviewed_items: [ $entries[] | select(.verdict != "confirmed") | . as $e
         | {status: $e.verdict, source_prs: src($e), reason: reason_of($e)} ]
   }

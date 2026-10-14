@@ -95,6 +95,7 @@ Every webhook request includes:
 - `Content-Type: application/json`
 - `X-OM-Signature: sha256=<signature>` (only if you configured the HMAC option)
 - `Authorization: Bearer <token>` (only if you configured OAuth2 client credentials)
+- `X-Auth-Params-Email: admin@open-metadata.org`, a fixed internal header sent on every request. It isn't related to the authentication options above and isn't configurable.
 - Any custom headers you added
 
 There's no header identifying the event type, a delivery ID, or a delivery timestamp. That information is all in the request body, described below.
@@ -113,12 +114,13 @@ Each request body is a single `ChangeEvent` JSON object describing one change in
 | `changeDescription` | For `entityUpdated` events, the fields that were added, updated, or deleted. |
 | `entity` | The full asset, sent as a JSON-encoded string rather than a nested object. Parse it a second time to read it. |
 
-For the complete field list and every `eventType` value, see the [`ChangeEvent`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEvent.json) and [`ChangeEventType`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEventType.json) schemas.
+For example payloads for each alert source, see [Webhook Payloads and Delivery](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery). For the complete field list and every `eventType` value, see the [`ChangeEvent`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEvent.json) and [`ChangeEventType`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/changeEventType.json) schemas.
 
 ### Delivery Behavior
 
-- **Timeouts**: by default, OpenMetadata allows up to 10 seconds to connect to your endpoint and 12 seconds to receive a response.
-- **Retries**: a failed delivery (a connection error, a timeout, or a 4xx/5xx response) is retried up to 3 times by default. A 3xx response is treated as an immediate failure and isn't retried.
+- **Timeouts**: by default, OpenMetadata allows up to 10 seconds to connect to your endpoint and 12 seconds to receive a response. OpenMetadata keeps the connect timeout between 5 and 30 seconds and the read timeout between 10 and 120 seconds.
+- **Retries**: OpenMetadata doesn't automatically resend an event after a failed delivery (a connection error, a timeout, or a non-2xx response, including a 3xx redirect). The one exception is OAuth2: after a `401`, OpenMetadata fetches a new token and sends the request once more. OpenMetadata records failed events. Review them through the API. See [Webhook Payloads and Delivery](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery#delivery-guarantees).
+- **Duplicates**: treat delivery as at least once. Deduplicate on each event's `id`.
 - **Ordering**: events aren't guaranteed to arrive in order, so sort by each event's `timestamp` rather than assuming delivery order.
 
 ### Network Considerations

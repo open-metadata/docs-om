@@ -18,8 +18,12 @@ availableFeatures={[
     "Lineage",
     "Column-level Lineage",
     "Data Profiler",
+    "Auto-Classification",
     "Data Quality",
-    "dbt"
+    "Tags",
+    "dbt",
+    "Sample Data",
+    "Iceberg Table Support"
   ]}
   unavailableFeatures={[
     "Owners",
@@ -29,6 +33,7 @@ availableFeatures={[
 In this section, we provide guides and references to use the Athena connector.
 Configure and schedule Athena metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [Iceberg Table Support](#iceberg-table-support)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.0.x/connectors/database/athena/troubleshooting)
 
@@ -97,11 +102,7 @@ And is defined as:
             "Action": [
               "lakeformation:GetResourceLFTags"
             ],
-            "Resource": [
-                "arn:aws:athena:<<AWS_REGION>>:<<ACCOUNT_ID>>:datacatalog/<<DATA_CATALOG_NAME>>/database/<<DATABASE_NAME>>"
-                "arn:aws:athena:<<AWS_REGION>>:<<ACCOUNT_ID>>:datacatalog/<<DATA_CATALOG_NAME>>/database/<<DATABASE_NAME>>/table/<<TABLE_NAME>>"
-                "arn:aws:athena:<<AWS_REGION>>:<<ACCOUNT_ID>>:datacatalog/<<DATA_CATALOG_NAME>>/database/<<DATABASE_NAME>>/table/<<TABLE_NAME>>/column/<<COLUMN_NAME>>"
-            ]
+            "Resource": "*"
         },
         {
             "Action": [
@@ -126,8 +127,18 @@ And is defined as:
 }
 ```
 ### LF-Tags
-Athena connector ingests and creates LF-tags in OpenMetadata with LF-tag key mapped to OpenMetadata's classification and the values mapped to tag labels. To ingest LF-tags provide the appropriate permissions as to the resources as mentioned above and enable the `includeTags` toggle in the ingestion config.
-<Tip>If you have external services other than glue and facing permission issues, add the permissions to the list above.</Tip>
+
+The Athena connector ingests Lake Formation tags on databases, tables, and columns. It maps each LF-tag key to an OpenMetadata classification and each value to a tag label. `includeTags` defaults to `true` in metadata ingestion. Set it to `false` to skip LF-tag ingestion.
+
+Grant the ingestion principal the IAM action `lakeformation:GetResourceLFTags`. The principal also needs Lake Formation access to the target databases and tables, plus `DESCRIBE` or `ASSOCIATE` permission on the LF-tags it reads.
+
+## Iceberg Table Support
+
+The Athena connector ingests Iceberg tables through the AWS Glue Data Catalog. When Glue reports `table_type=ICEBERG`, OpenMetadata assigns the table the `Iceberg` table type.
+
+Grant the ingestion principal `glue:GetTables` to list tables and `glue:GetTable` to read Iceberg column metadata, along with the standard Athena permissions above. If the connector cannot read Glue table listings, it falls back to JDBC table discovery and reports those tables as `External`. If it cannot read a table's Glue column metadata, it falls back to standard column detection.
+
+Classifying Iceberg tables from Glue metadata does not require S3 write access. Other Athena workflows can still require the S3 permissions shown in the policy above.
 
 ## Metadata Ingestion
 

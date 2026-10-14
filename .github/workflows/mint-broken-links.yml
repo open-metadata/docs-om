@@ -11,24 +11,35 @@ concurrency:
   group: mint-broken-links-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+env:
+  # Keep in sync with mint-cli-cache.yml, which caches this version on main.
+  MINT_VERSION: 4.2.797
+
 jobs:
   broken-links:
     name: Check Documentation Links
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Text only: public/ holds over 1 GB of images that Mint never reads.
+      # Mint only checks that image paths exist, so "Prepare the link-check
+      # tree" recreates them as empty files from git's file list.
       - name: Check out pull request
         timeout-minutes: 5
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
-          cache: npm
 
       - name: Save pull request metadata
         env:
@@ -39,20 +50,67 @@ jobs:
           printf '%s\n' "$PR_NUMBER" > "$REPORT_DIR/pr_number"
 
       - name: Find changed documentation files
+        id: changed
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
         run: |
-          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+          # Commits and trees only (no file contents). --no-renames lists a
+          # renamed file under its new path as an addition, which the ACMR
+          # filter keeps, so the file set is unchanged and git never needs the
+          # file contents for rename detection.
+          git fetch --quiet --no-tags --depth=1 --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          git diff --no-renames --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
             '*.md' '*.mdx' 'docs.json' 'mint.json' > "$CHANGED_FILES"
 
           if [ -s "$CHANGED_FILES" ]; then
+            echo "has_files=true" >> "$GITHUB_OUTPUT"
             echo "Checking the following documentation files:"
             cat "$CHANGED_FILES"
           else
             echo "No documentation or configuration files changed."
           fi
+
+      # Restore only: pull request runs never write the cache, so content
+      # from a pull request can't reach the cache that main saves.
+      - name: Restore Mint CLI
+        id: mint-cache
+        if: steps.changed.outputs.has_files == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mint-cli
+          key: mint-cli-${{ runner.os }}-node22-${{ env.MINT_VERSION }}
+
+      - name: Prepare the link-check tree
+        if: steps.changed.outputs.has_files == 'true'
+        # Only touches this job's throwaway checkout.
+        env:
+          CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
+        run: |
+          python3 - "$CHANGED_FILES" <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          def git_paths(*args):
+              out = subprocess.run(['git', *args], check=True, capture_output=True).stdout
+              return [os.fsdecode(path) for path in out.split(b'\0') if path]
+
+          # Empty placeholders keep every image path resolvable.
+          for path in git_paths('ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'public'):
+              os.makedirs(os.path.dirname(path), exist_ok=True)
+              open(path, 'w').close()
+
+          # Mint parses every page to build its link graph, then reports only
+          # the --files pages. With --check-anchors off, the other pages count
+          # only as link targets (their file must exist), so emptying them
+          # gives the same report in a fraction of the time.
+          keep = set(open(sys.argv[1]).read().splitlines())
+          for path in git_paths('ls-files', '-z', '--', '*.md', '*.mdx'):
+              if path not in keep and os.path.isfile(path) and not os.path.islink(path):
+                  open(path, 'w').close()
+          PY
 
       - name: Run Mint broken-link check
         id: broken-links
@@ -66,7 +124,7 @@ jobs:
           RETRY_URLS_FILE: ${{ runner.temp }}/mint-broken-links-retry-urls
           CHANGED_FILES: ${{ runner.temp }}/mint-broken-links-files
           MINT_CLI_DIR: ${{ runner.temp }}/mint-cli
-          MINT_VERSION: 4.2.797
+          MINT_CACHE_HIT: ${{ steps.mint-cache.outputs.cache-hit }}
         run: |
           set -o pipefail
           if [ ! -s "$CHANGED_FILES" ]; then
@@ -81,8 +139,11 @@ jobs:
 
           # Invoke Mint directly so a large set of --files arguments does not
           # exceed npm exec's command-string limit on Linux runners.
-          npm install --no-save --package-lock=false --prefix "$MINT_CLI_DIR" \
-            "mint@${MINT_VERSION}" 2>&1 | tee "$LOG_FILE"
+          : > "$LOG_FILE"
+          if [ "$MINT_CACHE_HIT" != 'true' ]; then
+            npm install --no-save --package-lock=false --prefix "$MINT_CLI_DIR" \
+              "mint@${MINT_VERSION}" 2>&1 | tee "$LOG_FILE"
+          fi
 
           # Mint's CLI does not resolve anchors provided by imported MDX components.
           # Mintlify's rendered link validation covers those anchors separately.

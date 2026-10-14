@@ -1,0 +1,34 @@
+---
+title: ClickZetta Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common ClickZetta connector issues in OpenMetadata, including connection failures, permission errors, and ingestion problems.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## ClickZetta-Specific Issues
+
+The following issues are specific to the ClickZetta connector.
+
+### Connection Fails with a Missing Virtual Cluster
+
+ClickZetta runs queries through a virtual cluster, so the **Virtual Cluster** field is required. If the connection test fails, confirm the virtual cluster name is correct and that the connecting user's role has `USAGE` on it. Run the following grant:
+
+```sql
+GRANT USAGE ON VCLUSTER <virtual_cluster> TO ROLE <role>;
+```
+
+### No Usage or Lineage Is Produced
+
+Query Usage and query-based lineage read from a ClickZetta query-history source. Set **Query History Table** to `information_schema.job_history` for workspace-local history or `sys.information_schema.job_history` for cross-workspace history. Confirm that the user has `SELECT` on the selected source. A custom table or view must expose these columns:
+
+- Query columns: `query_text`, `query_type`, `user_name`
+- Scope and timing columns: `database_name`, `schema_name`, `start_time`, `end_time`, `duration`, `aborted`, `cost`
+
+The history is scoped to the configured workspace and schema, so a mismatched **Workspace** or **Database Schema** can return no rows.
+
+### No Schemas or Tables Are Ingested
+
+Leave **Database Schema** blank to scan all schemas, or set it to restrict ingestion to a single schema. Confirm the connecting role has `SELECT` on the schemas you expect to ingest, and review your filter patterns in the **What to Ingest** step.

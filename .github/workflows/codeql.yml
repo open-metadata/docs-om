@@ -1,0 +1,54 @@
+name: CodeQL
+
+# Replaces CodeQL default setup (same language, query suite, triggers, and
+# category) so the checkout can skip the docs content. Default setup must be
+# switched off in Settings > Code security when this lands: GitHub rejects
+# advanced-setup uploads while default setup is enabled.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 2" # weekly, like default setup
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (actions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      # The actions extractor reads only workflow and action definitions, so
+      # skip the docs and the 1 GB of images in public/.
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            /.github/
+            **/action.yml
+            **/action.yaml
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: actions
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: /language:actions

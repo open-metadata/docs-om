@@ -1,0 +1,118 @@
+---
+title: List and Retrieve Alerts
+description: List alerts, retrieve one by ID or name, look up the sources, filters, and triggers available for an alert type, and inspect what an alert has delivered.
+sidebarTitle: List and Retrieve
+api: GET /v1/events/subscriptions
+---
+
+# List and Retrieve Alerts
+
+List alerts, retrieve one, look up the available sources, filters, and triggers, and inspect what an alert has delivered.
+
+## List Alerts
+
+List the alerts in your OpenMetadata instance, optionally filtered by alert type, with `GET /v1/events/subscriptions`.
+
+<ParamField query="alertType" type="string">
+  Return only alerts of this type: `Notification` or `Observability`.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated list of fields to include. Supported values: `owners`, `filteringRules`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Number of alerts to return in one page.
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for the previous page.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for the next page.
+</ParamField>
+
+## Retrieve an Alert
+
+Retrieve one alert by ID or by name.
+
+- By ID: `GET /v1/events/subscriptions/{id}`
+- By name: `GET /v1/events/subscriptions/name/{name}`
+
+Both accept the `fields` query parameter.
+
+<RequestExample dropdown>
+```bash GET /v1/events/subscriptions
+curl "https://your-company.open-metadata.org/api/v1/events/subscriptions?alertType=Observability&limit=50&fields=filteringRules" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python GET /v1/events/subscriptions
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.generated.schema.events.eventSubscription import EventSubscription
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+# One alert by name
+alert = metadata.get_by_name(
+    entity=EventSubscription,
+    fqn="dq-failed-tests-to-webhook",
+)
+
+# All alerts, paged
+alerts = metadata.list_all_entities(entity=EventSubscription, limit=100)
+for item in alerts:
+    print(item.name, item.alertType)
+```
+</RequestExample>
+
+## Available Sources, Filters, and Triggers
+
+Look up the valid sources, filters, and triggers for an alert type with `GET /v1/events/subscriptions/{alertType}/resources`.
+
+Set `alertType` to `Observability` or `Notification`. The response lists every valid source for that type. Each item has the source `name` and the filters it supports. Only Observability sources have triggers, and each trigger lists its argument names. Use it to build valid `input` values for [Create an Alert](/v2.1.x-SNAPSHOT/api-reference/alerts/create).
+
+```bash
+curl "https://your-company.open-metadata.org/api/v1/events/subscriptions/Observability/resources" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Events and Delivery Status
+
+Use these endpoints to see what an alert has processed and delivered. They require view access to all alerts. The `{id}` and `{name}` forms behave the same.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /v1/events/subscriptions/id/{id}/eventsRecord` | Counts of total, pending, successful, and failed events. Also available at `/name/{name}/eventsRecord`. |
+| `GET /v1/events/subscriptions/id/{id}/listEvents` | Events for the alert. Filter with `status=failed` or `status=successful`. Supports `limit` (default 15) and `paginationOffset`. |
+| `GET /v1/events/subscriptions/id/{id}/failedEvents` | Events that could not be delivered, with the change event, the failure reason, and the source of the failure. Also available at `/name/{name}/failedEvents`. Supports `limit`, `paginationOffset`, and `source`. |
+| `GET /v1/events/subscriptions/listAllFailedEvents` | Failed events across all alerts. |
+| `GET /v1/events/subscriptions/id/{id}/listSuccessfullySentChangeEvents` | Events delivered successfully. Also available at `/name/{name}/listSuccessfullySentChangeEvents`. |
+| `GET /v1/events/subscriptions/id/{id}/diagnosticInfo` | Offsets (latest, current, starting), whether the alert has processed all events, and counts of unprocessed events. Also available at `/name/{name}/diagnosticInfo`. |
+| `GET /v1/events/subscriptions/id/{id}/destinations` | The alert's destinations. Also available at `/name/{name}/destinations`. |
+| `GET /v1/events/subscriptions/{id}/status/{destinationId}` | Status of one destination. |
+
+OpenMetadata keeps these records for the retention period set in the Data Retention application. The default is 7 days.
+
+## Response
+
+Each alert includes these fields:
+
+- `id`, `name`, and `fullyQualifiedName`
+- `alertType` and `enabled`
+- `resources`, `input`, and `destinations`
+- `filteringRules`: the filters and triggers as expanded conditions, returned when you request it with `fields`
+- `pollInterval`, `batchSize`, and `retries`
+- `version`, `updatedAt`, and `updatedBy`

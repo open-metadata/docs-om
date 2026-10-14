@@ -16,6 +16,7 @@ unavailableFeatures={["Owners", "Tags"]} />
 In this section, we provide guides and references to use the Fivetran connector.
 Configure and schedule Fivetran metadata workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [Lineage](#lineage)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/pipeline/fivetran/troubleshooting)
 
@@ -28,6 +29,22 @@ To access Fivetran APIs, a Fivetran account on a Standard, Enterprise, or Busine
 Generate the API key and API secret from a Fivetran user with an account-level role that has read access to all destinations and connections, such as **Account Reviewer**. OpenMetadata needs to discover every destination and connector in the account. A destination-scoped role (for example, View Destination) is not enough, because it only covers destinations the user was explicitly invited to.
 
 For detailed, per-phase Pipeline Status (Extract/Process/Load), OpenMetadata also reads the `fivetran_metadata.log` table that Fivetran automatically publishes in each destination's warehouse, using the Database Service already connected to that warehouse in OpenMetadata. The database user in that connection needs `SELECT` access to the `fivetran_metadata` schema. If this table isn't reachable, OpenMetadata automatically falls back to Fivetran's REST sync-history API for pipeline status.
+
+## Lineage
+
+Fivetran lineage connects the source and destination of each Fivetran connector. OpenMetadata supports:
+
+- **Table to table**: for database and warehouse destinations.
+- **Table to topic**: for Kafka and Confluent Cloud destinations. OpenMetadata links the source table to the destination topic, with column-level lineage when Fivetran provides column configuration for the connector.
+
+OpenMetadata looks up lineage entities in the services you list when you [configure the Metadata Agent](#configure-metadata-agent-and-schedule-ingestion) (`sourceConfig.config.lineageInformation` in YAML):
+
+- **Db Service Names** (`dbServiceNames`): database services that hold the source and destination tables.
+- **Messaging Service Names** (`messagingServiceNames`): messaging services that hold the source and destination topics.
+
+If you leave these lists empty, OpenMetadata searches all services for a matching table or topic and uses the first match. Set the lists when the same table name exists in more than one service, so lineage points to the right one.
+
+If a run creates no lineage, the Metadata Agent still succeeds. The log then carries a warning that names the most common reason, for example `source entity not found`. If the service names are set, check that they match the services that hold the tables or topics.
 
 ## Metadata Ingestion
 

@@ -1,0 +1,77 @@
+---
+title: Conversation V2
+description: Create, read, edit, and react to conversations and replies
+sidebarTitle: Conversations
+---
+
+# Conversation V2
+
+Conversation V2 uses explicit `Conversation` and `ConversationReply` schemas for discussions attached to metadata entities and fields.
+
+**Breaking change**: Clients that used `/v1/feed` must migrate. Human conversations now use `/v1/conversations`. Announcements, tasks, and generated activity use `/v1/announcements`, `/v1/tasks`, and `/v1/activity`. Update old feed clients to the matching resource endpoint and response schema.
+
+## Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/conversations` | List conversations. |
+| `POST` | `/v1/conversations` | Create a conversation with `message` and `about`. |
+| `GET` | `/v1/conversations/{id}` | Get one conversation. |
+| `PATCH` | `/v1/conversations/{id}` | Apply a JavaScript Object Notation (JSON) Patch defined by Request for Comments (RFC) 6902. |
+| `DELETE` | `/v1/conversations/{id}` | Delete a conversation. |
+| `PUT` | `/v1/conversations/{id}/reaction/{reactionType}` | Add the caller's reaction. |
+| `DELETE` | `/v1/conversations/{id}/reaction/{reactionType}` | Remove the caller's reaction. |
+| `GET` | `/v1/conversations/{id}/replies` | List replies. |
+| `POST` | `/v1/conversations/{id}/replies` | Add a reply. |
+| `PATCH` | `/v1/conversations/{id}/replies/{replyId}` | Patch a reply. |
+| `DELETE` | `/v1/conversations/{id}/replies/{replyId}` | Delete a reply. |
+| `PUT` | `/v1/conversations/{id}/replies/{replyId}/reaction/{reactionType}` | Add a reply reaction. |
+| `DELETE` | `/v1/conversations/{id}/replies/{replyId}/reaction/{reactionType}` | Remove a reply reaction. |
+
+### List Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entityLink` | string | None | Restrict conversations to an entity or entity field. |
+| `userId` | universally unique identifier (UUID) | None | Filter by user. |
+| `filterType` | string | None | Filter by `OWNER`, `FOLLOWS`, `MENTIONS`, or `OWNER_OR_FOLLOWS`. |
+| `resolved` | boolean | `false` | Filter by resolution state. |
+| `startTs`, `endTs` | integer | None | Unix epoch millisecond time range. `startTs` cannot be greater than `endTs`. |
+| `before`, `after` | string | None | Pagination cursors. |
+| `limit` | integer | `10` | Page size from `1` through `100`. |
+
+Reply listing uses `before`, `after`, and `limit`. Its default limit is `20` and its maximum is `100`.
+
+The `{reactionType}` path parameter accepts `thumbsUp`, `thumbsDown`, `hooray`, `laugh`, `confused`, `heart`, `rocket`, or `eyes`.
+
+### Create a Conversation
+
+Send a `POST` request with `message` and `about` to create a conversation:
+
+```bash
+curl -X POST "{base_url}/api/v1/conversations" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Can we document the retention policy?",
+    "about": "<#E::table::sample_data.ecommerce_db.shopify.orders>"
+  }'
+```
+
+Both `message` and `about` are required. `message` is non-blank Markdown and `about` is an entity link.
+
+## Response Schemas
+
+`Conversation` is the root schema. Its identity and source fields are `id`, `source`, and `about`. The resolved target appears in `entityRef`, with inherited domains in `domains`. Status fields cover timestamps, resolution state, and reply count. The schema can also include recent replies and reactions. User-created conversations contain the root `message` and `createdBy`. Activity-backed conversations identify the source event through `activityEventId` and `activityTimestamp`.
+
+`ConversationReply` identifies the reply, conversation, and author. It also contains the Markdown message, timestamps, and reactions. OpenMetadata stores replies separately and returns them through the reply endpoints.
+
+## Authorization
+
+- Listing requires `ViewBasic` on conversations. A request scoped with `entityLink` also requires `ViewBasic` on the target entity.
+- Creating a root conversation requires `Create` on conversations and `ViewBasic` on the target.
+- Reading a conversation requires `ViewBasic` on that conversation. OpenMetadata returns unauthorized direct reads as not found to avoid revealing the conversation's existence.
+- Patching or deleting a conversation or reply requires the corresponding conversation permission evaluated against that resource. Editing message content is not implicitly allowed to every authenticated user.
+- Replying and reacting require permission to read the container and `Create` on conversations. Activity-backed conversations also require access to the activity target.
+
+These checks replace the permissive behavior some callers encountered on the old feed API.

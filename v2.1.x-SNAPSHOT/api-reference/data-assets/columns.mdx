@@ -1,0 +1,59 @@
+---
+title: Entity Columns and Fields
+description: List inline fields by parent entity and update a field by fully qualified name
+sidebarTitle: Columns and Fields
+---
+
+# Entity Columns and Fields
+
+OpenMetadata 2.1 adds paginated endpoints for inline child fields that previously required retrieving the complete parent entity.
+
+## List Fields for an Entity
+
+All seven endpoints use `GET` and identify the parent by fully qualified name:
+
+| Parent entity | Endpoint | Returned children |
+|---|---|---|
+| Application programming interface (API) endpoint | `/v1/apiEndpoints/name/{fqn}/columns` | Request-schema fields, followed by response-schema fields |
+| Worksheet | `/v1/worksheets/name/{fqn}/columns` | Worksheet columns |
+| Machine learning (ML) model | `/v1/mlmodels/name/{fqn}/columns` | ML features |
+| Pipeline | `/v1/pipelines/name/{fqn}/columns` | Pipeline tasks |
+| Search index | `/v1/searchIndexes/name/{fqn}/columns` | Search-index fields |
+| Container | `/v1/containers/name/{fqn}/columns` | Data-model columns |
+| Topic | `/v1/topics/name/{fqn}/columns` | Message-schema fields |
+
+Each endpoint accepts the same query parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | integer | `50` | Page size from `1` through `1,000`. |
+| `offset` | integer | `0` | Zero-based field offset. |
+| `fields` | string | None | Optional comma-separated child fields to include. Currently supports `tags`. |
+| `include` | string | `non-deleted` | Include `all`, `deleted`, or `non-deleted` children. |
+| `sortBy` | string | `name` | Sort by `name` or `ordinalPosition`. |
+| `sortOrder` | string | `asc` | Sort using `asc` or `desc`. |
+
+```bash
+curl "{base_url}/api/v1/topics/name/kafka.orders/columns?limit=50&offset=0&fields=tags&sortBy=ordinalPosition" \
+  -H "Authorization: Bearer {access_token}"
+```
+
+The response is a `ResultList`: `data` contains the requested children and `paging.total` contains the total matching count.
+
+## Update a Field
+
+Use `PUT /v1/columns/name/{fqn}` to update an inline child of a supported parent:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entityType` | string | Required | Parent type: `table`, `dashboardDataModel`, `topic`, `container`, `mlmodel`, `pipeline`, `searchIndex`, `apiEndpoint`, or `worksheet`. |
+| `changeSource` | string | None | Change provenance: `Manual`, `Propagated`, `Automated`, `Derived`, `Ingested`, or `Suggested`. |
+
+```bash
+curl -X PUT "{base_url}/api/v1/columns/name/kafka.orders.order_id?entityType=topic&changeSource=Automated" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Identifier assigned by the producer"}'
+```
+
+Descriptions and tags apply to every supported type. `displayName` applies to every type except ML-model features. Constraints are specific to table columns, and custom-property extensions are supported for table and dashboard-data-model columns.

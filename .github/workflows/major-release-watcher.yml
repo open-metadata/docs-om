@@ -184,6 +184,8 @@ jobs:
         run: |
           gh label create "breaking-change" --repo "${{ github.repository }}" \
             --color "C34A2C" --description "Upstream change that may break an existing user setup" --force
+          gh label create "${{ steps.version.outputs.next_major_version }}" --repo "${{ github.repository }}" \
+            --color "1570EF" --description "Doc work tracked for the ${{ steps.version.outputs.next_major_version }} release" --force
 
       - name: Resolve this run's dry-run flag
         id: tools
@@ -239,6 +241,7 @@ jobs:
         id: select
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_VERSION: ${{ needs.prepare.outputs.next_major_version }}
         run: |
           bash .github/scripts/watcher-prefetch.sh select major
           # Part B: completeness of already-tracked multi-PR features.
@@ -267,6 +270,8 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           MAX_TURNS: "60"
+          VERDICTS_SCHEMA: .ai/release-watchers/verdicts-major.schema.json
+          PROMPT_ADDENDUM: .ai/release-watchers/scan-system-prompt-major-addendum.md
           MODE_NOTE: >-
             Mode: major. These PRs merged to main of open-metadata/OpenMetadata and target ${{ needs.prepare.outputs.next_major_version }}.
             Each candidate either has no backport to ${{ needs.prepare.outputs.minor_release_branch }} and is not a plain bug fix, or has a backport this repo does not track yet (its view lists it).
@@ -379,6 +384,12 @@ jobs:
           TRUSTED_AUTHOR_RE: '^(app/)?github-actions(\[bot\])?$|^kiran1287$'
           DIGEST_TITLE: "Major Release Watcher — Scan Digest"
           SLACK_FILE: /tmp/major-release-watcher-handoff/slack-digest.txt
+          # Release tracking: sub-issues of the hand-written tracker, whose
+          # own text is kept (only the block between the tracker markers is managed).
+          TARGET_VERSION: ${{ needs.prepare.outputs.next_major_version }}
+          TRACKER_TITLE: "[${{ needs.prepare.outputs.next_major_version }} Docs] Release tracking"
+          TRACKER_MODE: block
+          SUB_TITLE_TEMPLATE: "[{ver} Docs] {area}: {title}"
         run: bash .github/scripts/watcher-notify.sh major /tmp/major-release-watcher-handoff/summary.json
 
       - name: Upload Slack digest for the Slack job, if one was written
@@ -390,34 +401,42 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  slack:
-    needs: [prepare, notify]
-    if: ${{ needs.prepare.outputs.run_this_week == 'true' && needs.prepare.outputs.dry_run != 'true' }}
+  report:
+    # Always runs, even when an earlier job failed: one Slack message with
+    # pass or fail, the failed step, a run link, and the issues created (or
+    # that would be created, in a dry run). Off-week runs send nothing.
+    needs: [prepare, scan, notify]
+    if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     steps:
-      - name: Download Slack digest, if the notify job wrote one
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Download the notify report
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         continue-on-error: true
         with:
           name: major-slack-digest
           path: /tmp/major-release-watcher-handoff/
 
-      - name: Send Slack DM if something was confirmed this run
+      - name: Post the run result to Slack
         env:
+          GH_TOKEN: ${{ github.token }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          FILE=/tmp/major-release-watcher-handoff/slack-digest.txt
-          if [ ! -s "$FILE" ]; then
-            echo "Nothing confirmed this run (or no digest file) -- skipping Slack."
-            exit 0
-          fi
-          if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "Slack not configured yet (missing SLACK_WEBHOOK_URL secret) -- skipping."
-            exit 0
-          fi
-
-          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-type: application/json; charset=utf-8" \
-            --data "$(jq -n --rawfile text "$FILE" '{text: $text}')"
+          WATCHER_NAME: Major Release Watcher
+          VERSION: ${{ needs.prepare.outputs.next_major_version }}
+          RUN_THIS_WEEK: ${{ needs.prepare.outputs.run_this_week }}
+          DRY_RUN: ${{ needs.prepare.outputs.dry_run }}
+          SETUP_RESULT: ${{ needs.prepare.result }}
+          SCAN_RESULT: ${{ needs.scan.result }}
+          NOTIFY_RESULT: ${{ needs.notify.result }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/scripts/watcher-slack-report.sh /tmp/major-release-watcher-handoff/slack-digest.txt

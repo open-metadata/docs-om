@@ -62,6 +62,35 @@ The `paging` object varies by endpoint. Cursor-paginated responses usually inclu
 
 Offset-paginated endpoints also return `total`, and may include `offset`, `limit`, or cursor-style `before`/`after` fields depending on the resource. Check the endpoint schema for the exact response shape.
 
+## Include Per-Entity Permissions
+
+Top-level entity list endpoints accept the opt-in `includePermissions` query parameter. Its default is `false`, so existing responses are unchanged.
+
+When `includePermissions=true`, the response adds `entityPermissions`, an object keyed by the universally unique identifier (UUID) of each entity. Each value is the same `ResourcePermission` returned for that entity by the permissions API.
+
+```bash
+curl "{base_url}/api/v1/tables?limit=20&includePermissions=true" \
+  -H "Authorization: Bearer {access_token}"
+```
+
+```json
+{
+  "data": [{ "id": "7f4b...", "name": "orders" }],
+  "paging": { "total": 1 },
+  "entityPermissions": {
+    "7f4b...": {
+      "resource": "table",
+      "permissions": [
+        { "operation": "ViewBasic", "access": "allow" },
+        { "operation": "EditDescription", "access": "allow" }
+      ]
+    }
+  }
+}
+```
+
+Permissions are computed only for entities in the returned page. Use this option when rendering row actions to avoid one permission request per row. Omit it when permissions aren't needed.
+
 ## Examples
 
 ### Basic Pagination

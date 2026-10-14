@@ -1,0 +1,125 @@
+---
+title: Run the NATS JetStream Connector Externally
+description: Use YAML to configure NATS JetStream metadata ingestion. Ingest JetStream streams as topics, fetch sample data, and read schemas from a KV bucket.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/messaging/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/messaging/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/nats.png'
+name="NATS JetStream"
+stage="BETA"
+availableFeatures={["Topics", "Sample Data"]}
+unavailableFeatures={[]} />
+This section covers how to use the NATS JetStream connector.
+Configure and run the NATS JetStream metadata workflow externally:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+<ExternalIngestionDeployment />
+## Requirements
+
+The connector communicates with the NATS JetStream API, so JetStream must be enabled on your NATS server. The credentials you supply must be allowed to publish to and receive replies from the `$JS.API.>` subjects. Schema ingestion additionally requires access to the key-value (KV) stream subjects that back the configured Schema KV bucket.
+
+### Python Requirements
+<PythonRequirements />
+To run the NATS JetStream ingestion, install:
+```bash
+pip3 install "openmetadata-ingestion[nats]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+See the [NATS connection JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/messaging/natsConnection.json) for the structure of a NATS connection.
+To create and run a metadata ingestion workflow, follow these steps to build a YAML configuration that connects to the source, processes the entities if needed, and reaches the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+This is a sample config for NATS:
+<CodePreview>
+<ContentPanel>
+<ContentSection id={1} title="Source Configuration" lines="1-6">
+Configure the source type and service name. `type` is `nats` and the service connection `type` is `Nats`.
+</ContentSection>
+<ContentSection id={2} title="natsServers" lines="7">
+**natsServers**: NATS server URLs as comma-separated values. Each entry uses the `nats://host:port` form (the default NATS port is `4222`).
+Example: `nats://host1:4222,nats://host2:4222`. This is the only required field.
+</ContentSection>
+<ContentSection id={3} title="authType" lines="8-17">
+**authType**: The authentication method. Omit this block entirely for anonymous access. Otherwise provide exactly one of:
+- **Username and Password**: `username` and `password`.
+- **Token**: A single `token`.
+- **NKey Seed**: An `nkeySeed` (the account seed, which begins with `S`).
+</ContentSection>
+<ContentSection id={4} title="schemaKvBucket" lines="18">
+**schemaKvBucket**: Name of the JetStream KV bucket where schemas are stored. Keys must match stream (topic) names and values should be Avro JSON, Protobuf (`.proto`), or JSON Schema text. Leave unset to skip schema ingestion.
+</ContentSection>
+<ContentSection id={5} title="additionalConfig" lines="19">
+**additionalConfig**: Additional NATS client configuration options passed through to the client. See the [NATS Python client documentation](https://nats-io.github.io/nats.py/). The following connection-managed keys are reserved and can't be set here: `servers`, `user`, `password`, `token`, `nkeys_seed`, `nkeys_seed_str`, `tls`, `user_credentials`, `signature_cb`, and `user_jwt_cb`.
+</ContentSection>
+<ContentSection id={6} title="tlsConfig" lines="20-24">
+**tlsConfig**: Transport Layer Security (TLS) and Secure Sockets Layer (SSL) configuration for secure connections. Provide `caCertificate` to validate the server. For mutual TLS, also provide `sslCertificate` (client certificate) and `sslKey` (its private key). Both must be set together.
+</ContentSection>
+<ContentSection id={7} title="topicFilterPattern" lines="25-27">
+**topicFilterPattern**: Regex that limits ingestion to streams matching the pattern. Use `includes` and/or `excludes`.
+</ContentSection>
+<ContentSection id={8} title="supportsMetadataExtraction" lines="28">
+**supportsMetadataExtraction**: Set `supportsMetadataExtraction` to `true` or `false`.
+</ContentSection>
+<ContentSection id={9} title="Source Config" lines="29-40">
+<SourceConfigDef />
+</ContentSection>
+<ContentSection id={10} title="Sink Configuration" lines="41-43">
+<IngestionSinkDef />
+</ContentSection>
+<ContentSection id={11} title="Workflow Configuration" lines="44-60">
+<WorkflowConfigDef />
+</ContentSection>
+</ContentPanel>
+<CodePanel fileName="nats_config.yaml">
+
+```yaml
+source:
+  type: nats
+  serviceName: local_nats
+  serviceConnection:
+    config:
+      type: Nats
+      natsServers: nats://localhost:4222  # comma-separated for multiple servers
+      # Basic auth (username and password). Omit authType entirely for anonymous access.
+      authType:
+        username: <username>
+        password: <password>
+      # Token auth:
+      # authType:
+      #   token: <token>
+      # NKey auth:
+      # authType:
+      #   nkeySeed: <nkey_seed>
+      # schemaKvBucket: <kv_bucket_name>  # uncomment to enable schema ingestion
+      additionalConfig: {}
+      # TLS / mTLS configuration:
+      # tlsConfig:
+      #   caCertificate: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+      #   sslCertificate: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+      #   sslKey: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+      # topicFilterPattern:
+      #   includes:
+      #     - "^orders.*"
+      # supportsMetadataExtraction: true
+```
+<SourceConfig />
+<IngestionSink />
+<WorkflowConfig />
+</CodePanel>
+</CodePreview>
+<IngestionCli />

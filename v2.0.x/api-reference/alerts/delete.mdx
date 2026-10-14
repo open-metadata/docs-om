@@ -1,0 +1,62 @@
+---
+title: Delete an Alert
+description: Delete an alert (event subscription) and its delivery records through the OpenMetadata REST API or Python SDK.
+sidebarTitle: Delete Alert
+api: DELETE /v1/events/subscriptions/{id}
+---
+
+# Delete an Alert
+
+Delete an alert by ID or by name.
+
+- By ID: `DELETE /v1/events/subscriptions/{id}`
+- By name: `DELETE /v1/events/subscriptions/name/{name}`
+- Asynchronously by ID: `DELETE /v1/events/subscriptions/async/{id}`
+
+<ParamField path="id" type="string" required>
+  UUID of the alert.
+</ParamField>
+
+<Warning>
+Deletion is permanent. OpenMetadata removes the alert, stops its delivery process, and removes its delivery records. Alerts have no soft delete and no `hardDelete` option, so you can't restore a deleted alert.
+</Warning>
+
+<RequestExample dropdown>
+```bash DELETE /v1/events/subscriptions/{id}
+curl -X DELETE "https://your-company.open-metadata.org/api/v1/events/subscriptions/$ALERT_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python DELETE /v1/events/subscriptions/{id}
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.generated.schema.events.eventSubscription import EventSubscription
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+alert = metadata.get_by_name(
+    entity=EventSubscription,
+    fqn="dq-failed-tests-to-webhook",
+)
+# OpenMetadata deletes alerts permanently, whatever the hard_delete value
+metadata.delete(
+    entity=EventSubscription,
+    entity_id=str(alert.id.root),
+    hard_delete=True,
+)
+```
+</RequestExample>
+
+## Permissions
+
+The caller needs **Delete** permission on the alert.

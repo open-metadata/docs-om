@@ -1,0 +1,85 @@
+---
+title: Java SDK Glossary Relations
+description: Discover, create, remove, and traverse typed glossary relations with the Java SDK
+sidebarTitle: Glossary Relations
+---
+
+# Java SDK Glossary Relations
+
+The Java software development kit (SDK) exposes typed glossary relations through `GlossaryRelationTypes` and `GlossaryTerms` in `org.openmetadata.sdk.fluent`.
+
+Initialize the SDK client through `OM.init(client)` before using the static fluent entry points.
+
+## Discover Relation Types
+
+Use `GlossaryRelationTypes` to list, filter, and look up configured relation types:
+
+```java
+import org.openmetadata.schema.configuration.GlossaryTermRelationType;
+import org.openmetadata.schema.configuration.RelationCategory;
+
+import static org.openmetadata.sdk.fluent.GlossaryRelationTypes.*;
+
+// All configured types or only their names
+var types = list().fetch();
+var names = list().names();
+
+// Client-side category filter
+var associative = list()
+    .inCategory(RelationCategory.ASSOCIATIVE)
+    .fetch();
+
+var type = find("prescribes");       // Optional<GlossaryTermRelationType>
+boolean configured = exists("prescribes");
+```
+
+`settings()` returns the complete glossary relation configuration. `usage()` returns a map of relation-type name to usage count, while `usageDetailed()` returns the typed usage objects.
+
+Administrators can register a type. Repeating the call for the same name does not create a duplicate.
+
+```java
+define(new GlossaryTermRelationType()
+    .withName("prescribes")
+    .withDisplayName("Prescribes")
+    .withCategory(RelationCategory.ASSOCIATIVE));
+```
+
+## Add and Remove Typed Relations
+
+The term identifiers can be universally unique identifiers (UUIDs) or fully qualified names.
+
+```java
+import static org.openmetadata.sdk.fluent.GlossaryTerms.*;
+
+find(sourceTermId)
+    .relateTo(targetTermFqn)
+    .as("prescribes")
+    .apply();
+
+// Remove one type between the terms
+find(sourceTermId)
+    .unrelateFrom(targetTermFqn)
+    .as("prescribes")
+    .apply();
+
+// Omit as(...) to remove every relation type between the terms
+find(sourceTermId)
+    .unrelateFrom(targetTermFqn)
+    .apply();
+```
+
+`relateTo(...).apply()` defaults to the `relatedTo` type when `.as(...)` is omitted. `unrelateFrom(...).apply()` intentionally has a different default: it removes all relation types between the two terms.
+
+## Read a Relation Graph
+
+Use `relations()` to traverse the relation graph from a term:
+
+```java
+var graph = find(sourceTermId)
+    .relations()
+    .depth(2)
+    .ofTypes("prescribes", "treats")
+    .fetch();
+```
+
+The default traversal depth is `1`. If `ofTypes(...)` is omitted, the graph includes all relation types.

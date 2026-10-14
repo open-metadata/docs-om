@@ -7,7 +7,8 @@
 #
 # Usage: watcher-verify.sh "<mode note for the prompt>"
 # Env:   OUT, CLAUDE_CODE_OAUTH_TOKEN, MAX_TURNS (per chunk, default 30),
-#        GITHUB_STEP_SUMMARY (optional).
+#        GITHUB_STEP_SUMMARY (optional), VERDICTS_SCHEMA and PROMPT_ADDENDUM
+#        (optional, major release tracking mode).
 set -euo pipefail
 
 # Self-check: a comment line right after a `\` continuation silently ends
@@ -20,7 +21,14 @@ fi
 NOTE="${1:?mode note}"
 OUT="${OUT:?OUT is required}"
 MAX_TURNS="${MAX_TURNS:-30}"
-SCHEMA=$(jq -c . .ai/release-watchers/verdicts.schema.json)
+SCHEMA=$(jq -c . "${VERDICTS_SCHEMA:-.ai/release-watchers/verdicts.schema.json}")
+# Optional extra prompt text (major release tracking mode), appended to the
+# base prompt in a file under $OUT.
+PROMPT_FILE=.ai/release-watchers/scan-system-prompt.md
+if [ -n "${PROMPT_ADDENDUM:-}" ]; then
+  cat "$PROMPT_FILE" "$PROMPT_ADDENDUM" > "$OUT/system-prompt.md"
+  PROMPT_FILE="$OUT/system-prompt.md"
+fi
 
 # Lean, cache-friendly sessions: no CLAUDE.md, memory, skills, MCP, or
 # subagents; a five-minute prompt cache (runs finish in minutes, and the
@@ -44,7 +52,11 @@ n=0
 for dir in "${chunks[@]}"; do
   [ -d "$dir" ] || continue
   n=$((n + 1))
-  files=$(ls "$dir"/index.md "$dir"/bundle-*.md 2>/dev/null | paste -sd' ' -)
+  # `ls` exits non-zero for any missing name (an index-only chunk has no
+  # bundles; areas.md exists only once the release tracker lists areas), which
+  # would end this script under `set -e` with pipefail, so tolerate it.
+  files=$({ ls "$dir"/index.md "$dir"/bundle-*.md 2>/dev/null || true; } | paste -sd' ' -)
+  [ -f "$dir/areas.md" ] && files="$files $dir/areas.md"
   count=$(cat "$dir/count")
   prompt="$NOTE
 Session $n of $total. Candidates in this session: $count (every [candidate] line in index.md).
@@ -60,7 +72,7 @@ $files"
   # (Local testing only: CLAUDE_CONFIG_DIR_OVERRIDE=inherit keeps the caller\'s login.)
   [ "${CLAUDE_CONFIG_DIR_OVERRIDE:-}" = "inherit" ] || export CLAUDE_CONFIG_DIR="$(mktemp -d)"
   if ! claude -p --model claude-sonnet-5-5 --effort high --max-turns "$MAX_TURNS" \
-      --system-prompt-file .ai/release-watchers/scan-system-prompt.md \
+      --system-prompt-file "$PROMPT_FILE" \
       --add-dir "$OUT" \
       --tools Read,Grep --allowedTools Read Grep \
       --disallowedTools "mcp__*" Agent "Read(//proc/**)" "Grep(//proc/**)" "Read(**/.github/**)" "Grep(**/.github/**)" "Glob(**/.github/**)" \

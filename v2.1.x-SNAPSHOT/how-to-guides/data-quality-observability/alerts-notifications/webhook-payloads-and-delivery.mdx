@@ -1,0 +1,295 @@
+---
+title: Webhook Payloads and Delivery | OpenMetadata
+description: Reference for the payload OpenMetadata sends to a webhook for each alert source and event type, plus authentication, timeouts, failure handling, duplicate delivery, and ordering.
+sidebarTitle: Webhook Payloads and Delivery
+---
+
+# Webhook Payloads and Delivery
+
+This page describes what a **Generic Webhook** destination receives and how OpenMetadata delivers it. Use it to build a webhook receiver, for example one that creates or updates tickets in an external tracker.
+
+To configure the destination in the UI, see [Generic Webhook Alert Configuration](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/generic-webhook-alerts-configuration). To understand which events an alert matches, see [Alert Behavior Reference](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/alert-behavior-reference).
+
+Slack, Microsoft Teams, Google Chat, and Email destinations don't receive this JSON. OpenMetadata renders a message from a notification template for each of those channels. To customize those messages, see [Notification Templates](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/notification-templates).
+
+## Request Format
+
+OpenMetadata sends one HTTP request for each event, with a single JSON object as the body.
+
+- **Method**: always `POST` for alert deliveries. The **Test Connection** button also honors a `PUT` method if you configure one through the API.
+- **Content type**: `application/json`.
+- **Body**: the `ChangeEvent` object described in this section. The generic webhook doesn't use a notification template, so you can't reshape the body.
+- **Custom headers and query parameters**: any you configure on the destination are added to the request.
+
+For the full list of request headers, see [Request Headers](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/generic-webhook-alerts-configuration#request-headers).
+
+## The ChangeEvent Object
+
+Every payload has this envelope. Only the first five fields are always present.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Unique identifier of the event. Stable across any redelivery, so use it as a deduplication key. |
+| `eventType` | string | What happened, for example `entityCreated`, `entityUpdated`, `entityDeleted`. |
+| `entityType` | string | The kind of asset, for example `testCase`, `table`, `pipeline`, `task`. |
+| `entityId` | UUID | ID of the asset that changed. |
+| `timestamp` | integer | When the change happened, in Unix epoch milliseconds. |
+| `entityFullyQualifiedName` | string | Fully qualified name of the asset. |
+| `userName` | string | The user or bot that made the change. |
+| `currentVersion` | number | Version of the asset after the change. |
+| `changeDescription` | object | What changed. See [The changeDescription Field](#the-changedescription-field). |
+| `entity` | string | The full asset, as a JSON-encoded string. Parse it a second time to read it. |
+
+Some fields, such as `previousVersion` and `domains`, can be absent from delivered events even though the schema defines them. Treat every field outside the first five as optional.
+
+### The changeDescription Field
+
+`changeDescription` lists the fields that changed:
+
+| Field | Description |
+|---|---|
+| `fieldsAdded` | Fields that were added. Each item has `name` and `newValue`. |
+| `fieldsUpdated` | Fields that changed. Each item has `name`, `newValue`, and usually `oldValue`. |
+| `fieldsDeleted` | Fields that were removed. Each item has `name` and `oldValue`. |
+| `previousVersion` | Version of the asset before the change, when present. |
+
+### Event Types
+
+These events are all delivered with `eventType` set to `entityUpdated`:
+
+- Test results
+- Data contract results
+- Pipeline status
+- Ingestion pipeline status
+- Task status changes
+
+A new result or status triggers them, not an edit to the asset. To tell them apart, check `entityType` and the `name` of the item in `changeDescription.fieldsUpdated`.
+
+## Payload Examples by Source
+
+The following examples show the shape of each payload. IDs, names, and values are placeholders, and `entity` is abbreviated. Treat the field names and nesting as the contract, and don't rely on exact values.
+
+### Test Case Result
+
+Source: **Test Case**. Fires for each posted test result that matches the trigger.
+
+```json
+{
+  "id": "b7c1e0a2-0000-4000-8000-000000000001",
+  "eventType": "entityUpdated",
+  "entityType": "testCase",
+  "entityId": "5d2f0c1e-0000-4000-8000-000000000002",
+  "entityFullyQualifiedName": "svc.db.schema.orders.row_count_between",
+  "userName": "ingestion-bot",
+  "timestamp": 1760000000000,
+  "currentVersion": 0.1,
+  "changeDescription": {
+    "fieldsAdded": [],
+    "fieldsUpdated": [
+      {
+        "name": "testCaseResult",
+        "newValue": {
+          "timestamp": 1760000000000,
+          "testCaseStatus": "Failed",
+          "result": "Found 0 rows, expected between 1 and 100",
+          "testResultValue": [{ "name": "rowCount", "value": "0" }],
+          "incidentId": "9a1c0d3e-0000-4000-8000-000000000003"
+        }
+      }
+    ],
+    "fieldsDeleted": []
+  },
+  "entity": "{\"id\":\"5d2f0c1e-...\",\"name\":\"row_count_between\",\"entityLink\":\"<#E::table::svc.db.schema.orders>\",\"testCaseStatus\":\"Failed\"}"
+}
+```
+
+- **`testCaseStatus`**: `Success`, `Failed`, `Aborted`, or `Queued`.
+- **`incidentId`**: present only on a failed result that opened or reused an incident. The ID matches the incident task. See [Incident Task Events](#incident-task-events).
+- **Optional result fields**: `testResultValue`, `passedRows`, `failedRows`, and bound values vary by test definition.
+
+### Test Suite Run
+
+Source: **Test Suite**. Fires once when a test suite pipeline run completes. The result summary appears under `testCaseResultSummary` in `fieldsUpdated`, with one entry per test case in the suite and the status of each. The `entity` field is the test suite.
+
+### Table, Topic, or Container Schema Change
+
+Sources: **Table**, **Topic**, **Container**.
+
+```json
+{
+  "id": "0e5c1f7a-0000-4000-8000-000000000004",
+  "eventType": "entityUpdated",
+  "entityType": "table",
+  "entityId": "7b3a2d9c-0000-4000-8000-000000000005",
+  "entityFullyQualifiedName": "svc.db.schema.orders",
+  "userName": "jane.doe",
+  "timestamp": 1760000000000,
+  "currentVersion": 0.2,
+  "changeDescription": {
+    "fieldsAdded": [{ "name": "columns", "newValue": "[{\"name\":\"discount\",\"dataType\":\"DECIMAL\"}]" }],
+    "fieldsUpdated": [],
+    "fieldsDeleted": [],
+    "previousVersion": 0.1
+  },
+  "entity": "{...table...}"
+}
+```
+
+The `name` in the changed field depends on the source:
+
+- **Table**: `columns`, `dataModel`, or `joins`
+- **Topic**: `messageSchema`
+- **Container**: `parent` or `children`
+
+A metrics update uses `profile` or `customMetrics`.
+
+### Pipeline Status
+
+Source: **Pipeline**.
+
+```json
+{
+  "eventType": "entityUpdated",
+  "entityType": "pipeline",
+  "entityFullyQualifiedName": "airflow.daily_load",
+  "changeDescription": {
+    "fieldsAdded": [],
+    "fieldsUpdated": [
+      {
+        "name": "pipelineStatus",
+        "newValue": {
+          "timestamp": 1760000000000,
+          "executionStatus": "Failed",
+          "taskStatus": [{ "name": "load", "executionStatus": "Failed" }]
+        }
+      }
+    ],
+    "fieldsDeleted": []
+  }
+}
+```
+
+The envelope fields `id`, `entityId`, `userName`, `timestamp`, and `entity` are present as in the other examples. `executionStatus` is `Successful`, `Failed`, `Pending`, or `Skipped`. `oldValue` appears only when an earlier status exists for the same timestamp.
+
+### Ingestion Pipeline Status
+
+Source: **Ingestion Pipeline**.
+
+```json
+{
+  "eventType": "entityUpdated",
+  "entityType": "ingestionPipeline",
+  "entityFullyQualifiedName": "svc.metadata_pipeline",
+  "changeDescription": {
+    "fieldsAdded": [],
+    "fieldsUpdated": [
+      {
+        "name": "pipelineStatus",
+        "oldValue": { "runId": "4d1e...", "pipelineState": "running" },
+        "newValue": {
+          "runId": "4d1e...",
+          "pipelineState": "failed",
+          "startDate": 1759999000000,
+          "endDate": 1760000000000
+        }
+      }
+    ],
+    "fieldsDeleted": []
+  }
+}
+```
+
+`pipelineState` is one of `queued`, `running`, `success`, `partialSuccess`, `failed`, or `stopped`. `oldValue` is present only when OpenMetadata already stored a status for that `runId`. A single run produces several events as it moves through its states.
+
+### Data Contract Result
+
+Source: **Data Contract**.
+
+```json
+{
+  "eventType": "entityUpdated",
+  "entityType": "dataContract",
+  "entityFullyQualifiedName": "orders_contract",
+  "changeDescription": {
+    "fieldsAdded": [],
+    "fieldsUpdated": [
+      {
+        "name": "dataContractResult",
+        "newValue": {
+          "contractExecutionStatus": "Failed",
+          "result": "Schema validation failed",
+          "schemaValidation": {},
+          "qualityValidation": {}
+        }
+      }
+    ],
+    "fieldsDeleted": []
+  },
+  "entity": "{...data contract, including latestResult...}"
+}
+```
+
+OpenMetadata evaluates a data contract alert against the `latestResult.status` inside `entity`, so read the status from there when you need the current value.
+
+### Incident Task Events
+
+Source: **Task** (or **All**), on a **Notification** alert. Each incident status change is expected to produce one event with `entityType` of `task`.
+
+- `changeDescription.fieldsUpdated` contains a `status` item (for example from `Open` to `InProgress`).
+- On resolution, a `resolution` item is added with the resolution details.
+- `entity` is the incident task, including its `workflowStageId` (`new`, `ack`, `assigned`, or `resolved`), assignees, and the test case it is about.
+
+Because the **Task** source supports only a mention-based filter, filter by `entity.workflowStageId` or by the `status` change in your receiver. See [Incidents](/v2.1.x-SNAPSHOT/api-reference/incidents) for how to read the full incident through the API.
+
+<Note>
+The exact payload of a task event hasn't been captured here. Build your receiver to read `entityType`, `changeDescription`, and the parsed `entity`, and log a few real events from your environment before you rely on specific values.
+</Note>
+
+## Authentication
+
+The destination supports three options:
+
+- **None**: no credential is sent.
+- **Bearer (hash-based message authentication code, or HMAC, signature)**: OpenMetadata doesn't send the secret. It sends `X-OM-Signature: sha256=<signature>`, where the signature is the Base64-encoded HMAC-SHA256 of the raw request body using your secret key.
+- **OAuth2 client credentials**: OpenMetadata requests an access token and sends `Authorization: Bearer <token>`. If your endpoint answers `401`, OpenMetadata fetches a new token and retries once.
+
+For setup and a signature verification procedure, see [Authenticating Webhook Requests](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/generic-webhook-alerts-configuration#authenticating-webhook-requests).
+
+## Delivery Guarantees
+
+This section describes what counts as a successful delivery, what happens when a delivery fails, and how to handle duplicates and ordering.
+
+### Success and Failure
+
+- **Success**: your endpoint returns any `2xx` response within the read timeout.
+- **Failure**: any other response, including a `3xx` redirect, a connection error, or a timeout.
+- **Timeouts**: the default is 10 seconds to connect and 12 seconds to read. OpenMetadata keeps the connect timeout between 5 and 30 seconds and the read timeout between 10 and 120 seconds, even if you configure a value outside those ranges.
+
+### Retries
+
+OpenMetadata doesn't automatically resend an event after a failed delivery.
+
+- The only automatic retry is for OAuth2: after a `401`, OpenMetadata fetches a new token and sends the request once more.
+- A failed event is recorded for the alert (see [Failed Events](#failed-events)) and OpenMetadata continues with the next event. It doesn't block later events.
+- The `retries` setting on an alert is stored with the failed event record. It doesn't cause redelivery.
+
+Design your receiver so it returns `2xx` quickly and processes the event afterward, and reconcile from the API if you miss events.
+
+### Duplicate Delivery
+
+Treat delivery as *at least once*. OpenMetadata can occasionally deliver the same event more than once, for example when the server restarts after sending an event but before it records that the event was sent, or when more than one server instance is running.
+
+- Every event has a stable `id`. Store the `id` of each event you process and ignore any repeat.
+- Make your receiver safe to run twice on the same event, for example by looking up an existing ticket before creating one.
+
+### Ordering
+
+Events aren't guaranteed to arrive in the order they happened. OpenMetadata doesn't sort events inside a polling batch by time. Use the event `timestamp` and the asset's `currentVersion` to decide which event is newer.
+
+### Failed Events
+
+The [alerts API](/v2.1.x-SNAPSHOT/api-reference/alerts/list#events-and-delivery-status) lists failed events with the reason each one failed. It also lists the events sent successfully. Use this to find events your receiver missed. OpenMetadata keeps these records for the retention period configured in the Data Retention application. The default is 7 days.
+
+## Testing a Destination
+
+Use **Test Connection** in the UI, or `POST /v1/events/subscriptions/testDestination` through the API, to send a test message to your endpoint before you enable the alert.

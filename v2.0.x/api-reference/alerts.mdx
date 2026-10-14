@@ -1,0 +1,220 @@
+---
+title: Alerts
+description: Manage alerts (event subscriptions) with the OpenMetadata REST API and Python SDK, including the request schema for sources, filters, triggers, and destinations.
+sidebarTitle: Overview
+---
+
+# Alerts
+
+An **alert** in the OpenMetadata UI is an **event subscription** in the API. Use these endpoints to create, update, and delete alerts as code, and to inspect what an alert has delivered.
+
+<CardGroup cols={2}>
+  <Card title="Create an Alert" icon="plus" href="/v2.0.x/api-reference/alerts/create">
+    Create an alert, or create or update it by name, with a source, filters, triggers, and destinations.
+  </Card>
+
+  <Card title="List and Retrieve Alerts" icon="list" href="/v2.0.x/api-reference/alerts/list">
+    List alerts, read one, look up available filters and triggers, and inspect delivery status.
+  </Card>
+
+  <Card title="Update an Alert" icon="pen" href="/v2.0.x/api-reference/alerts/update">
+    Change an alert with JSON Patch or by sending the full definition again.
+  </Card>
+
+  <Card title="Delete an Alert" icon="trash" href="/v2.0.x/api-reference/alerts/delete">
+    Delete an alert and its delivery records.
+  </Card>
+</CardGroup>
+
+For what each source, trigger, and filter does, and when an alert fires, see the [Alert Behavior Reference](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/alert-behavior-reference). For what a webhook receives, see [Webhook Payloads and Delivery](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery).
+
+## Endpoints
+
+Base path: `/v1/events/subscriptions`
+
+| Operation | Method and path |
+|---|---|
+| List alerts | `GET /v1/events/subscriptions` |
+| Get by ID | `GET /v1/events/subscriptions/{id}` |
+| Get by name | `GET /v1/events/subscriptions/name/{name}` |
+| Create | `POST /v1/events/subscriptions` |
+| Create or update by name | `PUT /v1/events/subscriptions` |
+| Update with JSON Patch | `PATCH /v1/events/subscriptions/{id}` or `/name/{name}` |
+| Delete | `DELETE /v1/events/subscriptions/{id}` or `/name/{name}` |
+| Available sources, filters, and triggers | `GET /v1/events/subscriptions/{alertType}/resources` |
+| Test a destination | `POST /v1/events/subscriptions/testDestination` |
+
+## Permissions
+
+Creating an alert requires **Create** permission on the `EventSubscription` entity. Deleting requires **Delete**, and reading delivery status requires view access to all alerts. See [Roles and Policies](/v2.0.x/how-to-guides/admin-guide/roles-policies).
+
+## Alert Types
+
+Set `alertType` to one of the following when you create an alert:
+
+| Value | Use |
+|---|---|
+| `Observability` | Data health alerts: test results, pipeline status, schema and metric changes, data contract status. Uses triggers (`input.actions`) and filters (`input.filters`). |
+| `Notification` | Metadata and collaboration events, including incidents through the `task` source. Uses filters only. |
+
+The values `ActivityFeed`, `GovernanceWorkflowChangeEvent`, and `Custom` are used by system subscriptions. Don't create alerts with them.
+
+## Request Schema
+
+The request body for create and create-or-update is a `CreateEventSubscription` object.
+
+<ParamField body="name" type="string" required>
+  Unique name of the alert.
+</ParamField>
+
+<ParamField body="alertType" type="string" required>
+  `Observability` or `Notification`. See [Alert Types](#alert-types).
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Name shown in the UI.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description in Markdown format.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Owners of the alert, as entity references.
+</ParamField>
+
+<ParamField body="enabled" type="boolean" default="true">
+  Whether the alert is active. A disabled alert doesn't read or deliver events.
+</ParamField>
+
+<ParamField body="resources" type="array" required>
+  The alert **source**, for example `["testCase"]`. Provide exactly one value. Use lowercase `all` to match every source on a Notification alert. To list the valid values, see [Available Sources, Filters, and Triggers](/v2.0.x/api-reference/alerts/list#available-sources-filters-and-triggers).
+</ParamField>
+
+<ParamField body="input" type="object">
+  Filters and triggers.
+
+  <Expandable title="properties">
+    <ParamField body="filters" type="array">
+      Conditions that narrow which events qualify. Each item is an [argument input](#argument-input).
+    </ParamField>
+
+    <ParamField body="actions" type="array">
+      Triggers, for Observability alerts only. Each item is an [argument input](#argument-input). Notification alerts ignore this list.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="destinations" type="array">
+  Where to deliver the alert. See [Destination](#destination).
+</ParamField>
+
+<ParamField body="pollInterval" type="integer">
+  How often, in seconds, OpenMetadata checks for new events. The create request defaults to 10.
+</ParamField>
+
+<ParamField body="batchSize" type="integer">
+  Maximum number of events to process in each check. The create request defaults to 10.
+</ParamField>
+
+<ParamField body="retries" type="integer" default="3">
+  Stored with each failed event record. OpenMetadata doesn't use it to redeliver. See [Webhook Payloads and Delivery](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery#retries).
+</ParamField>
+
+<ParamField body="notificationTemplate" type="object">
+  Entity reference to a user-created notification template. Applies to Slack, Teams, Google Chat, and Email destinations.
+</ParamField>
+
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains the alert belongs to.
+</ParamField>
+
+### Argument Input
+
+Each filter and trigger is an object with these fields:
+
+<ParamField body="name" type="string" required>
+  Name of the filter or trigger, for example `filterByFqn` or `GetTestCaseStatusUpdates`. Valid names depend on the source. Look them up with the resources endpoint.
+</ParamField>
+
+<ParamField body="effect" type="string" default="include">
+  `include` delivers the event when the condition matches. `exclude` silences it.
+</ParamField>
+
+<ParamField body="prefixCondition" type="string" default="AND">
+  `AND` or `OR`. How this condition joins the previous one.
+</ParamField>
+
+<ParamField body="arguments" type="array">
+  Values for the filter or trigger. Each item is `{ "name": "<argument name>", "input": ["<value>", ...] }`. Every argument the filter or trigger defines must have at least one value.
+</ParamField>
+
+OpenMetadata returns a `400` error when:
+
+- You provide no source, or more than one source.
+- A filter or trigger isn't supported for the source.
+- A required argument is empty.
+
+### Destination
+
+Each item in `destinations` has these fields:
+
+<ParamField body="category" type="string" required>
+  Who receives the alert: `External`, `Admins`, `Owners`, `Followers`, `Assignees`, `Mentions`, `Users`, or `Teams`.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Delivery channel: `Webhook`, `Slack`, `MsTeams`, `GChat`, `Email`, or `ActivityFeed`.
+</ParamField>
+
+<ParamField body="enabled" type="boolean" default="true">
+  Whether this destination is active.
+</ParamField>
+
+<ParamField body="timeout" type="integer" default="10">
+  Connection timeout in seconds. OpenMetadata keeps it between 5 and 30.
+</ParamField>
+
+<ParamField body="readTimeout" type="integer" default="12">
+  Read timeout in seconds. OpenMetadata keeps it between 10 and 120.
+</ParamField>
+
+<ParamField body="config" type="object">
+  Channel settings. Required when `category` is `External`.
+
+  <Expandable title="Webhook, Slack, MsTeams, and GChat">
+    <ParamField body="endpoint" type="string" required>
+      Destination URL.
+    </ParamField>
+
+    <ParamField body="httpMethod" type="string" default="POST">
+      `POST` or `PUT`. Alert deliveries are always sent as `POST`. This setting applies only when you test the destination.
+    </ParamField>
+
+    <ParamField body="headers" type="object">
+      Custom request headers, as key-value pairs.
+    </ParamField>
+
+    <ParamField body="queryParams" type="object">
+      Custom query parameters, as key-value pairs.
+    </ParamField>
+
+    <ParamField body="authType" type="object">
+      Authentication. One of:
+
+      - `{ "type": "bearer", "secretKey": "<secret>" }`: OpenMetadata signs each request body with the secret and sends the signature in the `X-OM-Signature` header.
+      - `{ "type": "oauth2", "tokenUrl": "...", "clientId": "...", "clientSecret": "...", "scope": "..." }`
+      - Omit `authType` for no authentication.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Email">
+    <ParamField body="receivers" type="array" required>
+      Email addresses to send to.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+Alerts that the API returns also include read-only fields such as `id`, `version`, `filteringRules` (the filters and triggers expanded into conditions), and `statusDetails` on each destination.
+</Note>

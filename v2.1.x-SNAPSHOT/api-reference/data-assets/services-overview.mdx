@@ -1,0 +1,57 @@
+---
+title: Services Overview
+description: Get service counts and a merged page of services across every service entity type
+sidebarTitle: Services Overview
+api: GET /v1/services/overview
+---
+
+# Services Overview
+
+`GET /v1/services/overview` returns counts and one page of service summaries. The endpoint sorts the page by name across the requested service entity types. Use it for service inventory screens that would otherwise call each service list endpoint separately.
+
+The response never includes a service connection configuration.
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entityType` | string, repeatable | All service entity types | Service entity types to include in counts and results. |
+| `listEntityType` | string, repeatable | Requested `entityType` values | Restricts `data` and `paging.total` without changing the count maps. |
+| `serviceType` | string, repeatable | All connector types | Restricts `data` and `paging.total`, for example to `Snowflake`. |
+| `health` | string, repeatable | All health states | Restricts `data` and `paging.total`. One of `failed`, `partialSuccess`, `success`, or `notRun`. Implies `includeHealth=true`. |
+| `q` | string | None | Case-insensitive substring match on `name` and `displayName`. Also narrows all count maps. |
+| `includeHealth` | boolean | `false` | Computes health counts and each returned service's health. |
+| `limit` | integer | `500` | Number of results, from `0` through `1,000`. |
+| `offset` | integer | `0` | Zero-based result offset. `offset + limit` cannot exceed 10,000. |
+| `sortOrder` | string | `asc` | Sort services by name using `asc` or `desc`. |
+| `include` | string | `non-deleted` | Include `all`, `deleted`, or `non-deleted` services. |
+| `domain` | string | None | Restrict results to a domain fully qualified name (FQN). |
+| `excludeProvider` | string | None | Exclude a provider, for example `system`. |
+
+Repeat a selector to request a union of its values:
+
+```bash
+curl "{base_url}/api/v1/services/overview?entityType=databaseService&entityType=dashboardService&serviceType=Snowflake&limit=50" \
+  -H "Authorization: Bearer {access_token}"
+```
+
+## Response
+
+| Field | Description |
+|---|---|
+| `counts` | Count per service entity type. Reflects `entityType`, `include`, `domain`, `excludeProvider`, and `q`. |
+| `serviceTypeCounts` | Connector-type counts nested by service entity type. Uses the same filters as `counts`. |
+| `healthCounts` | Health-state counts nested by service entity type. Populated when health is requested. |
+| `total` | Sum of `counts` for the requested service entity types the caller can view. |
+| `data` | Slim service summaries sorted together across service entity types. |
+| `paging.total` | Count after applying `listEntityType`, `serviceType`, and `health`. |
+
+Health uses the worst terminal state among a service's latest ingestion-pipeline runs: `failed` outranks `partialSuccess`, which outranks `success`. Services without a terminal run are `notRun`.
+
+### Health Limit
+
+If any requested service type has more than 10,000 services, `healthCounts` is empty rather than approximate. Returned rows can still contain exact health values, but filtering by `health` is rejected for that request.
+
+### Authorization
+
+The endpoint removes service entity types on which the caller lacks `ViewBasic` before calculating counts or results. It returns an authorization error when none of the requested types are viewable.

@@ -1,0 +1,226 @@
+---
+title: List and Retrieve Incidents
+description: List incidents, find them by test case, status, or assignee, and read one incident with its status history through the OpenMetadata REST API and Python SDK.
+sidebarTitle: List and Retrieve
+api: GET /v1/tasks
+---
+
+# List and Retrieve Incidents
+
+List incidents, read one incident, and search the incident status history.
+
+## List Incidents as Tasks
+
+List incidents with `GET /v1/tasks`. Set `category=Incident` to return only incidents.
+
+<ParamField query="category" type="string">
+  Set to `Incident`.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Set to `TestCaseResolution` to return only data quality incidents.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Task status, for example `Open`, `InProgress`, or `Completed`.
+</ParamField>
+
+<ParamField query="statusGroup" type="string">
+  `open` or `closed`. Use this instead of `status` to get all open or all closed incidents.
+</ParamField>
+
+<ParamField query="assignee" type="string">
+  Name of the assigned user or team.
+</ParamField>
+
+<ParamField query="aboutEntity" type="string">
+  Fully qualified name of the test case the incident is about.
+</ParamField>
+
+<ParamField query="domain" type="string">
+  Domain of the incident.
+</ParamField>
+
+<ParamField query="priority" type="string">
+  `Critical`, `High`, `Medium`, or `Low`.
+</ParamField>
+
+<ParamField query="startTs" type="integer">
+  Return incidents created at or after this Unix epoch timestamp in milliseconds.
+</ParamField>
+
+<ParamField query="endTs" type="integer">
+  Return incidents created at or before this Unix epoch timestamp in milliseconds.
+</ParamField>
+
+<ParamField query="fields" type="string">
+  Comma-separated fields to include, for example `payload,assignees,about`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Number of results per page. Use `before` and `after` for paging.
+</ParamField>
+
+<RequestExample dropdown>
+```bash GET /v1/tasks
+curl "https://your-company.open-metadata.org/api/v1/tasks?category=Incident&type=TestCaseResolution&statusGroup=open&fields=assignees,about,payload&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python GET /v1/tasks
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.task_models import TaskCategory
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+incidents = metadata.list_tasks(
+    category=TaskCategory.Incident,
+    status_group="open",
+    fields=["assignees", "about", "payload"],
+    limit=50,
+)
+for task in incidents.entities:
+    print(task.name, task.status)
+```
+</RequestExample>
+
+## Retrieve One Incident
+
+Retrieve one incident by ID or by task number.
+
+- By ID: `GET /v1/tasks/{id}`
+- By task number: `GET /v1/tasks/name/{taskId}`, for example `TASK-00001`
+
+Both accept `fields` and `include`.
+
+```python
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+task = metadata.get_task("c4f7e2b0-0000-4000-8000-000000000010", fields=["assignees", "about"])
+```
+
+### Response
+
+The task response includes these fields:
+
+<ResponseField name="id" type="string">
+  UUID of the incident task. This is also the incident `stateId`.
+</ResponseField>
+
+<ResponseField name="taskId" type="string">
+  Human-readable task number, for example `TASK-00001`.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Incident name, in the form `Incident: <test case name>`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Task status: `Open`, `InProgress`, or `Completed`.
+</ResponseField>
+
+<ResponseField name="workflowStageId" type="string">
+  Current stage: `new`, `ack`, `assigned`, or `resolved`.
+</ResponseField>
+
+<ResponseField name="availableTransitions" type="array">
+  Transitions that apply now. Each item has `id`, `label`, `targetStageId`, `targetTaskStatus`, and `requiresComment`.
+</ResponseField>
+
+<ResponseField name="assignees" type="array">
+  Users or teams the incident is assigned to.
+</ResponseField>
+
+<ResponseField name="about" type="object">
+  Reference to the test case.
+</ResponseField>
+
+<ResponseField name="resolution" type="object">
+  Present after the incident is resolved. Includes `type`, `resolvedBy`, `resolvedAt`, `comment`, and `payload` (which contains `testCaseFailureReason`).
+</ResponseField>
+
+## Search Incident History
+
+Use the test case incident status endpoints to search incidents by test case or time and to read the full status history.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /v1/dataQuality/testCases/testCaseIncidentStatus` | Status records. Filters: `testCaseId`, `testCaseFQN`, `originEntityFQN`, `testCaseResolutionStatusType` (`New`, `Ack`, `Assigned`, `Resolved`), `assignee`, `domain`, `startTs`, `endTs`, `latest`, `limit`, `offset`. Set `latest=true` to return only the current status of each incident. |
+| `GET /v1/dataQuality/testCases/testCaseIncidentStatus/search/list` | The same filters, plus `sortField`, `sortType`, and `dateField`. The Incident Manager list uses this endpoint. |
+| `GET /v1/dataQuality/testCases/testCaseIncidentStatus/stateId/{stateId}` | Every status record for one incident, in order. Use the incident (task) ID as `stateId`. |
+| `GET /v1/dataQuality/testCases/testCaseIncidentStatus/{id}` | One status record. |
+
+Each status record includes these fields:
+
+- `id`, `stateId`, and `timestamp`
+- `testCaseResolutionStatusType`
+- `testCaseResolutionStatusDetails`: the assignee, or the failure reason and comment
+- `updatedBy` and `updatedAt`
+- `testCaseReference` and `severity`
+- `metrics`: `timeToResponse` and `timeToResolution`, in milliseconds
+
+```bash
+curl "https://your-company.open-metadata.org/api/v1/dataQuality/testCases/testCaseIncidentStatus?latest=true&testCaseResolutionStatusType=New&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+
+# The Python client has no list method for incident history, so call the path directly
+response = metadata.client.get(
+    "/dataQuality/testCases/testCaseIncidentStatus",
+    {"latest": "true", "limit": 50},
+)
+```
+
+## Keep an External Tracker in Sync
+
+OpenMetadata doesn't include a built-in Jira integration. Task responses have an `externalReference` field for storing a Jira key, but OpenMetadata doesn't sync it for you.
+
+To mirror incidents in a tracker such as Jira:
+
+1. Create a `Notification` alert on the `task` source with a webhook destination. See [Alert for Incident Events](/v2.0.x/api-reference/alerts/create#alert-for-incident-events).
+2. In your receiver, deduplicate on the event `id`. Read `entityType` and the parsed `entity`.
+3. Ignore events that aren't incidents (`entity.category` isn't `Incident`).
+4. Use the incident ID (`entityId`) as the key that links the Jira issue and the incident, and store it on the issue.
+5. On each event, read `entity.workflowStageId` and update the issue.
+6. To close the loop, call [Change Incident Status](/v2.0.x/api-reference/incidents/update-status) when the issue changes in the tracker.
+7. Run a periodic `GET /v1/tasks?category=Incident&statusGroup=open` as a safety net, because OpenMetadata doesn't automatically resend a webhook that failed.

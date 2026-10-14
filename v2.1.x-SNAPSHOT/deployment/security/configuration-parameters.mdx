@@ -215,6 +215,10 @@ Example: `["suresh"]`
 The domain that is associated with user accounts.
 Default: `"open-metadata.org"`
 
+<Note>
+**Deprecated.** Use `botDomain` for bot email addresses and `allowedEmailDomains` to restrict which email domains can sign in.
+</Note>
+
 ## Authority (authority):
 The base URL of the OIDC authority.
 Example: Replace `{IssuerUrl}` with the URL of your custom OIDC provider.
@@ -276,6 +280,10 @@ Indicates if SSL is enabled for connecting to the LDAP server. Defaults to `true
 ## Enforce Principal Domain (enforcePrincipalDomain):
 Whether to enforce user principal matching with the defined principal domain
 
+<Note>
+**Deprecated.** Use `allowedEmailDomains` instead.
+</Note>
+
 ## Enable Secure Socket Connection (enableSecureSocketConnection):
 If true, enables secure connections (SSL/TLS)
 
@@ -287,13 +295,19 @@ Whether a role change at the provider reaches OpenMetadata depends on how the us
 - **OIDC sign-in**: OpenMetadata updates the user's roles each time they sign in, so a role added or removed at the provider takes effect at their next sign-in. If the token doesn't include a roles claim at all, OpenMetadata leaves the user's existing roles unchanged.
 - **SAML sign-in**: Signing in doesn't update roles from the provider. Manage these users' roles in OpenMetadata directly.
 
-The provider can make a user an admin, but removing the Admin role at the provider doesn't remove their admin access. To remove it, update the user in OpenMetadata. If the user is also listed in `adminPrincipals`, remove them from that list too, because OpenMetadata restores admin access to everyone on it when they sign in.
+The provider can make a user an admin, but removing the Admin role at the provider doesn't remove their admin access. To remove it, update the user in OpenMetadata. If the user is also listed in `adminEmails` (or the deprecated `adminPrincipals`), remove them from that list too, because OpenMetadata restores admin access to everyone on it when they sign in.
 
 ## Initial Admins (initialAdmins):
 List of initial admin users for the system
 
 ## JWT Principal Claims (jwtPrincipalClaims):
 **Definition:** The JWT claims OpenMetadata uses to identify the authenticated user.
+
+<Note>
+**Deprecated.** Use `emailClaim` instead. This setting keeps working until email-first identity turns on, which happens when you set `emailClaim` without `jwtPrincipalClaimsMapping`.
+</Note>
+
+For more information, see [Email-First User Identity](#email-first-user-identity).
 
 **Example:**
 
@@ -335,6 +349,10 @@ the order can cause authentication failures.
 ## JWT Principal Claims Mapping (jwtPrincipalClaimsMapping):
 **Definition:** Maps JWT claims to OpenMetadata user profile fields.
 
+<Note>
+**Deprecated.** Use `emailClaim` and `displayNameClaim` instead. If this setting is present, OpenMetadata keeps using the legacy flow even when `emailClaim` is set.
+</Note>
+
 **Supported keys:** Only `email` and `username` are valid mapping targets
 in `jwtPrincipalClaimsMapping`.
 
@@ -371,6 +389,105 @@ If you need richer name handling, make sure your identity provider is configured
 **Important:** Using any other key (for example, `name` or `firstName`) will
 cause the service to fail on startup with a validation error.
 </Warning>
+
+## Email-First User Identity
+
+Starting in 2.1, OpenMetadata can identify a signed-in user by their **email address** instead of resolving a username from several token claims. The email address becomes the single key for finding an existing account. OpenMetadata generates the username from the email. For example, `john.doe@company.com` becomes `john.doe`. If that name is already taken, OpenMetadata appends a random suffix, for example `john.doe_x7k2`.
+
+Email-first identity is opt-in. It turns on when you set `emailClaim` and have no `jwtPrincipalClaimsMapping` configured. Until then, OpenMetadata keeps using `jwtPrincipalClaims` as before, so upgrading without changing your configuration doesn't change how users are matched.
+
+| Deprecated setting | Replace with |
+|---|---|
+| `jwtPrincipalClaims` | `emailClaim` |
+| `jwtPrincipalClaimsMapping` | `emailClaim` and `displayNameClaim` |
+| `adminPrincipals` | `adminEmails` |
+| `principalDomain` | `botDomain` for bots, `allowedEmailDomains` to restrict sign-in |
+| `enforcePrincipalDomain`, `allowedDomains` | `allowedEmailDomains` |
+
+Deprecated settings keep working until their replacement takes over. For `jwtPrincipalClaims`, that happens when you set `emailClaim` and have no `jwtPrincipalClaimsMapping` configured. OpenMetadata logs a deprecation warning at startup only after you configure the replacement.
+
+### What Email-First Identity Changes
+
+When email-first identity is on:
+
+- OpenMetadata rejects unknown emails instead of guessing. If no account matches the email in the token, but another account already uses the same name as the start of that email, sign-in fails with a `401`. This stops an unregistered email from acting as another user.
+- Deactivated accounts can't sign in. OpenMetadata doesn't restore or update a deactivated (soft-deleted) user when their email appears in a token.
+- OpenMetadata rejects unverified emails. It refuses an OIDC token that explicitly has `email_verified: false`. A token without the claim is accepted.
+- OpenMetadata updates display names only when the provider sends one. A display name that a user customized in OpenMetadata isn't overwritten by a value built from their email.
+- Self-signup follows `allowedEmailRegistrationDomains` for OIDC and SAML. LDAP self-signup follows it on every deployment, as described in [Changes That Apply to Every Deployment](#changes-that-apply-to-every-deployment).
+- `allowedEmailDomains` applies to tokens from your identity provider. Tokens issued by OpenMetadata itself, such as session tokens and personal access tokens, skip the check. This keeps the default admin and long-standing users signed in even if their email domain isn't on the list.
+
+### Identity Provider Subject Binding
+
+On a user's first OIDC sign-in with email-first identity, OpenMetadata records the provider's unique subject (`sub`) identifier on the user. If a later sign-in presents the same email with a different subject, OpenMetadata refuses the sign-in instead of giving the person the existing account. This protects against a provider reassigning a former employee's email address to a new person.
+
+- OIDC binds the subject. SAML and LDAP don't, because SAML name IDs often change at each sign-in and LDAP has no subject.
+- Existing users bind automatically at their next OIDC sign-in. No migration is needed.
+- If you legitimately move to a new identity provider that issues new subjects, an administrator must clear the stored subject first. For more information, see [Fix a User's Email Address](#fix-a-users-email-address).
+
+### Fix a User's Email Address
+
+You can't change a user's email through the UI or API. Use the `openmetadata-ops.sh` tool instead. Run it from your OpenMetadata installation:
+
+```bash
+./bootstrap/openmetadata-ops.sh change-email \
+  --email old.address@company.com \
+  --new-email new.address@company.com
+```
+
+Add `--clear-identity-binding` to also remove the recorded provider subject, so the user's next sign-in binds again. Use it when the address now belongs to a different person.
+
+Before turning on `emailClaim`, find accounts whose email was generated by OpenMetadata rather than supplied by your provider. These accounts have an address like `user@principalDomain` that won't match a real address:
+
+```bash
+./bootstrap/openmetadata-ops.sh list-synthesized-emails
+```
+
+Use `-d` / `--domain` to list a specific domain. Then correct each account with `change-email`.
+
+### Changes That Apply to Every Deployment
+
+These happen on upgrade to 2.1 whether or not you turn on email-first identity:
+
+- Stored emails become lowercase. The 2.1.0 migration lowercases every user email. Any script or integration that compares emails with case sensitivity sees the new values. No two users can collide because of this.
+- MySQL email matching ignores accents. `jose@x.com` and `josé@x.com` now match as the same address.
+- LDAP sign-in changes. Deactivated accounts can't sign in anymore. `allowedEmailRegistrationDomains` now applies to LDAP self-signup. A username collision gets a generated suffix instead of failing. The display name is synced from the directory, which overwrites a display name the user customized in OpenMetadata.
+- `POST /v1/users` renames on a collision. For providers other than basic auth, a username that is already taken gets a generated suffix instead of returning a conflict error.
+
+## Email Claim (emailClaim):
+**Definition**: The name of the token claim that holds the user's email address. Setting it turns on email-first identity, unless `jwtPrincipalClaimsMapping` is also configured.
+
+**Example**: `email`
+
+**Environment variable**: `AUTHENTICATION_EMAIL_CLAIM`. Default: empty, which keeps the legacy `jwtPrincipalClaims` behavior.
+
+## Display Name Claim (displayNameClaim):
+**Definition**: The name of the token claim that holds the user's display name. OpenMetadata reads it only when `emailClaim` is set.
+
+**Example**: `name`
+
+**Environment variable**: `AUTHENTICATION_DISPLAY_NAME_CLAIM`. Default: empty.
+
+## Admin Emails (adminEmails):
+**Definition**: Email addresses of users who get administrator access. Replaces `adminPrincipals`.
+
+**Example**: `["admin@company.com"]`
+
+**Environment variable**: `AUTHORIZER_ADMIN_EMAILS`. Default: `[]`.
+
+`adminEmails` matches users by email. The deprecated `adminPrincipals` still matches existing users by name, so upgrading doesn't create duplicate admin accounts.
+
+## Allowed Email Domains (allowedEmailDomains):
+**Definition**: Email domains allowed to sign in. When empty, all domains are allowed.
+
+**Example**: `["company.com", "subsidiary.com"]`
+
+**Environment variable**: `AUTHORIZER_ALLOWED_EMAIL_DOMAINS`. Default: `[]`.
+
+## Bot Domain (botDomain):
+**Definition**: The email domain OpenMetadata uses for bot accounts it creates, for example `ingestion-bot@{botDomain}`. Replaces `principalDomain` for bots.
+
+**Environment variable**: `AUTHORIZER_BOT_DOMAIN`. Default: empty.
 
 ## Enable Self Signup (enableSelfSignup):
 Allows users to sign up themselves if not already registered

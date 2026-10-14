@@ -1,0 +1,59 @@
+---
+title: Incidents
+description: List, read, and change the status of data quality incidents through the OpenMetadata REST API and Python SDK, using the task-based incident model.
+sidebarTitle: Overview
+---
+
+# Incidents
+
+When a test case fails, OpenMetadata opens an **incident** for it. In OpenMetadata 2.0, an incident is a **task** with category `Incident` and type `TestCaseResolution`. Use the task endpoints to read incidents and change their status.
+
+<CardGroup cols={2}>
+  <Card title="List and Retrieve Incidents" icon="list" href="/v2.1.x-SNAPSHOT/api-reference/incidents/list">
+    Find incidents by test case, status, assignee, or time, and read one incident and its history.
+  </Card>
+
+  <Card title="Change Incident Status" icon="arrows-rotate" href="/v2.1.x-SNAPSHOT/api-reference/incidents/update-status">
+    Acknowledge, assign, reassign, and resolve an incident.
+  </Card>
+</CardGroup>
+
+To see the workflow in the UI, see [Incident Manager](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/incident-manager). To receive a webhook when an incident changes, see [Alert for Incident Events](/v2.1.x-SNAPSHOT/api-reference/alerts/create#alert-for-incident-events).
+
+## How Incidents Are Modeled
+
+- **Creation**: a failed test result creates an incident for the test case, or reuses the incident that is already open. OpenMetadata doesn't open a second incident while one is open for the same test case. The test case owners become the assignees. If the test case has owners, the incident moves directly to the `assigned` stage.
+- **Identity**: the incident ID is the task ID. The same value appears as `stateId` in the incident status history.
+- **Stages**: an incident moves through the stages in the following table. Each stage maps to a task status and to a legacy incident status.
+
+| Stage (`workflowStageId`) | Task status | Incident status in the UI | Available transitions |
+|---|---|---|---|
+| `new` | `Open` | New | `ack`, `assign`, `resolve` |
+| `ack` | `InProgress` | Ack | `new`, `assign`, `resolve` |
+| `assigned` | `InProgress` | Assigned | `reassign`, `resolve` |
+| `resolved` | `Completed` | Resolved | none |
+
+- **Resolution**: resolving an incident requires a comment and a failure reason: `FalsePositive`, `MissingData`, `Duplicates`, `OutOfBounds`, or `Other`.
+- **Automatic closure**: if automatic incident closure is enabled, a passing test result resolves the open incident.
+
+Every task response includes `availableTransitions`, which lists the transitions that apply to the incident right now. Each item has `id`, `label`, `targetStageId`, `targetTaskStatus`, and `requiresComment`.
+
+## Two Sets of Endpoints
+
+Incident reads and writes are available through two endpoint families. Use the task endpoints for new integrations.
+
+| Use | Endpoint family | Recommendation |
+|---|---|---|
+| Read the incident, assign, acknowledge, resolve | Tasks: `/v1/tasks` | Use for new integrations. The Incident Manager in the UI changes status through the tasks endpoint. |
+| Search incidents by test case, status, or time, and read status history | Test case incident status: `/v1/dataQuality/testCases/testCaseIncidentStatus` | Use for reads. Writes to this endpoint still work and are applied to the task, so existing clients keep working. |
+
+<Note>
+The test case incident status endpoint is the incident history that OpenMetadata maintains alongside the task. Each task change adds a record to it. Incidents created before the OpenMetadata 2.0 upgrade have history records that aren't linked to a task.
+</Note>
+
+## SDK Support
+
+Use the following options to work with incidents from code.
+
+- **Python**: OpenMetadata has no fluent SDK class for incidents. Use the `OpenMetadata` client. Task methods (`list_tasks`, `get_task`, `resolve_task`, and others) come from `metadata.ingestion.ometa.mixins.task_mixin`, with models in `metadata.ingestion.ometa.task_models`. For incident history reads, call the REST path through `metadata.client`.
+- **Java**: `client.tasks()` for tasks and `client.testCaseResolutionStatuses()` for incident history.
