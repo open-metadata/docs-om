@@ -2,6 +2,8 @@
 title: Python SDK Overview
 description: 'Full-featured Python client library for OpenMetadata integration'
 ---
+import PythonSdkChoice from '/snippets/sdk/python-sdk-choice.mdx'
+import PythonSdk2Quickstart from '/snippets/sdk/python-sdk-2-quickstart.mdx'
 
 # Python SDK
 
@@ -15,7 +17,13 @@ Install the OpenMetadata Python SDK using pip:
 pip install openmetadata-ingestion
 ```
 
-## Quick Start
+<PythonSdkChoice />
+
+## Quick Start: SDK 2.0
+
+<PythonSdk2Quickstart />
+
+## Quick Start: Original Client
 
 ### Basic Connection
 
@@ -31,7 +39,7 @@ from metadata.generated.schema.security.client.openMetadataJWTClientConfig impor
 # Configure connection
 server_config = OpenMetadataConnection(
     hostPort="http://localhost:8585/api",
-    authProvider="collate",
+    authProvider="openmetadata",
     securityConfig=OpenMetadataJWTClientConfig(
         jwtToken="your-jwt-token"
     ),
@@ -62,7 +70,7 @@ table = metadata.get_by_name(
 )
 
 if table:
-    print(f"Table: {table.name}")
+    print(f"Table: {table.name.root}")
     print(f"Columns: {len(table.columns) if table.columns else 0}")
 ```
 
@@ -106,7 +114,7 @@ table = metadata.get_by_name(
 # List entities with pagination
 tables = metadata.list_entities(
     entity=Table,
-    fields=["owner", "tags"],
+    fields=["owners", "tags"],
     limit=50
 )
 ```
@@ -117,12 +125,12 @@ tables = metadata.list_entities(
 # Generator for large datasets
 all_tables = metadata.list_all_entities(
     entity=Table,
-    fields=["owner", "columns"],
-    params={"service": "your-service-name"}
+    fields=["owners", "columns"],
+    params={"databaseSchema": "your-service.your-database.your-schema"}
 )
 
 for table in all_tables:
-    print(f"Processing table: {table.name}")
+    print(f"Processing table: {table.name.root}")
 ```
 
 ### Entity References
@@ -136,26 +144,24 @@ table_ref = metadata.get_entity_reference(
 
 # Use in other entity creation
 if table_ref:
-    print(f"Table reference: {table_ref.id}")
+    print(f"Table reference: {table_ref.id.root}")
 ```
 
 ## Advanced Features
 
-### Custom Configuration
+### Validating a Custom CA Certificate
 
 ```python
-# Using custom authentication
-from metadata.generated.schema.security.client.basicAuthenticationProvider import (
-    BasicAuthenticationProvider,
-)
+from metadata.generated.schema.security.ssl.validateSSLClientConfig import ValidateSslClientConfig
 
 server_config = OpenMetadataConnection(
     hostPort="https://your-openmetadata-instance.com/api",
-    authProvider="basic",
-    securityConfig=BasicAuthenticationProvider(
-        username="your-username",
-        password="your-password"
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="your-jwt-token"
     ),
+    verifySSL="validate",
+    sslConfig=ValidateSslClientConfig(caCertificate="/path/to/rootCert"),
 )
 
 metadata = OpenMetadata(server_config)
@@ -164,18 +170,10 @@ metadata = OpenMetadata(server_config)
 ### Error Handling
 
 ```python
-from metadata.ingestion.ometa.ometa_api import (
-    OpenMetadata,
-    InvalidEntityException,
-    EmptyPayloadException
-)
-
-try:
-    table = metadata.get_by_name(entity=Table, fqn="non-existent-table")
-except InvalidEntityException as e:
-    print(f"Invalid entity: {e}")
-except EmptyPayloadException as e:
-    print(f"No data received: {e}")
+# get_by_name returns None when the entity does not exist
+table = metadata.get_by_name(entity=Table, fqn="non-existent-table")
+if table is None:
+    print("Table not found")
 ```
 
 ### Working with Versions
@@ -200,11 +198,11 @@ all_tables = metadata.list_all_entities(entity=Table)
 
 matching_tables = [
     table for table in all_tables
-    if "customer" in table.name.lower()
+    if "customer" in table.name.root.lower()
 ]
 
 for table in matching_tables:
-    print(f"Found customer table: {table.fullyQualifiedName}")
+    print(f"Found customer table: {table.fullyQualifiedName.root}")
 ```
 
 ### Metadata Automation
@@ -213,30 +211,28 @@ for table in matching_tables:
 # Bulk update table descriptions
 tables_to_update = metadata.list_all_entities(
     entity=Table,
-    params={"service": "production-db"}
+    params={"databaseSchema": "production-service.production-db.public"}
 )
 
 for table in tables_to_update:
     if not table.description:
         # Update with a default description
-        table.description = f"Production table: {table.name}"
+        table.description = f"Production table: {table.name.root}"
         metadata.create_or_update(data=table)
 ```
 
 ### Lineage Management
 
 ```python
-from metadata.generated.schema.type.entityLineage import EntityLineage
-
-# Get table lineage
+# Get table lineage (returns a dict)
 lineage = metadata.get_lineage_by_name(
     entity=Table,
     fqn="service.database.schema.table"
 )
 
 if lineage:
-    print(f"Upstream entities: {len(lineage.upstreamEdges)}")
-    print(f"Downstream entities: {len(lineage.downstreamEdges)}")
+    print(f"Upstream edges: {len(lineage['upstreamEdges'])}")
+    print(f"Downstream edges: {len(lineage['downstreamEdges'])}")
 ```
 
 ## API Reference

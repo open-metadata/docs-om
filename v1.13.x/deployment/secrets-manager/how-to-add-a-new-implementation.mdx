@@ -32,21 +32,42 @@ You can find [this](https://github.com/open-metadata/OpenMetadata/blob/main/open
 Once we have updated the JSON Schema, we can start implementing our Secrets Manager, extending the `ExternalSecretsManager.java` abstract class located [here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-service/src/main/java/org/openmetadata/service/secrets/ExternalSecretsManager.java). For example:
 
 ```java
-public abstract class AwesomeSecretsManager extends ExternalSecretsManager {
+public class AwesomeSecretsManager extends ExternalSecretsManager {
 
-  protected AwesomeSecretsManager(String clusterPrefix) {
-    super(SecretsManagerProvider.AWESOME_SM, clusterPrefix);
+  private static AwesomeSecretsManager instance = null;
+
+  private AwesomeSecretsManager(SecretsConfig secretsConfig) {
+    super(SecretsManagerProvider.AWESOME_SM, secretsConfig);
   }
 
+  @Override
   void storeSecret(String secretName, String secretValue) {
     // your implementation
   }
+
+  @Override
   void updateSecret(String secretName, String secretValue) {
     // your implementation
   }
 
+  @Override
   String getSecret(String secretName) {
     // your implementation
+  }
+
+  @Override
+  protected void deleteSecretInternal(String secretName) {
+    // your implementation
+  }
+
+  @Override
+  protected boolean isNotFoundException(Exception exception) {
+    // your implementation
+  }
+
+  public static AwesomeSecretsManager getInstance(SecretsConfig secretsConfig) {
+    if (instance == null) instance = new AwesomeSecretsManager(secretsConfig);
+    return instance;
   }
 }
 ```
@@ -55,8 +76,7 @@ After this, we can update `SecretsManagerFactory.java` which is a factory class.
 
 ```java
 ...
-    case AWESOME_SM:
-      return AwesomeSecretsManager.getInstance(config, clusterName);
+    case AWESOME_SM -> secretsManager = AwesomeSecretsManager.getInstance(secretsConfig);
 ...
 ```
 

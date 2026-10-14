@@ -63,12 +63,22 @@ odcs = DataContracts.export_odcs_by_name("sales-orders-contract").execute()
 ```
 
 ```java Export ODCS
-// Export using the REST client
+import java.util.UUID;
+
+// client is an initialized OpenMetadataClient.
+var contractId = UUID.fromString("f7a1b2c3-d4e5-6789-0abc-def123456789");
+
+// Export as an ODCS object
 var odcs = client.dataContracts().exportToODCS(contractId);
 System.out.println("ODCS version: " + odcs.getApiVersion());
+System.out.println("Status: " + odcs.getStatus());
 
 // Export as YAML
 String yaml = client.dataContracts().exportToODCSYaml(contractId);
+
+// Export by fully qualified name
+var byName = client.dataContracts().exportToODCSByFqn(
+    "sample_data.ecommerce_db.shopify.sales_orders.dataContract_sales-orders-contract");
 ```
 
 ```bash Export ODCS
@@ -207,15 +217,43 @@ contract = (DataContracts.import_odcs(table_id, "table")
 ```
 
 ```java Import ODCS
-// Import from ODCS JSON
-var contract = client.dataContracts().importFromODCS(
-    entityId, "table", odcsContract
-);
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+import org.openmetadata.schema.entity.data.DataContract;
+import org.openmetadata.sdk.network.HttpMethod;
+import org.openmetadata.sdk.network.RequestOptions;
 
-// Import from YAML
-var contract = client.dataContracts().importFromODCSYaml(
-    entityId, "table", yamlContent
-);
+// client is an initialized OpenMetadataClient.
+var entityId = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+String yamlContent = Files.readString(Path.of("contract.yaml"));
+
+// Import from an ODCS object (creates a new contract).
+// odcsContract is an ODCSDataContract, for example one returned by exportToODCS.
+var imported = client.dataContracts().importFromODCS(odcsContract, entityId, "table");
+
+// Import from YAML (creates a new contract)
+var importedFromYaml = client.dataContracts().importFromODCSYaml(
+    yamlContent, entityId, "table");
+
+// Update an existing contract from YAML with smart merge
+var merged = client.dataContracts().createOrUpdateFromODCSYaml(
+    yamlContent, entityId, "table");
+
+// Replace an existing contract from YAML
+var replaced = client.dataContracts().createOrUpdateFromODCSYaml(
+    yamlContent, entityId, "table", "replace");
+
+// Import from YAML, keeping quality rules without creating test cases.
+// The SDK method has no createTestCases option, so call the endpoint directly.
+var options = RequestOptions.builder()
+    .queryParam("entityId", entityId.toString())
+    .queryParam("entityType", "table")
+    .queryParam("createTestCases", "false")
+    .header("Content-Type", "application/yaml")
+    .build();
+var withoutTestCases = client.getHttpClient().execute(
+    HttpMethod.POST, "/v1/dataContracts/odcs/yaml", yamlContent, DataContract.class, options);
 ```
 
 ```bash Import ODCS
@@ -294,6 +332,35 @@ curl -X POST "{base_url}/api/v1/dataContracts/odcs/validate/yaml?entityId=a1b2c3
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/yaml" \
   --data-binary @contract.yaml
+```
+
+```java Validate YAML
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpMethod;
+import org.openmetadata.sdk.network.RequestOptions;
+
+// client is an initialized OpenMetadataClient.
+var entityId = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+String yamlContent = Files.readString(Path.of("contract.yaml"));
+
+var validation = client.dataContracts().validateODCSYaml(yamlContent, entityId, "table");
+System.out.println("Valid: " + validation.getValid());
+
+// The SDK model has no createTestCases option or import report,
+// so call the endpoint directly to read the report.
+var options = RequestOptions.builder()
+    .queryParam("entityId", entityId.toString())
+    .queryParam("entityType", "table")
+    .queryParam("createTestCases", "true")
+    .header("Content-Type", "application/yaml")
+    .build();
+String response = client.getHttpClient().executeForString(
+    HttpMethod.POST, "/v1/dataContracts/odcs/validate/yaml", yamlContent, options);
+var report = new ObjectMapper().readTree(response).path("odcsImportReport");
+System.out.println("Can import: " + report.path("canImport").asBoolean());
 ```
 
 ```json Response

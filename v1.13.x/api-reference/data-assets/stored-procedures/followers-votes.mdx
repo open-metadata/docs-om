@@ -51,7 +51,7 @@ Manage followers and votes for stored procedure entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/storedProcedures/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import StoredProcedures
 
 configure(
@@ -59,39 +59,60 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 sp_id = "770e8400-e29b-41d4-a716-446655440000"
 user_id = "user-uuid-here"
 
 # Add a follower
 sp = StoredProcedures.add_followers(sp_id, [user_id])
-print(f"Followers: {len(sp.followers)}")
+print(f"Followers: {len(sp.followers.root)}")
 
 # Remove a follower
 sp = StoredProcedures.remove_followers(sp_id, [user_id])
 
 # Add a vote
-sp = StoredProcedures.add_vote(sp_id, vote_type="votedUp")
+rest.put(f"/storedProcedures/{sp_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-sp = StoredProcedures.remove_vote(sp_id)
+rest.put(f"/storedProcedures/{sp_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/storedProcedures/{id}/followers
-import static org.openmetadata.sdk.fluent.StoredProcedures.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpMethod;
 
 String spId = "770e8400-e29b-41d4-a716-446655440000";
+String userId = "user-uuid-here";
 
 // Add a follower
-StoredProcedures.addFollower(spId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/storedProcedures/" + spId + "/followers",
+    UUID.fromString(userId)
+);
 
 // Remove a follower
-StoredProcedures.removeFollower(spId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/storedProcedures/" + spId + "/followers/" + userId,
+    null
+);
 
 // Add a vote
-StoredProcedures.vote(spId, "votedUp");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/storedProcedures/" + spId + "/vote",
+    Map.of("updatedVoteType", "votedUp")
+);
 
 // Remove a vote
-StoredProcedures.vote(spId, "unVoted");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/storedProcedures/" + spId + "/vote",
+    Map.of("updatedVoteType", "unVoted")
+);
 ```
 
 ```bash PUT /v1/storedProcedures/{id}/followers

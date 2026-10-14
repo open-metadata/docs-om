@@ -51,47 +51,54 @@ Manage followers and votes for ML model entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/mlmodels/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import client, configure
 from metadata.sdk.entities import MLModels
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+rest = client().ometa.client
 
 model_id = "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2"
 user_id = "user-uuid-here"
 
 # Add a follower
 model = MLModels.add_followers(model_id, [user_id])
-print(f"Followers: {len(model.followers)}")
+print(f"Followers: {len(model.followers.root)}")
 
 # Remove a follower
 model = MLModels.remove_followers(model_id, [user_id])
 
 # Add a vote
-model = MLModels.add_vote(model_id, vote_type="votedUp")
+rest.put(f"/mlmodels/{model_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-model = MLModels.remove_vote(model_id)
+rest.put(f"/mlmodels/{model_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/mlmodels/{id}/followers
-import static org.openmetadata.sdk.fluent.MlModels.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpClient;
+import org.openmetadata.sdk.network.HttpMethod;
+
+HttpClient http = client.getHttpClient();
 
 String modelId = "6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2";
+UUID userId = UUID.fromString("b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
 
 // Add a follower
-MlModels.addFollower(modelId, "user-uuid-here");
+http.executeForString(HttpMethod.PUT, "/v1/mlmodels/" + modelId + "/followers", userId);
 
 // Remove a follower
-MlModels.removeFollower(modelId, "user-uuid-here");
+http.executeForString(HttpMethod.DELETE, "/v1/mlmodels/" + modelId + "/followers/" + userId, null);
 
 // Add a vote
-MlModels.vote(modelId, "votedUp");
+http.executeForString(HttpMethod.PUT, "/v1/mlmodels/" + modelId + "/vote", Map.of("updatedVoteType", "votedUp"));
 
 // Remove a vote
-MlModels.vote(modelId, "unVoted");
+http.executeForString(HttpMethod.PUT, "/v1/mlmodels/" + modelId + "/vote", Map.of("updatedVoteType", "unVoted"));
 ```
 
 ```bash PUT /v1/mlmodels/{id}/followers

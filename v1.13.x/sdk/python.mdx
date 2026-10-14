@@ -3,6 +3,8 @@ title: Python SDK | OpenMetadata Python SDK Documentation
 description: Master OpenMetadata'sPython SDK with comprehensive documentation, code examples, and API guides. Build powerful data discovery and governance solutions.
 sidebarTitle: Overview
 ---
+import PythonSdkChoice from '/snippets/sdk/python-sdk-choice.mdx'
+import PythonSdk2Quickstart from '/snippets/sdk/python-sdk-2-quickstart.mdx'
 
 # Python SDK
 
@@ -17,7 +19,7 @@ We are now going to present a high-level Python API as a type-safe and gentle wr
 - Make sure to use the same `openmetadata-ingestion` version as your server version. For example, if you have the OpenMetadata
 server at version 1.13.6, you will need to install:
 
-```python
+```bash
 pip install "openmetadata-ingestion~=1.13.6.0"
 ```
 
@@ -30,7 +32,13 @@ In the [OpenMetadata Design](/v1.13.x/developers/architecture), we have been dis
 
 This means that whenever we need to interact with the metadata system or develop a new connector or logic, we have to make sure that we pass the proper inputs and handle the types of outputs.
 
-## Introducing the Python API
+<PythonSdkChoice />
+
+## SDK 2.0 Quick Start
+
+<PythonSdk2Quickstart />
+
+## Introducing the Python API (Original Client)
 Let's suppose that we have our local OpenMetadata server running at `http:localhost:8585`. We can play with it with simple `cURL` or `httpie` commands, and if we just want to take a look at the Entity instances we have lying around, that might probably be enough.
 
 However, let's imagine that we want to create or update an ML Model Entity with a `PUT`. To do so, we need to make sure that we are providing a proper JSON, covering all the attributes and types required by the Entity definition.
@@ -202,7 +210,7 @@ server_config = OpenMetadataConnection(
     securityConfig=OpenMetadataJWTClientConfig(
         jwtToken="<YOUR-INGESTION-BOT-JWT-TOKEN>",
     ),
-    verifySSL="validate" # ignore, validate or no-ssl,
+    verifySSL="validate",  # ignore, validate or no-ssl
     sslConfig=ValidateSslClientConfig(caCertificate="/path/to/rootCert"),
 )
 
@@ -316,8 +324,8 @@ class CreateDatabaseRequest(BaseModel):
         None,
         description='Description of the database instance. What it has and how to use it.',
     )
-    owner: Optional[entityReference.EntityReference] = Field(
-        None, description='Owner of this database'
+    owners: Optional[entityReferenceList.EntityReferenceList] = Field(
+        None, description='Owners of this database'
     )
     service: basic.FullyQualifiedEntityName = Field(
         ...,
@@ -331,7 +339,7 @@ class CreateDatabaseRequest(BaseModel):
 
 Note how the only non-optional fields are `name` and `service`. The type of `service`, however, is `FullyQualifiedEntityName`. This is expected, as there we need to pass the information of an existing Entity. In our case, the `fullyQualifiedName` of the `DatabaseService` we just created.
 
-In the case of the `owner` field, repeating the exercise and reviewing the required fields to instantiate an `EntityReference` we notice how we need to pass an `id: uuid.UUID` and `type: str`. There we need to specify the `id` and `type` of an `User`.
+In the case of the `owners` field, which takes a list of `EntityReference`, repeating the exercise and reviewing the required fields to instantiate an `EntityReference` shows that you need to pass an `id: uuid.UUID` and `type: str`. Specify the `id` and `type` of a `User`.
 
 **Querying by name**
 
@@ -400,8 +408,8 @@ Let's now update the `Table` by adding an owner. This will require us to create 
 First, make sure that no owner has been set during the creation:
 
 ```python
-print(table_entity.owner)
-# None
+print(table_entity.owners)
+# root=[]
 ```
 
 Now, create a `User`:
@@ -414,19 +422,19 @@ user = metadata.create_or_update(
 )
 ```
 
-Update our instance of `create_table` to add the `owner` field (we need to use the `Create` class as we'll run a `PUT`), and update the Entity:
+Update your `create_table` instance to add the `owners` field (use the `Create` class, because this runs a `PUT`), and update the Entity:
 
 ```python
 from metadata.generated.schema.type.entityReference import EntityReference
 
-create_table.owner = EntityReference(id=user.id, type="user")
+create_table.owners = [EntityReference(id=user.id, type="user")]
 updated_table_entity = metadata.create_or_update(create_table)
 
-print(updated_table_entity.owner)
-# EntityReference(id=Uuid(__root__=UUID('48793f0c-5308-45c1-9bf4-06a82c8d7bf9')), type='user', name='random-user', description=None, displayName=None, href=Href(__root__=AnyUrl('http://localhost:8585/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9', scheme='http', host='localhost', host_type='int_domain', port='8585', path='/api/v1/users/48793f0c-5308-45c1-9bf4-06a82c8d7bf9')))
+print(updated_table_entity.owners.root[0].name)
+# random-user
 ```
 
-If we did not save the `updated_table_entity` variable, we should need to query it to review the `owner` field. We can run the `get_by_name` using the proper FQN definition for `Table`s:
+If you did not save the `updated_table_entity` variable, query it to review the `owners` field. Run `get_by_name` with the FQN of the table:
 
 ```python
 my_table = metadata.get_by_name(entity=Table, fqn="test-service-table.test-db.test-schema.test")

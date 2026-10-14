@@ -42,7 +42,7 @@ List all glossary terms with optional filtering and pagination.
 <RequestExample dropdown>
 ```python GET /v1/glossaryTerms
 from metadata.sdk import configure
-from metadata.sdk.entities import GlossaryTerms
+from metadata.sdk.entities import Glossaries, GlossaryTerms
 
 configure(
     host="https://your-company.open-metadata.org/api",
@@ -51,44 +51,47 @@ configure(
 
 # List first page
 terms = GlossaryTerms.list(limit=50)
-for t in terms.data:
-    print(f"{t.fullyQualifiedName}")
+for t in terms.entities:
+    print(f"{t.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for t in GlossaryTerms.list_all():
-    print(f"{t.fullyQualifiedName}")
+    print(f"{t.fullyQualifiedName.root}")
 
 # Filter by glossary with fields
+glossary = Glossaries.retrieve_by_name("BusinessGlossary")
 terms = GlossaryTerms.list(
-    glossary="c2940a98-f147-4a46-8def-31f0c4406dc3",  # glossary ID (UUID)
+    filters={"glossary": str(glossary.id.root)},
     fields=["owners", "tags", "relatedTerms", "children"],
     limit=50
 )
 
-for t in terms.data:
-    print(f"{t.fullyQualifiedName}")
+for t in terms.entities:
+    print(f"{t.fullyQualifiedName.root}")
     if t.synonyms:
         print(f"  Synonyms: {t.synonyms}")
 ```
 
 ```java GET /v1/glossaryTerms
-import static org.openmetadata.sdk.fluent.GlossaryTerms.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = GlossaryTerms.list()
-    .limit(50)
-    .execute();
-
-for (var t : result.getData()) {
-    System.out.println(t.getFullyQualifiedName());
+var params = new ListParams().setLimit(50);
+var page = client.glossaryTerms().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by glossary with fields
-var result = GlossaryTerms.list()
-    .glossary("c2940a98-f147-4a46-8def-31f0c4406dc3")
-    .fields("owners", "tags", "relatedTerms", "children")
-    .limit(50)
-    .execute();
+var filtered = new ListParams()
+    .addFilter("glossary", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    .setFields("owners,tags,relatedTerms,children")
+    .setLimit(50);
+var filteredPage = client.glossaryTerms().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
+}
 ```
 
 ```bash GET /v1/glossaryTerms

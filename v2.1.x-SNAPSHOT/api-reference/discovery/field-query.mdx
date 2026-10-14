@@ -33,31 +33,35 @@ Search for entities by matching a specific field to a given value. This is usefu
 
 <RequestExample dropdown>
 ```python GET /v1/search/fieldQuery
-from metadata.sdk import configure, get_client
+from urllib.parse import urlencode
+
+from metadata.sdk import client, configure
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
-client = get_client()
+rest = client().ometa.client
 
 # Find tables with a specific column name
-response = client.get("/search/fieldQuery", params={
+params = urlencode({
     "fieldName": "columns.name",
     "fieldValue": "shop_id",
     "index": "table_search_index"
 })
+response = rest.get(f"/search/fieldQuery?{params}")
 
 for hit in response["hits"]["hits"]:
     entity = hit["_source"]
     print(f"{entity['fullyQualifiedName']} (score: {hit['_score']})")
 
 # Find entities with a specific tag
-response = client.get("/search/fieldQuery", params={
+params = urlencode({
     "fieldName": "tags.tagFQN",
     "fieldValue": "PII.Sensitive",
     "index": "table_search_index"
 })
+response = rest.get(f"/search/fieldQuery?{params}")
 
 for hit in response["hits"]["hits"]:
     entity = hit["_source"]

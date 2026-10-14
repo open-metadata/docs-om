@@ -28,7 +28,7 @@ List all data products with optional filtering and pagination.
 </ParamField>
 
 <ParamField query="fields" type="string">
-  Comma-separated list of fields to include: `owners`, `domain`, `experts`, `assets`. See [Supported Fields](#supported-fields) below.
+  Comma-separated list of fields to include: `owners`, `domains`, `experts`, `assets`. See [Supported Fields](#supported-fields) below.
 </ParamField>
 
 <ParamField query="include" type="string" default="non-deleted">
@@ -47,44 +47,46 @@ configure(
 
 # List first page
 products = DataProducts.list(limit=50)
-for dp in products.data:
-    print(f"{dp.fullyQualifiedName}")
+for dp in products.entities:
+    print(f"{dp.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for dp in DataProducts.list_all():
-    print(f"{dp.fullyQualifiedName}")
+    print(f"{dp.fullyQualifiedName.root}")
 
 # Filter by domain with fields
 products = DataProducts.list(
-    domain="Marketing",
-    fields=["owners", "domain", "experts", "assets"],
+    filters={"domain": "Marketing"},
+    fields=["owners", "domains", "experts", "assets"],
     limit=50
 )
 
-for dp in products.data:
-    print(f"{dp.fullyQualifiedName}")
+for dp in products.entities:
+    print(f"{dp.fullyQualifiedName.root}")
     if dp.owners:
-        print(f"  Owners: {[o.name for o in dp.owners]}")
+        print(f"  Owners: {[o.name for o in dp.owners.root]}")
 ```
 
 ```java GET /v1/dataProducts
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = DataProducts.list()
-    .limit(50)
-    .execute();
-
-for (var dp : result.getData()) {
-    System.out.println(dp.getFullyQualifiedName());
+var params = new ListParams().setLimit(50);
+var page = client.dataProducts().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by domain with fields
-var result = DataProducts.list()
-    .domain("Marketing")
-    .fields("owners", "domain", "experts", "assets")
-    .limit(50)
-    .execute();
+var filtered = new ListParams()
+    .addFilter("domain", "Marketing")
+    .setFields("owners,domains,experts,assets")
+    .setLimit(50);
+var filteredPage = client.dataProducts().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
+}
 ```
 
 ```bash GET /v1/dataProducts
@@ -93,7 +95,7 @@ curl "{base_url}/api/v1/dataProducts?limit=50" \
   -H "Authorization: Bearer {access_token}"
 
 # Filter by domain
-curl "{base_url}/api/v1/dataProducts?domain=Marketing&fields=owners,domain,experts,assets&limit=50" \
+curl "{base_url}/api/v1/dataProducts?domain=Marketing&fields=owners,domains,experts,assets&limit=50" \
   -H "Authorization: Bearer {access_token}"
 ```
 </RequestExample>
@@ -112,13 +114,15 @@ curl "{base_url}/api/v1/dataProducts?domain=Marketing&fields=owners,domain,exper
       "updatedAt": 1769984330261,
       "updatedBy": "admin",
       "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
-      "domain": {
-        "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
-        "type": "domain",
-        "name": "Marketing",
-        "fullyQualifiedName": "Marketing",
-        "deleted": false
-      },
+      "domains": [
+        {
+          "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+          "type": "domain",
+          "name": "Marketing",
+          "fullyQualifiedName": "Marketing",
+          "deleted": false
+        }
+      ],
       "deleted": false,
       "owners": [],
       "experts": []
@@ -156,8 +160,8 @@ Returns a paginated list of data product objects. By default, only basic fields 
       Fully qualified name in format `domain.dataProductName`.
     </ResponseField>
 
-    <ResponseField name="domain" type="object" optional>
-      Parent domain reference. Only included when `fields` contains `domain`.
+    <ResponseField name="domains" type="array" optional>
+      Parent domain references. Only included when `fields` contains `domains`.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>
@@ -199,7 +203,7 @@ Returns a paginated list of data product objects. By default, only basic fields 
 | Field | Description |
 |-------|-------------|
 | `owners` | Owner references (users and teams) |
-| `domain` | Parent domain reference |
+| `domains` | Parent domain references |
 | `experts` | Subject matter expert references |
 | `assets` | Associated data assets |
 

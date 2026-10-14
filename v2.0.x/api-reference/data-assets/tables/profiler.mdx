@@ -2,7 +2,7 @@
 title: Table Profiler
 description: Manage profiler configuration and retrieve profile data for tables
 sidebarTitle: Table Profiler
-api: GET /v1/tables/{id}/profilerConfig
+api: GET /v1/tables/{id}/tableProfilerConfig
 ---
 
 # Table Profiler
@@ -11,7 +11,7 @@ Manage the profiler configuration for a table and retrieve profiling results inc
 
 ## Get Profiler Config
 
-`GET /v1/tables/{id}/profilerConfig`
+`GET /v1/tables/{id}/tableProfilerConfig`
 
 <ParamField path="id" type="string" required>
   UUID of the table.
@@ -19,7 +19,7 @@ Manage the profiler configuration for a table and retrieve profiling results inc
 
 ## Set Profiler Config
 
-`PUT /v1/tables/{id}/profilerConfig`
+`PUT /v1/tables/{id}/tableProfilerConfig`
 
 <ParamField path="id" type="string" required>
   UUID of the table.
@@ -61,7 +61,7 @@ Manage the profiler configuration for a table and retrieve profiling results inc
 
 ## Delete Profiler Config
 
-`DELETE /v1/tables/{id}/profilerConfig`
+`DELETE /v1/tables/{id}/tableProfilerConfig`
 
 <ParamField path="id" type="string" required>
   UUID of the table.
@@ -98,8 +98,8 @@ Returns system-level profiling results (DML operations, rows affected).
 </ParamField>
 
 <RequestExample dropdown>
-```python GET /v1/tables/{id}/profilerConfig
-from metadata.sdk import configure
+```python GET /v1/tables/{id}/tableProfilerConfig
+from metadata.sdk import configure, client
 from metadata.sdk.entities import Tables
 
 configure(
@@ -107,15 +107,18 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Get profiler config
-config = Tables.get_profiler_config(table_id)
-sample_config = config.get("profileSampleConfig", {}).get("config", {})
-print(f"Sample: {sample_config.get('profileSample')}%")
+table = Tables.retrieve(table_id, fields=["tableProfilerConfig"])
+config = table.tableProfilerConfig
+if config and config.profileSampleConfig:
+    print(f"Sample: {config.profileSampleConfig.config.profileSample}%")
 
 # Set profiler config - profile 50% of rows
-Tables.set_profiler_config(table_id, {
+rest.put(f"/tables/{table_id}/tableProfilerConfig", json={
     "profileSampleConfig": {
         "sampleConfigType": "STATIC",
         "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
@@ -125,7 +128,7 @@ Tables.set_profiler_config(table_id, {
 })
 
 # Set profiler config with specific column metrics
-Tables.set_profiler_config(table_id, {
+rest.put(f"/tables/{table_id}/tableProfilerConfig", json={
     "profileSampleConfig": {
         "sampleConfigType": "STATIC",
         "config": {"profileSample": 100, "profileSampleType": "PERCENTAGE"}
@@ -137,38 +140,48 @@ Tables.set_profiler_config(table_id, {
 })
 
 # Delete profiler config
-Tables.delete_profiler_config(table_id)
+rest.delete(f"/tables/{table_id}/tableProfilerConfig")
 ```
 
-```java GET /v1/tables/{id}/profilerConfig
-import static org.openmetadata.sdk.fluent.Tables.*;
+```java GET /v1/tables/{id}/tableProfilerConfig
+import java.util.List;
+import java.util.Map;
+import org.openmetadata.schema.type.ProfileSampleConfig;
+import org.openmetadata.schema.type.TableProfilerConfig;
+import org.openmetadata.sdk.network.HttpMethod;
 
 String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 // Get profiler config
-var config = Tables.getProfilerConfig(tableId);
+TableProfilerConfig profilerConfig = client.tables()
+    .get(tableId, "tableProfilerConfig")
+    .getTableProfilerConfig();
 
 // Set profiler config
-Tables.setProfilerConfig(tableId, Map.of(
-    "profileSampleConfig", Map.of(
-        "sampleConfigType", "STATIC",
-        "config", Map.of("profileSample", 50, "profileSampleType", "PERCENTAGE")
-    ),
-    "sampleDataCount", 200,
-    "excludeColumns", List.of("created_at")
-));
+TableProfilerConfig newConfig = new TableProfilerConfig()
+    .withProfileSampleConfig(new ProfileSampleConfig()
+        .withSampleConfigType(ProfileSampleConfig.SampleConfigType.STATIC)
+        .withConfig(Map.of("profileSample", 50, "profileSampleType", "PERCENTAGE")))
+    .withSampleDataCount(200)
+    .withExcludeColumns(List.of("created_at"));
+client.tables().updateProfilerConfig(tableId, newConfig);
 
 // Delete profiler config
-Tables.deleteProfilerConfig(tableId);
+client.getHttpClient().execute(
+    HttpMethod.DELETE,
+    "/v1/tables/" + tableId + "/tableProfilerConfig",
+    null,
+    Void.class
+);
 ```
 
-```bash GET /v1/tables/{id}/profilerConfig
+```bash GET /v1/tables/{id}/tableProfilerConfig
 # Get profiler config
-curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/tableProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 
 # Set profiler config
-curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/tableProfilerConfig" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -181,7 +194,7 @@ curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profi
   }'
 
 # Delete profiler config
-curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/profilerConfig" \
+curl -X DELETE "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/tableProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 
 # Get table profile
@@ -201,12 +214,16 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfil
 <ResponseExample>
 ```json Response (Profiler Config)
 {
-  "profileSampleConfig": {
-    "sampleConfigType": "STATIC",
-    "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
-  },
-  "sampleDataCount": 200,
-  "excludeColumns": ["created_at"]
+  "id": "455e3d9d-dbbf-455e-b3be-7191daa825f3",
+  "name": "agent_performance",
+  "tableProfilerConfig": {
+    "profileSampleConfig": {
+      "sampleConfigType": "STATIC",
+      "config": {"profileSample": 50, "profileSampleType": "PERCENTAGE"}
+    },
+    "sampleDataCount": 200,
+    "excludeColumns": ["created_at"]
+  }
 }
 ```
 </ResponseExample>
@@ -215,11 +232,11 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfil
 
 ## Returns
 
-**Get profiler config** returns the profiler configuration object.
+**Get profiler config** returns the table. The configuration is in its `tableProfilerConfig` field.
 
-**Set profiler config** returns the updated profiler configuration.
+**Set profiler config** returns the updated table.
 
-**Delete profiler config** returns no content (204).
+**Delete profiler config** returns the updated table, without a profiler configuration.
 
 **Get table profile** returns table-level metrics (row count, size, etc.).
 
@@ -228,6 +245,8 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/systemProfil
 **Get system profile** returns system-level metrics (DML operations, rows affected, etc.).
 
 ## Response (Profiler Config)
+
+These fields are inside the table's `tableProfilerConfig` field.
 
 <ResponseField name="profileSampleConfig" type="object">
   How much data is profiled. Contains `sampleConfigType` (`STATIC` or `DYNAMIC`) and a `config` object holding the settings for that type.

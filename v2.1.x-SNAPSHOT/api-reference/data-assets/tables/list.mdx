@@ -56,25 +56,28 @@ configure(
 # List with pagination
 page = Tables.list(limit=50, fields=["columns", "owners", "tags"])
 for t in page.entities:
-    print(f"{t.fullyQualifiedName} ({len(t.columns or [])} columns)")
+    print(f"{t.fullyQualifiedName.root} ({len(t.columns or [])} columns)")
 
 # List all with auto-pagination
 all_tables = Tables.list_all(batch_size=100)
 for table in all_tables:
-    print(f"{table.fullyQualifiedName}")
+    print(f"{table.fullyQualifiedName.root}")
 ```
 
 ```java GET /v1/tables
-import static org.openmetadata.sdk.fluent.Tables.*;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // Retrieve by ID
-Table table = Tables.retrieve(tableId);
+Table table = client.tables().get(tableId);
 
 // List tables
-var result = Tables.list()
-    .fields("columns", "owners", "tags")
-    .limit(50)
-    .execute();
+ListResponse<Table> result = client.tables().list(
+    new ListParams()
+        .setFields("columns,owners,tags")
+        .setLimit(50)
+);
 
 for (Table t : result.getData()) {
     System.out.println(t.getFullyQualifiedName());

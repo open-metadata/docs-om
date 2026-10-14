@@ -44,11 +44,11 @@ configure(
 # List first page
 services = StorageServices.list(limit=50)
 for svc in services.data:
-    print(f"{svc.fullyQualifiedName} ({svc.serviceType})")
+    print(f"{svc.fullyQualifiedName.root} ({svc.serviceType})")
 
 # List all with auto-pagination
 for svc in StorageServices.list_all():
-    print(f"{svc.fullyQualifiedName}")
+    print(f"{svc.fullyQualifiedName.root}")
 
 # List with fields
 services = StorageServices.list(
@@ -57,32 +57,27 @@ services = StorageServices.list(
 )
 
 for svc in services.data:
-    print(f"{svc.fullyQualifiedName}")
+    print(f"{svc.fullyQualifiedName.root}")
     if svc.owners:
         print(f"  Owners: {[o.name for o in svc.owners]}")
 ```
 
 ```java GET /v1/services/storageServices
-import static org.openmetadata.sdk.fluent.StorageServices.*;
+import org.openmetadata.schema.entity.services.StorageService;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // List first page
-var result = StorageServices.list()
-    .limit(50)
-    .execute();
+ListResponse<StorageService> firstPage = client.storageServices().list(new ListParams().setLimit(50));
 
-for (var svc : result.getData()) {
-    System.out.println(svc.getFullyQualifiedName());
+for (StorageService service : firstPage.getData()) {
+    System.out.println(service.getFullyQualifiedName());
 }
 
-// List with fields
-var result = StorageServices.list()
-    .fields("owners", "tags", "domains")
-    .limit(50)
-    .execute();
-
-for (var svc : result.getData()) {
-    System.out.println(svc.getFullyQualifiedName());
-}
+// With fields
+ListResponse<StorageService> withFields = client.storageServices().list(
+    new ListParams().setFields("owners,tags,domains").setLimit(50)
+);
 ```
 
 ```bash GET /v1/services/storageServices

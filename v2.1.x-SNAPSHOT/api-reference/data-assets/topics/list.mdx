@@ -37,59 +37,71 @@ List all topics with optional filtering and pagination.
 
 <RequestExample dropdown>
 ```python GET /v1/topics
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.topic import Topic
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 # List first page
-topics = Topics.list(limit=50)
-for t in topics.data:
-    print(f"{t.fullyQualifiedName}")
+topics = metadata.list_entities(entity=Topic, limit=50)
+for topic in topics.entities:
+    print(f"{topic.fullyQualifiedName.root}")
 
 # List all with auto-pagination
-for t in Topics.list_all():
-    print(f"{t.fullyQualifiedName}")
+for topic in metadata.list_all_entities(entity=Topic):
+    print(f"{topic.fullyQualifiedName.root}")
 
 # Filter by service
-topics = Topics.list(
-    service="sample_kafka",
-    fields=["owners", "tags", "domain"],
+topics = metadata.list_entities(
+    entity=Topic,
+    fields=["owners", "tags", "domains"],
+    params={"service": "sample_kafka"},
     limit=50
 )
 
-for t in topics.data:
-    print(f"{t.fullyQualifiedName}")
-    if t.owners:
-        print(f"  Owners: {[o.name for o in t.owners]}")
-    if t.tags:
-        print(f"  Tags: {[t.tagFQN for t in t.tags]}")
+for topic in topics.entities:
+    print(f"{topic.fullyQualifiedName.root}")
+    if topic.owners:
+        print(f"  Owners: {[o.name for o in topic.owners.root]}")
+    if topic.tags:
+        print(f"  Tags: {[tag.tagFQN.root for tag in topic.tags]}")
 ```
 
 ```java GET /v1/topics
-import static org.openmetadata.sdk.fluent.Topics.*;
+import org.openmetadata.schema.entity.data.Topic;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // List first page
-var result = Topics.list()
-    .limit(50)
-    .execute();
+ListResponse<Topic> firstPage = client.topics().list(new ListParams().setLimit(50));
 
-for (var t : result.getData()) {
-    System.out.println(t.getFullyQualifiedName());
+for (Topic item : firstPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = Topics.list()
-    .service("sample_kafka")
-    .fields("owners", "tags", "domain")
-    .limit(50)
-    .execute();
+ListResponse<Topic> filtered = client.topics().list(
+    new ListParams()
+        .setService("sample_kafka")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var t : result.getData()) {
-    System.out.println(t.getFullyQualifiedName());
+for (Topic item : filtered.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 

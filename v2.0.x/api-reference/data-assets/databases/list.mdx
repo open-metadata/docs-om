@@ -52,27 +52,30 @@ configure(
 # List with pagination
 page = Databases.list(limit=50, fields=["owners", "tags"])
 for db in page.entities:
-    print(f"{db.fullyQualifiedName}")
+    print(f"{db.fullyQualifiedName.root}")
     if db.owners:
-        print(f"  Owners: {[o.name for o in db.owners]}")
+        print(f"  Owners: {[o.name for o in db.owners.root]}")
 
 # List all with auto-pagination
 all_databases = Databases.list_all(batch_size=100)
 for database in all_databases:
-    print(f"{database.fullyQualifiedName}")
+    print(f"{database.fullyQualifiedName.root}")
 ```
 
 ```java GET /v1/databases
-import static org.openmetadata.sdk.fluent.Databases.*;
+import org.openmetadata.schema.entity.data.Database;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // Retrieve by ID
-Database database = Databases.retrieve(databaseId);
+Database database = client.databases().get(databaseId);
 
 // List databases
-var result = Databases.list()
-    .fields("owners", "tags")
-    .limit(50)
-    .execute();
+ListResponse<Database> result = client.databases().list(
+    new ListParams()
+        .setFields("owners,tags")
+        .setLimit(50)
+);
 
 for (Database db : result.getData()) {
     System.out.println(db.getFullyQualifiedName());

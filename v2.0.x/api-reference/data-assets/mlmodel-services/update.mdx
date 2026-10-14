@@ -83,37 +83,43 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 
 <RequestExample dropdown>
 ```python PATCH /v1/services/mlmodelServices/{id}
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.mlmodelService import MlModelService
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 # Retrieve, modify, and update
-svc = MlModelServices.retrieve("ca22d46e-81b9-4e48-85b5-0adc44980da9")
-svc.description = "Updated: Production MLflow tracking server with model registry"
-svc.connection = {
-    "config": {
-        "type": "Mlflow",
-        "trackingUri": "http://mlflow-prod:8088",
-        "registryUri": "http://mlflow-prod:8088",
-        "supportsMetadataExtraction": True
-    }
-}
-updated = MlModelServices.update(svc)
+svc = metadata.get_by_id(entity=MlModelService, entity_id="ca22d46e-81b9-4e48-85b5-0adc44980da9")
+modified = svc.model_copy(deep=True)
+modified.description = "Updated: Production MLflow tracking server with model registry"
+modified.connection.config.trackingUri = "http://mlflow-prod:8088"
+modified.connection.config.registryUri = "http://mlflow-prod:8088"
+updated = metadata.patch(entity=MlModelService, source=svc, destination=modified)
 
-print(f"Updated to version {updated.version}")
+print(f"Updated to version {updated.version.root}")
 ```
 
 ```java PATCH /v1/services/mlmodelServices/{id}
-import static org.openmetadata.sdk.fluent.MlModelServices.*;
+import org.openmetadata.schema.entity.services.MlModelService;
+import org.openmetadata.sdk.fluent.MlModelServices;
 
 // Retrieve, modify, and update
-var svc = MlModelServices.retrieve("ca22d46e-81b9-4e48-85b5-0adc44980da9");
-svc.setDescription("Updated: Production MLflow tracking server with model registry");
-var updated = MlModelServices.update(svc);
+MlModelService service = MlModelServices.retrieve("ca22d46e-81b9-4e48-85b5-0adc44980da9");
+service.setDescription("Updated: Production MLflow tracking server with model registry");
+MlModelService updated = MlModelServices.update(service);
 ```
 
 ```bash PATCH /v1/services/mlmodelServices/{id}

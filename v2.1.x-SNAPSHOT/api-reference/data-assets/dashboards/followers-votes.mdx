@@ -51,7 +51,7 @@ Manage followers and votes for dashboard entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/dashboards/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import Dashboards
 
 configure(
@@ -59,39 +59,60 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 dashboard_id = "03fb5cc3-de48-423f-9926-8e192e5de59d"
 user_id = "user-uuid-here"
 
 # Add a follower
 dashboard = Dashboards.add_followers(dashboard_id, [user_id])
-print(f"Followers: {len(dashboard.followers)}")
+print(f"Followers: {len(dashboard.followers.root)}")
 
 # Remove a follower
 dashboard = Dashboards.remove_followers(dashboard_id, [user_id])
 
 # Add a vote
-dashboard = Dashboards.add_vote(dashboard_id, vote_type="votedUp")
+rest.put(f"/dashboards/{dashboard_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-dashboard = Dashboards.remove_vote(dashboard_id)
+rest.put(f"/dashboards/{dashboard_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/dashboards/{id}/followers
-import static org.openmetadata.sdk.fluent.Dashboards.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpMethod;
 
 String dashboardId = "03fb5cc3-de48-423f-9926-8e192e5de59d";
+String userId = "user-uuid-here";
 
 // Add a follower
-Dashboards.addFollower(dashboardId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/dashboards/" + dashboardId + "/followers",
+    UUID.fromString(userId)
+);
 
 // Remove a follower
-Dashboards.removeFollower(dashboardId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/dashboards/" + dashboardId + "/followers/" + userId,
+    null
+);
 
 // Add a vote
-Dashboards.vote(dashboardId, "votedUp");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/dashboards/" + dashboardId + "/vote",
+    Map.of("updatedVoteType", "votedUp")
+);
 
 // Remove a vote
-Dashboards.vote(dashboardId, "unVoted");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/dashboards/" + dashboardId + "/vote",
+    Map.of("updatedVoteType", "unVoted")
+);
 ```
 
 ```bash PUT /v1/dashboards/{id}/followers

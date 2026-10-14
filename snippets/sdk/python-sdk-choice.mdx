@@ -1,0 +1,31 @@
+## Which Python SDK Should I Use?
+
+The `openmetadata-ingestion` package contains two Python clients. Both talk to the same OpenMetadata API.
+
+| | Original client | SDK 2.0 |
+|---|---|---|
+| Import | `metadata.ingestion.ometa.ometa_api.OpenMetadata` | `metadata.sdk` |
+| Setup | Build an `OpenMetadataConnection` and pass it to `OpenMetadata(...)` | Call `configure(host=..., jwt_token=...)` once |
+| Style | Generic methods that take an entity type, such as `metadata.get_by_name(entity=Table, fqn=...)` | One class per entity, such as `Tables.retrieve_by_name(fqn)` |
+| Available since | Every release | OpenMetadata 1.10.0 |
+
+**For new scripts and jobs, use SDK 2.0.** It needs less setup and reads more simply. Use the original client when you need an operation that SDK 2.0 does not offer yet, or when you maintain existing code that already uses it.
+
+**Mixing the two.** Both ship in the same package, so one script can use both. Set up each one separately: call `configure()` for SDK 2.0 and build an `OpenMetadata` client for the original client.
+
+**Migrating an existing job.** Change one call at a time:
+
+| Original client | SDK 2.0 |
+|---|---|
+| `metadata.create_or_update(data=request)` | `Tables.create(request)` (also updates an existing table) |
+| `metadata.get_by_id(entity=Table, entity_id=id)` | `Tables.retrieve(id)` |
+| `metadata.get_by_name(entity=Table, fqn=fqn)` | `Tables.retrieve_by_name(fqn)` |
+| `metadata.list_all_entities(entity=Table)` | `Tables.list_all()` |
+| `metadata.list_entities(entity=Table, params={...})` | `Tables.list(filters={...})` |
+| `metadata.delete(entity=Table, entity_id=id)` | `Tables.delete(id)` |
+
+Three details differ from what you might expect:
+
+- In `configure(host=...)`, include `/api` at the end of the URL, the same as `hostPort` in the original client.
+- When you list entities, SDK 2.0 takes query filters as `filters={"databaseSchema": "service.database.schema"}` and returns a page object. Read the results from `.entities`.
+- With the original client, set `authProvider="openmetadata"` when you authenticate with a JWT token. SDK 2.0 does not need an `authProvider`.

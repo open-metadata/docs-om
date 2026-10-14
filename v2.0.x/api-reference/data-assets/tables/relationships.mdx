@@ -20,7 +20,7 @@ Record join information between this table and other tables.
 </ParamField>
 
 <ParamField body="startDate" type="string" required>
-  Start date for the join period (ISO 8601 format).
+  Start date for the join period (ISO 8601 format). The period must fall within the past 30 days, ending today.
 </ParamField>
 
 <ParamField body="dayCount" type="integer">
@@ -62,7 +62,7 @@ Set the data model (dbt or similar) associated with this table.
 </ParamField>
 
 <ParamField body="modelType" type="string" required>
-  Type of data model: `DBT`, `LookML`.
+  Type of data model: `DBT` or `DDL`.
 </ParamField>
 
 <ParamField body="description" type="string">
@@ -74,7 +74,7 @@ Set the data model (dbt or similar) associated with this table.
 </ParamField>
 
 <ParamField body="columns" type="array">
-  Column descriptions and metadata from the data model.
+  Column descriptions and metadata from the data model. Each column needs a `name` and a `dataType`.
 </ParamField>
 
 ## Get Columns
@@ -97,20 +97,23 @@ Retrieve column information with optional pagination.
 
 <RequestExample dropdown>
 ```python PUT /v1/tables/{id}/joins
-from metadata.sdk import configure
-from metadata.sdk.entities import Tables
+from datetime import date
+
+from metadata.sdk import configure, client
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Add join information
-Tables.add_joins(table_id, {
-    "startDate": "2024-01-01",
-    "dayCount": 30,
+rest.put(f"/tables/{table_id}/joins", json={
+    "startDate": date.today().isoformat(),
+    "dayCount": 1,
     "columnJoins": [
         {
             "columnName": "id",
@@ -125,47 +128,50 @@ Tables.add_joins(table_id, {
 })
 
 # Set data model
-Tables.set_data_model(table_id, {
+rest.put(f"/tables/{table_id}/dataModel", json={
     "modelType": "DBT",
     "description": "Customer dimension table built from raw events",
     "sql": "SELECT id, name, email, created_at FROM raw.customers WHERE active = true",
     "columns": [
-        {"name": "id", "description": "Primary key from source"},
-        {"name": "name", "description": "Customer full name"},
-        {"name": "email", "description": "Verified email address"},
-        {"name": "created_at", "description": "First seen timestamp"}
+        {"name": "id", "dataType": "INT", "description": "Primary key from source"},
+        {"name": "name", "dataType": "VARCHAR", "description": "Customer full name"},
+        {"name": "email", "dataType": "VARCHAR", "description": "Verified email address"},
+        {"name": "created_at", "dataType": "TIMESTAMP", "description": "First seen timestamp"}
     ]
 })
 ```
 
 ```java PUT /v1/tables/{id}/joins
-import static org.openmetadata.sdk.fluent.Tables.*;
+import java.time.LocalDate;
+import java.util.List;
+import org.openmetadata.schema.type.ColumnJoin;
+import org.openmetadata.schema.type.DataModel;
+import org.openmetadata.schema.type.JoinedWith;
+import org.openmetadata.schema.type.TableJoins;
 
 String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 // Add join information
-Tables.addJoins(tableId, Map.of(
-    "startDate", "2024-01-01",
-    "dayCount", 30,
-    "columnJoins", List.of(
-        Map.of(
-            "columnName", "id",
-            "joinedWith", List.of(
-                Map.of(
-                    "fullyQualifiedName", "snowflake_prod.analytics.public.orders.customer_id",
-                    "joinCount", 1542
-                )
-            )
-        )
-    )
-));
+TableJoins joins = new TableJoins()
+    .withStartDate(LocalDate.now().toString())
+    .withDayCount(1)
+    .withColumnJoins(List.of(
+        new ColumnJoin()
+            .withColumnName("id")
+            .withJoinedWith(List.of(
+                new JoinedWith()
+                    .withFullyQualifiedName("snowflake_prod.analytics.public.orders.customer_id")
+                    .withJoinCount(1542)
+            ))
+    ));
+client.tables().updateJoins(tableId, joins);
 
 // Set data model
-Tables.setDataModel(tableId, Map.of(
-    "modelType", "DBT",
-    "description", "Customer dimension table built from raw events",
-    "sql", "SELECT id, name, email, created_at FROM raw.customers WHERE active = true"
-));
+DataModel dataModel = new DataModel()
+    .withModelType(DataModel.ModelType.DBT)
+    .withDescription("Customer dimension table built from raw events")
+    .withSql("SELECT id, name, email, created_at FROM raw.customers WHERE active = true");
+client.tables().updateDataModel(tableId, dataModel);
 ```
 
 ```bash PUT /v1/tables/{id}/joins
@@ -174,7 +180,7 @@ curl -X PUT "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/joins
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
-    "startDate": "2024-01-01",
+    "startDate": "{start_date}",
     "dayCount": 30,
     "columnJoins": [
       {
@@ -208,7 +214,7 @@ curl "{base_url}/api/v1/tables/455e3d9d-dbbf-455e-b3be-7191daa825f3/columns?limi
 <ResponseExample>
 ```json Response (Add Joins)
 {
-  "startDate": "2024-01-01",
+  "startDate": "{start_date}",
   "dayCount": 30,
   "columnJoins": [
     {

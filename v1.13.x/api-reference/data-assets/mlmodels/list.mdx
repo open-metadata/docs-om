@@ -47,49 +47,50 @@ configure(
 
 # List first page
 models = MLModels.list(limit=50)
-for m in models.data:
-    print(f"{m.fullyQualifiedName} ({m.algorithm})")
+for m in models.entities:
+    print(f"{m.fullyQualifiedName.root} ({m.algorithm})")
 
 # List all with auto-pagination
 for m in MLModels.list_all():
-    print(f"{m.fullyQualifiedName}")
+    print(f"{m.fullyQualifiedName.root}")
 
 # Filter by service
 models = MLModels.list(
-    service="mlflow_svc",
+    filters={"service": "mlflow_svc"},
     fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for m in models.data:
-    print(f"{m.fullyQualifiedName}")
+for m in models.entities:
+    print(f"{m.fullyQualifiedName.root}")
     if m.owners:
-        print(f"  Owners: {[o.name for o in m.owners]}")
+        print(f"  Owners: {[o.name for o in m.owners.root]}")
     if m.tags:
-        print(f"  Tags: {[t.tagFQN for t in m.tags]}")
+        print(f"  Tags: {[tag.tagFQN.root for tag in m.tags]}")
 ```
 
 ```java GET /v1/mlmodels
-import static org.openmetadata.sdk.fluent.MlModels.*;
+import org.openmetadata.schema.entity.data.MlModel;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // List first page
-var result = MlModels.list()
-    .limit(50)
-    .execute();
+ListResponse<MlModel> firstPage = client.mlModels().list(new ListParams().setLimit(50));
 
-for (var m : result.getData()) {
-    System.out.println(m.getFullyQualifiedName());
+for (MlModel item : firstPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = MlModels.list()
-    .service("mlflow_svc")
-    .fields("owners", "tags", "domains")
-    .limit(50)
-    .execute();
+ListResponse<MlModel> filtered = client.mlModels().list(
+    new ListParams()
+        .setService("mlflow_svc")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var m : result.getData()) {
-    System.out.println(m.getFullyQualifiedName());
+for (MlModel item : filtered.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 

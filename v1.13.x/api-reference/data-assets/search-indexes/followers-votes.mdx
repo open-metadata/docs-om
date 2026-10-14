@@ -51,47 +51,54 @@ Manage followers and votes for search index entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/searchIndexes/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import client, configure
 from metadata.sdk.entities import SearchIndexes
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+rest = client().ometa.client
 
 si_id = "f5b0fa81-f241-4508-9219-dae31dcced18"
 user_id = "user-uuid-here"
 
 # Add a follower
 si = SearchIndexes.add_followers(si_id, [user_id])
-print(f"Followers: {len(si.followers)}")
+print(f"Followers: {len(si.followers.root)}")
 
 # Remove a follower
 si = SearchIndexes.remove_followers(si_id, [user_id])
 
 # Add a vote
-si = SearchIndexes.add_vote(si_id, vote_type="votedUp")
+rest.put(f"/searchIndexes/{si_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-si = SearchIndexes.remove_vote(si_id)
+rest.put(f"/searchIndexes/{si_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/searchIndexes/{id}/followers
-import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpClient;
+import org.openmetadata.sdk.network.HttpMethod;
+
+HttpClient http = client.getHttpClient();
 
 String siId = "f5b0fa81-f241-4508-9219-dae31dcced18";
+UUID userId = UUID.fromString("b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
 
 // Add a follower
-SearchIndexes.addFollower(siId, "user-uuid-here");
+http.executeForString(HttpMethod.PUT, "/v1/searchIndexes/" + siId + "/followers", userId);
 
 // Remove a follower
-SearchIndexes.removeFollower(siId, "user-uuid-here");
+http.executeForString(HttpMethod.DELETE, "/v1/searchIndexes/" + siId + "/followers/" + userId, null);
 
 // Add a vote
-SearchIndexes.vote(siId, "votedUp");
+http.executeForString(HttpMethod.PUT, "/v1/searchIndexes/" + siId + "/vote", Map.of("updatedVoteType", "votedUp"));
 
 // Remove a vote
-SearchIndexes.vote(siId, "unVoted");
+http.executeForString(HttpMethod.PUT, "/v1/searchIndexes/" + siId + "/vote", Map.of("updatedVoteType", "unVoted"));
 ```
 
 ```bash PUT /v1/searchIndexes/{id}/followers

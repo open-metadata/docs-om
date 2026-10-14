@@ -33,6 +33,7 @@ All entity types follow the same pattern:
 from metadata.sdk import Tables, Databases, DatabaseSchemas, DatabaseServices
 from metadata.sdk import Dashboards, Pipelines, MLModels, Tags, Classifications
 from metadata.sdk import Glossaries, GlossaryTerms, Users, Teams
+from metadata.generated.schema.api.data.createTable import CreateTableRequest
 
 # Create
 entity = Tables.create(CreateTableRequest(...))
@@ -41,13 +42,18 @@ entity = Tables.create(CreateTableRequest(...))
 entity = Tables.retrieve("uuid")
 entity = Tables.retrieve_by_name("service.db.schema.table", fields=["owners", "tags"])
 
-# List with auto-pagination
-for table in Tables.list().auto_paging_iterable():
+# List one page
+page = Tables.list(limit=50)
+for table in page.entities:
+    print(table.name)
+
+# List everything (follows the paging cursor for you)
+for table in Tables.list_all():
     print(table.name)
 
 # Update
 entity.description = "Updated"
-Tables.update(str(entity.id), entity)
+Tables.update(entity)
 
 # Delete
 Tables.delete("uuid")
@@ -68,7 +74,7 @@ Lineage.add_lineage(
 )
 
 # Get lineage
-lineage = Lineage.get_lineage("service.db.schema.table", upstream_depth=2, downstream_depth=2)
+lineage = Lineage.get_lineage("service.db.schema.table", entity_type="table", upstream_depth=2, downstream_depth=2)
 ```
 
 ### Error Handling
@@ -78,9 +84,9 @@ from metadata.ingestion.ometa.client import APIError
 
 try:
     table = Tables.retrieve("table-id")
-except APIError as e:
-    if e.status_code == 404:
+    if table is None:
         print("Not found")
-    elif e.status_code == 401:
+except APIError as e:
+    if e.status_code == 401:
         print("Authentication failed")
 ```

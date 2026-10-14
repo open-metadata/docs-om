@@ -79,13 +79,22 @@ Create a new ML model service connection to a platform such as Mlflow, Sklearn, 
 
 <RequestExample dropdown>
 ```python POST /v1/services/mlmodelServices
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
 from metadata.generated.schema.api.services.createMlModelService import CreateMlModelServiceRequest
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 request = CreateMlModelServiceRequest(
@@ -103,20 +112,27 @@ request = CreateMlModelServiceRequest(
     }
 )
 
-service = MlModelServices.create(request)
-print(f"Created: {service.fullyQualifiedName}")
+service = metadata.create_or_update(request)
+print(f"Created: {service.fullyQualifiedName.root}")
 ```
 
 ```java POST /v1/services/mlmodelServices
-import static org.openmetadata.sdk.fluent.MlModelServices.*;
+import org.openmetadata.schema.api.services.CreateMlModelService;
+import org.openmetadata.schema.api.services.CreateMlModelService.MlModelServiceType;
+import org.openmetadata.schema.entity.services.MlModelService;
+import org.openmetadata.schema.services.connections.mlmodel.MlflowConnection;
+import org.openmetadata.schema.type.MlModelConnection;
+import org.openmetadata.sdk.fluent.MlModelServices;
 
-MlModelService service = MlModelServices.builder()
-    .name("mlflow_svc")
-    .serviceType("Mlflow")
-    .connection(mlflowConnection()
-        .trackingUri("http://localhost:8088")
-        .registryUri("http://localhost:8088"))
-    .create();
+CreateMlModelService request = new CreateMlModelService()
+    .withName("mlflow_svc")
+    .withServiceType(MlModelServiceType.Mlflow)
+    .withConnection(new MlModelConnection().withConfig(
+        new MlflowConnection()
+            .withTrackingUri("http://localhost:8088")
+            .withRegistryUri("http://localhost:8088")));
+
+MlModelService service = MlModelServices.create(request);
 ```
 
 ```bash POST /v1/services/mlmodelServices

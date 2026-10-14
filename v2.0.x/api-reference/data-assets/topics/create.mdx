@@ -107,13 +107,22 @@ Create a new topic within a messaging service.
 
 <RequestExample dropdown>
 ```python POST /v1/topics
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
 from metadata.generated.schema.api.data.createTopic import CreateTopicRequest
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 request = CreateTopicRequest(
@@ -132,23 +141,27 @@ request = CreateTopicRequest(
     retentionSize=-1
 )
 
-topic = Topics.create(request)
-print(f"Created: {topic.fullyQualifiedName}")
+topic = metadata.create_or_update(request)
+print(f"Created: {topic.fullyQualifiedName.root}")
 ```
 
 ```java POST /v1/topics
-import static org.openmetadata.sdk.fluent.Topics.*;
+import java.util.List;
+import org.openmetadata.schema.api.data.CreateTopic;
+import org.openmetadata.schema.entity.data.Topic;
+import org.openmetadata.schema.type.topic.CleanupPolicy;
+import org.openmetadata.sdk.fluent.Topics;
 
-// Create using builder pattern
-var topic = Topics.builder()
-    .name("address_book")
-    .displayName("Address Book")
-    .service("sample_kafka")
-    .description("All Protobuf record related events gets captured in this topic")
-    .partitions(1)
-    .cleanupPolicies(List.of("delete"))
-    .replicationFactor(1)
-    .create();
+CreateTopic request = new CreateTopic()
+    .withName("address_book")
+    .withDisplayName("Address Book")
+    .withService("sample_kafka")
+    .withDescription("All Protobuf record related events gets captured in this topic")
+    .withPartitions(1)
+    .withCleanupPolicies(List.of(CleanupPolicy.DELETE))
+    .withReplicationFactor(1);
+
+Topic topic = Topics.create(request);
 ```
 
 ```bash POST /v1/topics

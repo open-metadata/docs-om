@@ -35,30 +35,30 @@ Validate the effective contract for a specific entity. If the entity only has an
 
 <RequestExample dropdown>
 ```python POST /v1/dataContracts/{id}/validate
-from metadata.sdk import configure, get_client
+from metadata.sdk import client, configure
 from metadata.sdk.entities import DataContracts
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
-client = get_client()
+rest = client().ometa.client
 
 # Validate a specific contract
-result = client.post(
-    f"/dataContracts/{contract_id}/validate"
-)
+result = rest.post("/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/validate")
 print(f"Status: {result['contractExecutionStatus']}")
 
 # Validate by entity
-result = client.post("/dataContracts/entity/validate", params={
-    "entityId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "entityType": "table"
-})
+result = DataContracts.validate_by_entity(
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "table"
+)
+print(f"Status: {result.contractExecutionStatus}")
 ```
 
 ```java POST /v1/dataContracts/{id}/validate
 import static org.openmetadata.sdk.fluent.DataContracts.*;
+import org.openmetadata.schema.entity.datacontract.DataContractResult;
 
 // Validate a contract
 DataContractResult result = forContract(contractId).validate();
@@ -66,7 +66,7 @@ System.out.println("Status: " + result.getContractExecutionStatus());
 
 // Or from a loaded contract
 FluentDataContract contract = find(contractId).fetch();
-DataContractResult result = contract.validate();
+DataContractResult sameResult = contract.validate();
 ```
 
 ```bash POST /v1/dataContracts/{id}/validate
@@ -166,6 +166,10 @@ Programmatically add a validation result (useful for external validation pipelin
 
 ### Body Parameters
 
+<ParamField body="dataContractFQN" type="string" required>
+  Fully qualified name of the data contract the result belongs to.
+</ParamField>
+
 <ParamField body="timestamp" type="integer" required>
   Epoch timestamp (milliseconds) of the validation run.
 </ParamField>
@@ -227,16 +231,17 @@ Programmatically add a validation result (useful for external validation pipelin
 </ParamField>
 
 ```python Add Result
-from metadata.sdk import configure, get_client
+from metadata.sdk import client, configure
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
-client = get_client()
+rest = client().ometa.client
 
 # Add a validation result
-client.put(f"/dataContracts/{contract_id}/results", json={
+rest.put("/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456789/results", json={
+    "dataContractFQN": "sample_data.ecommerce_db.shopify.sales_orders.dataContract_sales-orders-contract",
     "timestamp": 1769986400000,
     "contractExecutionStatus": "Success",
     "schemaValidation": {"passed": 4, "failed": 0, "total": 4},
@@ -262,6 +267,7 @@ curl -X PUT "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def12345678
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
+    "dataContractFQN": "sample_data.ecommerce_db.shopify.sales_orders.dataContract_sales-orders-contract",
     "timestamp": 1769986400000,
     "contractExecutionStatus": "Success",
     "schemaValidation": {"passed": 4, "failed": 0, "total": 4, "failedFields": []},

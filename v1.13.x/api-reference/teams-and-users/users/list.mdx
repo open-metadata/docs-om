@@ -55,52 +55,50 @@ configure(
 
 # List first page
 users = Users.list(limit=50)
-for user in users.data:
-    print(f"{user.fullyQualifiedName}")
+for user in users.entities:
+    print(f"{user.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for user in Users.list_all():
-    print(f"{user.fullyQualifiedName}")
+    print(f"{user.fullyQualifiedName.root}")
 
 # Filter by team with fields
 users = Users.list(
-    team="Sales",
+    filters={"team": "Sales"},
     fields=["teams", "roles", "domains"],
     limit=50
 )
 
-for user in users.data:
-    print(f"{user.fullyQualifiedName}")
+for user in users.entities:
+    print(f"{user.fullyQualifiedName.root}")
     if user.teams:
-        print(f"  Teams: {[t.name for t in user.teams]}")
+        print(f"  Teams: {[t.name for t in user.teams.root]}")
     if user.roles:
-        print(f"  Roles: {[r.name for r in user.roles]}")
+        print(f"  Roles: {[r.name for r in user.roles.root]}")
 
 # Filter bot accounts
-bots = Users.list(isBot=True, limit=50)
+bots = Users.list(filters={"isBot": "true"}, limit=50)
 ```
 
 ```java GET /v1/users
-import static org.openmetadata.sdk.fluent.Users.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = Users.list()
-    .limit(50)
-    .execute();
-
-for (var user : result.getData()) {
-    System.out.println(user.getFullyQualifiedName());
+var params = new ListParams().setLimit(50);
+var page = client.users().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by team with fields
-var result = Users.list()
-    .team("Sales")
-    .fields("teams", "roles", "domains")
-    .limit(50)
-    .execute();
-
-for (var user : result.getData()) {
-    System.out.println(user.getFullyQualifiedName());
+var filtered = new ListParams()
+    .addFilter("team", "Sales")
+    .setFields("teams,roles,domains")
+    .setLimit(50);
+var filteredPage = client.users().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 

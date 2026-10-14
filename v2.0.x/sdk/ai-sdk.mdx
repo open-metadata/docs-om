@@ -92,7 +92,7 @@ const client = new AISdk({
 ```java Java
 import io.openmetadata.ai.AISdk;
 
-AISdk client = new AISdk.Builder()
+AISdk client = AISdk.builder()
     .host("https://your-openmetadata-instance.com")
     .token("your-bot-jwt-token")
     .build();
@@ -144,7 +144,7 @@ console.log(`Created persona: ${persona.name}`);
 import io.openmetadata.ai.models.CreatePersonaRequest;
 import io.openmetadata.ai.models.PersonaInfo;
 
-CreatePersonaRequest request = new CreatePersonaRequest.Builder()
+CreatePersonaRequest request = CreatePersonaRequest.builder()
     .name("DataAnalyst")
     .description("A meticulous data analyst focused on data quality")
     .prompt("You are an expert data analyst working with OpenMetadata. "
@@ -153,7 +153,7 @@ CreatePersonaRequest request = new CreatePersonaRequest.Builder()
     .displayName("Data Analyst")
     .build();
 
-PersonaInfo persona = client.createPersona(request);
+PersonaInfo persona = client.personas().create(request);
 System.out.println("Created persona: " + persona.getName());
 ```
 
@@ -187,7 +187,10 @@ for (const persona of personas) {
 ```
 
 ```java Java
-List<PersonaInfo> personas = client.listPersonas();
+import io.openmetadata.ai.models.PersonaInfo;
+import java.util.List;
+
+List<PersonaInfo> personas = client.personas().list();
 for (PersonaInfo persona : personas) {
     System.out.println(persona.getName() + ": " + persona.getDescription());
 }
@@ -248,23 +251,24 @@ console.log(`Created agent: ${agent.name}`);
 ```
 
 ```java Java
-import io.openmetadata.ai.models.CreateAgentRequest;
 import io.openmetadata.ai.models.AgentInfo;
+import io.openmetadata.ai.models.CreateAgentRequest;
+import java.util.List;
 
-CreateAgentRequest request = new CreateAgentRequest.Builder()
+// Pass the builder to create(); don't call build()
+CreateAgentRequest.Builder request = CreateAgentRequest.builder()
     .name("DataQualityPlannerAgent")
     .description("Analyzes tables and recommends data quality tests")
     .persona("DataAnalyst")
     .displayName("Data Quality Planner")
     .apiEnabled(true)
-    .abilities(List.of(
+    .skills(List.of(
         "search_metadata",
         "get_entity_details",
         "get_entity_lineage"
-    ))
-    .build();
+    ));
 
-AgentInfo agent = client.createAgent(request);
+AgentInfo agent = client.agents().create(request);
 System.out.println("Created agent: " + agent.getName());
 ```
 
@@ -306,7 +310,10 @@ for (const agent of agents) {
 ```
 
 ```java Java
-List<AgentInfo> agents = client.listAgents();
+import io.openmetadata.ai.models.AgentInfo;
+import java.util.List;
+
+List<AgentInfo> agents = client.agents().list();
 for (AgentInfo agent : agents) {
     System.out.println(agent.getName() + ": " + agent.getDescription());
 }
@@ -341,8 +348,10 @@ console.log(`Tools used: ${response.toolsUsed}`);
 ```
 
 ```java Java
+import io.openmetadata.ai.models.InvokeResponse;
+
 InvokeResponse response = client.agent("DataQualityPlannerAgent")
-    .call("What data quality tests should I add for the customers table?");
+    .invoke("What data quality tests should I add for the customers table?");
 System.out.println(response.getResponse());
 ```
 
@@ -398,12 +407,12 @@ for await (const event of client.agent('DataQualityPlannerAgent').stream(
 
 ```java Java
 client.agent("DataQualityPlannerAgent")
-    .stream("Analyze the orders table")
-    .forEach(event -> {
+    .stream("Analyze the orders table", event -> {
         switch (event.getType()) {
-            case "content" -> System.out.print(event.getContent());
-            case "tool_use" -> System.out.println("\n[Using: " + event.getToolName() + "]");
-            case "end" -> System.out.println("\nDone!");
+            case CONTENT -> System.out.print(event.getContent());
+            case TOOL_USE -> System.out.println("\n[Using: " + event.getToolName() + "]");
+            case END -> System.out.println("\nDone!");
+            default -> { }
         }
     });
 ```

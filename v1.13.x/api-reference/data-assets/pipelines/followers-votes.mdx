@@ -51,47 +51,54 @@ Manage followers and votes for pipeline entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/pipelines/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import client, configure
 from metadata.sdk.entities import Pipelines
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
+rest = client().ometa.client
 
 pipeline_id = "538faa63-d204-46ff-aead-d158d0401cac"
 user_id = "user-uuid-here"
 
 # Add a follower
 pipeline = Pipelines.add_followers(pipeline_id, [user_id])
-print(f"Followers: {len(pipeline.followers)}")
+print(f"Followers: {len(pipeline.followers.root)}")
 
 # Remove a follower
 pipeline = Pipelines.remove_followers(pipeline_id, [user_id])
 
 # Add a vote
-pipeline = Pipelines.add_vote(pipeline_id, vote_type="votedUp")
+rest.put(f"/pipelines/{pipeline_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-pipeline = Pipelines.remove_vote(pipeline_id)
+rest.put(f"/pipelines/{pipeline_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/pipelines/{id}/followers
-import static org.openmetadata.sdk.fluent.Pipelines.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpClient;
+import org.openmetadata.sdk.network.HttpMethod;
+
+HttpClient http = client.getHttpClient();
 
 String pipelineId = "538faa63-d204-46ff-aead-d158d0401cac";
+UUID userId = UUID.fromString("b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
 
 // Add a follower
-Pipelines.addFollower(pipelineId, "user-uuid-here");
+http.executeForString(HttpMethod.PUT, "/v1/pipelines/" + pipelineId + "/followers", userId);
 
 // Remove a follower
-Pipelines.removeFollower(pipelineId, "user-uuid-here");
+http.executeForString(HttpMethod.DELETE, "/v1/pipelines/" + pipelineId + "/followers/" + userId, null);
 
 // Add a vote
-Pipelines.vote(pipelineId, "votedUp");
+http.executeForString(HttpMethod.PUT, "/v1/pipelines/" + pipelineId + "/vote", Map.of("updatedVoteType", "votedUp"));
 
 // Remove a vote
-Pipelines.vote(pipelineId, "unVoted");
+http.executeForString(HttpMethod.PUT, "/v1/pipelines/" + pipelineId + "/vote", Map.of("updatedVoteType", "unVoted"));
 ```
 
 ```bash PUT /v1/pipelines/{id}/followers

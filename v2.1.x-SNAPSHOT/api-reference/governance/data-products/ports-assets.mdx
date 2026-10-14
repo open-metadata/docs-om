@@ -104,21 +104,36 @@ DataProducts.remove_assets(
 ```
 
 ```java PUT /v1/dataProducts/{fqn}/assets/add
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+import java.util.List;
+import java.util.UUID;
+import org.openmetadata.schema.type.EntityReference;
+import org.openmetadata.schema.type.api.BulkAssets;
+
+// client is an initialized OpenMetadataClient.
+// The data product is identified by its name.
+var dataProduct = "CustomerInsights";
+
+var tables = new BulkAssets().withAssets(List.of(
+    new EntityReference()
+        .withId(UUID.fromString("5b3d9f0e-1c7a-4d2e-9a61-3f8e2b7c4d10"))
+        .withType("table")));
 
 // Identify the data product by its fully qualified name, and each asset by its UUID.
 
 // Add assets
-DataProducts.addAssets(
-    "Marketing.CustomerInsights",
-    List.of(new EntityReference("table-uuid-1", "table"))
-);
+var added = client.dataProducts().bulkAddAssets(dataProduct, tables);
+System.out.println(added.getStatus());
 
 // Remove assets
-DataProducts.removeAssets(
-    "Marketing.CustomerInsights",
-    List.of(new EntityReference("table-uuid-1", "table"))
-);
+var removed = client.dataProducts().bulkRemoveAssets(dataProduct, tables);
+
+// Add and remove input ports
+client.dataProducts().bulkAddInputPorts(dataProduct, tables);
+client.dataProducts().bulkRemoveInputPorts(dataProduct, tables);
+
+// Add and remove output ports
+client.dataProducts().bulkAddOutputPorts(dataProduct, tables);
+client.dataProducts().bulkRemoveOutputPorts(dataProduct, tables);
 ```
 
 ```bash PUT /v1/dataProducts/{fqn}/assets/add

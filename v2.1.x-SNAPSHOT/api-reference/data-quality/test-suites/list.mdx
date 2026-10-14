@@ -47,42 +47,44 @@ configure(
 
 # List first page
 suites = TestSuites.list(limit=50)
-for ts in suites.data:
-    print(f"{ts.displayName} (executable: {ts.executable})")
+for ts in suites.entities:
+    print(f"{ts.displayName} (basic: {ts.basic})")
 
 # List all with auto-pagination
 for ts in TestSuites.list_all():
-    print(f"{ts.fullyQualifiedName}")
+    print(f"{ts.fullyQualifiedName.root}")
 
 # Filter by type
 logical_suites = TestSuites.list(
-    testSuiteType="logical",
+    filters={"testSuiteType": "logical"},
     fields=["owners", "tests"],
     limit=50
 )
 
-for ts in logical_suites.data:
+for ts in logical_suites.entities:
     print(f"{ts.displayName}")
 ```
 
 ```java GET /v1/dataQuality/testSuites
-import static org.openmetadata.sdk.fluent.TestSuites.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = TestSuites.list()
-    .limit(50)
-    .execute();
-
-for (var ts : result.getData()) {
-    System.out.println(ts.getDisplayName());
+var params = new ListParams().setLimit(50);
+var page = client.testSuites().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getDisplayName());
 }
 
-// Filter by type
-var result = TestSuites.list()
-    .testSuiteType("logical")
-    .fields("owners", "tests")
-    .limit(50)
-    .execute();
+// Filter by type with fields
+var filtered = new ListParams()
+    .addFilter("testSuiteType", "executable")
+    .setFields("owners,tests")
+    .setLimit(50);
+var filteredPage = client.testSuites().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getDisplayName());
+}
 ```
 
 ```bash GET /v1/dataQuality/testSuites
@@ -114,7 +116,7 @@ curl "{base_url}/api/v1/dataQuality/testSuites?fields=owners,tests&limit=50" \
       "updatedBy": "admin",
       "deleted": false,
       "owners": [],
-      "executable": true
+      "basic": true
     }
   ],
   "paging": {
@@ -153,8 +155,8 @@ Returns a paginated list of test suite objects. Use the `fields` parameter to re
       Human-readable display name.
     </ResponseField>
 
-    <ResponseField name="executable" type="boolean">
-      Whether this is an executable or logical test suite.
+    <ResponseField name="basic" type="boolean">
+      `true` for a table-level (basic) test suite, `false` for a logical test suite.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>

@@ -1,13 +1,13 @@
 ---
 title: Delete a Data Product
-description: Delete a data product by ID or name, with soft/hard delete options
+description: Delete a data product by ID or name, permanently
 sidebarTitle: Delete a Data Product
 api: DELETE /v1/dataProducts/{id}
 ---
 
 # Delete a Data Product
 
-Delete a data product by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+Delete a data product by ID or fully qualified name. Deleting a data product is permanent. A deleted data product can't be restored.
 
 ## Delete by ID
 
@@ -20,7 +20,7 @@ Delete a data product by ID or fully qualified name. Supports soft delete (defau
 </ParamField>
 
 <ParamField query="hardDelete" type="boolean" default="false">
-  Permanently delete the data product. If `false`, the data product is soft-deleted and can be restored.
+  Not needed. A deleted data product is always permanently deleted, with or without this option.
 </ParamField>
 
 ## Delete by Name
@@ -36,15 +36,7 @@ Use `DELETE /v1/dataProducts/name/{fqn}` to delete by fully qualified name.
 </ParamField>
 
 <ParamField query="hardDelete" type="boolean" default="false">
-  Permanently delete the data product.
-</ParamField>
-
-## Restore a Soft-Deleted Data Product
-
-Use `PUT /v1/dataProducts/restore` to restore a soft-deleted data product.
-
-<ParamField body="id" type="string" required>
-  UUID of the soft-deleted data product to restore.
+  Not needed. A deleted data product is always permanently deleted, with or without this option.
 </ParamField>
 
 <RequestExample dropdown>
@@ -57,89 +49,53 @@ configure(
     jwt_token="your-jwt-token"
 )
 
-# Soft delete by ID
+# Delete by ID
 DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2")
 
-# Hard delete
+# Delete by ID with options
 DataProducts.delete(
     "b1839f98-f046-5f35-bdef-20f9b3395cb2",
     hard_delete=True
 )
 
 # Delete by name
-DataProducts.delete_by_name("Marketing.CustomerInsights")
-
-# Restore a soft-deleted data product
-DataProducts.restore("b1839f98-f046-5f35-bdef-20f9b3395cb2")
+DataProducts.delete(DataProducts.retrieve_by_name("Marketing.CustomerInsights").id)
 ```
 
 ```java DELETE /v1/dataProducts/{id}
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+import java.util.Map;
 
-// Soft delete
-DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2").execute();
+// client is an initialized OpenMetadataClient.
+var id = "b1839f98-f046-5f35-bdef-20f9b3395cb2";
 
-// Hard delete
-DataProducts.delete("b1839f98-f046-5f35-bdef-20f9b3395cb2")
-    .hardDelete()
-    .execute();
+// Delete (permanent)
+client.dataProducts().delete(id);
 
-// Delete by name
-DataProducts.deleteByName("Marketing.CustomerInsights").execute();
-
-// Restore
-DataProducts.restore("b1839f98-f046-5f35-bdef-20f9b3395cb2");
+// Delete by name: look up the ID first
+var dataProduct = client.dataProducts().getByName("CustomerInsights");
+client.dataProducts().delete(dataProduct.getId().toString());
 ```
 
 ```bash DELETE /v1/dataProducts/{id}
-# Soft delete by ID
+# Delete by ID
 curl -X DELETE "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2" \
   -H "Authorization: Bearer {access_token}"
 
-# Hard delete
+# Delete with options
 curl -X DELETE "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2?hardDelete=true" \
   -H "Authorization: Bearer {access_token}"
 
 # Delete by name
 curl -X DELETE "{base_url}/api/v1/dataProducts/name/Marketing.CustomerInsights" \
   -H "Authorization: Bearer {access_token}"
-
-# Restore soft-deleted data product
-curl -X PUT "{base_url}/api/v1/dataProducts/restore" \
-  -H "Authorization: Bearer {access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{"id": "b1839f98-f046-5f35-bdef-20f9b3395cb2"}'
 ```
 </RequestExample>
-
-<ResponseExample>
-```json Response (Soft Delete)
-{
-  "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
-  "name": "CustomerInsights",
-  "fullyQualifiedName": "Marketing.CustomerInsights",
-  "description": "Curated customer analytics data product",
-  "version": 0.2,
-  "updatedAt": 1769984330261,
-  "updatedBy": "admin",
-  "domain": {
-    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
-    "type": "domain",
-    "name": "Marketing",
-    "fullyQualifiedName": "Marketing"
-  },
-  "deleted": true,
-  "owners": [],
-  "experts": []
-}
-```
-</ResponseExample>
 
 ---
 
 ## Returns
 
-Soft delete returns the data product object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored data product object.
+Returns `200` with no content. The data product is permanently deleted and can't be restored.
 
 ---
 

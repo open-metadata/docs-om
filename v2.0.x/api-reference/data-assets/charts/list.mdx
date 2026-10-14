@@ -47,49 +47,52 @@ configure(
 
 # List first page
 charts = Charts.list(limit=50)
-for c in charts.data:
-    print(f"{c.fullyQualifiedName}")
+for c in charts.entities:
+    print(f"{c.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for c in Charts.list_all():
-    print(f"{c.fullyQualifiedName}")
+    print(f"{c.fullyQualifiedName.root}")
 
 # Filter by service
 charts = Charts.list(
-    service="sample_superset",
+    filters={"service": "sample_superset"},
     fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for c in charts.data:
-    print(f"{c.fullyQualifiedName} ({c.chartType})")
+for c in charts.entities:
+    print(f"{c.fullyQualifiedName.root} ({c.chartType.value})")
     if c.owners:
-        print(f"  Owners: {[o.name for o in c.owners]}")
+        print(f"  Owners: {[o.name for o in c.owners.root]}")
     if c.tags:
-        print(f"  Tags: {[t.tagFQN for t in c.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in c.tags]}")
 ```
 
 ```java GET /v1/charts
-import static org.openmetadata.sdk.fluent.Charts.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.Chart;
 
 // List first page
-var result = Charts.list()
-    .limit(50)
-    .execute();
+ListResponse<Chart> firstPage = client.charts().list(
+    new ListParams().setLimit(50)
+);
 
-for (var c : result.getData()) {
-    System.out.println(c.getFullyQualifiedName());
+for (Chart chart : firstPage.getData()) {
+    System.out.println(chart.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = Charts.list()
-    .service("sample_superset")
-    .fields("owners", "tags", "domains")
-    .limit(50)
-    .execute();
+ListResponse<Chart> filtered = client.charts().list(
+    new ListParams()
+        .setService("sample_superset")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var c : result.getData()) {
-    System.out.println(c.getFullyQualifiedName());
+for (Chart chart : filtered.getData()) {
+    System.out.println(chart.getFullyQualifiedName());
 }
 ```
 

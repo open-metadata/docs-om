@@ -53,19 +53,19 @@ Manage followers, votes, and profiler configuration for database schema entities
 
 ### Get Profiler Config
 
-`GET /v1/databaseSchemas/{id}/profilerConfig`
+`GET /v1/databaseSchemas/{id}/databaseSchemaProfilerConfig`
 
 ### Set Profiler Config
 
-`PUT /v1/databaseSchemas/{id}/profilerConfig`
+`PUT /v1/databaseSchemas/{id}/databaseSchemaProfilerConfig`
 
 ### Delete Profiler Config
 
-`DELETE /v1/databaseSchemas/{id}/profilerConfig`
+`DELETE /v1/databaseSchemas/{id}/databaseSchemaProfilerConfig`
 
 <RequestExample dropdown>
 ```python PUT /v1/databaseSchemas/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import DatabaseSchemas
 
 configure(
@@ -73,27 +73,30 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 schema_id = "770e8400-e29b-41d4-a716-446655440000"
 user_id = "user-uuid-here"
 
 # Add a follower
 schema = DatabaseSchemas.add_followers(schema_id, [user_id])
-print(f"Followers: {len(schema.followers)}")
+print(f"Followers: {len(schema.followers.root)}")
 
 # Remove a follower
 schema = DatabaseSchemas.remove_followers(schema_id, [user_id])
 
 # Add a vote
-schema = DatabaseSchemas.add_vote(schema_id, vote_type="votedUp")
+rest.put(f"/databaseSchemas/{schema_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-schema = DatabaseSchemas.remove_vote(schema_id)
+rest.put(f"/databaseSchemas/{schema_id}/vote", json={"updatedVoteType": "unVoted"})
 
 # Get profiler config
-config = DatabaseSchemas.get_profiler_config(schema_id)
+schema = DatabaseSchemas.retrieve(schema_id, fields=["databaseSchemaProfilerConfig"])
+print(schema.databaseSchemaProfilerConfig)
 
 # Set profiler config
-DatabaseSchemas.set_profiler_config(schema_id, {
+rest.put(f"/databaseSchemas/{schema_id}/databaseSchemaProfilerConfig", json={
     "profileSampleConfig": {
       "sampleConfigType": "STATIC",
       "config": {
@@ -105,17 +108,70 @@ DatabaseSchemas.set_profiler_config(schema_id, {
 })
 
 # Delete profiler config
-DatabaseSchemas.delete_profiler_config(schema_id)
+rest.delete(f"/databaseSchemas/{schema_id}/databaseSchemaProfilerConfig")
 ```
 
 ```java PUT /v1/databaseSchemas/{id}/followers
-import static org.openmetadata.sdk.fluent.DatabaseSchemas.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.schema.entity.data.DatabaseSchema;
+import org.openmetadata.schema.type.DatabaseSchemaProfilerConfig;
+import org.openmetadata.sdk.network.HttpMethod;
 
 String schemaId = "770e8400-e29b-41d4-a716-446655440000";
+String userId = "user-uuid-here";
 
-// Followers - use REST client directly
-// Votes and profiler config - use REST client directly
-// See curl examples for request format
+// Add a follower
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databaseSchemas/" + schemaId + "/followers",
+    UUID.fromString(userId)
+);
+
+// Remove a follower
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/databaseSchemas/" + schemaId + "/followers/" + userId,
+    null
+);
+
+// Add a vote
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databaseSchemas/" + schemaId + "/vote",
+    Map.of("updatedVoteType", "votedUp")
+);
+
+// Remove a vote
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databaseSchemas/" + schemaId + "/vote",
+    Map.of("updatedVoteType", "unVoted")
+);
+
+// Get profiler config
+DatabaseSchema schema = client.databaseSchemas().get(schemaId, "databaseSchemaProfilerConfig");
+DatabaseSchemaProfilerConfig profilerConfig = schema.getDatabaseSchemaProfilerConfig();
+
+// Set profiler config
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databaseSchemas/" + schemaId + "/databaseSchemaProfilerConfig",
+    Map.of(
+        "profileSampleConfig", Map.of(
+            "sampleConfigType", "STATIC",
+            "config", Map.of("profileSample", 50, "profileSampleType", "PERCENTAGE")
+        ),
+        "sampleDataCount", 200
+    )
+);
+
+// Delete profiler config
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/databaseSchemas/" + schemaId + "/databaseSchemaProfilerConfig",
+    null
+);
 ```
 
 ```bash PUT /v1/databaseSchemas/{id}/followers
@@ -142,11 +198,11 @@ curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5
   -d '{"updatedVoteType": "unVoted"}'
 
 # Get profiler config
-curl "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+curl "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/databaseSchemaProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 
 # Set profiler config
-curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/databaseSchemaProfilerConfig" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,7 +217,7 @@ curl -X PUT "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5
   }'
 
 # Delete profiler config
-curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/profilerConfig" \
+curl -X DELETE "{base_url}/api/v1/databaseSchemas/f681432b-e66c-4096-a1cd-7771358c5323/databaseSchemaProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 ```
 </RequestExample>

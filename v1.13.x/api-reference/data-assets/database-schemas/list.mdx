@@ -52,27 +52,30 @@ configure(
 # List with pagination
 page = DatabaseSchemas.list(limit=50, fields=["owners", "tags"])
 for s in page.entities:
-    print(f"{s.fullyQualifiedName}")
+    print(f"{s.fullyQualifiedName.root}")
     if s.owners:
-        print(f"  Owners: {[o.name for o in s.owners]}")
+        print(f"  Owners: {[o.name for o in s.owners.root]}")
 
 # List all with auto-pagination
 all_schemas = DatabaseSchemas.list_all(batch_size=100)
 for schema in all_schemas:
-    print(f"{schema.fullyQualifiedName}")
+    print(f"{schema.fullyQualifiedName.root}")
 ```
 
 ```java GET /v1/databaseSchemas
-import static org.openmetadata.sdk.fluent.DatabaseSchemas.*;
+import org.openmetadata.schema.entity.data.DatabaseSchema;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
 // Retrieve by ID
-DatabaseSchema schema = DatabaseSchemas.retrieve(schemaId);
+DatabaseSchema schema = client.databaseSchemas().get(schemaId);
 
 // List schemas
-var result = DatabaseSchemas.list()
-    .fields("owners", "tags")
-    .limit(50)
-    .execute();
+ListResponse<DatabaseSchema> result = client.databaseSchemas().list(
+    new ListParams()
+        .setFields("owners,tags")
+        .setLimit(50)
+);
 
 for (DatabaseSchema s : result.getData()) {
     System.out.println(s.getFullyQualifiedName());
