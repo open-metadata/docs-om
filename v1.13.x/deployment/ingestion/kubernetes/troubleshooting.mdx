@@ -49,11 +49,24 @@ To view logs:
 2. Select your pipeline
 3. Click on Logs to view them directly on OpenMetadata UI
 
-Alternatively, view logs directly with kubectl:
+Alternatively, read the logs directly with kubectl:
 
-```bash
-kubectl logs job/<pipeline-name> -c main
-```
+1. List the ingestion pods, newest last, with the pipeline each one belongs to:
+
+   ```bash
+   kubectl get pods -n <namespace> -l app.kubernetes.io/component=ingestion \
+     --sort-by=.metadata.creationTimestamp -L app.kubernetes.io/pipeline
+   ```
+
+2. Read the `main` container of the pod you want:
+
+   ```bash
+   kubectl logs -n <namespace> <pod-name> -c main
+   ```
+
+With the OMJob operator, each run has two pods: one ending in `-main` (the ingestion itself) and one ending in `-exit` (it reports the final status). Read the `-main` pod.
+
+Kubernetes only keeps these logs while the pod exists and its container is still on the node.
 
 ## Troubleshooting
 
