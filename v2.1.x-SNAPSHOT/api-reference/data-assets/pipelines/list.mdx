@@ -47,49 +47,52 @@ configure(
 
 # List first page
 pipelines = Pipelines.list(limit=50)
-for p in pipelines.data:
-    print(f"{p.fullyQualifiedName}")
+for p in pipelines.entities:
+    print(f"{p.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for p in Pipelines.list_all():
-    print(f"{p.fullyQualifiedName}")
+    print(f"{p.fullyQualifiedName.root}")
 
 # Filter by service
 pipelines = Pipelines.list(
-    service="sample_airflow",
+    filters={"service": "sample_airflow"},
     fields=["owners", "tags", "tasks"],
     limit=50
 )
 
-for p in pipelines.data:
-    print(f"{p.fullyQualifiedName}")
+for p in pipelines.entities:
+    print(f"{p.fullyQualifiedName.root}")
     if p.owners:
-        print(f"  Owners: {[o.name for o in p.owners]}")
+        print(f"  Owners: {[o.name for o in p.owners.root]}")
     if p.tasks:
-        print(f"  Tasks: {[t.name for t in p.tasks]}")
+        print(f"  Tasks: {[task.name for task in p.tasks]}")
 ```
 
 ```java GET /v1/pipelines
-import static org.openmetadata.sdk.fluent.Pipelines.*;
+import org.openmetadata.schema.entity.data.Pipeline;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = Pipelines.list()
-    .limit(50)
-    .execute();
+ListResponse<Pipeline> firstPage = client.pipelines().list(new ListParams().setLimit(50));
 
-for (var p : result.getData()) {
-    System.out.println(p.getFullyQualifiedName());
+for (Pipeline item : firstPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = Pipelines.list()
-    .service("sample_airflow")
-    .fields("owners", "tags", "tasks")
-    .limit(50)
-    .execute();
+ListResponse<Pipeline> filtered = client.pipelines().list(
+    new ListParams()
+        .setService("sample_airflow")
+        .setFields("owners,tags,tasks")
+        .setLimit(50)
+);
 
-for (var p : result.getData()) {
-    System.out.println(p.getFullyQualifiedName());
+for (Pipeline item : filtered.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 
@@ -181,7 +184,7 @@ Returns a paginated list of pipeline objects. By default, only basic fields are 
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of pipeline service (e.g., Airflow, Dagster, DBTCloud).
+      Type of pipeline service, for example Airflow, Dagster, DBTCloud.
     </ResponseField>
 
     <ResponseField name="tasks" type="array" optional>

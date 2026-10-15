@@ -9,10 +9,14 @@ import BotsTileAdminNote from '/snippets/deployment/bots-tile-admin-note.mdx'
 
 Get up and running with the OpenMetadata API and SDKs. This guide walks you through authentication, SDK installation, and making your first API call.
 
+<Note>
+Most Python examples in this API reference use SDK 2.0 (`metadata.sdk`). The Topics and ML model services pages use the original client, because SDK 2.0 has no class for them. The pages under the SDK section also show the original client. For more information, see [Which Python SDK Should I Use?](/v2.0.x/api-reference/sdk/python/overview#which-python-sdk-should-i-use).
+</Note>
+
 ## Prerequisites
 
 - A OpenMetadata account (cloud or self-hosted instance)
-- Your instance base URL (e.g., `https://your-company.open-metadata.org/api`)
+- Your instance base URL, for example `https://your-company.open-metadata.org/api`
 - **Python 3.11+**, **Java 21+**, or **Go 1.19+** (depending on your SDK choice)
 
 <Steps>
@@ -81,23 +85,13 @@ Set up the connection to your OpenMetadata instance:
 
 <CodeGroup dropdown>
 ```python Python
-from metadata.ingestion.ometa.ometa_api import OpenMetadata
-from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
-    OpenMetadataConnection,
-)
-from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
-    OpenMetadataJWTClientConfig,
-)
+from metadata.sdk import configure
 
-server_config = OpenMetadataConnection(
-    hostPort="https://your-company.open-metadata.org/api",
-    authProvider="openmetadata",
-    securityConfig=OpenMetadataJWTClientConfig(
-        jwtToken="your-jwt-token"
-    ),
+# The host must end with /api
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token",
 )
-
-metadata = OpenMetadata(server_config)
 ```
 
 ```java Java
@@ -115,15 +109,10 @@ OpenMetadataClient client = new OpenMetadataClient(config);
 ```go Go
 import ometa "github.com/open-metadata/openmetadata-sdk/openmetadata-go-client/pkg/ometa"
 
-restConfig := ometa.NewRestConfig(
+client := ometa.NewClient(
     "https://your-company.open-metadata.org",
-    "",  // APIVersion
-    0,   // Retry -> defaults to 3
-    0,   // RetryWait -> defaults to 30 seconds
-    nil, // RetryCodes -> defaults to [429, 504]
-    "your-jwt-token",
+    ometa.WithToken("your-jwt-token"),
 )
-client, err := ometa.NewRest(restConfig)
 ```
 
 ```bash cURL
@@ -141,40 +130,32 @@ List the tables in your catalog to verify everything is working:
 
 <CodeGroup dropdown>
 ```python Python
-from metadata.generated.schema.entity.data.table import Table
+from metadata.sdk import Tables
 
-tables = metadata.list_all_entities(entity=Table)
-for table in tables:
-    print(f"{table.fullyQualifiedName}: {table.description}")
+for table in Tables.list_all():
+    print(f"{table.fullyQualifiedName.root}: {getattr(table.description, 'root', table.description)}")
 ```
 
 ```java Java
-TablesApi tablesApi = client.buildClient(TablesApi.class);
-TableList tables = tablesApi.listTables(null, 10, null, null, null);
+import org.openmetadata.sdk.models.ListParams;
 
-for (Table table : tables.getData()) {
+// client is an initialized OpenMetadataClient.
+
+var tables = client.tables().list(new ListParams().setLimit(10));
+
+for (var table : tables.getData()) {
     System.out.println(table.getFullyQualifiedName());
 }
 ```
 
 ```go Go
-resp, err := rest.Get("tables", map[string]string{"limit": "10"})
-if err != nil {
-    log.Fatal(err)
-}
-defer resp.Body.Close()
+ctx := context.Background()
 
-var result struct {
-    Data []struct {
-        FullyQualifiedName string `json:"fullyQualifiedName"`
-    } `json:"data"`
-}
-if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-    log.Fatal(err)
-}
-
-for _, table := range result.Data {
-    fmt.Println(table.FullyQualifiedName)
+for table, err := range client.Tables.List(ctx, nil) {
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(*table.FullyQualifiedName)
 }
 ```
 
@@ -224,7 +205,7 @@ from metadata.generated.schema.api.data.createTable import CreateTableRequest
 from metadata.generated.schema.entity.data.table import Column, DataType
 
 # Initialize the SDK
-configure(host="https://your-company.open-metadata.org", jwt_token="your-jwt-token")
+configure(host="https://your-company.open-metadata.org/api", jwt_token="your-jwt-token")
 
 # Create and persist the table
 table = Tables.create(CreateTableRequest(
@@ -238,15 +219,15 @@ table = Tables.create(CreateTableRequest(
     ],
 ))
 
-print(f"Created: {table.fullyQualifiedName}")
+print(f"Created: {table.fullyQualifiedName.root}")
 ```
 
 ```java Java
-import org.openmetadata.sdk.client.OpenMetadataClient;
-import org.openmetadata.sdk.config.OpenMetadataConfig;
+import org.openmetadata.schema.entity.data.Table;
 import org.openmetadata.sdk.fluent.builders.TableBuilder;
 import org.openmetadata.sdk.fluent.builders.ColumnBuilder;
 
+// client is the OpenMetadataClient from the "Initialize Your Client" step.
 // Create and persist the table in one fluent chain
 Table table = new TableBuilder(client)
     .name("customers")

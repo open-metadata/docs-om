@@ -28,7 +28,7 @@ Delete a pipeline by ID or fully qualified name. Supports soft delete (default),
 Use `DELETE /v1/pipelines/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the pipeline (e.g., `sample_airflow.dbt_analytics_customers`).
+  Fully qualified name of the pipeline, for example `sample_airflow.dbt_analytics_customers`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -67,11 +67,13 @@ Pipelines.delete(
 )
 
 # Delete by name
-Pipelines.delete_by_name("sample_airflow.dbt_analytics_customers")
+pipeline = Pipelines.retrieve_by_name("sample_airflow.dbt_analytics_customers")
+Pipelines.delete(pipeline.id)
 
 # Delete by name with options
-Pipelines.delete_by_name(
-    "sample_airflow.dbt_analytics_customers",
+pipeline = Pipelines.retrieve_by_name("sample_airflow.dbt_analytics_customers")
+Pipelines.delete(
+    pipeline.id,
     hard_delete=True
 )
 
@@ -80,22 +82,23 @@ Pipelines.restore("538faa63-d204-46ff-aead-d158d0401cac")
 ```
 
 ```java DELETE /v1/pipelines/{id}
-import static org.openmetadata.sdk.fluent.Pipelines.*;
+import java.util.Map;
+import org.openmetadata.schema.entity.data.Pipeline;
+
+// client is an initialized OpenMetadataClient.
 
 // Soft delete
-Pipelines.delete("538faa63-d204-46ff-aead-d158d0401cac").execute();
+client.pipelines().delete("538faa63-d204-46ff-aead-d158d0401cac");
 
 // Hard delete
-Pipelines.delete("538faa63-d204-46ff-aead-d158d0401cac")
-    .hardDelete()
-    .execute();
+client.pipelines().delete("538faa63-d204-46ff-aead-d158d0401cac", Map.of("hardDelete", "true"));
 
-// Delete by name
-Pipelines.deleteByName("sample_airflow.dbt_analytics_customers")
-    .execute();
+// Delete by name (look up the ID first)
+Pipeline pipeline = client.pipelines().getByName("sample_airflow.dbt_analytics_customers");
+client.pipelines().delete(pipeline.getId());
 
 // Restore
-Pipelines.restore("538faa63-d204-46ff-aead-d158d0401cac");
+client.pipelines().restore("538faa63-d204-46ff-aead-d158d0401cac");
 ```
 
 ```bash DELETE /v1/pipelines/{id}

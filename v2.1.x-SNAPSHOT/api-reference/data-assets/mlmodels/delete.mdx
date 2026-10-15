@@ -28,7 +28,7 @@ Delete an ML model by ID or fully qualified name. Supports soft delete (default)
 Use `DELETE /v1/mlmodels/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the ML model (e.g., `mlflow_svc.customer_segmentation`).
+  Fully qualified name of the ML model, for example `mlflow_svc.customer_segmentation`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -67,11 +67,13 @@ MLModels.delete(
 )
 
 # Delete by name
-MLModels.delete_by_name("mlflow_svc.customer_segmentation")
+model = MLModels.retrieve_by_name("mlflow_svc.customer_segmentation")
+MLModels.delete(model.id)
 
 # Delete by name with options
-MLModels.delete_by_name(
-    "mlflow_svc.customer_segmentation",
+model = MLModels.retrieve_by_name("mlflow_svc.customer_segmentation")
+MLModels.delete(
+    model.id,
     hard_delete=True
 )
 
@@ -80,21 +82,23 @@ MLModels.restore("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2")
 ```
 
 ```java DELETE /v1/mlmodels/{id}
-import static org.openmetadata.sdk.fluent.MlModels.*;
+import java.util.Map;
+import org.openmetadata.schema.entity.data.MlModel;
+
+// client is an initialized OpenMetadataClient.
 
 // Soft delete
-MlModels.delete("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2").execute();
+client.mlModels().delete("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2");
 
 // Hard delete
-MlModels.delete("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2")
-    .hardDelete()
-    .execute();
+client.mlModels().delete("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2", Map.of("hardDelete", "true"));
 
-// Delete by name
-MlModels.deleteByName("mlflow_svc.customer_segmentation").execute();
+// Delete by name (look up the ID first)
+MlModel model = client.mlModels().getByName("mlflow_svc.customer_segmentation");
+client.mlModels().delete(model.getId());
 
 // Restore
-MlModels.restore("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2");
+client.mlModels().restore("6b04e1d8-b66d-4f78-ab21-beb5be2cf4f2");
 ```
 
 ```bash DELETE /v1/mlmodels/{id}

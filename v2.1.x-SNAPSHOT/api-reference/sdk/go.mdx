@@ -18,49 +18,41 @@ You can add the module to your application with the below command
 go get github.com/open-metadata/openmetadata-sdk/openmetadata-go-client
 ```
 
-## Establish OpenMetadata Server Connection
+## Create a Client
 
-To create OpenMetadata Gateway, you will need to establish a connection with *OpenMetadata Server*. The following inputs will be needed:
-* `BaseURL`: The url on which your instance of OpenMetadata is up and running (include the port if you need to e.g. `http://localhost:8585`).
-* `APIVersion`: pass an empty string -- this will be `v1` for now.
-* `Retry`: number of time the request should retry if the status code returned is in `RetryCodes`. Use `0` to use the default value
-* `RetryWait`: number of second to wait betwee retries. Pass 0 to use the default value
-* `RetryCodes`: HTTP status that will trigger a retry. Pass `nil` to use the default
-* `AuthTokenMode`: defaults to `Bearer`
-* `AccessToken`: JWT token use to authenticate the request
+To talk to OpenMetadata, create a `Client` with the server address and, optionally, settings passed as options:
+* `baseURL` (first argument): the address where your OpenMetadata server is running, without the `/api` suffix (include the port if you need to, for example `http://localhost:8585`). The client adds `/api/v1` itself.
+* `WithToken(token)`: the JWT token used to authenticate every request.
+* `WithAPIVersion(v)`: the API version to call. Defaults to `v1`, so you normally don't set it.
+* `WithRetry(count, wait)`: how many times to retry a request, and how long to wait between retries. Defaults to 3 retries, 30 seconds apart. The client retries a request when the server answers `429` or `504`.
+* `WithHTTPClient(c)`: use your own `*http.Client`, for example to set a proxy or custom TLS settings.
 
 ```go
 // main.go
 package main
 
 import (
+	"context"
+	"fmt"
+	"log"
+
 	"github.com/open-metadata/openmetadata-sdk/openmetadata-go-client/pkg/ometa"
 )
 
 func main() {
-    restConfig := ometa.NewRestConfig(
+	ctx := context.Background()
+	client := ometa.NewClient(
 		"http://localhost:8585",
-		"", // APIVersion
-		0, // Retry -> defaults to 3
-		0, // RetryWait -> defaults to 30 seconds
-		nil, // RetryCodes -> defaults to [429, 504]
-		"JWTToken",
+		ometa.WithToken("<your-jwt-token>"),
 	)
+
+	for table, err := range client.Tables.List(ctx, nil) {
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(table.Name)
+	}
 }
 ```
 
-
-## Create OpenMetadata Gateway
-
-Once the connection details are provided, you can create an OpenMetadata Gateway
-using the following piece of code.
-
-```go
-// main.go
-...
-
-func main() {
-    ...
-    rest := ometa.NewRest(restConfig)
-}
-```
+The client has one service for each entity type, such as `client.Tables`, `client.Databases`, and `client.Users`. For more information about the methods every service provides, see [Go SDK - API Methods](/v2.1.x-SNAPSHOT/api-reference/sdk/go-api-methods).

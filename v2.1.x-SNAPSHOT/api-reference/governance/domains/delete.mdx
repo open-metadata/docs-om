@@ -1,13 +1,13 @@
 ---
 title: Delete a Domain
-description: Delete a domain by ID or name, with soft/hard delete options
+description: Delete a domain by ID or name, permanently
 sidebarTitle: Delete a Domain
 api: DELETE /v1/domains/{id}
 ---
 
 # Delete a Domain
 
-Delete a domain by ID or fully qualified name. Supports soft delete (default), hard delete, and restore operations.
+Delete a domain by ID or fully qualified name. Deleting a domain is permanent. A deleted domain can't be restored.
 
 ## Delete by ID
 
@@ -20,7 +20,7 @@ Delete a domain by ID or fully qualified name. Supports soft delete (default), h
 </ParamField>
 
 <ParamField query="hardDelete" type="boolean" default="false">
-  Permanently delete the domain. If `false`, the domain is soft-deleted and can be restored.
+  Not needed. A deleted domain is always permanently deleted, with or without this option.
 </ParamField>
 
 ## Delete by Name
@@ -28,7 +28,7 @@ Delete a domain by ID or fully qualified name. Supports soft delete (default), h
 Use `DELETE /v1/domains/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the domain (e.g., `TestDomain`).
+  Fully qualified name of the domain, for example `TestDomain`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -36,15 +36,7 @@ Use `DELETE /v1/domains/name/{fqn}` to delete by fully qualified name.
 </ParamField>
 
 <ParamField query="hardDelete" type="boolean" default="false">
-  Permanently delete the domain.
-</ParamField>
-
-## Restore a Soft-Deleted Domain
-
-Use `PUT /v1/domains/restore` to restore a soft-deleted domain.
-
-<ParamField body="id" type="string" required>
-  UUID of the soft-deleted domain to restore.
+  Not needed. A deleted domain is always permanently deleted, with or without this option.
 </ParamField>
 
 <RequestExample dropdown>
@@ -57,90 +49,59 @@ configure(
     jwt_token="your-jwt-token"
 )
 
-# Soft delete by ID
+# Delete by ID
 Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1")
 
-# Hard delete
+# Delete by ID with options
 Domains.delete(
     "a0729e98-e946-4e25-acde-10e8a2294ba1",
     hard_delete=True
 )
 
 # Delete by name
-Domains.delete_by_name("TestDomain")
+Domains.delete(Domains.retrieve_by_name("TestDomain").id)
 
 # Delete by name with options
-Domains.delete_by_name(
-    "TestDomain",
+Domains.delete(
+    Domains.retrieve_by_name("TestDomain").id,
     hard_delete=True
 )
-
-# Restore a soft-deleted domain
-Domains.restore("a0729e98-e946-4e25-acde-10e8a2294ba1")
 ```
 
 ```java DELETE /v1/domains/{id}
-import static org.openmetadata.sdk.fluent.Domains.*;
+import java.util.Map;
 
-// Soft delete
-Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1").execute();
+// client is an initialized OpenMetadataClient.
+var id = "a0729e98-e946-4e25-acde-10e8a2294ba1";
 
-// Hard delete
-Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1")
-    .hardDelete()
-    .execute();
+// Delete (permanent)
+client.domains().delete(id);
 
-// Delete by name
-Domains.deleteByName("TestDomain").execute();
-
-// Restore
-Domains.restore("a0729e98-e946-4e25-acde-10e8a2294ba1");
+// Delete by name: look up the ID first
+var domain = client.domains().getByName("TestDomain");
+client.domains().delete(domain.getId().toString());
 ```
 
 ```bash DELETE /v1/domains/{id}
-# Soft delete by ID
+# Delete by ID
 curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1" \
   -H "Authorization: Bearer {access_token}"
 
-# Hard delete
+# Delete with options
 curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1?hardDelete=true" \
   -H "Authorization: Bearer {access_token}"
 
 # Delete by name
 curl -X DELETE "{base_url}/api/v1/domains/name/TestDomain" \
   -H "Authorization: Bearer {access_token}"
-
-# Restore soft-deleted domain
-curl -X PUT "{base_url}/api/v1/domains/restore" \
-  -H "Authorization: Bearer {access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{"id": "a0729e98-e946-4e25-acde-10e8a2294ba1"}'
 ```
 </RequestExample>
-
-<ResponseExample>
-```json Response (Soft Delete)
-{
-  "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
-  "domainType": "Aggregate",
-  "name": "TestDomain",
-  "fullyQualifiedName": "TestDomain",
-  "description": "Lorem ipsum...",
-  "version": 0.2,
-  "updatedAt": 1769984330261,
-  "updatedBy": "admin",
-  "deleted": true,
-  "owners": [],
-  "children": []
-}
-```
-</ResponseExample>
 
 ---
 
 ## Returns
 
-Soft delete returns the domain object with `deleted: true`. Hard delete returns no content (204). Restore returns the restored domain object.
+Returns `200` with no content. The domain is permanently deleted and can't be restored.
 
 ---
 

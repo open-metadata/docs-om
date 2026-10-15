@@ -51,47 +51,66 @@ Manage followers and votes for topic entities.
 
 <RequestExample dropdown>
 ```python PUT /v1/topics/{id}/followers
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.topic import Topic
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 topic_id = "0a021819-982e-4ee4-a5a2-4af30eaa3016"
 user_id = "user-uuid-here"
 
 # Add a follower
-topic = Topics.add_followers(topic_id, [user_id])
-print(f"Followers: {len(topic.followers)}")
+metadata.client.put(f"/topics/{topic_id}/followers", json=user_id)
+topic = metadata.get_by_id(entity=Topic, entity_id=topic_id, fields=["followers"])
+print(f"Followers: {len(topic.followers.root)}")
 
 # Remove a follower
-topic = Topics.remove_followers(topic_id, [user_id])
+metadata.client.delete(f"/topics/{topic_id}/followers/{user_id}")
 
 # Add a vote
-topic = Topics.add_vote(topic_id, vote_type="votedUp")
+metadata.client.put(f"/topics/{topic_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-topic = Topics.remove_vote(topic_id)
+metadata.client.put(f"/topics/{topic_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/topics/{id}/followers
-import static org.openmetadata.sdk.fluent.Topics.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpClient;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// client is an initialized OpenMetadataClient.
+
+HttpClient http = client.getHttpClient();
 
 String topicId = "0a021819-982e-4ee4-a5a2-4af30eaa3016";
+UUID userId = UUID.fromString("b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
 
 // Add a follower
-Topics.addFollower(topicId, "user-uuid-here");
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/followers", userId);
 
 // Remove a follower
-Topics.removeFollower(topicId, "user-uuid-here");
+http.executeForString(HttpMethod.DELETE, "/v1/topics/" + topicId + "/followers/" + userId, null);
 
 // Add a vote
-Topics.vote(topicId, "votedUp");
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/vote", Map.of("updatedVoteType", "votedUp"));
 
 // Remove a vote
-Topics.vote(topicId, "unVoted");
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/vote", Map.of("updatedVoteType", "unVoted"));
 ```
 
 ```bash PUT /v1/topics/{id}/followers

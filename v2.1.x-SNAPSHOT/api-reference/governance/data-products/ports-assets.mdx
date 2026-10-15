@@ -14,7 +14,7 @@ Manage the input ports, output ports, and associated assets of a data product. T
 Use `PUT /v1/dataProducts/{fqn}/assets/add` to add assets to a data product.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the data product, such as `Marketing.CustomerInsights`.
+  Fully qualified name of the data product, such as `CustomerInsights`.
 </ParamField>
 
 <ParamField body="assets" type="array" required>
@@ -26,7 +26,7 @@ Use `PUT /v1/dataProducts/{fqn}/assets/add` to add assets to a data product.
     </ParamField>
 
     <ParamField body="type" type="string" required>
-      Type of asset entity (e.g., `table`, `topic`, `dashboard`, `pipeline`).
+      Type of asset entity, for example `table`, `topic`, `dashboard`, `pipeline`.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -36,7 +36,7 @@ Use `PUT /v1/dataProducts/{fqn}/assets/add` to add assets to a data product.
 Use `PUT /v1/dataProducts/{fqn}/assets/remove` to remove assets from a data product.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the data product, such as `Marketing.CustomerInsights`.
+  Fully qualified name of the data product, such as `CustomerInsights`.
 </ParamField>
 
 <ParamField body="assets" type="array" required>
@@ -48,7 +48,7 @@ Use `PUT /v1/dataProducts/{fqn}/assets/remove` to remove assets from a data prod
     </ParamField>
 
     <ParamField body="type" type="string" required>
-      Type of asset entity (e.g., `table`, `topic`, `dashboard`, `pipeline`).
+      Type of asset entity, for example `table`, `topic`, `dashboard`, `pipeline`.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -64,68 +64,82 @@ configure(
     jwt_token="your-jwt-token"
 )
 
-# Identify the data product by its fully qualified name, and each asset by its UUID.
+# Identify the data product by its name, which is also its fully qualified name, and each asset by its UUID.
 
 # Add input ports
 DataProducts.add_input_ports(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="table-uuid-1", type="table")]
 )
 
 # Remove input ports
 DataProducts.remove_input_ports(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="table-uuid-1", type="table")]
 )
 
 # Add output ports
 DataProducts.add_output_ports(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="dashboard-uuid-1", type="dashboard")]
 )
 
 # Remove output ports
 DataProducts.remove_output_ports(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="dashboard-uuid-1", type="dashboard")]
 )
 
 # Add assets
 DataProducts.add_assets(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="table-uuid-2", type="table")]
 )
 
 # Remove assets
 DataProducts.remove_assets(
-    "Marketing.CustomerInsights",
+    "CustomerInsights",
     [EntityReference(id="table-uuid-2", type="table")]
 )
 ```
 
 ```java PUT /v1/dataProducts/{fqn}/assets/add
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+import java.util.List;
+import java.util.UUID;
+import org.openmetadata.schema.type.EntityReference;
+import org.openmetadata.schema.type.api.BulkAssets;
 
-// Identify the data product by its fully qualified name, and each asset by its UUID.
+// client is an initialized OpenMetadataClient.
+var dataProduct = "CustomerInsights";
+
+var tables = new BulkAssets().withAssets(List.of(
+    new EntityReference()
+        .withId(UUID.fromString("5b3d9f0e-1c7a-4d2e-9a61-3f8e2b7c4d10"))
+        .withType("table")));
+
+// Identify the data product by its name, which is also its fully qualified name, and each asset by its UUID.
 
 // Add assets
-DataProducts.addAssets(
-    "Marketing.CustomerInsights",
-    List.of(new EntityReference("table-uuid-1", "table"))
-);
+var added = client.dataProducts().bulkAddAssets(dataProduct, tables);
+System.out.println(added.getStatus());
 
 // Remove assets
-DataProducts.removeAssets(
-    "Marketing.CustomerInsights",
-    List.of(new EntityReference("table-uuid-1", "table"))
-);
+var removed = client.dataProducts().bulkRemoveAssets(dataProduct, tables);
+
+// Add and remove input ports
+client.dataProducts().bulkAddInputPorts(dataProduct, tables);
+client.dataProducts().bulkRemoveInputPorts(dataProduct, tables);
+
+// Add and remove output ports
+client.dataProducts().bulkAddOutputPorts(dataProduct, tables);
+client.dataProducts().bulkRemoveOutputPorts(dataProduct, tables);
 ```
 
 ```bash PUT /v1/dataProducts/{fqn}/assets/add
 # The path identifier is the data product's fully qualified name. URL-encode it if it contains spaces.
 
 # Add assets
-curl -X PUT "{base_url}/api/v1/dataProducts/Marketing.CustomerInsights/assets/add" \
+curl -X PUT "{base_url}/api/v1/dataProducts/CustomerInsights/assets/add" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -136,7 +150,7 @@ curl -X PUT "{base_url}/api/v1/dataProducts/Marketing.CustomerInsights/assets/ad
   }'
 
 # Remove assets
-curl -X PUT "{base_url}/api/v1/dataProducts/Marketing.CustomerInsights/assets/remove" \
+curl -X PUT "{base_url}/api/v1/dataProducts/CustomerInsights/assets/remove" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -152,19 +166,21 @@ curl -X PUT "{base_url}/api/v1/dataProducts/Marketing.CustomerInsights/assets/re
 {
   "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
   "name": "CustomerInsights",
-  "fullyQualifiedName": "Marketing.CustomerInsights",
+  "fullyQualifiedName": "CustomerInsights",
   "description": "Curated customer analytics data product",
   "version": 0.3,
   "updatedAt": 1769984330261,
   "updatedBy": "admin",
   "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
-  "domain": {
-    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
-    "type": "domain",
-    "name": "Marketing",
-    "fullyQualifiedName": "Marketing",
-    "deleted": false
-  },
+  "domains": [
+    {
+      "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+      "type": "domain",
+      "name": "Marketing",
+      "fullyQualifiedName": "Marketing",
+      "deleted": false
+    }
+  ],
   "deleted": false,
   "owners": [],
   "experts": []

@@ -28,7 +28,7 @@ Delete an ML model service by ID or fully qualified name. Supports soft delete (
 Use `DELETE /v1/services/mlmodelServices/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the ML model service (e.g., `mlflow_svc`).
+  Fully qualified name of the ML model service, for example `mlflow_svc`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -49,39 +49,56 @@ Use `PUT /v1/services/mlmodelServices/restore` to restore a soft-deleted ML mode
 
 <RequestExample dropdown>
 ```python DELETE /v1/services/mlmodelServices/{id}
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.mlmodelService import MlModelService
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 # Soft delete by ID
-MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9")
+metadata.delete(entity=MlModelService, entity_id="ca22d46e-81b9-4e48-85b5-0adc44980da9")
 
 # Hard delete
-MlModelServices.delete(
-    "ca22d46e-81b9-4e48-85b5-0adc44980da9",
+metadata.delete(
+    entity=MlModelService,
+    entity_id="ca22d46e-81b9-4e48-85b5-0adc44980da9",
     hard_delete=True
 )
 
 # Delete by name
-MlModelServices.delete_by_name("mlflow_svc")
+service = metadata.get_by_name(entity=MlModelService, fqn="mlflow_svc")
+metadata.delete(entity=MlModelService, entity_id=service.id)
 
 # Delete by name with options
-MlModelServices.delete_by_name(
-    "mlflow_svc",
+service = metadata.get_by_name(entity=MlModelService, fqn="mlflow_svc")
+metadata.delete(
+    entity=MlModelService,
+    entity_id=service.id,
     hard_delete=True,
     recursive=True
 )
 
 # Restore a soft-deleted ML model service
-MlModelServices.restore("ca22d46e-81b9-4e48-85b5-0adc44980da9")
+metadata.restore(entity=MlModelService, entity_id="ca22d46e-81b9-4e48-85b5-0adc44980da9")
 ```
 
 ```java DELETE /v1/services/mlmodelServices/{id}
-import static org.openmetadata.sdk.fluent.MlModelServices.*;
+import org.openmetadata.schema.entity.services.MlModelService;
+import org.openmetadata.sdk.fluent.MlModelServices;
+
+// client is an initialized OpenMetadataClient.
 
 // Soft delete
 MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9").execute();
@@ -91,11 +108,12 @@ MlModelServices.delete("ca22d46e-81b9-4e48-85b5-0adc44980da9")
     .hardDelete()
     .execute();
 
-// Delete by name
-MlModelServices.deleteByName("mlflow_svc").execute();
+// Delete by name (look up the ID first)
+MlModelService service = MlModelServices.retrieveByName("mlflow_svc");
+MlModelServices.delete(service.getId()).execute();
 
-// Restore
-MlModelServices.restore("ca22d46e-81b9-4e48-85b5-0adc44980da9");
+// Restore. The fluent class has no restore method, so use the client service.
+client.mlModelServices().restore("ca22d46e-81b9-4e48-85b5-0adc44980da9");
 ```
 
 ```bash DELETE /v1/services/mlmodelServices/{id}

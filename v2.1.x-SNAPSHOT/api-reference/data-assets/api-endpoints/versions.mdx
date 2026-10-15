@@ -24,11 +24,13 @@ Use `GET /v1/apiEndpoints/{id}/versions/{version}` to retrieve a specific versio
 </ParamField>
 
 <ParamField path="version" type="string" required>
-  Version number to retrieve (e.g., `0.2`).
+  Version number to retrieve, for example `0.2`.
 </ParamField>
 
 <RequestExample dropdown>
 ```python GET /v1/apiEndpoints/{id}/versions
+import json
+
 from metadata.sdk import configure
 from metadata.sdk.entities import APIEndpoints
 
@@ -40,28 +42,30 @@ configure(
 # List all versions
 versions = APIEndpoints.get_versions("1f61427a-4a64-4070-9ac8-1d29302dac7c")
 for v in versions:
-    print(f"Version {v.version}: {v.description}")
+    version = json.loads(v)
+    print(f"Version {version['version']}: {version.get('description')}")
 
 # Get a specific version
 ep_v1 = APIEndpoints.get_specific_version(
     "1f61427a-4a64-4070-9ac8-1d29302dac7c",
     "0.1"
 )
-print(f"Original description: {ep_v1.description}")
+print(f"Original description: {ep_v1.description.root if ep_v1.description else None}")
 ```
 
 ```java GET /v1/apiEndpoints/{id}/versions
-import static org.openmetadata.sdk.fluent.APIEndpoints.*;
+import org.openmetadata.schema.entity.data.APIEndpoint;
+import org.openmetadata.schema.type.EntityHistory;
+
+// client is an initialized OpenMetadataClient.
 
 // List all versions
-var history = APIEndpoints.getVersions("1f61427a-4a64-4070-9ac8-1d29302dac7c");
+EntityHistory history = client.apiEndpoints().getVersionList("1f61427a-4a64-4070-9ac8-1d29302dac7c");
 
-for (var version : history.getVersions()) {
-    System.out.println("Version: " + version);
-}
+System.out.println("Total versions: " + history.getVersions().size());
 
 // Get a specific version
-var v1 = APIEndpoints.getSpecificVersion(
+APIEndpoint v1 = client.apiEndpoints().getVersion(
     "1f61427a-4a64-4070-9ac8-1d29302dac7c",
     0.1
 );

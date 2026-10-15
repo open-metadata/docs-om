@@ -24,11 +24,13 @@ Use `GET /v1/databases/{id}/versions/{version}` to retrieve a specific version.
 </ParamField>
 
 <ParamField path="version" type="string" required>
-  Version number to retrieve (e.g., `0.2`).
+  Version number to retrieve, for example `0.2`.
 </ParamField>
 
 <RequestExample dropdown>
 ```python GET /v1/databases/{id}/versions
+import json
+
 from metadata.sdk import configure
 from metadata.sdk.entities import Databases
 
@@ -40,26 +42,30 @@ configure(
 # List all versions
 versions = Databases.get_versions("550e8400-e29b-41d4-a716-446655440000")
 for v in versions:
-    print(f"Version {v.version}: {v.description}")
+    version = json.loads(v)
+    print(f"Version {version['version']}: {version.get('description')}")
 
 # Get a specific version
 database_v1 = Databases.get_specific_version(
     "550e8400-e29b-41d4-a716-446655440000",
     "0.1"
 )
-print(f"Original description: {database_v1.description}")
+print(f"Original description: {database_v1.description.root if database_v1.description else None}")
 ```
 
 ```java GET /v1/databases/{id}/versions
-import static org.openmetadata.sdk.fluent.Databases.*;
+import org.openmetadata.schema.entity.data.Database;
+import org.openmetadata.schema.type.EntityHistory;
+
+// client is an initialized OpenMetadataClient.
 
 // List all versions
-var versions = Databases.getVersions("550e8400-e29b-41d4-a716-446655440000");
+EntityHistory versions = client.databases().getVersionList("550e8400-e29b-41d4-a716-446655440000");
 
 // Get a specific version
-Database v1 = Databases.getSpecificVersion(
+Database v1 = client.databases().getVersion(
     "550e8400-e29b-41d4-a716-446655440000",
-    "0.1"
+    0.1
 );
 System.out.println("Description: " + v1.getDescription());
 ```

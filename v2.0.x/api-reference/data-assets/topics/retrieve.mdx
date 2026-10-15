@@ -16,7 +16,7 @@ Get a single topic by its unique ID or fully qualified name.
 </ParamField>
 
 <ParamField query="fields" type="string">
-  Comma-separated list of fields to include (e.g., `owners,tags,followers,votes,extension,domains,sourceHash`).
+  Comma-separated list of fields to include, for example `owners,tags,followers,votes,extension,domains,sourceHash`.
 </ParamField>
 
 <ParamField query="include" type="string" default="non-deleted">
@@ -28,7 +28,7 @@ Get a single topic by its unique ID or fully qualified name.
 Use `GET /v1/topics/name/{fqn}` to retrieve by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the topic (e.g., `sample_kafka.address_book`).
+  Fully qualified name of the topic, for example `sample_kafka.address_book`.
 </ParamField>
 
 <ParamField query="fields" type="string">
@@ -41,55 +41,67 @@ Use `GET /v1/topics/name/{fqn}` to retrieve by fully qualified name.
 
 <RequestExample dropdown>
 ```python GET /v1/topics/{id}
-from metadata.sdk import configure
-from metadata.sdk.entities import Topics
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.topic import Topic
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 # Get by ID
-topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016")
-print(f"{topic.fullyQualifiedName}: {topic.description}")
+topic = metadata.get_by_id(entity=Topic, entity_id="0a021819-982e-4ee4-a5a2-4af30eaa3016")
+print(f"{topic.fullyQualifiedName.root}: {topic.description.root}")
 
 # Get by ID with fields
-topic = Topics.retrieve(
-    "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+topic = metadata.get_by_id(
+    entity=Topic,
+    entity_id="0a021819-982e-4ee4-a5a2-4af30eaa3016",
     fields=["owners", "tags", "messageSchema"]
 )
 
 # Get by fully qualified name
-topic = Topics.retrieve_by_name("sample_kafka.address_book")
+topic = metadata.get_by_name(entity=Topic, fqn="sample_kafka.address_book")
 
 # Get by name with fields
-topic = Topics.retrieve_by_name(
-    "sample_kafka.address_book",
-    fields=["owners", "tags", "domain"]
+topic = metadata.get_by_name(
+    entity=Topic,
+    fqn="sample_kafka.address_book",
+    fields=["owners", "tags", "domains"]
 )
 ```
 
 ```java GET /v1/topics/{id}
-import static org.openmetadata.sdk.fluent.Topics.*;
+import org.openmetadata.schema.entity.data.Topic;
+
+// client is an initialized OpenMetadataClient.
 
 // Get by ID
-var topic = Topics.retrieve("0a021819-982e-4ee4-a5a2-4af30eaa3016");
+Topic topic = client.topics().get("0a021819-982e-4ee4-a5a2-4af30eaa3016");
 
 // Get by ID with fields
-var topic = Topics.retrieve(
+Topic topicWithFields = client.topics().get(
     "0a021819-982e-4ee4-a5a2-4af30eaa3016",
     "owners,tags,messageSchema"
 );
 
 // Get by fully qualified name
-var topic = Topics.retrieveByName(
-    "sample_kafka.address_book"
-);
+Topic topicByName = client.topics().getByName("sample_kafka.address_book");
 
 // Get by name with fields
-var topic = Topics.retrieveByName(
+Topic topicByNameWithFields = client.topics().getByName(
     "sample_kafka.address_book",
-    "owners,tags,domain"
+    "owners,tags,domains"
 );
 ```
 
@@ -219,7 +231,7 @@ Returns a topic object with all requested fields populated.
 
   <Expandable title="properties">
     <ResponseField name="schemaType" type="string">
-      Type of schema (e.g., `Avro`, `Protobuf`, `JSON`).
+      Type of schema, for example `Avro`, `Protobuf`, `JSON`.
     </ResponseField>
 
     <ResponseField name="schemaText" type="string">
@@ -233,7 +245,7 @@ Returns a topic object with all requested fields populated.
 </ResponseField>
 
 <ResponseField name="serviceType" type="string">
-  Type of messaging service (e.g., Kafka, Redpanda, Kinesis).
+  Type of messaging service, for example Kafka, Redpanda, Kinesis.
 </ResponseField>
 
 <ResponseField name="version" type="number">

@@ -24,11 +24,13 @@ Use `GET /v1/pipelines/{id}/versions/{version}` to retrieve a specific version.
 </ParamField>
 
 <ParamField path="version" type="string" required>
-  Version number to retrieve (e.g., `0.2`).
+  Version number to retrieve, for example `0.2`.
 </ParamField>
 
 <RequestExample dropdown>
 ```python GET /v1/pipelines/{id}/versions
+import json
+
 from metadata.sdk import configure
 from metadata.sdk.entities import Pipelines
 
@@ -40,31 +42,32 @@ configure(
 # List all versions
 versions = Pipelines.get_versions("538faa63-d204-46ff-aead-d158d0401cac")
 for v in versions:
-    print(f"Version {v.version}: {v.description}")
+    version = json.loads(v)
+    print(f"Version {version['version']}: {version.get('description')}")
 
 # Get a specific version
 pipeline_v1 = Pipelines.get_specific_version(
     "538faa63-d204-46ff-aead-d158d0401cac",
     "0.1"
 )
-print(f"Original description: {pipeline_v1.description}")
+print(f"Original description: {getattr(pipeline_v1.description, 'root', pipeline_v1.description)}")
 ```
 
 ```java GET /v1/pipelines/{id}/versions
-import static org.openmetadata.sdk.fluent.Pipelines.*;
+import org.openmetadata.schema.entity.data.Pipeline;
+import org.openmetadata.schema.type.EntityHistory;
+
+// client is an initialized OpenMetadataClient.
 
 // List all versions
-var history = Pipelines.getVersions("538faa63-d204-46ff-aead-d158d0401cac");
+EntityHistory history = client.pipelines().getVersionList("538faa63-d204-46ff-aead-d158d0401cac");
 
-for (var version : history.getVersions()) {
+for (Object version : history.getVersions()) {
     System.out.println("Version: " + version);
 }
 
 // Get a specific version
-var v1 = Pipelines.getSpecificVersion(
-    "538faa63-d204-46ff-aead-d158d0401cac",
-    0.1
-);
+Pipeline v1 = client.pipelines().getVersion("538faa63-d204-46ff-aead-d158d0401cac", 0.1);
 System.out.println("Description: " + v1.getDescription());
 ```
 

@@ -47,49 +47,54 @@ configure(
 
 # List first page
 dashboards = Dashboards.list(limit=50)
-for d in dashboards.data:
-    print(f"{d.fullyQualifiedName}")
+for d in dashboards.entities:
+    print(f"{d.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for d in Dashboards.list_all():
-    print(f"{d.fullyQualifiedName}")
+    print(f"{d.fullyQualifiedName.root}")
 
 # Filter by service
 dashboards = Dashboards.list(
-    service="sample_superset",
+    filters={"service": "sample_superset"},
     fields=["owners", "tags", "charts"],
     limit=50
 )
 
-for d in dashboards.data:
-    print(f"{d.fullyQualifiedName}")
+for d in dashboards.entities:
+    print(f"{d.fullyQualifiedName.root}")
     if d.owners:
-        print(f"  Owners: {[o.name for o in d.owners]}")
+        print(f"  Owners: {[o.name for o in d.owners.root]}")
     if d.tags:
-        print(f"  Tags: {[t.tagFQN for t in d.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in d.tags]}")
 ```
 
 ```java GET /v1/dashboards
-import static org.openmetadata.sdk.fluent.Dashboards.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.Dashboard;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = Dashboards.list()
-    .limit(50)
-    .execute();
+ListResponse<Dashboard> firstPage = client.dashboards().list(
+    new ListParams().setLimit(50)
+);
 
-for (var d : result.getData()) {
-    System.out.println(d.getFullyQualifiedName());
+for (Dashboard dashboard : firstPage.getData()) {
+    System.out.println(dashboard.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = Dashboards.list()
-    .service("sample_superset")
-    .fields("owners", "tags", "charts")
-    .limit(50)
-    .execute();
+ListResponse<Dashboard> filtered = client.dashboards().list(
+    new ListParams()
+        .setService("sample_superset")
+        .setFields("owners,tags,charts")
+        .setLimit(50)
+);
 
-for (var d : result.getData()) {
-    System.out.println(d.getFullyQualifiedName());
+for (Dashboard dashboard : filtered.getData()) {
+    System.out.println(dashboard.getFullyQualifiedName());
 }
 ```
 
@@ -191,7 +196,7 @@ Returns a paginated list of dashboard objects. By default, only basic fields are
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of dashboard service (e.g., Superset, Looker, Tableau).
+      Type of dashboard service, for example Superset, Looker, Tableau.
     </ResponseField>
 
     <ResponseField name="sourceUrl" type="string">

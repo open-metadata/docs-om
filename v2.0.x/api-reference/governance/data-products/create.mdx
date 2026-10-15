@@ -12,11 +12,11 @@ Create a new data product within a domain.
 ## Body Parameters
 
 <ParamField body="name" type="string" required>
-  Name of the data product. Must be unique within the parent domain.
+  Name of the data product. Must be unique across all data products.
 </ParamField>
 
-<ParamField body="domain" type="string" required>
-  Fully qualified name of the parent domain (e.g., `Marketing`).
+<ParamField body="domains" type="array" required>
+  Fully qualified names of the parent domains, for example `["Marketing"]`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
@@ -36,7 +36,7 @@ Create a new data product within a domain.
     </ParamField>
 
     <ParamField body="type" type="string">
-      Type of owner entity (e.g., `user`, `team`).
+      Type of owner entity, for example `user`, `team`.
     </ParamField>
 
     <ParamField body="name" type="string">
@@ -76,24 +76,26 @@ configure(
 request = {
     "name": "CustomerInsights",
     "displayName": "Customer Insights",
-    "domain": "Marketing",
+    "domains": ["Marketing"],
     "description": "Curated customer analytics data product"
 }
 
 data_product = DataProducts.create(request)
-print(f"Created: {data_product.fullyQualifiedName}")
+print(f"Created: {data_product.fullyQualifiedName.root}")
 ```
 
 ```java POST /v1/dataProducts
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+import java.util.List;
+import org.openmetadata.schema.api.domains.CreateDataProduct;
 
-// Create using builder pattern
-var dataProduct = DataProducts.builder()
-    .name("CustomerInsights")
-    .displayName("Customer Insights")
-    .domain("Marketing")
-    .description("Curated customer analytics data product")
-    .create();
+// client is an initialized OpenMetadataClient.
+var request = new CreateDataProduct()
+    .withName("CustomerInsights")
+    .withDisplayName("Customer Insights")
+    .withDomains(List.of("Marketing"))
+    .withDescription("Curated customer analytics data product");
+
+var dataProduct = client.dataProducts().create(request);
 ```
 
 ```bash POST /v1/dataProducts
@@ -102,7 +104,7 @@ curl -X POST "{base_url}/api/v1/dataProducts" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "CustomerInsights",
-    "domain": "Marketing",
+    "domains": ["Marketing"],
     "description": "Curated customer analytics data product",
     "owners": [],
     "experts": []
@@ -115,20 +117,22 @@ curl -X POST "{base_url}/api/v1/dataProducts" \
 {
   "id": "b1839f98-f046-5f35-bdef-20f9b3395cb2",
   "name": "CustomerInsights",
-  "fullyQualifiedName": "Marketing.CustomerInsights",
+  "fullyQualifiedName": "CustomerInsights",
   "displayName": "Customer Insights",
   "description": "Curated customer analytics data product",
   "version": 0.1,
   "updatedAt": 1769984330261,
   "updatedBy": "admin",
   "href": "http://localhost:8585/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2",
-  "domain": {
-    "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
-    "type": "domain",
-    "name": "Marketing",
-    "fullyQualifiedName": "Marketing",
-    "deleted": false
-  },
+  "domains": [
+    {
+      "id": "a0729e98-e946-4e25-acde-10e8a2294ba1",
+      "type": "domain",
+      "name": "Marketing",
+      "fullyQualifiedName": "Marketing",
+      "deleted": false
+    }
+  ],
   "deleted": false,
   "owners": [],
   "experts": []
@@ -153,7 +157,7 @@ Returns the created data product object with all specified properties and system
 </ResponseField>
 
 <ResponseField name="fullyQualifiedName" type="string">
-  Fully qualified name in format `domain.dataProductName`.
+  Fully qualified name of the data product. This is the data product name.
 </ResponseField>
 
 <ResponseField name="displayName" type="string">
@@ -164,8 +168,8 @@ Returns the created data product object with all specified properties and system
   Description of the data product in Markdown format.
 </ResponseField>
 
-<ResponseField name="domain" type="object">
-  Reference to the parent domain.
+<ResponseField name="domains" type="array">
+  References to the parent domains.
 
   <Expandable title="properties">
     <ResponseField name="id" type="string">
@@ -224,4 +228,4 @@ curl -X PUT "{base_url}/api/v1/dataProducts" \
 | `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to create data products |
-| `409` | `ENTITY_ALREADY_EXISTS` | Data product with same name already exists in domain (POST only) |
+| `409` | `ENTITY_ALREADY_EXISTS` | Data product with the same name already exists (POST only) |

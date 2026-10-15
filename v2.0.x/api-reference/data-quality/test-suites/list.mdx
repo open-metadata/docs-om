@@ -32,7 +32,7 @@ List all test suites with optional filtering and pagination.
 </ParamField>
 
 <ParamField query="testSuiteType" type="string">
-  Filter by test suite type: `executable` or `logical`.
+  Filter by test suite type, for example `logical`. The older value `executable` is still accepted.
 </ParamField>
 
 <RequestExample dropdown>
@@ -47,42 +47,44 @@ configure(
 
 # List first page
 suites = TestSuites.list(limit=50)
-for ts in suites.data:
-    print(f"{ts.displayName} (executable: {ts.executable})")
+for ts in suites.entities:
+    print(f"{ts.displayName} (basic: {ts.basic})")
 
 # List all with auto-pagination
 for ts in TestSuites.list_all():
-    print(f"{ts.fullyQualifiedName}")
+    print(f"{ts.fullyQualifiedName.root}")
 
 # Filter by type
 logical_suites = TestSuites.list(
-    testSuiteType="logical",
+    filters={"testSuiteType": "logical"},
     fields=["owners", "tests"],
     limit=50
 )
 
-for ts in logical_suites.data:
+for ts in logical_suites.entities:
     print(f"{ts.displayName}")
 ```
 
 ```java GET /v1/dataQuality/testSuites
-import static org.openmetadata.sdk.fluent.TestSuites.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = TestSuites.list()
-    .limit(50)
-    .execute();
-
-for (var ts : result.getData()) {
-    System.out.println(ts.getDisplayName());
+var params = new ListParams().setLimit(50);
+var page = client.testSuites().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getDisplayName());
 }
 
-// Filter by type
-var result = TestSuites.list()
-    .testSuiteType("logical")
-    .fields("owners", "tests")
-    .limit(50)
-    .execute();
+// Filter by type with fields
+var filtered = new ListParams()
+    .addFilter("testSuiteType", "logical")
+    .setFields("owners,tests")
+    .setLimit(50);
+var filteredPage = client.testSuites().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getDisplayName());
+}
 ```
 
 ```bash GET /v1/dataQuality/testSuites
@@ -91,7 +93,7 @@ curl "{base_url}/api/v1/dataQuality/testSuites?limit=50" \
   -H "Authorization: Bearer {access_token}"
 
 # Filter by type
-curl "{base_url}/api/v1/dataQuality/testSuites?testSuiteType=executable&limit=50" \
+curl "{base_url}/api/v1/dataQuality/testSuites?testSuiteType=logical&limit=50" \
   -H "Authorization: Bearer {access_token}"
 
 # With fields
@@ -106,15 +108,15 @@ curl "{base_url}/api/v1/dataQuality/testSuites?fields=owners,tests&limit=50" \
   "data": [
     {
       "id": "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
-      "name": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+      "name": "sample_data.ecommerce_db.shopify.dim_address.testSuite",
       "displayName": "Data Contract - dim_address_comprehensive_contract",
-      "fullyQualifiedName": "b5fcae09-02c2-4c0b-8c4a-5b52d650e592",
+      "fullyQualifiedName": "sample_data.ecommerce_db.shopify.dim_address.testSuite",
       "version": 0.1,
       "updatedAt": 1769982757893,
       "updatedBy": "admin",
       "deleted": false,
       "owners": [],
-      "executable": true
+      "basic": true
     }
   ],
   "paging": {
@@ -153,8 +155,8 @@ Returns a paginated list of test suite objects. Use the `fields` parameter to re
       Human-readable display name.
     </ResponseField>
 
-    <ResponseField name="executable" type="boolean">
-      Whether this is an executable or logical test suite.
+    <ResponseField name="basic" type="boolean">
+      `true` for a table-level (basic) test suite, `false` for a logical test suite.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>

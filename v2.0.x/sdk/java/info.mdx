@@ -6,7 +6,7 @@ sidebarTitle: Java SDK Info
 
 # Java SDK
 
-The OpenMetadata Java SDK provides a robust client library for Java applications to interact with the OpenMetadata API. It offers comprehensive support for entity management, authentication, and integration with enterprise Java applications.
+The OpenMetadata Java SDK provides a robust client library for Java applications to interact with the OpenMetadata API. It offers support for entity management, search, lineage, and authentication with a JWT token.
 
 ## Installation
 
@@ -35,85 +35,87 @@ implementation 'org.open-metadata:openmetadata-sdk:2.0.5'
 ### Basic Connection
 
 ```java
-import org.openmetadata.client.OpenMetadataClient;
-import org.openmetadata.client.model.*;
-import org.openmetadata.client.auth.BasicAuthProvider;
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+import org.openmetadata.sdk.network.HttpMethod;
 
-// Create client with basic authentication
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("http://localhost:8585/api")
-    .authProvider(new BasicAuthProvider("admin", "admin"))
+// Create a client with a JWT token
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("your-jwt-token")
     .build();
 
-// Health check
-if (client.healthCheck()) {
-    System.out.println("Successfully connected to OpenMetadata!");
-}
+OpenMetadataClient client = new OpenMetadataClient(config);
+
+// Check the connection by reading the server version
+String version = client.getHttpClient()
+    .executeForString(HttpMethod.GET, "/v1/system/version", null);
+System.out.println("Connected to OpenMetadata: " + version);
 ```
 
-### JWT Authentication
-
-```java
-import org.openmetadata.client.auth.JWTAuthProvider;
-
-// Create client with JWT authentication
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("http://localhost:8585/api")
-    .authProvider(new JWTAuthProvider("your-jwt-token"))
-    .build();
-```
+For more information about getting a token, see [Authentication](/v2.0.x/api-reference/authentication).
 
 ## Core Functionality
 
 ### Working with Entities
 
+Every entity type has a service on the client, such as `client.databaseServices()`, `client.tables()`, and `client.users()`. These services offer methods such as `create`, `get`, `getByName`, `list`, `update`, `delete`, and `restore`.
+
 #### Database Services
 
 ```java
-import org.openmetadata.schema.entity.services.DatabaseService;
 import org.openmetadata.schema.api.services.CreateDatabaseService;
+import org.openmetadata.schema.api.services.DatabaseConnection;
+import org.openmetadata.schema.entity.services.DatabaseService;
+import org.openmetadata.schema.services.connections.database.MysqlConnection;
+import org.openmetadata.sdk.models.ListParams;
 
-// List all database services
-List<DatabaseService> services = client.listDatabaseServices();
-System.out.println("Found " + services.size() + " database services");
+// List database services
+var services = client.databaseServices().list(new ListParams().setLimit(50));
+System.out.println("Found " + services.getData().size() + " database services");
 
 // Get specific service by name
-DatabaseService service = client.getDatabaseServiceByName("mysql-prod");
+DatabaseService service = client.databaseServices().getByName("mysql-prod");
 
 // Create new database service
 CreateDatabaseService createRequest = new CreateDatabaseService()
     .withName("new-mysql-service")
-    .withServiceType(DatabaseServiceType.MYSQL)
-    .withDescription("Production MySQL database");
+    .withServiceType(CreateDatabaseService.DatabaseServiceType.Mysql)
+    .withDescription("Production MySQL database")
+    .withConnection(new DatabaseConnection().withConfig(
+        new MysqlConnection()
+            .withHostPort("localhost:3306")
+            .withUsername("openmetadata_user")));
 
-DatabaseService newService = client.createDatabaseService(createRequest);
+DatabaseService newService = client.databaseServices().create(createRequest);
 ```
 
 #### Tables
 
 ```java
-import org.openmetadata.schema.entity.data.Table;
+import java.util.List;
 import org.openmetadata.schema.api.data.CreateTable;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.schema.type.Column;
+import org.openmetadata.schema.type.ColumnDataType;
+import org.openmetadata.sdk.models.ListParams;
 
 // Get table by fully qualified name
-Table table = client.getTableByName("mysql-prod.employees.employees");
-if (table != null) {
-    System.out.println("Table: " + table.getName());
-    System.out.println("Columns: " + table.getColumns().size());
-}
+Table table = client.tables().getByName("mysql-prod.employees.public.employees", "columns");
+System.out.println("Table: " + table.getName());
+System.out.println("Columns: " + table.getColumns().size());
 
-// List tables with pagination
-EntityList<Table> tables = client.listTables(
-    10, // limit
-    null, // after cursor
-    "mysql-prod" // service filter
-);
+// List tables in a schema with pagination
+var tables = client.tables().list(
+    new ListParams()
+        .setLimit(10)
+        .addFilter("databaseSchema", "mysql-prod.employees.public"));
 
 // Create table
 CreateTable createTable = new CreateTable()
     .withName("new_table")
-    .withDatabaseSchema("mysql-prod.employees")
-    .withColumns(Arrays.asList(
+    .withDatabaseSchema("mysql-prod.employees.public")
+    .withColumns(List.of(
         new Column()
             .withName("id")
             .withDataType(ColumnDataType.BIGINT)
@@ -125,7 +127,7 @@ CreateTable createTable = new CreateTable()
             .withDescription("Employee name")
     ));
 
-Table newTable = client.createTable(createTable);
+Table newTable = client.tables().create(createTable);
 ```
 
 ### Entity Operations
@@ -133,111 +135,83 @@ Table newTable = client.createTable(createTable);
 #### CRUD Operations
 
 ```java
-// Create or Update
-DatabaseService service = client.createOrUpdateDatabaseService(createRequest);
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.schema.entity.services.DatabaseService;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// Create or update a table
+Table table = client.tables().createOrUpdate(createTable);
+
+// Create or update a database service
+DatabaseService service = client.getHttpClient().execute(
+    HttpMethod.PUT, "/v1/services/databaseServices", createRequest, DatabaseService.class);
 
 // Get by ID
-UUID serviceId = UUID.fromString("service-uuid-here");
-DatabaseService service = client.getDatabaseServiceById(serviceId);
+UUID serviceId = service.getId();
+DatabaseService sameService = client.databaseServices().get(serviceId);
 
 // Delete
-client.deleteDatabaseService(serviceId, false); // soft delete
-client.deleteDatabaseService(serviceId, true);  // hard delete
+client.databaseServices().delete(serviceId.toString()); // soft delete
+client.databaseServices().delete(serviceId.toString(), Map.of("hardDelete", "true")); // hard delete
 ```
 
 #### Search and Filtering
 
 ```java
-// Search tables
-SearchRequest searchRequest = new SearchRequest()
-    .withQuery("customer")
-    .withEntityTypes(Arrays.asList("table"))
-    .withSize(50);
+import org.openmetadata.sdk.models.ListParams;
 
-SearchResponse results = client.search(searchRequest);
-for (SearchHit hit : results.getHits()) {
-    System.out.println("Found: " + hit.getDisplayName());
-}
+// Search tables. The response is the raw JSON from the server.
+String results = client.search()
+    .query("customer")
+    .index("table_search_index")
+    .size(50)
+    .execute();
+System.out.println(results);
 
 // Advanced filtering
-EntityList<Table> customerTables = client.listTables(
-    100,
-    null,
-    Map.of(
-        "service", "mysql-prod",
-        "database", "ecommerce"
-    )
-);
+var customerTables = client.tables().list(
+    new ListParams()
+        .setLimit(100)
+        .addFilter("database", "mysql-prod.ecommerce"));
 ```
 
 ## Advanced Features
 
-### Authentication Providers
+### Authentication
 
-#### Custom Authentication
-
-```java
-import org.openmetadata.client.auth.AuthProvider;
-
-public class CustomAuthProvider implements AuthProvider {
-    private String customToken;
-
-    public CustomAuthProvider(String token) {
-        this.customToken = token;
-    }
-
-    @Override
-    public String getAuthToken() {
-        return "Bearer " + customToken;
-    }
-
-    @Override
-    public void refresh() {
-        // Implement token refresh logic
-    }
-}
-
-// Use custom auth provider
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("https://your-instance.com/api")
-    .authProvider(new CustomAuthProvider("custom-token"))
-    .build();
-```
-
-#### OAuth 2.0 Integration
+The Java SDK authenticates with a JWT access token. When your token changes, create a new client with the new token:
 
 ```java
-import org.openmetadata.client.auth.OAuth2AuthProvider;
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
 
-OAuth2AuthProvider authProvider = OAuth2AuthProvider.builder()
-    .clientId("your-client-id")
-    .clientSecret("your-client-secret")
-    .tokenUrl("https://auth.provider.com/oauth/token")
-    .scopes(Arrays.asList("read", "write"))
-    .build();
+String newToken = "your-new-jwt-token";
 
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("https://your-instance.com/api")
-    .authProvider(authProvider)
-    .build();
+OpenMetadataClient client = new OpenMetadataClient(
+    OpenMetadataConfig.builder()
+        .serverUrl("https://your-instance.com/api")
+        .accessToken(newToken)
+        .build());
 ```
 
 ### Error Handling
 
 ```java
-import org.openmetadata.client.exception.OpenMetadataException;
+import org.openmetadata.sdk.exceptions.OpenMetadataException;
 
 try {
-    Table table = client.getTableByName("non-existent-table");
+    var table = client.tables().getByName("non-existent-table");
 } catch (OpenMetadataException e) {
-    switch (e.getErrorCode()) {
-        case NOT_FOUND:
+    switch (e.getStatusCode()) {
+        case 404:
             System.out.println("Table not found");
             break;
-        case UNAUTHORIZED:
+        case 401:
             System.out.println("Authentication failed");
             break;
-        case FORBIDDEN:
+        case 403:
             System.out.println("Access denied");
             break;
         default:
@@ -248,15 +222,22 @@ try {
 
 ### Async Operations
 
-```java
-import java.util.concurrent.CompletableFuture;
+The service methods are blocking. To run them in parallel, wrap them in a `CompletableFuture`:
 
-// Async client operations
+```java
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.schema.entity.services.DatabaseService;
+import org.openmetadata.sdk.models.ListParams;
+
 CompletableFuture<List<DatabaseService>> servicesFuture =
-    client.listDatabaseServicesAsync();
+    CompletableFuture.supplyAsync(
+        () -> client.databaseServices().list(new ListParams().setLimit(50)).getData());
 
 CompletableFuture<Table> tableFuture =
-    client.getTableByNameAsync("mysql-prod.employees.employees");
+    CompletableFuture.supplyAsync(
+        () -> client.tables().getByName("mysql-prod.employees.public.employees", "columns"));
 
 // Combine async operations
 CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(
@@ -280,39 +261,19 @@ CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(
 ### Client Configuration
 
 ```java
-import org.openmetadata.client.config.ClientConfig;
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
 
-ClientConfig config = ClientConfig.builder()
-    .connectionTimeout(30000)     // 30 seconds
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("your-jwt-token")
+    .connectTimeout(30000)       // 30 seconds
     .readTimeout(60000)          // 60 seconds
-    .retryCount(3)               // Retry failed requests 3 times
-    .enableLogging(true)         // Enable request/response logging
-    .enableMetrics(true)         // Enable client metrics
-    .userAgent("MyApp/1.0")      // Custom user agent
+    .writeTimeout(60000)         // 60 seconds
+    .header("User-Agent", "MyApp/1.0") // Custom header on every request
     .build();
 
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("http://localhost:8585/api")
-    .authProvider(authProvider)
-    .config(config)
-    .build();
-```
-
-### Connection Pooling
-
-```java
-import org.openmetadata.client.config.ConnectionPoolConfig;
-
-ConnectionPoolConfig poolConfig = ConnectionPoolConfig.builder()
-    .maxTotal(100)               // Maximum total connections
-    .maxPerRoute(20)             // Maximum connections per route
-    .connectionTTL(300000)       // Connection TTL in milliseconds
-    .validateAfterInactivity(10000) // Validate connections after 10s
-    .build();
-
-ClientConfig config = ClientConfig.builder()
-    .connectionPoolConfig(poolConfig)
-    .build();
+OpenMetadataClient client = new OpenMetadataClient(config);
 ```
 
 ## Common Use Cases
@@ -320,15 +281,26 @@ ClientConfig config = ClientConfig.builder()
 ### Metadata Discovery
 
 ```java
-// Discover all tables in a service
-String serviceName = "mysql-prod";
+import java.util.ArrayList;
+import java.util.List;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.sdk.models.ListParams;
+
+// Discover all tables in a schema
+String schemaName = "mysql-prod.employees.public";
 List<Table> allTables = new ArrayList<>();
 
 String after = null;
 do {
-    EntityList<Table> batch = client.listTables(100, after, serviceName);
+    var params = new ListParams()
+        .setLimit(100)
+        .addFilter("databaseSchema", schemaName);
+    if (after != null) {
+        params.setAfter(after);
+    }
+    var batch = client.tables().list(params);
     allTables.addAll(batch.getData());
-    after = batch.getAfter();
+    after = batch.getPaging().getAfter();
 } while (after != null);
 
 System.out.println("Discovered " + allTables.size() + " tables");
@@ -337,17 +309,19 @@ System.out.println("Discovered " + allTables.size() + " tables");
 ### Bulk Operations
 
 ```java
+import java.util.List;
+import org.openmetadata.schema.entity.data.Table;
+import org.openmetadata.sdk.models.ListParams;
+
 // Bulk update table descriptions
-List<Table> tables = client.listAllTablesInService("mysql-prod");
+List<Table> tables = client.tables()
+    .list(new ListParams().setLimit(100).addFilter("databaseSchema", "mysql-prod.employees.public"))
+    .getData();
 
 for (Table table : tables) {
     if (table.getDescription() == null || table.getDescription().isEmpty()) {
-        CreateTable updateRequest = new CreateTable()
-            .withName(table.getName())
-            .withDatabaseSchema(table.getDatabaseSchema().getFullyQualifiedName())
-            .withDescription("Auto-generated description for " + table.getName());
-
-        client.createOrUpdateTable(updateRequest);
+        table.setDescription("Auto-generated description for " + table.getName());
+        client.tables().update(table.getId().toString(), table);
     }
 }
 ```
@@ -355,87 +329,61 @@ for (Table table : tables) {
 ### Lineage Operations
 
 ```java
-import org.openmetadata.schema.type.EntityLineage;
-
-// Get table lineage
-EntityLineage lineage = client.getTableLineage(
-    "mysql-prod.employees.employees",
-    1, // upstream depth
-    1  // downstream depth
+// Get table lineage as JSON (1 hop upstream, 1 hop downstream)
+String lineage = client.lineage().getLineageByName(
+    "table",
+    "mysql-prod.employees.public.employees",
+    "1", // upstream depth
+    "1"  // downstream depth
 );
 
-System.out.println("Upstream entities: " + lineage.getUpstreamEdges().size());
-System.out.println("Downstream entities: " + lineage.getDownstreamEdges().size());
+System.out.println(lineage);
 ```
 
-## Spring Boot Integration
+For more information about the fluent API for lineage, see [Java SDK for Lineage](/v2.0.x/api-reference/sdk/java/lineage).
 
-### Configuration Class
+## Use the Client in Your Application
 
-```java
-@Configuration
-@EnableConfigurationProperties(OpenMetadataProperties.class)
-public class OpenMetadataConfig {
-
-    @Bean
-    public OpenMetadataClient openMetadataClient(OpenMetadataProperties properties) {
-        return OpenMetadataClient.builder()
-            .baseUrl(properties.getBaseUrl())
-            .authProvider(new JWTAuthProvider(properties.getJwtToken()))
-            .build();
-    }
-}
-
-@ConfigurationProperties(prefix = "openmetadata")
-@Data
-public class OpenMetadataProperties {
-    private String baseUrl;
-    private String jwtToken;
-}
-```
-
-### Service Layer
+Create one `OpenMetadataClient` and share it across your application. If you use a framework such as Spring Boot, register the client as a singleton bean.
 
 ```java
-@Service
-public class MetadataService {
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+import org.openmetadata.sdk.models.ListParams;
+
+class MetadataService {
 
     private final OpenMetadataClient client;
 
-    public MetadataService(OpenMetadataClient client) {
-        this.client = client;
+    public MetadataService(String baseUrl, String jwtToken) {
+        this.client = new OpenMetadataClient(
+            OpenMetadataConfig.builder()
+                .serverUrl(baseUrl)
+                .accessToken(jwtToken)
+                .build());
     }
 
-    public List<Table> getTablesForService(String serviceName) {
-        return client.listAllTablesInService(serviceName);
-    }
-
-    public Table createTable(CreateTableRequest request) {
-        CreateTable createTable = new CreateTable()
-            .withName(request.getName())
-            .withDatabaseSchema(request.getSchemaFqn())
-            .withColumns(request.getColumns());
-
-        return client.createTable(createTable);
+    public java.util.List<org.openmetadata.schema.entity.data.Table> getTablesForSchema(String schemaFqn) {
+        return client.tables()
+            .list(new ListParams().setLimit(100).addFilter("databaseSchema", schemaFqn))
+            .getData();
     }
 }
 ```
 
 ## Best Practices
 
-1. **Resource Management**: Always close clients when done
-2. **Connection Pooling**: Use connection pooling for high-throughput applications
-3. **Error Handling**: Implement proper retry logic and error handling
-4. **Authentication**: Use secure authentication methods in production
-5. **Async Operations**: Use async methods for better performance in concurrent scenarios
-6. **Pagination**: Always handle pagination for large datasets
-7. **Caching**: Implement caching for frequently accessed entities
+- **Reuse the client**: Create one client and share it instead of creating a new one per request.
+- **Handle errors**: Catch `OpenMetadataException` and check the status code.
+- **Protect authentication**: Keep your JWT token in a secret store, not in source code.
+- **Use async operations**: Wrap calls in `CompletableFuture` for better performance in concurrent scenarios.
+- **Handle pagination**: Always handle pagination for large datasets.
+- **Cache entities**: Implement caching for frequently accessed entities.
 
 ## Performance Tips
 
-- Use batch operations when possible
-- Implement connection pooling for high-concurrency applications
-- Cache frequently accessed metadata
-- Use async operations for better throughput
-- Specify only required fields when fetching entities
-- Implement proper retry strategies with exponential backoff
+- Create one client and reuse it.
+- Cache frequently accessed metadata.
+- Run independent calls in parallel with `CompletableFuture`.
+- Specify only required fields when fetching entities.
+- Use filters to narrow lists before you read them.

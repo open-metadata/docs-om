@@ -48,31 +48,34 @@ configure(
 # List with pagination
 page = DatabaseServices.list(limit=50, fields=["owners", "tags"])
 for svc in page.entities:
-    print(f"{svc.name} ({svc.serviceType})")
+    print(f"{svc.name.root} ({svc.serviceType})")
     if svc.owners:
-        print(f"  Owners: {[o.name for o in svc.owners]}")
+        print(f"  Owners: {[o.name for o in svc.owners.root]}")
 
 # List all with auto-pagination
 all_services = DatabaseServices.list_all(batch_size=100)
 for service in all_services:
-    print(f"{service.fullyQualifiedName}")
+    print(f"{service.fullyQualifiedName.root}")
 ```
 
 ```java GET /v1/services/databaseServices
-import static org.openmetadata.sdk.fluent.DatabaseServices.*;
+import org.openmetadata.schema.entity.services.DatabaseService;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
 
-// Retrieve by ID
-DatabaseService service = DatabaseServices.retrieve(serviceId);
+// client is an initialized OpenMetadataClient.
 
-// List services
-var result = DatabaseServices.list()
-    .fields("owners", "tags")
-    .limit(50)
-    .execute();
+// List first page
+ListResponse<DatabaseService> firstPage = client.databaseServices().list(new ListParams().setLimit(50));
 
-for (DatabaseService svc : result.getData()) {
-    System.out.println(svc.getName() + " (" + svc.getServiceType() + ")");
+for (DatabaseService service : firstPage.getData()) {
+    System.out.println(service.getFullyQualifiedName());
 }
+
+// With fields
+ListResponse<DatabaseService> withFields = client.databaseServices().list(
+    new ListParams().setFields("owners,tags").setLimit(50)
+);
 ```
 
 ```bash GET /v1/services/databaseServices
@@ -190,7 +193,7 @@ Returns a paginated list of database service objects. By default, only basic fie
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+      Type of database service, for example Snowflake, BigQuery, PostgreSQL.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>

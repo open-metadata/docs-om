@@ -53,19 +53,19 @@ Manage followers, votes, and profiler configuration for database entities.
 
 ### Get Profiler Config
 
-`GET /v1/databases/{id}/profilerConfig`
+`GET /v1/databases/{id}/databaseProfilerConfig`
 
 ### Set Profiler Config
 
-`PUT /v1/databases/{id}/profilerConfig`
+`PUT /v1/databases/{id}/databaseProfilerConfig`
 
 ### Delete Profiler Config
 
-`DELETE /v1/databases/{id}/profilerConfig`
+`DELETE /v1/databases/{id}/databaseProfilerConfig`
 
 <RequestExample dropdown>
 ```python PUT /v1/databases/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import Databases
 
 configure(
@@ -73,27 +73,30 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 database_id = "550e8400-e29b-41d4-a716-446655440000"
 user_id = "user-uuid-here"
 
 # Add a follower
 database = Databases.add_followers(database_id, [user_id])
-print(f"Followers: {len(database.followers)}")
+print(f"Followers: {len(database.followers.root)}")
 
 # Remove a follower
 database = Databases.remove_followers(database_id, [user_id])
 
 # Add a vote
-database = Databases.add_vote(database_id, vote_type="votedUp")
+rest.put(f"/databases/{database_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-database = Databases.remove_vote(database_id)
+rest.put(f"/databases/{database_id}/vote", json={"updatedVoteType": "unVoted"})
 
 # Get profiler config
-config = Databases.get_profiler_config(database_id)
+database = Databases.retrieve(database_id, fields=["databaseProfilerConfig"])
+print(database.databaseProfilerConfig)
 
 # Set profiler config
-Databases.set_profiler_config(database_id, {
+rest.put(f"/databases/{database_id}/databaseProfilerConfig", json={
     "profileSampleConfig": {
       "sampleConfigType": "STATIC",
       "config": {
@@ -105,17 +108,72 @@ Databases.set_profiler_config(database_id, {
 })
 
 # Delete profiler config
-Databases.delete_profiler_config(database_id)
+rest.delete(f"/databases/{database_id}/databaseProfilerConfig")
 ```
 
 ```java PUT /v1/databases/{id}/followers
-import static org.openmetadata.sdk.fluent.Databases.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.schema.entity.data.Database;
+import org.openmetadata.schema.type.DatabaseProfilerConfig;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// client is an initialized OpenMetadataClient.
 
 String databaseId = "550e8400-e29b-41d4-a716-446655440000";
+String userId = "b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b";
 
-// Followers - use REST client directly
-// Votes and profiler config - use REST client directly
-// See curl examples for request format
+// Add a follower
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databases/" + databaseId + "/followers",
+    UUID.fromString(userId)
+);
+
+// Remove a follower
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/databases/" + databaseId + "/followers/" + userId,
+    null
+);
+
+// Add a vote
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databases/" + databaseId + "/vote",
+    Map.of("updatedVoteType", "votedUp")
+);
+
+// Remove a vote
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databases/" + databaseId + "/vote",
+    Map.of("updatedVoteType", "unVoted")
+);
+
+// Get profiler config
+Database database = client.databases().get(databaseId, "databaseProfilerConfig");
+DatabaseProfilerConfig profilerConfig = database.getDatabaseProfilerConfig();
+
+// Set profiler config
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/databases/" + databaseId + "/databaseProfilerConfig",
+    Map.of(
+        "profileSampleConfig", Map.of(
+            "sampleConfigType", "STATIC",
+            "config", Map.of("profileSample", 50, "profileSampleType", "PERCENTAGE")
+        ),
+        "sampleDataCount", 200
+    )
+);
+
+// Delete profiler config
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/databases/" + databaseId + "/databaseProfilerConfig",
+    null
+);
 ```
 
 ```bash PUT /v1/databases/{id}/followers
@@ -142,11 +200,11 @@ curl -X PUT "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/vo
   -d '{"updatedVoteType": "unVoted"}'
 
 # Get profiler config
-curl "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/profilerConfig" \
+curl "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/databaseProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 
 # Set profiler config
-curl -X PUT "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/profilerConfig" \
+curl -X PUT "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/databaseProfilerConfig" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,7 +219,7 @@ curl -X PUT "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/pr
   }'
 
 # Delete profiler config
-curl -X DELETE "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/profilerConfig" \
+curl -X DELETE "{base_url}/api/v1/databases/1d08c2c6-cea7-4adf-9043-0f6a6aaf9721/databaseProfilerConfig" \
   -H "Authorization: Bearer {access_token}"
 ```
 </RequestExample>

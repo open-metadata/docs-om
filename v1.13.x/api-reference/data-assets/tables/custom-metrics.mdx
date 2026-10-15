@@ -37,6 +37,8 @@ Define custom SQL-based metrics on a table or specific column. Custom metrics ar
 
 `DELETE /v1/tables/{id}/customMetric/{metricName}`
 
+To delete a column-level metric, use `DELETE /v1/tables/{id}/customMetric/{columnName}/{metricName}`.
+
 <ParamField path="id" type="string" required>
   UUID of the table.
 </ParamField>
@@ -47,57 +49,68 @@ Define custom SQL-based metrics on a table or specific column. Custom metrics ar
 
 <RequestExample dropdown>
 ```python PUT /v1/tables/{id}/customMetric
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import Tables
+from metadata.generated.schema.api.tests.createCustomMetric import CreateCustomMetricRequest
 
 configure(
     host="https://your-company.open-metadata.org/api",
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Add a table-level custom metric
-Tables.add_custom_metric(table_id, {
-    "name": "active_customer_ratio",
-    "description": "Ratio of active customers to total customers",
-    "expression": "SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
-})
+Tables.add_custom_metric(table_id, CreateCustomMetricRequest(
+    name="active_customer_ratio",
+    description="Ratio of active customers to total customers",
+    expression="SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
+))
 
 # Add a column-level custom metric
-Tables.add_custom_metric(table_id, {
-    "name": "email_domain_count",
-    "description": "Number of distinct email domains",
-    "columnName": "email",
-    "expression": "SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
-})
+Tables.add_custom_metric(table_id, CreateCustomMetricRequest(
+    name="email_domain_count",
+    description="Number of distinct email domains",
+    columnName="email",
+    expression="SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
+))
 
-# Delete a custom metric
-Tables.delete_custom_metric(table_id, "active_customer_ratio")
+# Delete a table-level custom metric
+rest.delete(f"/tables/{table_id}/customMetric/active_customer_ratio")
+
+# Delete a column-level custom metric
+rest.delete(f"/tables/{table_id}/customMetric/email/email_domain_count")
 ```
 
 ```java PUT /v1/tables/{id}/customMetric
-import static org.openmetadata.sdk.fluent.Tables.*;
+import org.openmetadata.schema.tests.CustomMetric;
+
+// client is an initialized OpenMetadataClient.
 
 String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 // Add a table-level custom metric
-Tables.addCustomMetric(tableId, Map.of(
-    "name", "active_customer_ratio",
-    "description", "Ratio of active customers to total customers",
-    "expression", "SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}"
-));
+CustomMetric tableMetric = new CustomMetric()
+    .withName("active_customer_ratio")
+    .withDescription("Ratio of active customers to total customers")
+    .withExpression("SELECT CAST(SUM(CASE WHEN active = true THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) FROM {table}");
+client.tables().updateCustomMetric(tableId, tableMetric);
 
 // Add a column-level custom metric
-Tables.addCustomMetric(tableId, Map.of(
-    "name", "email_domain_count",
-    "description", "Number of distinct email domains",
-    "columnName", "email",
-    "expression", "SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}"
-));
+CustomMetric columnMetric = new CustomMetric()
+    .withName("email_domain_count")
+    .withDescription("Number of distinct email domains")
+    .withColumnName("email")
+    .withExpression("SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM {table}");
+client.tables().updateCustomMetric(tableId, columnMetric);
 
-// Delete a custom metric
-Tables.deleteCustomMetric(tableId, "active_customer_ratio");
+// Delete a table-level custom metric
+client.tables().deleteCustomMetric(tableId, "active_customer_ratio");
+
+// Delete a column-level custom metric
+client.tables().deleteCustomMetric(tableId, "email/email_domain_count");
 ```
 
 ```bash PUT /v1/tables/{id}/customMetric

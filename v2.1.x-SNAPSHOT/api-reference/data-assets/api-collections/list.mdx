@@ -47,48 +47,53 @@ configure(
 
 # List first page
 collections = APICollections.list(limit=50)
-for ac in collections.data:
-    print(f"{ac.fullyQualifiedName}")
+for ac in collections.entities:
+    print(f"{ac.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for ac in APICollections.list_all():
-    print(f"{ac.fullyQualifiedName}")
+    print(f"{ac.fullyQualifiedName.root}")
 
 # Filter by service
 collections = APICollections.list(
-    service="sample_api_service",
-    fields=["owners", "tags", "domain"],
+    filters={"service": "sample_api_service"},
+    fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for ac in collections.data:
-    print(f"{ac.fullyQualifiedName}")
+for ac in collections.entities:
+    print(f"{ac.fullyQualifiedName.root}")
     if ac.owners:
-        print(f"  Owners: {[o.name for o in ac.owners]}")
+        print(f"  Owners: {[o.name for o in ac.owners.root]}")
     if ac.tags:
-        print(f"  Tags: {[t.tagFQN for t in ac.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in ac.tags]}")
 ```
 
 ```java GET /v1/apiCollections
-import static org.openmetadata.sdk.fluent.APICollections.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.APICollection;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = APICollections.list()
-    .limit(50)
-    .execute();
+ListResponse<APICollection> firstPage = client.apiCollections().list(
+    new ListParams().setLimit(50)
+);
 
-for (var ac : result.getData()) {
+for (APICollection ac : firstPage.getData()) {
     System.out.println(ac.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = APICollections.list()
-    .service("sample_api_service")
-    .fields("owners", "tags", "domain")
-    .limit(50)
-    .execute();
+ListResponse<APICollection> filtered = client.apiCollections().list(
+    new ListParams()
+        .setService("sample_api_service")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var ac : result.getData()) {
+for (APICollection ac : filtered.getData()) {
     System.out.println(ac.getFullyQualifiedName());
 }
 ```
@@ -180,7 +185,7 @@ Returns a paginated list of API collection objects. By default, only basic field
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of API service (e.g., Rest).
+      Type of API service, for example Rest.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>

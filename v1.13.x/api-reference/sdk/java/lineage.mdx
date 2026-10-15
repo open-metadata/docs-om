@@ -24,11 +24,14 @@ Before using the fluent API, initialize the client:
 ```java
 import org.openmetadata.sdk.api.Lineage;
 import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
 
-OpenMetadataClient client = OpenMetadataClient.builder()
-    .baseUrl("http://localhost:8585/api")
-    .jwtToken("<YOUR-JWT-TOKEN>")
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("<YOUR-JWT-TOKEN>")
     .build();
+
+OpenMetadataClient client = new OpenMetadataClient(config);
 
 Lineage.setDefaultClient(client);
 ```
@@ -38,6 +41,8 @@ Lineage.setDefaultClient(client);
 Retrieve the lineage graph for an entity by type and ID:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 // Get lineage with default depth (1 upstream, 1 downstream)
 Lineage.LineageGraph graph = Lineage.of("table", tableId).fetch();
 
@@ -47,9 +52,11 @@ String raw = graph.getRaw();
 
 ### Custom Depth
 
-Control how many hops upstream and downstream are returned:
+Control how many hops upstream and downstream are returned. Use a depth of 3 or less, because the server rejects deeper requests:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageGraph graph = Lineage.of("table", tableId)
     .upstream(3)
     .downstream(2)
@@ -59,14 +66,18 @@ Lineage.LineageGraph graph = Lineage.of("table", tableId)
 Or set both directions to the same value:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageGraph graph = Lineage.of("table", tableId)
-    .depth(5)
+    .depth(3)
     .fetch();
 ```
 
 ### Include Deleted Entities
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageGraph graph = Lineage.of("table", tableId)
     .includeDeleted(true)
     .fetch();
@@ -77,6 +88,8 @@ Lineage.LineageGraph graph = Lineage.of("table", tableId)
 Use `Lineage.connect()` to create an edge between two entities:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageEdge edge = Lineage.connect()
     .from("table", sourceTableId)
     .to("dashboard", dashboardId)
@@ -89,6 +102,8 @@ Lineage.LineageEdge edge = Lineage.connect()
 Map specific columns from the source entity to columns in the target entity:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageEdge edge = Lineage.connect()
     .from("table", sourceTableId)
     .fromColumns("customer_id", "order_date")
@@ -106,6 +121,8 @@ a `columnsLineage` array inside `lineageDetails`.
 Associate a pipeline entity that powers the transformation:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageEdge edge = Lineage.connect()
     .from("table", sourceTableId)
     .to("table", targetTableId)
@@ -119,6 +136,8 @@ Lineage.LineageEdge edge = Lineage.connect()
 Attach the SQL query driving the lineage:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageEdge edge = Lineage.connect()
     .from("table", sourceTableId)
     .to("table", targetTableId)
@@ -131,6 +150,8 @@ Lineage.LineageEdge edge = Lineage.connect()
 Combine all options:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.LineageEdge edge = Lineage.connect()
     .from("table", sourceTableId)
     .fromColumns("customer_id", "order_date")
@@ -147,6 +168,8 @@ Lineage.LineageEdge edge = Lineage.connect()
 Remove a lineage edge between two entities:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 Lineage.disconnect()
     .from("table", sourceTableId)
     .to("dashboard", dashboardId)
@@ -158,6 +181,8 @@ Lineage.disconnect()
 Export the lineage graph for a given entity by its fully qualified name:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 String csv = Lineage.export()
     .entity("table", "service.database.schema.my_table")
     .upstream(3)
@@ -167,28 +192,37 @@ String csv = Lineage.export()
 
 ## Impact Analysis
 
-Analyze which downstream (or upstream) entities are affected by changes to a given entity:
+To find the entities affected by a change, fetch the lineage graph in one direction and read the entities from the raw JSON. The `nodes` array lists every entity in the graph.
 
 ### Downstream Impact
 
 ```java
-Lineage.ImpactAnalysis impact = Lineage.impact()
-    .of("table", tableId)
-    .downstream()
-    .depth(3)
-    .analyze();
+import org.openmetadata.sdk.api.Lineage;
 
-int totalImpacted = impact.getTotalImpactCount();
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+Lineage.LineageGraph graph = Lineage.of("table", tableId)
+    .upstream(0)
+    .downstream(3)
+    .fetch();
+
+JsonNode lineage = new ObjectMapper().readTree(graph.getRaw());
+for (JsonNode node : lineage.path("nodes")) {
+    System.out.println(node.path("type").asText() + ": " + node.path("fullyQualifiedName").asText());
+}
+System.out.println("Impacted entities: " + lineage.path("nodes").size());
 ```
 
 ### Upstream Impact
 
 ```java
-Lineage.ImpactAnalysis impact = Lineage.impact()
-    .of("dashboard", dashboardId)
-    .upstream()
-    .depth(5)
-    .analyze();
+import org.openmetadata.sdk.api.Lineage;
+
+Lineage.LineageGraph graph = Lineage.of("dashboard", dashboardId)
+    .upstream(3)
+    .downstream(0)
+    .fetch();
 ```
 
 ## OpenLineage Events
@@ -197,6 +231,8 @@ The SDK also supports posting [OpenLineage](https://openlineage.io/) standard ev
 via the `OpenLineage` fluent API:
 
 ```java
+import org.openmetadata.sdk.api.Lineage;
+
 import org.openmetadata.sdk.fluent.OpenLineage;
 
 OpenLineage.setDefaultClient(client);
@@ -206,7 +242,7 @@ String response = OpenLineage.event()
     .withEventType("COMPLETE")
     .withEventTime("2024-01-15T12:00:00Z")
     .withJob("my-etl-job", "my-namespace")
-    .withRun("run-id-123")
+    .withRun("3f2b9c1e-5d4a-4e7b-8a6c-1d2e3f4a5b6c")
     .addInput("source_table", "my-namespace")
     .addOutput("target_table", "my-namespace")
     .send();
@@ -215,18 +251,20 @@ String response = OpenLineage.event()
 ### Batch Events
 
 ```java
+import org.openmetadata.sdk.fluent.OpenLineage;
+
 // Build individual events
 OpenLineage.RunEventBuilder event1 = OpenLineage.event()
     .withEventType("START")
     .withEventTime("2024-01-15T12:00:00Z")
     .withJob("job-1", "ns")
-    .withRun("run-1");
+    .withRun("7a1c2d3e-4b5f-4a6b-9c8d-0e1f2a3b4c5d");
 
 OpenLineage.RunEventBuilder event2 = OpenLineage.event()
     .withEventType("COMPLETE")
     .withEventTime("2024-01-15T12:05:00Z")
     .withJob("job-1", "ns")
-    .withRun("run-1");
+    .withRun("7a1c2d3e-4b5f-4a6b-9c8d-0e1f2a3b4c5d");
 
 // Send as a batch
 String response = OpenLineage.batch()
@@ -238,25 +276,32 @@ String response = OpenLineage.batch()
 ## Static API
 
 For simpler use cases, the `LineageAPI` class in `org.openmetadata.sdk.api` provides static methods
-that wrap the underlying HTTP calls:
+that wrap the underlying HTTP calls. They use a shared client, which you set up once with `OpenMetadata.initialize`:
 
 ```java
+import java.util.Map;
 import org.openmetadata.sdk.api.LineageAPI;
+import org.openmetadata.sdk.client.OpenMetadata;
+
+OpenMetadata.initialize("http://localhost:8585/api", "<YOUR-JWT-TOKEN>");
 
 // Get lineage by entity FQN
-String lineage = LineageAPI.getLineage("service.db.schema.table");
+String lineage = LineageAPI.getLineage("table/name/service.db.schema.table");
 
 // Get lineage with depth
-String lineage = LineageAPI.getLineage("service.db.schema.table", "3", "2");
+String lineageWithDepth = LineageAPI.getLineage("table/name/service.db.schema.table", "3", "2");
 
 // Get lineage by entity type and ID
-String lineage = LineageAPI.getEntityLineage("table", tableId);
+String lineageById = LineageAPI.getEntityLineage("table", tableId);
 
 // Add lineage (pass a Map matching the AddLineage JSON schema)
+Map<String, Object> lineageRequestMap = Map.of("edge", Map.of(
+    "fromEntity", Map.of("id", sourceTableId, "type", "table"),
+    "toEntity", Map.of("id", targetTableId, "type", "table")));
 String result = LineageAPI.addLineage(lineageRequestMap);
 
 // Delete lineage
-String result = LineageAPI.deleteLineage("table:fromId", "dashboard:toId");
+String deleted = LineageAPI.deleteLineage("table:" + sourceTableId, "dashboard:" + dashboardId);
 
 // Export lineage
 String csv = LineageAPI.exportLineage("service.db.schema.table", "table", "3", "2");
@@ -267,9 +312,13 @@ String csv = LineageAPI.exportLineage("service.db.schema.table", "table", "3", "
 All static methods have `CompletableFuture`-based async variants:
 
 ```java
-CompletableFuture<String> future = LineageAPI.getLineageAsync("service.db.schema.table");
+import java.util.concurrent.CompletableFuture;
+import org.openmetadata.sdk.api.LineageAPI;
+
+CompletableFuture<String> future = LineageAPI.getLineageAsync("table/name/service.db.schema.table");
 future.thenAccept(lineage -> System.out.println("Lineage: " + lineage));
 
-CompletableFuture<String> addFuture = LineageAPI.addLineageAsync(request);
-CompletableFuture<String> deleteFuture = LineageAPI.deleteLineageAsync("table:id1", "dashboard:id2");
+CompletableFuture<String> addFuture = LineageAPI.addLineageAsync(lineageRequestMap);
+CompletableFuture<String> deleteFuture = LineageAPI.deleteLineageAsync(
+    "table:" + sourceTableId, "dashboard:" + dashboardId);
 ```

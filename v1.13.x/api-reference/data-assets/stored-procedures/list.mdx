@@ -51,48 +51,53 @@ configure(
 
 # List first page
 procedures = StoredProcedures.list(limit=50)
-for sp in procedures.data:
-    print(f"{sp.fullyQualifiedName}")
+for sp in procedures.entities:
+    print(f"{sp.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for sp in StoredProcedures.list_all():
-    print(f"{sp.fullyQualifiedName}")
+    print(f"{sp.fullyQualifiedName.root}")
 
 # Filter by database schema
 procedures = StoredProcedures.list(
-    databaseSchema="snowflake_prod.analytics.public",
-    fields=["owners", "tags", "domain"],
+    filters={"databaseSchema": "snowflake_prod.analytics.public"},
+    fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for sp in procedures.data:
-    print(f"{sp.fullyQualifiedName}")
+for sp in procedures.entities:
+    print(f"{sp.fullyQualifiedName.root}")
     if sp.owners:
-        print(f"  Owners: {[o.name for o in sp.owners]}")
+        print(f"  Owners: {[o.name for o in sp.owners.root]}")
     if sp.tags:
-        print(f"  Tags: {[t.tagFQN for t in sp.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in sp.tags]}")
 ```
 
 ```java GET /v1/storedProcedures
-import static org.openmetadata.sdk.fluent.StoredProcedures.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.StoredProcedure;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = StoredProcedures.list()
-    .limit(50)
-    .execute();
+ListResponse<StoredProcedure> firstPage = client.storedProcedures().list(
+    new ListParams().setLimit(50)
+);
 
-for (var sp : result.getData()) {
+for (StoredProcedure sp : firstPage.getData()) {
     System.out.println(sp.getFullyQualifiedName());
 }
 
 // Filter by database schema with fields
-var result = StoredProcedures.list()
-    .databaseSchema("snowflake_prod.analytics.public")
-    .fields("owners", "tags", "domain")
-    .limit(50)
-    .execute();
+ListResponse<StoredProcedure> filtered = client.storedProcedures().list(
+    new ListParams()
+        .setDatabaseSchema("snowflake_prod.analytics.public")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var sp : result.getData()) {
+for (StoredProcedure sp : filtered.getData()) {
     System.out.println(sp.getFullyQualifiedName());
 }
 ```
@@ -199,7 +204,7 @@ Returns a paginated list of stored procedure objects. By default, only basic fie
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of database service (e.g., Snowflake, BigQuery, PostgreSQL).
+      Type of database service, for example Snowflake, BigQuery, PostgreSQL.
     </ResponseField>
 
     <ResponseField name="storedProcedureCode" type="object">

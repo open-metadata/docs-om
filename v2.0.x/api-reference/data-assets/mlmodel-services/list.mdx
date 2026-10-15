@@ -33,56 +33,64 @@ List all ML model services with optional filtering and pagination.
 
 <RequestExample dropdown>
 ```python GET /v1/services/mlmodelServices
-from metadata.sdk import configure
-from metadata.sdk.entities import MlModelServices
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.mlmodelService import MlModelService
 
-configure(
-    host="https://your-company.open-metadata.org/api",
-    jwt_token="your-jwt-token"
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
 )
 
 # List first page
-services = MlModelServices.list(limit=50)
-for svc in services.data:
-    print(f"{svc.fullyQualifiedName} ({svc.serviceType})")
+services = metadata.list_entities(entity=MlModelService, limit=50)
+for svc in services.entities:
+    print(f"{svc.fullyQualifiedName.root} ({svc.serviceType.value})")
 
 # List all with auto-pagination
-for svc in MlModelServices.list_all():
-    print(f"{svc.fullyQualifiedName}")
+for svc in metadata.list_all_entities(entity=MlModelService):
+    print(f"{svc.fullyQualifiedName.root}")
 
 # List with fields
-services = MlModelServices.list(
+services = metadata.list_entities(
+    entity=MlModelService,
     fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for svc in services.data:
-    print(f"{svc.fullyQualifiedName}")
+for svc in services.entities:
+    print(f"{svc.fullyQualifiedName.root}")
     if svc.owners:
-        print(f"  Owners: {[o.name for o in svc.owners]}")
+        print(f"  Owners: {[o.name for o in svc.owners.root]}")
 ```
 
 ```java GET /v1/services/mlmodelServices
-import static org.openmetadata.sdk.fluent.MlModelServices.*;
+import org.openmetadata.schema.entity.services.MlModelService;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = MlModelServices.list()
-    .limit(50)
-    .execute();
+ListResponse<MlModelService> firstPage = client.mlModelServices().list(new ListParams().setLimit(50));
 
-for (var svc : result.getData()) {
-    System.out.println(svc.getFullyQualifiedName());
+for (MlModelService service : firstPage.getData()) {
+    System.out.println(service.getFullyQualifiedName());
 }
 
-// List with fields
-var result = MlModelServices.list()
-    .fields("owners", "tags", "domains")
-    .limit(50)
-    .execute();
-
-for (var svc : result.getData()) {
-    System.out.println(svc.getFullyQualifiedName());
-}
+// With fields
+ListResponse<MlModelService> withFields = client.mlModelServices().list(
+    new ListParams().setFields("owners,tags,domains").setLimit(50)
+);
 ```
 
 ```bash GET /v1/services/mlmodelServices
@@ -160,7 +168,7 @@ Returns a paginated list of ML model service objects. By default, only basic fie
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of ML model service (e.g., Mlflow, Sklearn, SageMaker, CustomMlModel).
+      Type of ML model service, for example Mlflow, Sklearn, SageMaker, CustomMlModel.
     </ResponseField>
 
     <ResponseField name="connection" type="object">

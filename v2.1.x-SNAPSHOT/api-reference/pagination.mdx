@@ -124,25 +124,23 @@ if first_page.paging.after:
 ```
 
 ```java Basic Pagination
-import org.openmetadata.client.api.TablesApi;
-import org.openmetadata.client.model.TableList;
+import org.openmetadata.sdk.models.ListParams;
 
-TablesApi tablesApi = client.buildClient(TablesApi.class);
+// client is an initialized OpenMetadataClient.
 
 // Get first page
-TableList firstPage = tablesApi.listTables(null, 20, null, null, null);
+var firstPage = client.tables().list(new ListParams().setLimit(20));
 
 System.out.println("Total tables: " + firstPage.getPaging().getTotal());
-for (Table table : firstPage.getData()) {
+for (var table : firstPage.getData()) {
     System.out.println(table.getFullyQualifiedName());
 }
 
 // Get next page
 if (firstPage.getPaging().getAfter() != null) {
-    TableList nextPage = tablesApi.listTables(
-        null, 20, null, firstPage.getPaging().getAfter(), null
-    );
-    for (Table table : nextPage.getData()) {
+    var nextPage = client.tables().list(
+        new ListParams().setLimit(20).setAfter(firstPage.getPaging().getAfter()));
+    for (var table : nextPage.getData()) {
         System.out.println(table.getFullyQualifiedName());
     }
 }
@@ -200,15 +198,20 @@ for table in metadata.list_all_entities(entity=Table, limit=100):
 ```
 
 ```java Iterating Results
-import org.openmetadata.client.api.TablesApi;
+import org.openmetadata.sdk.models.ListParams;
 
-TablesApi tablesApi = client.buildClient(TablesApi.class);
+// client is an initialized OpenMetadataClient.
+
 String afterCursor = null;
 
 do {
-    TableList page = tablesApi.listTables(null, 100, null, afterCursor, null);
+    var params = new ListParams().setLimit(100);
+    if (afterCursor != null) {
+        params.setAfter(afterCursor);
+    }
+    var page = client.tables().list(params);
 
-    for (Table table : page.getData()) {
+    for (var table : page.getData()) {
         System.out.println(table.getFullyQualifiedName());
         // Process each table...
     }

@@ -32,7 +32,7 @@ List all test definitions with optional filtering and pagination.
 </ParamField>
 
 <ParamField query="testPlatform" type="string">
-  Filter by test platform (e.g., `OpenMetadata`).
+  Filter by test platform, for example `OpenMetadata`.
 </ParamField>
 
 <ParamField query="entityType" type="string">
@@ -40,7 +40,7 @@ List all test definitions with optional filtering and pagination.
 </ParamField>
 
 <ParamField query="supportedDataType" type="string">
-  Filter by supported data type (e.g., `STRING`, `INT`, `DOUBLE`).
+  Filter by supported data type, for example `STRING`, `INT`, `DOUBLE`.
 </ParamField>
 
 <RequestExample dropdown>
@@ -55,41 +55,43 @@ configure(
 
 # List first page
 definitions = TestDefinitions.list(limit=50)
-for td in definitions.data:
-    print(f"{td.name} ({td.entityType})")
+for td in definitions.entities:
+    print(f"{td.name.root} ({td.entityType.value})")
 
 # List all with auto-pagination
 for td in TestDefinitions.list_all():
-    print(f"{td.name}: {td.description}")
+    print(f"{td.name.root}: {td.description.root}")
 
 # Filter by entity type
 column_defs = TestDefinitions.list(
-    entityType="COLUMN",
+    filters={"entityType": "COLUMN"},
     fields=["owners"],
     limit=50
 )
 
-for td in column_defs.data:
-    print(f"{td.name} - supports: {td.supportedDataTypes}")
+for td in column_defs.entities:
+    print(f"{td.name.root} - supports: {td.supportedDataTypes}")
 ```
 
 ```java GET /v1/dataQuality/testDefinitions
-import static org.openmetadata.sdk.fluent.TestDefinitions.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = TestDefinitions.list()
-    .limit(50)
-    .execute();
-
-for (var td : result.getData()) {
-    System.out.println(td.getName() + " (" + td.getEntityType() + ")");
+var params = new ListParams().setLimit(50);
+var page = client.testDefinitions().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getName());
 }
 
 // Filter by entity type
-var result = TestDefinitions.list()
-    .entityType("COLUMN")
-    .limit(50)
-    .execute();
+var filtered = new ListParams()
+    .addFilter("entityType", "COLUMN")
+    .setLimit(50);
+var filteredPage = client.testDefinitions().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getName());
+}
 ```
 
 ```bash GET /v1/dataQuality/testDefinitions
@@ -186,7 +188,7 @@ Returns a paginated list of test definition objects. Use the `fields` parameter 
     </ResponseField>
 
     <ResponseField name="testPlatforms" type="array">
-      Supported test platforms (e.g., `OpenMetadata`).
+      Supported test platforms, for example `OpenMetadata`.
     </ResponseField>
 
     <ResponseField name="supportedDataTypes" type="array">
@@ -202,7 +204,7 @@ Returns a paginated list of test definition objects. Use the `fields` parameter 
         </ResponseField>
 
         <ResponseField name="dataType" type="string">
-          Data type of the parameter (e.g., `INT`, `STRING`, `BOOLEAN`).
+          Data type of the parameter, for example `INT`, `STRING`, `BOOLEAN`.
         </ResponseField>
 
         <ResponseField name="required" type="boolean">

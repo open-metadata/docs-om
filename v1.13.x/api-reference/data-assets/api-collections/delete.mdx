@@ -28,7 +28,7 @@ Delete an API collection by ID or fully qualified name. Supports soft delete (de
 Use `DELETE /v1/apiCollections/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the API collection (e.g., `sample_api_service.pet`).
+  Fully qualified name of the API collection, for example `sample_api_service.pet`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -66,36 +66,40 @@ APICollections.delete(
     hard_delete=True
 )
 
-# Delete by name
-APICollections.delete_by_name("sample_api_service.pet")
+# Delete by name (look up the ID first)
+entity = APICollections.retrieve_by_name("sample_api_service.pet")
+APICollections.delete(entity.id)
 
 # Delete by name with options
-APICollections.delete_by_name(
-    "sample_api_service.pet",
-    hard_delete=True
-)
+entity = APICollections.retrieve_by_name("sample_api_service.pet")
+APICollections.delete(entity.id, hard_delete=True)
 
 # Restore a soft-deleted API collection
 APICollections.restore("0f7ee81c-8163-4097-8adb-45c3d6c7b14b")
 ```
 
 ```java DELETE /v1/apiCollections/{id}
-import static org.openmetadata.sdk.fluent.APICollections.*;
+import java.util.Map;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// client is an initialized OpenMetadataClient.
 
 // Soft delete
-APICollections.delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b").execute();
+client.apiCollections().delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b");
 
 // Hard delete
-APICollections.delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b")
-    .hardDelete()
-    .execute();
+client.apiCollections().delete("0f7ee81c-8163-4097-8adb-45c3d6c7b14b", Map.of("hardDelete", "true"));
 
 // Delete by name
-APICollections.deleteByName("sample_api_service.pet")
-    .execute();
+client.getHttpClient().execute(
+    HttpMethod.DELETE,
+    "/v1/apiCollections/name/sample_api_service.pet",
+    null,
+    Void.class
+);
 
 // Restore
-APICollections.restore("0f7ee81c-8163-4097-8adb-45c3d6c7b14b");
+client.apiCollections().restore("0f7ee81c-8163-4097-8adb-45c3d6c7b14b");
 ```
 
 ```bash DELETE /v1/apiCollections/{id}

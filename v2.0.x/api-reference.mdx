@@ -86,10 +86,14 @@ metadata = OpenMetadata(server_config)
 # List tables
 tables = metadata.list_all_entities(entity=Table)
 for table in tables:
-    print(f"{table.fullyQualifiedName}: {table.description}")
+    print(f"{table.fullyQualifiedName.root}: {getattr(table.description, 'root', table.description)}")
 ```
 
 ```java Java
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+import org.openmetadata.sdk.models.ListParams;
+
 // Configure connection
 OpenMetadataConfig config = OpenMetadataConfig.builder()
     .serverUrl("https://your-company.open-metadata.org/api")
@@ -99,9 +103,8 @@ OpenMetadataConfig config = OpenMetadataConfig.builder()
 OpenMetadataClient client = new OpenMetadataClient(config);
 
 // List tables
-TablesApi tablesApi = client.buildClient(TablesApi.class);
-TableList tables = tablesApi.listTables(null, 10, null, null, null);
-for (Table table : tables.getData()) {
+var tables = client.tables().list(new ListParams().setLimit(10));
+for (var table : tables.getData()) {
     System.out.println(table.getFullyQualifiedName());
 }
 ```

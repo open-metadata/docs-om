@@ -24,204 +24,148 @@ You can add the below Maven Dependency for the OpenMetadata Java SDK.
 ```
 
 
-## Establish OpenMetadata Server Connection
+## Connect to the OpenMetadata Server
 
-To create OpenMetadata Gateway, you will need to establish a connection with *OpenMetadata Server*. The following
-inputs will be needed for the same.
-* Host Port: The url on which your instance of OpenMetadata is up and running.
-* ApiVersion: The value will be "v1".
-* Auth Provider: Provide the auth provider with which you need to configure.
-* Security Config: Provide the config for the selected auth provider.
+To connect to your OpenMetadata server, you need:
+
+* Server URL: The URL where your OpenMetadata instance is running, ending in `/api`. For example, `http://localhost:8585/api`.
+* Access token: A JSON Web Token (JWT) for a user or bot. See [Authentication](/v2.0.x/api-reference/authentication) to learn how to get one.
 
 ```java
-OpenMetadataConnection server = new OpenMetadataConnection();
-server.setHostPort("http://localhost:{port}}/api");
-server.setApiVersion("v1");
-server.setAuthProvider(OpenMetadataConnection.AuthProvider.{auth_provider});
-server.setSecurityConfig({security_client_config});
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("{jwt_token}")
+    .build();
+
+OpenMetadataClient client = new OpenMetadataClient(config);
 ```
 
-## Create OpenMetadata Gateway
-
-Once the connection details are provided, you can create an OpenMetadata Gateway
-using the following piece of code.
+Tune the connection with these options. Timeouts are in milliseconds, and `header` adds a custom header to every request:
 
 ```java
-// OpenMetadata Gateway
-OpenMetadata openMetadataGateway = new OpenMetadata(server);
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("{jwt_token}")
+    .connectTimeout(10000)
+    .readTimeout(30000)
+    .header("X-Request-Source", "my-app")
+    .build();
 ```
 
-## Use Java SDK without Authentication
-To use the Java SDK without any authentication, you can use `NoOpAuthenticationProvider.java`. \
+## Authenticate with a JWT Token
+
+The Java SDK authenticates with a JWT access token that you pass to `accessToken(...)`. This is the same for every sign-in method on your OpenMetadata server, including Google, Okta, Auth0, Azure, and custom OpenID Connect (OIDC). Generate a bot token or a personal access token in OpenMetadata and use it here.
+
+If your server doesn't require authentication, leave out `accessToken(...)`.
+
+## Use the Fluent API
+
+The fluent classes, such as `Tables`, `Users`, and `Teams`, work with a default client. Register your client once with `OM.init`, and the fluent classes use it:
 
 ```java
-NoOpAuthenticationProvider noOpAuthenticationProvider = new NoOpAuthenticationProvider();
+import org.openmetadata.sdk.OM;
+import org.openmetadata.sdk.fluent.Tables;
+
+OM.init(client);
+
+// Find a table by its fully qualified name
+var table = Tables.findByName("mysql-prod.employees.public.employees")
+    .includeOwners()
+    .includeTags()
+    .fetch()
+    .get();
+
+// Update its description
+Tables.findByName("mysql-prod.employees.public.employees")
+    .fetch()
+    .withDescription("Updated description")
+    .save();
 ```
 
-Establish the [OpenMetadata Server Connection](#establish-openmetadata-server-connection) and provide `noOpAuthenticationProvider` in the config.
+## Use the Service Clients
+
+Every entity type has a service on the client, such as `client.tables()`, `client.users()`, and `client.dashboards()`. These services offer methods such as `create`, `get`, `getByName`, `list`, `update`, `delete`, and `restore`. Below are some examples:
 
 ```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.NO_AUTH);
+import org.openmetadata.sdk.models.ListParams;
+
+// Tables
+var tables = client.tables().list(new ListParams().setLimit(10));
+for (var table : tables.getData()) {
+    System.out.println(table.getFullyQualifiedName());
+}
+
+// Users
+var users = client.users().list(new ListParams().setLimit(10));
+
+// Dashboards
+var dashboards = client.dashboards().list(new ListParams().setLimit(10));
 ```
 
-## Use Java SDK with Authentication.
+The following examples show how to call an API:
 
-The OpenMetadata Java SDK supports several auth providers:
-* [Google](#google)
-* [Okta](#okta)
-* [Auth0](#auth0)
-* [Azure](#azure)
-* [OpenMetadata](#openmetadata)
-
-Apart from the above mentioned auth providers, OpenMetadata Java SDK also supports [Custom OIDC](#custom-oidc).
-
-### Google
-To set up Google as the auth provider, the following details are required:
-* Secret Key: Pass the JSON file generated in [Create Service Account](/v2.0.x/deployment/security/google) as the secretKey.
+* Create a table
 
 ```java
-GoogleSSOClientConfig googleSSOClientConfig = new GoogleSSOClientConfig();
-ssoConfig.setAudience("https://www.googleapis.com/oauth2/v4/token");
-ssoConfig.setSecretKey("{secret_key.json}");
+import java.util.List;
+import org.openmetadata.schema.api.data.CreateTable;
+import org.openmetadata.schema.type.Column;
+import org.openmetadata.schema.type.ColumnDataType;
+
+CreateTable request = new CreateTable()
+    .withName("orders")
+    .withDatabaseSchema("mysql-prod.employees.public")
+    .withDescription("Orders placed by customers")
+    .withColumns(List.of(
+        new Column()
+            .withName("order_id")
+            .withDataType(ColumnDataType.BIGINT)
+            .withDescription("Primary key"),
+        new Column()
+            .withName("status")
+            .withDataType(ColumnDataType.VARCHAR)
+            .withDataLength(50)));
+
+var table = client.tables().create(request);
 ```
 
-Provide the Google config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.GOOGLE);
-server.setSecurityConfig(googleSSOClientConfig);
+* Get a table by fully qualified name
 
+```java
+var table = client.tables().getByName("mysql-prod.employees.public.employees", "columns,owners");
 ```
 
-### Okta
-To set up Okta as the auth provider, the following details should be provided:
-* Client ID: Provide the client ID for the service application
-* Org URL: It is the same as the ISSUER_URL with v1/token. It is recommended to use a separate authorization server for different applications, rather than using the default authorization server.
-* Private Key: Use the Public/Private Key Pair that was generated while [Creating the Service Application](/v2.0.x/deployment/security/okta#okta-sso). When copy-pasting the keys ensure that there are no additional codes and that it is a JSON compatible string.
-* Email: Enter the email address
-* Scopes: Add the details of the scope created in the Authorization Server. Enter the name of the default scope created.
+* Search
 
 ```java
-OktaSSOClientConfig oktaSSOClientConfig = new OktaSSOClientConfig();
-oktaSSOClientConfig.setClientId("{client_id}");
-oktaSSOClientConfig.setOrgURL("{org_url}/v1/token");
-oktaSSOClientConfig.setPrivateKey("{public/private keypair}");
-oktaSSOClientConfig.setEmail("{email}");
-oktaSSOClientConfig.setScopes({scope_list});
-```
-Provide the Okta config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.OKTA);
-server.setSecurityConfig(oktaSSOClientConfig);
-
+String response = client.search()
+    .query("customer")
+    .index("table_search_index")
+    .size(10)
+    .execute();
 ```
 
-### Auth0
-To set up Auth0 as the auth provider, the following details are required:
-* Client ID: Provide the client ID for the service application
-* Secret Key: Provide the client secret.
-* Domain: Provide the Auth0 domain. For example `test.us.auth0.com`
+The search call returns the raw JSON response from the server as a string.
+
+## Handle Errors
+
+When the server returns an error, the SDK throws an `OpenMetadataException`. Use `getStatusCode()` to see which error it was:
 
 ```java
-Auth0SSOClientConfig auth0SSOClientConfig = new Auth0SSOClientConfig();
-auth0SSOClientConfig.setClientId("{client_id}");
-auth0SSOClientConfig.setSecretKey("{secret_key}");
-auth0SSOClientConfig.setDomain("{domain}");
-```
-Provide the Auth0 config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.AUTH_0);
-server.setSecurityConfig(auth0SSOClientConfig);
-```
+import org.openmetadata.sdk.exceptions.OpenMetadataException;
 
-### Azure
-To set up Azure as the auth provider, the following details should be provided:
-* Client ID: The Application (Client) ID is displayed in the Overview section of the registered application.
-* Client Secret: The clientSecret can be accessed from the Certificates & secret section of the application.
-* Authority: Use your Microsoft Entra tenant authority. See [Microsoft's OpenID Connect documentation](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc) for the endpoint format.
-* Scopes: Add the details of the scope created.
-
-```java
-AzureSSOClientConfig azureSSOClientConfig = new AzureSSOClientConfig();
-azureSSOClientConfig.setClientId("{client_id}");
-azureSSOClientConfig.setClientSecret("{client_secret}");
-azureSSOClientConfig.setAuthority("{authority}");
-azureSSOClientConfig.setScopes({scope_list});
-```
-Provide the Azure config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.AZURE);
-server.setSecurityConfig(azureSSOClientConfig);
-```
-
-### OpenMetadata
-To set up OpenMetadata as the auth provider, the following details should be provided:
-* JWT Token: Provide the JWT Token. For example `eyJraWQiOiJHYjM4OWEtOWY3Ni1nZGpzLWE5Mmo....XN0aW9uLWJvdEBvcGVubWV0YWRhdGEub3JnIn0.Ku_FHGIS3Id3ARusMaXZDYKcq...Ztap9KDU7nZilNT2Bq-o75aIsgKKmtSuVdBTzpFK8aLGLmRp_8J007t-kpcjIW7Qf0l4...dGb0QqhoZin0JA`
-
-```java
-OpenMetadataJWTClientConfig openMetadataJWTClientConfig = new OpenMetadataJWTClientConfig();
-openMetadataJWTClientConfig.setJwtToken("{jwt_token}");
-```
-Provide the OpenMetadata config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.OPENMETADATA);
-server.setSecurityConfig(openMetadataJWTClientConfig);
-```
-
-### Custom OIDC
-To set up Custom auth provider. The following details are required:
-* Client ID: Provide the client ID of the preferred auth provider
-* Client Secret: Provide the client secret of your preferred auth provider
-* Token Endpoint: Provide the token endpoint of your preferred auth provider
-
-```java
-CustomOIDCSSOClientConfig customOIDCSSOClientConfig = new CustomOIDCSSOClientConfig();
-config.setClientId("{client_id}");
-config.setSecretKey("{client_secret}");
-config.setTokenEndpoint("{token_endpoint}");
-```
-
-Provide the custom auth provider config while creating the [server connection](#establish-openmetadata-server-connection).
-```java
-server.setAuthProvider(OpenMetadataServerConnection.AuthProvider.CUSTOM_OIDC);
-server.setSecurityConfig(customOIDCSSOClientConfig);
-```
-
-## How to Use APIs Using the Java SDK
-You can use an API from the [OpenMetadata Gateway](#create-openmetadata-gateway).
-Using OpenMetadata Gateway, you will need to build the client by providing the `class` of the respected API.
-Below are some examples:
-```java
-// Dashboards API
-DashboardsApi dashboardApi = openMetadataGateway.buildClient(DashboardsApi.class);
-
-// Tables API
-TablesApi tablesApiClient = openMetadataGateway.buildClient(TablesApi.class);
-
-// Users API
-UsersApi usersApi = openMetadataGateway.buildClient(UsersApi.class);
-
-// Locations API
-LocationsApi locationsApi = openMetadataGateway.buildClient(LocationsApi.class);
-```
-
-Please refer to the examples to access an API:
-* Tables API
-```java
-TablesApi tablesApi = openMetadataGateway.buildClient(TablesApi.class);
-tablesApi.addLocationToTable("{table_id}", "{location_id}");
-```
-* Location API
-```java
-LocationsApi locationsApi = openMetadataGateway.buildClient(LocationsApi.class);
-CreateLocation createLocation = new CreateLocation();
-Location location = locationsApi.createLocation(createLocation);
-```
-
-* Elastic Search API
-```java
-ElasticSearchApi esApi = openMetadataGateway.buildClient(ElasticSearchApi.class);
-Response response = esApi.searchEntitiesWithQuery("", "pipeline_search_index", false, 0, 0, null, null, true, "{\"query\":{\"bool\":{}}}", null, false, null  );
-String data = IOUtils.toString(response.body().asInputStream(), Charsets.UTF_8);
+try {
+    var table = client.tables().getByName("mysql-prod.employees.public.missing");
+} catch (OpenMetadataException e) {
+    if (e.getStatusCode() == 404) {
+        System.out.println("Table not found");
+    } else {
+        System.out.println("Request failed: " + e.getMessage());
+    }
+}
 ```
 
 ## More examples

@@ -24,11 +24,13 @@ Use `GET /v1/containers/{id}/versions/{version}` to retrieve a specific version.
 </ParamField>
 
 <ParamField path="version" type="string" required>
-  Version number to retrieve (e.g., `0.2`).
+  Version number to retrieve, for example `0.2`.
 </ParamField>
 
 <RequestExample dropdown>
 ```python GET /v1/containers/{id}/versions
+import json
+
 from metadata.sdk import configure
 from metadata.sdk.entities import Containers
 
@@ -40,28 +42,30 @@ configure(
 # List all versions
 versions = Containers.get_versions("14744329-85c2-499e-b1fa-249fb8162341")
 for v in versions:
-    print(f"Version {v.version}: {v.description}")
+    version = json.loads(v)
+    print(f"Version {version['version']}: {version.get('description')}")
 
 # Get a specific version
 container_v1 = Containers.get_specific_version(
     "14744329-85c2-499e-b1fa-249fb8162341",
     "0.1"
 )
-print(f"Original description: {container_v1.description}")
+print(f"Original description: {container_v1.description.root if container_v1.description else None}")
 ```
 
 ```java GET /v1/containers/{id}/versions
-import static org.openmetadata.sdk.fluent.Containers.*;
+import org.openmetadata.schema.entity.data.Container;
+import org.openmetadata.schema.type.EntityHistory;
+
+// client is an initialized OpenMetadataClient.
 
 // List all versions
-var history = Containers.getVersions("14744329-85c2-499e-b1fa-249fb8162341");
+EntityHistory history = client.containers().getVersionList("14744329-85c2-499e-b1fa-249fb8162341");
 
-for (var version : history.getVersions()) {
-    System.out.println("Version: " + version);
-}
+System.out.println("Total versions: " + history.getVersions().size());
 
 // Get a specific version
-var v1 = Containers.getSpecificVersion(
+Container v1 = client.containers().getVersion(
     "14744329-85c2-499e-b1fa-249fb8162341",
     0.1
 );

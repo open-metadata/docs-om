@@ -47,49 +47,47 @@ configure(
 
 # List first page
 teams = Teams.list(limit=50)
-for team in teams.data:
-    print(f"{team.fullyQualifiedName} ({team.teamType})")
+for team in teams.entities:
+    print(f"{team.fullyQualifiedName.root} ({team.teamType.value})")
 
 # List all with auto-pagination
 for team in Teams.list_all():
-    print(f"{team.fullyQualifiedName}")
+    print(f"{team.fullyQualifiedName.root}")
 
 # Filter by parent team
 teams = Teams.list(
-    parentTeam="Finance",
+    filters={"parentTeam": "Finance"},
     fields=["users", "parents", "policies"],
     limit=50
 )
 
-for team in teams.data:
-    print(f"{team.fullyQualifiedName}")
+for team in teams.entities:
+    print(f"{team.fullyQualifiedName.root}")
     if team.users:
-        print(f"  Users: {[u.name for u in team.users]}")
+        print(f"  Users: {[u.name for u in team.users.root]}")
     if team.parents:
-        print(f"  Parents: {[p.name for p in team.parents]}")
+        print(f"  Parents: {[p.name for p in team.parents.root]}")
 ```
 
 ```java GET /v1/teams
-import static org.openmetadata.sdk.fluent.Teams.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = Teams.list()
-    .limit(50)
-    .execute();
-
-for (var team : result.getData()) {
-    System.out.println(team.getFullyQualifiedName());
+var params = new ListParams().setLimit(50);
+var page = client.teams().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by parent team with fields
-var result = Teams.list()
-    .parentTeam("Finance")
-    .fields("users", "parents", "policies")
-    .limit(50)
-    .execute();
-
-for (var team : result.getData()) {
-    System.out.println(team.getFullyQualifiedName());
+var filtered = new ListParams()
+    .addFilter("parentTeam", "Finance")
+    .setFields("users,parents,policies")
+    .setLimit(50);
+var filteredPage = client.teams().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 

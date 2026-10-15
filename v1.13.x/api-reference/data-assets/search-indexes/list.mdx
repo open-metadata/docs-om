@@ -47,49 +47,52 @@ configure(
 
 # List first page
 indexes = SearchIndexes.list(limit=50)
-for si in indexes.data:
-    print(f"{si.fullyQualifiedName}")
+for si in indexes.entities:
+    print(f"{si.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for si in SearchIndexes.list_all():
-    print(f"{si.fullyQualifiedName}")
+    print(f"{si.fullyQualifiedName.root}")
 
 # Filter by service
 indexes = SearchIndexes.list(
-    service="elasticsearch_sample",
-    fields=["owners", "tags", "domain"],
+    filters={"service": "elasticsearch_sample"},
+    fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for si in indexes.data:
-    print(f"{si.fullyQualifiedName}")
+for si in indexes.entities:
+    print(f"{si.fullyQualifiedName.root}")
     if si.owners:
-        print(f"  Owners: {[o.name for o in si.owners]}")
+        print(f"  Owners: {[o.name for o in si.owners.root]}")
     if si.tags:
-        print(f"  Tags: {[t.tagFQN for t in si.tags]}")
+        print(f"  Tags: {[tag.tagFQN.root for tag in si.tags]}")
 ```
 
 ```java GET /v1/searchIndexes
-import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+import org.openmetadata.schema.entity.data.SearchIndex;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = SearchIndexes.list()
-    .limit(50)
-    .execute();
+ListResponse<SearchIndex> firstPage = client.searchIndexes().list(new ListParams().setLimit(50));
 
-for (var si : result.getData()) {
-    System.out.println(si.getFullyQualifiedName());
+for (SearchIndex item : firstPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by service with fields
-var result = SearchIndexes.list()
-    .service("elasticsearch_sample")
-    .fields("owners", "tags", "domain")
-    .limit(50)
-    .execute();
+ListResponse<SearchIndex> filtered = client.searchIndexes().list(
+    new ListParams()
+        .setService("elasticsearch_sample")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var si : result.getData()) {
-    System.out.println(si.getFullyQualifiedName());
+for (SearchIndex item : filtered.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 ```
 
@@ -179,7 +182,7 @@ Returns a paginated list of search index objects. By default, only basic fields 
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of search service (e.g., ElasticSearch, OpenSearch).
+      Type of search service, for example ElasticSearch, OpenSearch.
     </ResponseField>
 
     <ResponseField name="fields" type="array">

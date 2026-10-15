@@ -25,20 +25,32 @@ go get github.com/open-metadata/openmetadata-sdk/openmetadata-go-client
 
 ## Create a Client
 
-To interact with the OpenMetadata API, create a `Client` by providing the server URL and a JWT token for authentication:
+To interact with the OpenMetadata API, create a `Client` by providing the server URL and a JWT token for authentication. Pass the server address without the `/api` suffix (for example `http://localhost:8585`). The client adds `/api/v1` itself.
 
 ```go
 package main
 
 import (
+	"context"
+	"fmt"
+	"log"
+
 	"github.com/open-metadata/openmetadata-sdk/openmetadata-go-client/pkg/ometa"
 )
 
 func main() {
+	ctx := context.Background()
 	client := ometa.NewClient(
 		"http://localhost:8585",
 		ometa.WithToken("<your-jwt-token>"),
 	)
+
+	for table, err := range client.Tables.List(ctx, nil) {
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(table.Name)
+	}
 }
 ```
 
@@ -56,6 +68,8 @@ You can customize the client behavior using functional options:
 Requests that return HTTP `429` (Too Many Requests) or `504` (Gateway Timeout) are automatically retried.
 
 ```go
+import "time"
+
 client := ometa.NewClient(
 	"http://localhost:8585",
 	ometa.WithToken("<your-jwt-token>"),
@@ -92,6 +106,8 @@ Every service provides the following methods:
 The `List` method returns a Go iterator that handles pagination automatically:
 
 ```go
+ctx := context.Background()
+
 for table, err := range client.Tables.List(ctx, nil) {
 	if err != nil {
 		log.Fatal(err)
@@ -106,10 +122,10 @@ Retrieve a single entity by UUID or by Fully Qualified Name:
 
 ```go
 // By ID
-table, err := client.Tables.GetByID(ctx, "<table-uuid>", nil)
+tableByID, err := client.Tables.GetByID(ctx, "<table-uuid>", nil)
 
 // By Fully Qualified Name
-table, err := client.Tables.GetByName(ctx, "sample_data.ecommerce_db.shopify.dim_customer", nil)
+tableByName, err := client.Tables.GetByName(ctx, "sample_data.ecommerce_db.shopify.dim_customer", nil)
 ```
 
 ### Create an Entity
@@ -161,7 +177,7 @@ Delete by UUID or by Fully Qualified Name:
 err := client.Tables.Delete(ctx, "<table-uuid>", nil)
 
 // By Fully Qualified Name with hard delete
-err := client.Tables.DeleteByName(ctx, "sample_data.ecommerce_db.shopify.my_table",
+err = client.Tables.DeleteByName(ctx, "sample_data.ecommerce_db.shopify.my_table",
 	&ometa.DeleteTable1Params{HardDelete: ometa.Bool(true)},
 )
 ```
@@ -181,8 +197,9 @@ table, err := client.Tables.GetVersion(ctx, "<table-uuid>", "0.2")
 ### Restore a Soft-Deleted Entity
 
 ```go
-table, err := client.Tables.Restore(ctx, &ometa.RestoreEntity{
-	Id: ometa.Str("<table-uuid>"),
+// table is a *ometa.Table you retrieved earlier
+restored, err := client.Tables.Restore(ctx, &ometa.RestoreEntity{
+	Id: table.Id,
 })
 ```
 

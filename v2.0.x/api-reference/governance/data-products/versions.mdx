@@ -24,11 +24,13 @@ Use `GET /v1/dataProducts/{id}/versions/{version}` to retrieve a specific versio
 </ParamField>
 
 <ParamField path="version" type="string" required>
-  Version number to retrieve (e.g., `0.2`).
+  Version number to retrieve, for example `0.2`.
 </ParamField>
 
 <RequestExample dropdown>
 ```python GET /v1/dataProducts/{id}/versions
+import json
+
 from metadata.sdk import configure
 from metadata.sdk.entities import DataProducts
 
@@ -40,31 +42,29 @@ configure(
 # List all versions
 versions = DataProducts.get_versions("b1839f98-f046-5f35-bdef-20f9b3395cb2")
 for v in versions:
-    print(f"Version {v.version}: {v.description}")
+    version = json.loads(v)
+    print(f"Version {version['version']}: {version.get('description')}")
 
 # Get a specific version
 dp_v1 = DataProducts.get_specific_version(
     "b1839f98-f046-5f35-bdef-20f9b3395cb2",
     "0.1"
 )
-print(f"Original description: {dp_v1.description}")
+print(f"Original description: {getattr(dp_v1.description, 'root', dp_v1.description)}")
 ```
 
 ```java GET /v1/dataProducts/{id}/versions
-import static org.openmetadata.sdk.fluent.DataProducts.*;
+// client is an initialized OpenMetadataClient.
+var id = "b1839f98-f046-5f35-bdef-20f9b3395cb2";
 
 // List all versions
-var history = DataProducts.getVersions("b1839f98-f046-5f35-bdef-20f9b3395cb2");
-
+var history = client.dataProducts().getVersionList(id);
 for (var version : history.getVersions()) {
     System.out.println("Version: " + version);
 }
 
 // Get a specific version
-var v1 = DataProducts.getSpecificVersion(
-    "b1839f98-f046-5f35-bdef-20f9b3395cb2",
-    0.1
-);
+var v1 = client.dataProducts().getVersion(id, 0.1);
 System.out.println("Description: " + v1.getDescription());
 ```
 
@@ -84,8 +84,8 @@ curl "{base_url}/api/v1/dataProducts/b1839f98-f046-5f35-bdef-20f9b3395cb2/versio
 {
   "entityType": "dataProduct",
   "versions": [
-    "{\"id\":\"b1839f98-f046-5f35-bdef-20f9b3395cb2\",\"name\":\"CustomerInsights\",\"fullyQualifiedName\":\"Marketing.CustomerInsights\",\"version\":0.2,\"description\":\"Updated description\"}",
-    "{\"id\":\"b1839f98-f046-5f35-bdef-20f9b3395cb2\",\"name\":\"CustomerInsights\",\"fullyQualifiedName\":\"Marketing.CustomerInsights\",\"version\":0.1,\"description\":\"Curated customer analytics data product\"}"
+    "{\"id\":\"b1839f98-f046-5f35-bdef-20f9b3395cb2\",\"name\":\"CustomerInsights\",\"fullyQualifiedName\":\"CustomerInsights\",\"version\":0.2,\"description\":\"Updated description\"}",
+    "{\"id\":\"b1839f98-f046-5f35-bdef-20f9b3395cb2\",\"name\":\"CustomerInsights\",\"fullyQualifiedName\":\"CustomerInsights\",\"version\":0.1,\"description\":\"Curated customer analytics data product\"}"
   ]
 }
 ```

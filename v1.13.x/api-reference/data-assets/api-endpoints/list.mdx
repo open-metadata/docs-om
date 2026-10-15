@@ -51,48 +51,53 @@ configure(
 
 # List first page
 endpoints = APIEndpoints.list(limit=50)
-for ep in endpoints.data:
-    print(f"{ep.fullyQualifiedName}")
+for ep in endpoints.entities:
+    print(f"{ep.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for ep in APIEndpoints.list_all():
-    print(f"{ep.fullyQualifiedName}")
+    print(f"{ep.fullyQualifiedName.root}")
 
 # Filter by API collection
 endpoints = APIEndpoints.list(
-    apiCollection="sample_api_service.pet",
-    fields=["owners", "tags", "domain"],
+    filters={"apiCollection": "sample_api_service.pet"},
+    fields=["owners", "tags", "domains"],
     limit=50
 )
 
-for ep in endpoints.data:
-    print(f"{ep.fullyQualifiedName} [{ep.requestMethod}]")
+for ep in endpoints.entities:
+    print(f"{ep.fullyQualifiedName.root} [{ep.requestMethod.value}]")
     if ep.owners:
-        print(f"  Owners: {[o.name for o in ep.owners]}")
+        print(f"  Owners: {[o.name for o in ep.owners.root]}")
     if ep.tags:
-        print(f"  Tags: {[t.tagFQN for t in ep.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in ep.tags]}")
 ```
 
 ```java GET /v1/apiEndpoints
-import static org.openmetadata.sdk.fluent.APIEndpoints.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.APIEndpoint;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = APIEndpoints.list()
-    .limit(50)
-    .execute();
+ListResponse<APIEndpoint> firstPage = client.apiEndpoints().list(
+    new ListParams().setLimit(50)
+);
 
-for (var ep : result.getData()) {
+for (APIEndpoint ep : firstPage.getData()) {
     System.out.println(ep.getFullyQualifiedName());
 }
 
 // Filter by API collection with fields
-var result = APIEndpoints.list()
-    .apiCollection("sample_api_service.pet")
-    .fields("owners", "tags", "domain")
-    .limit(50)
-    .execute();
+ListResponse<APIEndpoint> filtered = client.apiEndpoints().list(
+    new ListParams()
+        .addFilter("apiCollection", "sample_api_service.pet")
+        .setFields("owners,tags,domains")
+        .setLimit(50)
+);
 
-for (var ep : result.getData()) {
+for (APIEndpoint ep : filtered.getData()) {
     System.out.println(ep.getFullyQualifiedName());
 }
 ```
@@ -196,7 +201,7 @@ Returns a paginated list of API endpoint objects. By default, only basic fields 
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of API service (e.g., Rest).
+      Type of API service, for example Rest.
     </ResponseField>
 
     <ResponseField name="owners" type="array" optional>

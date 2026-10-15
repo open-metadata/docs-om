@@ -32,7 +32,7 @@ Create a custom test definition to define organization-specific data quality val
 </ParamField>
 
 <ParamField body="supportedDataTypes" type="array">
-  Array of data types this test can be applied to (e.g., `STRING`, `INT`, `DOUBLE`, `VARCHAR`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BOOLEAN`). Only applicable when `entityType` is `COLUMN`.
+  Array of data types this test can be applied to, for example `STRING`, `INT`, `DOUBLE`, `VARCHAR`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BOOLEAN`. Only applicable when `entityType` is `COLUMN`.
 </ParamField>
 
 <ParamField body="parameterDefinition" type="array">
@@ -44,7 +44,7 @@ Create a custom test definition to define organization-specific data quality val
     </ParamField>
 
     <ParamField body="dataType" type="string" required>
-      Data type of the parameter (e.g., `INT`, `STRING`, `BOOLEAN`, `ARRAY`, `TABLE`).
+      Data type of the parameter, for example `INT`, `STRING`, `BOOLEAN`, `ARRAY`, `TABLE`.
     </ParamField>
 
     <ParamField body="required" type="boolean">
@@ -92,7 +92,7 @@ Create a custom test definition to define organization-specific data quality val
     </ParamField>
 
     <ParamField body="type" type="string">
-      Type of owner entity (e.g., `user`, `team`).
+      Type of owner entity, for example `user`, `team`.
     </ParamField>
 
     <ParamField body="name" type="string">
@@ -136,21 +136,40 @@ request = CreateTestDefinitionRequest(
 )
 
 test_def = TestDefinitions.create(request)
-print(f"Created: {test_def.name}")
+print(f"Created: {test_def.name.root}")
 ```
 
 ```java POST /v1/dataQuality/testDefinitions
-import static org.openmetadata.sdk.fluent.TestDefinitions.*;
 import java.util.List;
+import org.openmetadata.schema.api.tests.CreateTestDefinition;
+import org.openmetadata.schema.tests.TestCaseParameter;
+import org.openmetadata.schema.tests.TestPlatform;
+import org.openmetadata.schema.type.ColumnDataType;
+import org.openmetadata.schema.type.TestCaseParameterDataType;
+import org.openmetadata.schema.type.TestDefinitionEntityType;
 
-var testDef = TestDefinitions.builder()
-    .name("columnValuesToMatchBusinessRule")
-    .displayName("Column Values To Match Business Rule")
-    .description("Validates that column values conform to a custom business rule regex pattern")
-    .entityType("COLUMN")
-    .testPlatforms(List.of("OpenMetadata"))
-    .supportedDataTypes(List.of("STRING", "VARCHAR", "TEXT"))
-    .create();
+// client is an initialized OpenMetadataClient.
+var request = new CreateTestDefinition()
+    .withName("columnValuesToMatchBusinessRule")
+    .withDisplayName("Column Values To Match Business Rule")
+    .withDescription("Validates that column values conform to a custom business rule regex pattern")
+    .withEntityType(TestDefinitionEntityType.COLUMN)
+    .withTestPlatforms(List.of(TestPlatform.OPEN_METADATA))
+    .withSupportedDataTypes(List.of(
+        ColumnDataType.STRING, ColumnDataType.VARCHAR, ColumnDataType.TEXT))
+    .withParameterDefinition(List.of(
+        new TestCaseParameter()
+            .withName("regexPattern")
+            .withDataType(TestCaseParameterDataType.STRING)
+            .withRequired(true)
+            .withDescription("The regex pattern to match against"),
+        new TestCaseParameter()
+            .withName("threshold")
+            .withDataType(TestCaseParameterDataType.INT)
+            .withRequired(false)
+            .withDescription("Maximum number of non-matching values allowed")));
+
+var testDefinition = client.testDefinitions().create(request);
 ```
 
 ```bash POST /v1/dataQuality/testDefinitions

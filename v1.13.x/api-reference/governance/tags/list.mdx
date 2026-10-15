@@ -12,7 +12,7 @@ List all tags with optional filtering and pagination.
 ## Query Parameters
 
 <ParamField query="parent" type="string">
-  Filter by parent classification fully qualified name (e.g., `Certification`).
+  Filter by parent classification fully qualified name, for example `Certification`.
 </ParamField>
 
 <ParamField query="limit" type="integer" default="10">
@@ -47,44 +47,46 @@ configure(
 
 # List first page
 tags = Tags.list(limit=50)
-for t in tags.data:
-    print(f"{t.fullyQualifiedName}")
+for t in tags.entities:
+    print(f"{t.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for t in Tags.list_all():
-    print(f"{t.fullyQualifiedName}")
+    print(f"{t.fullyQualifiedName.root}")
 
 # Filter by classification
 tags = Tags.list(
-    parent="Certification",
+    filters={"parent": "Certification"},
     fields=["owners", "children"],
     limit=50
 )
 
-for t in tags.data:
-    print(f"{t.fullyQualifiedName}")
+for t in tags.entities:
+    print(f"{t.fullyQualifiedName.root}")
     if t.style:
-        print(f"  Color: {t.style.get('color')}")
+        print(f"  Color: {t.style.color}")
 ```
 
 ```java GET /v1/tags
-import static org.openmetadata.sdk.fluent.Tags.*;
+import org.openmetadata.sdk.models.ListParams;
 
+// client is an initialized OpenMetadataClient.
 // List first page
-var result = Tags.list()
-    .limit(50)
-    .execute();
-
-for (var t : result.getData()) {
-    System.out.println(t.getFullyQualifiedName());
+var params = new ListParams().setLimit(50);
+var page = client.tags().list(params);
+for (var item : page.getData()) {
+    System.out.println(item.getFullyQualifiedName());
 }
 
 // Filter by classification with fields
-var result = Tags.list()
-    .parent("Certification")
-    .fields("owners", "children")
-    .limit(50)
-    .execute();
+var filtered = new ListParams()
+    .addFilter("parent", "Certification")
+    .setFields("owners,children")
+    .setLimit(50);
+var filteredPage = client.tags().list(filtered);
+for (var item : filteredPage.getData()) {
+    System.out.println(item.getFullyQualifiedName());
+}
 ```
 
 ```bash GET /v1/tags

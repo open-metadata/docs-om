@@ -28,7 +28,7 @@ List all containers with optional filtering and pagination.
 </ParamField>
 
 <ParamField query="fields" type="string">
-  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `dataModel`, `children`, `sourceHash`. See [Supported Fields](#supported-fields) below.
+  Comma-separated list of fields to include: `owners`, `tags`, `followers`, `votes`, `extension`, `domains`, `dataModel`, `sourceHash`. See [Supported Fields](#supported-fields) below.
 </ParamField>
 
 <ParamField query="include" type="string" default="non-deleted">
@@ -47,49 +47,54 @@ configure(
 
 # List first page
 containers = Containers.list(limit=50)
-for c in containers.data:
-    print(f"{c.fullyQualifiedName}")
+for c in containers.entities:
+    print(f"{c.fullyQualifiedName.root}")
 
 # List all with auto-pagination
 for c in Containers.list_all():
-    print(f"{c.fullyQualifiedName}")
+    print(f"{c.fullyQualifiedName.root}")
 
 # Filter by storage service
 containers = Containers.list(
-    service="s3_datalake",
+    filters={"service": "s3_datalake"},
     fields=["owners", "tags", "dataModel"],
     limit=50
 )
 
-for c in containers.data:
-    print(f"{c.fullyQualifiedName}")
+for c in containers.entities:
+    print(f"{c.fullyQualifiedName.root}")
     if c.owners:
-        print(f"  Owners: {[o.name for o in c.owners]}")
+        print(f"  Owners: {[o.name for o in c.owners.root]}")
     if c.tags:
-        print(f"  Tags: {[t.tagFQN for t in c.tags]}")
+        print(f"  Tags: {[t.tagFQN.root for t in c.tags]}")
 ```
 
 ```java GET /v1/containers
-import static org.openmetadata.sdk.fluent.Containers.*;
+import org.openmetadata.sdk.models.ListParams;
+import org.openmetadata.sdk.models.ListResponse;
+import org.openmetadata.schema.entity.data.Container;
+
+// client is an initialized OpenMetadataClient.
 
 // List first page
-var result = Containers.list()
-    .limit(50)
-    .execute();
+ListResponse<Container> firstPage = client.containers().list(
+    new ListParams().setLimit(50)
+);
 
-for (var c : result.getData()) {
-    System.out.println(c.getFullyQualifiedName());
+for (Container container : firstPage.getData()) {
+    System.out.println(container.getFullyQualifiedName());
 }
 
-// Filter by storage service with fields
-var result = Containers.list()
-    .service("s3_datalake")
-    .fields("owners", "tags", "dataModel")
-    .limit(50)
-    .execute();
+// Filter by service with fields
+ListResponse<Container> filtered = client.containers().list(
+    new ListParams()
+        .setService("s3_datalake")
+        .setFields("owners,tags,dataModel")
+        .setLimit(50)
+);
 
-for (var c : result.getData()) {
-    System.out.println(c.getFullyQualifiedName());
+for (Container container : filtered.getData()) {
+    System.out.println(container.getFullyQualifiedName());
 }
 ```
 
@@ -103,7 +108,7 @@ curl "{base_url}/api/v1/containers?service=s3_datalake&limit=50" \
   -H "Authorization: Bearer {access_token}"
 
 # With fields
-curl "{base_url}/api/v1/containers?service=s3_datalake&fields=owners,tags,dataModel,children&limit=50" \
+curl "{base_url}/api/v1/containers?service=s3_datalake&fields=owners,tags,dataModel&limit=50" \
   -H "Authorization: Bearer {access_token}"
 ```
 </RequestExample>
@@ -186,7 +191,7 @@ Returns a paginated list of container objects. By default, only basic fields are
     </ResponseField>
 
     <ResponseField name="serviceType" type="string">
-      Type of storage service (e.g., S3, GCS, ADLS, CustomStorage).
+      Type of storage service, for example S3, GCS, ADLS, CustomStorage.
     </ResponseField>
 
     <ResponseField name="prefix" type="string" optional>
@@ -229,10 +234,6 @@ Returns a paginated list of container objects. By default, only basic fields are
       Data model describing the schema of files. Only included when `fields` contains `dataModel`.
     </ResponseField>
 
-    <ResponseField name="children" type="array" optional>
-      Nested child containers. Only included when `fields` contains `children`.
-    </ResponseField>
-
     <ResponseField name="extension" type="object" optional>
       Custom properties. Only included when `fields` contains `extension`.
     </ResponseField>
@@ -272,7 +273,6 @@ The following fields can be requested via the `fields` query parameter:
 | `extension` | Custom property values |
 | `domains` | Domain assignments for governance |
 | `dataModel` | Data model with column definitions |
-| `children` | Nested child containers |
 | `sourceHash` | Hash for change detection |
 
 ---

@@ -28,7 +28,7 @@ Delete a search index by ID or fully qualified name. Supports soft delete (defau
 Use `DELETE /v1/searchIndexes/name/{fqn}` to delete by fully qualified name.
 
 <ParamField path="fqn" type="string" required>
-  Fully qualified name of the search index (e.g., `elasticsearch_sample.table_search_index`).
+  Fully qualified name of the search index, for example `elasticsearch_sample.table_search_index`.
 </ParamField>
 
 <ParamField query="recursive" type="boolean" default="false">
@@ -67,11 +67,13 @@ SearchIndexes.delete(
 )
 
 # Delete by name
-SearchIndexes.delete_by_name("elasticsearch_sample.table_search_index")
+index = SearchIndexes.retrieve_by_name("elasticsearch_sample.table_search_index")
+SearchIndexes.delete(index.id)
 
 # Delete by name with options
-SearchIndexes.delete_by_name(
-    "elasticsearch_sample.table_search_index",
+index = SearchIndexes.retrieve_by_name("elasticsearch_sample.table_search_index")
+SearchIndexes.delete(
+    index.id,
     hard_delete=True
 )
 
@@ -80,22 +82,23 @@ SearchIndexes.restore("f5b0fa81-f241-4508-9219-dae31dcced18")
 ```
 
 ```java DELETE /v1/searchIndexes/{id}
-import static org.openmetadata.sdk.fluent.SearchIndexes.*;
+import java.util.Map;
+import org.openmetadata.schema.entity.data.SearchIndex;
+
+// client is an initialized OpenMetadataClient.
 
 // Soft delete
-SearchIndexes.delete("f5b0fa81-f241-4508-9219-dae31dcced18").execute();
+client.searchIndexes().delete("f5b0fa81-f241-4508-9219-dae31dcced18");
 
 // Hard delete
-SearchIndexes.delete("f5b0fa81-f241-4508-9219-dae31dcced18")
-    .hardDelete()
-    .execute();
+client.searchIndexes().delete("f5b0fa81-f241-4508-9219-dae31dcced18", Map.of("hardDelete", "true"));
 
-// Delete by name
-SearchIndexes.deleteByName("elasticsearch_sample.table_search_index")
-    .execute();
+// Delete by name (look up the ID first)
+SearchIndex searchIndex = client.searchIndexes().getByName("elasticsearch_sample.table_search_index");
+client.searchIndexes().delete(searchIndex.getId());
 
 // Restore
-SearchIndexes.restore("f5b0fa81-f241-4508-9219-dae31dcced18");
+client.searchIndexes().restore("f5b0fa81-f241-4508-9219-dae31dcced18");
 ```
 
 ```bash DELETE /v1/searchIndexes/{id}

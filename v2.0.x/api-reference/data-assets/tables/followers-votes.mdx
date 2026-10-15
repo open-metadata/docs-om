@@ -51,7 +51,7 @@ Manage followers and votes for table entities. Followers receive notifications a
 
 <RequestExample dropdown>
 ```python PUT /v1/tables/{id}/followers
-from metadata.sdk import configure
+from metadata.sdk import configure, client
 from metadata.sdk.entities import Tables
 
 configure(
@@ -59,39 +59,62 @@ configure(
     jwt_token="your-jwt-token"
 )
 
+rest = client().ometa.client
+
 table_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 user_id = "user-uuid-here"
 
 # Add a follower
 table = Tables.add_followers(table_id, [user_id])
-print(f"Followers: {len(table.followers)}")
+print(f"Followers: {len(table.followers.root)}")
 
 # Remove a follower
 table = Tables.remove_followers(table_id, [user_id])
 
 # Add a vote
-table = Tables.add_vote(table_id, vote_type="votedUp")
+rest.put(f"/tables/{table_id}/vote", json={"updatedVoteType": "votedUp"})
 
 # Remove a vote
-table = Tables.remove_vote(table_id)
+rest.put(f"/tables/{table_id}/vote", json={"updatedVoteType": "unVoted"})
 ```
 
 ```java PUT /v1/tables/{id}/followers
-import static org.openmetadata.sdk.fluent.Tables.*;
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// client is an initialized OpenMetadataClient.
 
 String tableId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+String userId = "b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b";
 
 // Add a follower
-Tables.addFollower(tableId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/tables/" + tableId + "/followers",
+    UUID.fromString(userId)
+);
 
 // Remove a follower
-Tables.removeFollower(tableId, "user-uuid-here");
+client.getHttpClient().executeForString(
+    HttpMethod.DELETE,
+    "/v1/tables/" + tableId + "/followers/" + userId,
+    null
+);
 
 // Add a vote
-Tables.vote(tableId, "votedUp");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/tables/" + tableId + "/vote",
+    Map.of("updatedVoteType", "votedUp")
+);
 
 // Remove a vote
-Tables.vote(tableId, "unVoted");
+client.getHttpClient().executeForString(
+    HttpMethod.PUT,
+    "/v1/tables/" + tableId + "/vote",
+    Map.of("updatedVoteType", "unVoted")
+);
 ```
 
 ```bash PUT /v1/tables/{id}/followers
