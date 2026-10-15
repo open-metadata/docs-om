@@ -8,7 +8,9 @@ sidebarTitle: "Use Cases: Roles and Policies"
 
 OpenMetadata includes two default configurations out of the box – the Organization Policy and the Data Consumer role – both designed to encourage open data collaboration across your team.
 
-Keep the Organization Policy in place. It lets everyone view assets and claim ownership when no owner is assigned, which keeps your catalog healthy and well-maintained.
+Keep the Organization Policy in place for open data collaboration. It lets everyone view assets and claim ownership when no owner is assigned, which keeps your catalog healthy and well-maintained.
+
+If you need per-team or per-tenant isolation, the Organization Policy's `OrganizationPolicy-ViewAll-Rule` lets every user see every asset, including in search. For details, see [How Search Combines Your Policies](/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization#how-search-combines-your-policies).
 
 For individual teams, tailor your policies to match what each team actually needs. The use cases below show how to handle the most common access control scenarios – from simple service creation to sensitive personally identifiable information (PII) protection.
 
@@ -47,6 +49,10 @@ Create a rule that denies all operations when the user isn't the owner of the as
 
 This rule uses the `isOwner()` and `matchTeam()` conditions together. If neither condition is true for the user, access is denied.
 
+<Note>
+RBAC Search ignores `matchTeam()`, so this rule might not hide the asset from Explore results. To control what appears in search, use `isOwner()`, which RBAC Search also applies to the user's teams. For details, see [Condition](/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization#condition).
+</Note>
+
 ### Use Case 4: Protect PII-Tagged Assets and Allow Only Owners to Access Them
 
 **Goal**: Lock down any asset tagged with `PII.Sensitive` so only its owner or owning team can access it.
@@ -56,6 +62,10 @@ Create a rule that denies all operations on a Table when it carries the `PII.Sen
 <img src="/public/images/how-to-guides/roles-policies/policy4.png" alt="PII Sensitive policy showing the deny rule combining tag and ownership conditions" />
 
 This rule combines `matchAllTags('PII.Sensitive')` with `isOwner()` and `matchTeam()` conditions. All three are evaluated together – if the asset is tagged PII and the user has no ownership claim, access is denied.
+
+<Note>
+RBAC Search ignores `matchTeam()`, so this rule might not hide the asset from Explore results. To control what appears in search, use `isOwner()`, which RBAC Search also applies to the user's teams. For details, see [Condition](/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization#condition).
+</Note>
 
 ### Use Case 5: Set Up a Read-Only Viewer Role
 
@@ -141,6 +151,17 @@ This keeps permissions tight and limits the impact if a role is misconfigured.
 <Tip>
 **Tip**: Always review Audit Logs after any break-glass access event. Go to **Settings > Audit Logs** to see a full record of every action taken during the session.
 </Tip>
+
+### Use Case 10: Show Each Team Only the Assets It Owns
+
+**Goal**: Make Explore show users only the assets that they or their team own.
+
+1. Go to **Settings** > **Preferences** > **Search** and turn on RBAC Search.
+2. Go to **Settings** > **Policies** > **Organization Policy** and delete `OrganizationPolicy-ViewAll-Rule`.
+3. Open every other policy that applies to the team, such as the Data Consumer policy, and remove `ViewAll` from any rule that has no condition.
+4. Sign in as a member of the team and search in Explore. Confirm that only assets owned by that user or team appear.
+
+`OrganizationPolicy-Owner-Rule` keeps access to owned assets in place. For details, see [How Search Combines Your Policies](/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization#how-search-combines-your-policies).
 
 ## Related Pages
 
