@@ -11,12 +11,13 @@ OpenMetadata controls access through three building blocks: rules define what is
 ## Rules
 
 A rule in a policy is the building block of authorization. It contains the following:
-1. **Name**: A unique name to define the rule
-2. **Description**: Description of the rule
-3. **Resources**: List of resources this rule applies to. An admin can select a specific resource, such as Table or All, to apply against all resources.
-4. **Operations**: List of operations this rule applies to. An admin can select a specific operation such as EditOwners or All to apply against all the operations.
-5. **Condition**: Expressions written using policy functions that evaluate true or false.
-6. **Effect**: Deny or Allow the operation.
+
+- **Name**: A unique name for the rule.
+- **Description**: A description of the rule.
+- **Resources**: The resources to which the rule applies. Select a specific resource, such as `Table`, or select `All` to apply the rule to every resource.
+- **Operations**: The operations to which the rule applies. Select a specific operation, such as `EditOwners`, or select `All` to apply the rule to every operation.
+- **Effect**: Determines whether the rule allows or denies the selected operations.
+- **Condition**: An expression that uses policy functions and evaluates to true or false.
 
 <img src="/public/images/how-to-guides/roles-policies/rules3.png" alt="Building Blocks of Authorization: Rules" />
 
@@ -65,11 +66,171 @@ noOwner() && matchAllTags('PersonalData.Personal', 'Tier.Tier1')
 
 This condition is true only if the asset has no owner and carries both of the listed tags.
 
+### Use Service Attributes in Policy Conditions
+
+Every service can store three deployment attributes.
+
+| Attribute | Supported value | Policy support |
+|---|---|---|
+| **Environment** | `Development`, `Staging`, `QA`, `UAT`, `Production`, `Sandbox`, or `Other` | Use `matchAnyServiceEnvironment(...)`. |
+| **Region** | Free text, such as `us-east-1` | Display only. It is not available as a policy condition. |
+| **Deployment** | Free text, such as `prod-cluster-01` | Display only. It is not available as a policy condition. |
+
+#### Set Service Attributes
+
+You need permission to edit the service.
+
+1. Go to **Settings** > **Services**.
+2. Select the service category, then open the service you want to configure.
+3. Click the **Connection** tab.
+
+   <img
+     src="/public/images/how-to-guides/roles-policies/service-connection-tab.png"
+     alt="Connection tab on a service page"
+   />
+
+4. In the **Service Attributes** section, click **Edit**.
+
+   <img
+     src="/public/images/how-to-guides/roles-policies/service-attributes-edit.png"
+     alt="Service Attributes section with the Edit button highlighted"
+   />
+
+5. Complete the following steps:
+    - Select an **Environment**.
+    - Optional: Enter the **Region** and **Deployment** identifier.
+
+    <img
+    src="/public/images/how-to-guides/roles-policies/service-attributes.png"
+    alt="Service Attributes configured with an environment, region, and deployment"
+    />
+
+6. Click **Save**.
+
+The attributes apply to the service. You do not need to add them separately to every asset ingested from that service.
+
+Service-aware conditions let one rule cover the service and the assets it ingests:
+
+| Condition | Returns true when |
+|---|---|
+| `matchAnyServiceTag('Environment.Development')` | The service has any listed tag or glossary term. |
+| `matchAnyServiceType('Snowflake', 'BigQuery')` | The service has any listed connector type. Matching is case-insensitive. |
+| `matchAnyServiceName('snowflake-sandbox')` | The asset belongs to any listed service name. Use the service name, not its fully qualified name. |
+| `matchAnyServiceEnvironment('Development', 'Sandbox')` | The service has any listed environment. Matching is case-insensitive. |
+
+The referenced value must exist when you save the policy. These conditions return false for resources that do not belong to a service. Examples include glossary terms and users.
+
+For example, the following condition can be used in a `Deny` rule to prevent access to assets from development services:
+
+```
+matchAnyServiceEnvironment('Development')
+```
+
+Apply the rule to the required resources and operations. A service is treated as its own service, so a matching `Deny` rule can hide both the service and its assets.
+
+#### Create a Service-Scoped Policy Rule
+
+Test the rule in an unassigned policy before applying it to users or teams.
+
+1. Go to **Settings** > **Access Control** > **Policies**.
+2. Create a policy or open the policy.
+3. Click **Add Rule**.
+4. Complete the following steps:
+    - Enter the **Rule Name**.
+    - Optional: Enter a **Description**.
+    - Select the required **Resources** and **Operations**. For example, select **All** and `ViewAll` to evaluate view access across service-backed resources.
+    - Set **Effect** to `Deny` or `Allow`. When rules conflict, `Deny` takes precedence.
+    - In **Condition**, enter a service-aware expression. For example:
+
+        ```text
+        matchAnyServiceEnvironment('Development', 'Sandbox')
+        ```
+        Confirm that the editor reports **Valid condition**.
+
+    <img
+    src="/public/images/how-to-guides/roles-policies/service-environment-policy-condition.png"
+    alt="Policy rule with a valid service environment condition"
+    />
+5. Select **Create**.
+
+Review the policy with the Permission Debugger before assigning it to a production team.
+
+<Warning>
+Service-aware conditions apply to search-backed results, direct entity requests, and create operations. A plain entity list API, such as `GET /v1/tables`, does not resolve an individual entity for its authorization check and cannot evaluate these conditions per result. Do not use an unfiltered list endpoint as a security boundary for a service-scoped policy.
+</Warning>
+
+### Understand Inherited Service Tags
+
+Tags now pass down automatically through the service hierarchy. For example, a tag on a database service is inherited by its databases, database schemas, and tables.
+
+- OpenMetadata marks inherited tags as `Derived`.
+- Inherited tags are merged with the tags assigned directly to the child asset.
+- If the child asset already has the same tag assigned directly, the child's tag takes precedence.
+
+You cannot remove a derived tag from a child asset. To remove it, go to the parent where the tag was assigned and remove it there.
+
+Policy conditions such as `matchAnyTag(...)` also evaluate inherited tags.
+
+<Note>
+After you upgrade, reindex OpenMetadata so existing assets receive their inherited tags in search. Until reindexing finishes, an asset's own page can show inherited tags before they appear in Explore.
+</Note>
+
+### Restrict Requests Made Through Bots
+
+Use impersonation conditions in `Deny` rules to restrict actions attributed to a bot acting on a person's behalf. This includes requests that use the `X-Impersonate-User` header and Model Context Protocol (MCP) or artificial intelligence (AI) tool calls.
+
+| Condition | Returns true when |
+|---|---|
+| `isImpersonated()` | The request is attributed to any bot. |
+| `impersonatedBy('McpApplicationBot')` | The request is attributed to any named bot. Bot-name matching is case-insensitive. |
+
+Use this condition to match every request attributed to a bot:
+
+```
+isImpersonated()
+```
+
+To restrict a specific bot, use its existing bot name:
+
+```
+impersonatedBy('McpApplicationBot')
+```
+
+You can combine `isImpersonated()` with `matchAnyTag(...)` to protect tagged assets. The tag's fully qualified name must already exist in OpenMetadata or the condition will be invalid. Put `isImpersonated()` before the tag condition so ordinary requests can stop evaluation before OpenMetadata loads the tags. When you use `impersonatedBy(...)`, the supplied name must resolve to a bot or to its bot user.
+
+#### Create a Bot Attribution Rule
+
+Create the rule in an unassigned test policy first. A broad impersonation `Deny` rule can block MCP and AI tool access to matching resources.
+
+1. Go to **Settings** > **Policies**.
+2. Create a policy or open the policy.
+3. Click **Add Rule**.
+4. Complete the following steps:
+    - Enter the **Rule Name**.
+    - Optional: Enter a **Description**.
+    - Select the required **Resources** and **Operations**.
+    - Set **Effect** to `Deny`.
+    - In **Condition**, enter `isImpersonated()` or `impersonatedBy('<existing-bot-name>')`. Confirm that the editor reports **Valid condition**.
+
+    <img
+    src="/public/images/how-to-guides/roles-policies/impersonated-by-policy-condition.png"
+    alt="Deny rule with a valid impersonatedBy condition for McpApplicationBot"
+    />
+
+5. Select **Create**.
+
+
+Use the Permission Debugger to verify the expected result before assigning the policy.
+
+<Warning>
+These functions report bot attribution; they do not verify that an impersonation grant was authorized. Use them in `Deny` rules. They apply when OpenMetadata performs a per-entity authorization check, but they do not filter results returned directly by `search_metadata`, `semantic_search`, or `nlq_search`.
+</Warning>
+
 ### Default Rules
 
-Go to **Settings** > **Policies** > **Organization Policy** to see the two rules that come built in and apply to everyone in your organization.
+Go to **Settings** > **Policies** and select **Organization Policy** to see the three rules that come built in and apply to everyone in your organization.
 
-<img src="/public/images/how-to-guides/roles-policies/rules4.png" alt="Organization Policy showing the two default rules" />
+<img src="/public/images/how-to-guides/roles-policies/organization-policy-rules.png" alt="Organization Policy page showing its default rules" />
 
 -  **OrganizationPolicy-NoOwner-Rule**
 
@@ -86,6 +247,14 @@ Go to **Settings** > **Policies** > **Organization Policy** to see the two rules
    This rule gives the owner of an asset – or any member of the owning team – full access to edit and view all its details.
 
    When a user, who either personally owns a table or is part of the team owning that table logs in, they're granted extensive rights. They can modify all properties of that data asset and access complete information about it.
+
+- **OrganizationPolicy-ViewAll-Rule**
+
+    <img src="/public/images/how-to-guides/roles-policies/view-all-rule.png" alt="Organization Policy - View All - Rule" />
+
+    This rule lets every user view every asset. It has no condition, so it applies to all users and all assets, whether or not they own the asset or belong to its team.
+
+    This is why everyone can find and open any asset in Explore by default. With RBAC Search turned on, this rule still applies. For more information, see [Roles Based Access Controls (RBAC) Search](#roles-based-access-controls-rbac-search).
 
 By setting up such default rules, the organization ensures clarity in access control based on ownership status and user roles.
 
@@ -135,7 +304,7 @@ For teams with compliance or regulatory requirements, it's good practice to make
 
 A role is a ready-made bundle of policies that matches a job function. Instead of assigning individual policies to every user, you assign them a role and they get all the right policies in one step.
 
-<img src="/public/images/how-to-guides/roles-policies/role1.png" alt="Building Blocks of Authorization: Roles" />
+<img src="/public/images/how-to-guides/roles-policies/roles-list.png" alt="Building Blocks of Authorization: Roles" />
 
 Roles can be assigned to individual users or to entire teams. When a role is assigned to a team, every member of that team gets it automatically – which makes onboarding and offboarding much simpler.
 
@@ -171,7 +340,7 @@ By default, every user can search for and find any data asset in OpenMetadata, r
 
 To enable or disable this, go to **Settings** > **Preferences** > **Search**.
 
-<img src="/public/images/how-to-guides/roles-policies/rbac-search.png" alt="Roles Based Access Controls (RBAC) Search Option" />
+<img src="/public/images/how-to-guides/roles-policies/rbac-search-setting.png" alt="Roles Based Access Controls (RBAC) Search Option" />
 
 ### What Changes When You Turn It On
 
