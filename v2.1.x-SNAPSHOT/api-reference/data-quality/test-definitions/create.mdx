@@ -33,7 +33,6 @@ Create a custom test definition to define organization-specific data quality val
 
 <ParamField body="supportedDataTypes" type="array">
   Array of data types this test can be applied to (e.g., `STRING`, `INT`, `DOUBLE`, `VARCHAR`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BOOLEAN`). Only applicable when `entityType` is `COLUMN`.
-
 </ParamField>
 
 <ParamField body="parameterDefinition" type="array">
@@ -56,6 +55,32 @@ Create a custom test definition to define organization-specific data quality val
       Description of the parameter.
     </ParamField>
   </Expandable>
+</ParamField>
+
+<ParamField body="sqlExpression" type="string">
+  SQL template for custom SQL-based test definitions. OpenMetadata renders the template with Jinja2, so every placeholder must use double curly braces:
+
+  - `{{ table_name }}`: the table the test case runs against.
+  - `{{ column_name }}`: the column the test case runs against. Available only when `entityType` is `COLUMN`.
+  - `{{ paramName }}`: the value of a parameter declared in `parameterDefinition`.
+
+  OpenMetadata doesn't substitute single-brace placeholders, which produce invalid SQL. The test passes only when the rendered query returns 0 rows. `table_name` is reserved for all definitions, and `column_name` is also reserved when `entityType` is `COLUMN`. Don't use reserved names as parameter names. For more information, see [Custom SQL Test Definitions](#custom-sql-test-definitions).
+</ParamField>
+
+<ParamField body="validatorClass" type="string">
+  Name of the validator that runs the test. For custom SQL-based tests, defaults to `ruleLibrarySqlExpressionValidator` when omitted.
+</ParamField>
+
+<ParamField body="dataQualityDimension" type="string">
+  Name of the data quality dimension that test cases of this definition use by default. Accepts a built-in dimension (`Completeness`, `Accuracy`, `Consistency`, `Validity`, `Uniqueness`, `Integrity`, `SQL`, or `NoDimension`) or any custom dimension registered in **Settings** > **Preferences** > **Data Quality**.
+</ParamField>
+
+<ParamField body="supportedServices" type="array">
+  Names of the services this test definition supports. When empty, all services are supported. Defaults to `[]`.
+</ParamField>
+
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains the test definition belongs to.
 </ParamField>
 
 <ParamField body="owners" type="array">
@@ -116,6 +141,7 @@ print(f"Created: {test_def.name}")
 
 ```java POST /v1/dataQuality/testDefinitions
 import static org.openmetadata.sdk.fluent.TestDefinitions.*;
+import java.util.List;
 
 var testDef = TestDefinitions.builder()
     .name("columnValuesToMatchBusinessRule")
@@ -252,6 +278,18 @@ Returns the created test definition object with all specified properties and sys
   </Expandable>
 </ResponseField>
 
+<ResponseField name="sqlExpression" type="string">
+  SQL template for custom SQL-based test definitions.
+</ResponseField>
+
+<ResponseField name="validatorClass" type="string">
+  Validator that runs the test.
+</ResponseField>
+
+<ResponseField name="dataQualityDimension" type="string">
+  Data quality dimension the test belongs to.
+</ResponseField>
+
 <ResponseField name="provider" type="string">
   Always `user` for custom test definitions.
 </ResponseField>
@@ -261,6 +299,40 @@ Returns the created test definition object with all specified properties and sys
 </ResponseField>
 
 ---
+
+## Custom SQL Test Definitions
+
+To create a test definition that runs your own SQL, set `sqlExpression` and declare every `{{ paramName }}` placeholder in `parameterDefinition`. The following request creates a column-level test that fails when any value in the column is longer than a limit:
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "columnValuesMaxLength",
+    "displayName": "Column Values Max Length",
+    "description": "Fails when a value is longer than the allowed length",
+    "entityType": "COLUMN",
+    "testPlatforms": ["OpenMetadata"],
+    "dataQualityDimension": "SQL",
+    "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
+    "sqlExpression": "SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    "parameterDefinition": [
+      {
+        "name": "maxLength",
+        "dataType": "INT",
+        "required": true,
+        "description": "Maximum allowed length"
+      }
+    ]
+  }'
+```
+
+How OpenMetadata evaluates the SQL:
+
+- **Pass condition**: The test case passes only when the rendered query returns 0 rows. Write the query so that it returns the rows that violate the rule.
+- **Reserved names**: `table_name` is reserved for table-level definitions. `table_name` and `column_name` are reserved for column-level definitions. Do not declare them in `parameterDefinition`, because the validator supplies their values at runtime.
+- **Parameters**: A test case supplies values for `{{ paramName }}` through `parameterValues`. For more information, see [Create a Test Case](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-cases/create#custom-sql-test-cases).
 
 ## Create or Update (PUT)
 
@@ -274,7 +346,7 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testDefinitions" \
 ```
 
 <Note>
-`PUT` will not return a `409` conflict error if the entity already exists -- it will update the existing entity instead.
+`PUT` will not return a `409` conflict error if the entity already exists. It will update the existing entity instead.
 </Note>
 
 ---
