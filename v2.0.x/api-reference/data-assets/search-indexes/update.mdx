@@ -1,42 +1,56 @@
 ---
 title: Update a Search Index
-description: Update search index properties using JSON Patch
+description: Create or update a search index with a full request body
 sidebarTitle: Update a Search Index
-api: PATCH /v1/searchIndexes/{id}
+api: PUT /v1/searchIndexes
 ---
 
 # Update a Search Index
 
-Update a search index's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the search index to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/searchIndexes/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the search index, for example `elasticsearch_sample.table_search_index`.
-</ParamField>
+Create a search index or update it if it already exists, using `PUT /v1/searchIndexes` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the search index. Must be unique within the parent search service.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent SearchService, for example `elasticsearch_sample`.
+</ParamField>
+
+<ParamField body="fields" type="array">
+  Array of field objects defining the index schema.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string">
+      Name of the field.
+    </ParamField>
+
+    <ParamField body="dataType" type="string">
+      Data type of the field, for example `TEXT`, `KEYWORD`, `INT`, `OBJECT`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the field.
+    </ParamField>
+
+    <ParamField body="children" type="array">
+      Nested child fields for complex types.
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the search index.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the search index in Markdown format.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the search index.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -46,11 +60,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the search index.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -67,15 +89,27 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/searchIndexes
+curl -X PUT "{base_url}/api/v1/searchIndexes" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "table_search_index",
+    "displayName": "TableSearchIndex",
+    "service": "elasticsearch_sample",
+    "description": "Search index for table entities",
+    "fields": [
+      {"name": "name", "dataType": "TEXT"},
+      {"name": "description", "dataType": "TEXT"}
+    ]
+  }'
+```
+
 ```python PATCH /v1/searchIndexes/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import SearchIndexes
@@ -188,8 +222,7 @@ Returns the updated search index object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this search index |
-| `404` | `NOT_FOUND` | Search index with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

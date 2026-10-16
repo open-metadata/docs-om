@@ -1,50 +1,46 @@
 ---
 title: Update a Glossary Term
-description: Update glossary term properties using JSON Patch
+description: Create or update a glossary term with a full request body
 sidebarTitle: Update a Glossary Term
-api: PATCH /v1/glossaryTerms/{id}
+api: PUT /v1/glossaryTerms
 ---
 
 # Update a Glossary Term
 
-Update a glossary term's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the glossary term to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/glossaryTerms/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the glossary term, for example `BusinessGlossary.Revenue`.
-</ParamField>
+Create a glossary term or update it if it already exists, using `PUT /v1/glossaryTerms` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the glossary term. Must be unique within the parent glossary or parent term.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="glossary" type="string" required>
+  Fully qualified name of the parent glossary, for example `BusinessGlossary`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the glossary term.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the glossary term in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent glossary term for creating nested terms, for example `BusinessGlossary.Revenue`.
 </ParamField>
 
 <ParamField body="synonyms" type="array">
-  Updated list of synonym strings.
+  Array of synonym strings for this term.
 </ParamField>
 
 <ParamField body="relatedTerms" type="array">
-  Updated list of related term FQNs.
+  Array of fully qualified names of related glossary terms.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the glossary term.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -54,11 +50,15 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -75,8 +75,12 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="style" type="object">
-  Updated visual styling.
+  Visual styling for the glossary term.
 
   <Expandable title="properties">
     <ParamField body="color" type="string">
@@ -84,16 +88,25 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     </ParamField>
 
     <ParamField body="iconURL" type="string">
-      URL to a custom icon.
+      URL to a custom icon for the term.
     </ParamField>
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <RequestExample dropdown>
+```bash PUT /v1/glossaryTerms
+curl -X PUT "{base_url}/api/v1/glossaryTerms" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Revenue",
+    "glossary": "BusinessGlossary",
+    "description": "Total income generated from business operations",
+    "synonyms": ["Income", "Earnings", "Sales"],
+    "owners": []
+  }'
+```
+
 ```python PATCH /v1/glossaryTerms/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import GlossaryTerms
@@ -203,8 +216,7 @@ Returns the updated glossary term object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this glossary term |
-| `404` | `NOT_FOUND` | Glossary term with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

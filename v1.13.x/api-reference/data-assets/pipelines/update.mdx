@@ -1,54 +1,54 @@
 ---
 title: Update a Pipeline
-description: Update pipeline properties using JSON Patch
+description: Create or update a pipeline with a full request body
 sidebarTitle: Update a Pipeline
-api: PATCH /v1/pipelines/{id}
+api: PUT /v1/pipelines
 ---
 
 # Update a Pipeline
 
-Update a pipeline's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the pipeline to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/pipelines/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the pipeline, for example `sample_airflow.dbt_analytics_customers`.
-</ParamField>
+Create a pipeline or update it if it already exists, using `PUT /v1/pipelines` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the pipeline. Must be unique within the parent pipeline service.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent PipelineService, for example `sample_airflow`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the pipeline.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the pipeline in Markdown format.
 </ParamField>
 
 <ParamField body="sourceUrl" type="string">
-  Updated source URL.
+  URL to the pipeline definition in the source system, for example Airflow DAG URL.
 </ParamField>
 
 <ParamField body="tasks" type="array">
-  Updated list of pipeline tasks.
+  Array of pipeline tasks representing individual steps in the pipeline.
 
   <Expandable title="properties">
     <ParamField body="name" type="string">
       Name of the task.
     </ParamField>
 
+    <ParamField body="displayUrl" type="string">
+      URL to display for this task.
+    </ParamField>
+
+    <ParamField body="taskUrl" type="string">
+      URL to the task in the source system.
+    </ParamField>
+
     <ParamField body="taskType" type="string">
-      Type of the task.
+      Type of the task, for example `BatchTask`, `StreamTask`.
     </ParamField>
 
     <ParamField body="description" type="string">
@@ -56,13 +56,13 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     </ParamField>
 
     <ParamField body="downstreamTasks" type="array">
-      Array of downstream task names.
+      Array of task names that depend on this task.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the pipeline.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -72,11 +72,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the pipeline.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -93,15 +101,43 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/pipelines
+curl -X PUT "{base_url}/api/v1/pipelines" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dbt_analytics_customers",
+    "displayName": "DBT Customer Analytics",
+    "service": "sample_airflow",
+    "description": "Analytics pipeline for customer data processing",
+    "sourceUrl": "http://localhost:8080/tree?dag_id=dbt_analytics_customers",
+    "tasks": [
+      {
+        "name": "extract_customers",
+        "taskType": "BatchTask",
+        "description": "Extract customer data from source",
+        "downstreamTasks": ["transform_customers"]
+      },
+      {
+        "name": "transform_customers",
+        "taskType": "BatchTask",
+        "description": "Transform and clean customer data",
+        "downstreamTasks": ["load_customers"]
+      },
+      {
+        "name": "load_customers",
+        "taskType": "BatchTask",
+        "description": "Load transformed data into warehouse"
+      }
+    ]
+  }'
+```
+
 ```python PATCH /v1/pipelines/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Pipelines
@@ -216,8 +252,7 @@ Returns the updated pipeline object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this pipeline |
-| `404` | `NOT_FOUND` | Pipeline with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

@@ -2,7 +2,7 @@
 title: Update an Alert
 description: Update an alert (event subscription) with JSON Patch or by sending the full definition again through the OpenMetadata REST API or Python SDK.
 sidebarTitle: Update Alert
-api: PATCH /v1/events/subscriptions/{id}
+api: PUT /v1/events/subscriptions
 ---
 
 # Update an Alert
@@ -12,6 +12,46 @@ Update an alert in one of two ways:
 - Send the full definition with `PUT /v1/events/subscriptions`. OpenMetadata matches on `name`, so a request with an existing name replaces the alert's configuration. This is the simplest option for managing alerts as code.
 - Patch individual fields with JSON Patch.
 
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name that uniquely identifies the alert. A request with an existing name updates that alert.
+</ParamField>
+
+<ParamField body="alertType" type="string" required>
+  Type of alert, for example `Observability`, `Notification`, or `ActivityFeed`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Display name of the alert.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the alert in Markdown format.
+</ParamField>
+
+<ParamField body="enabled" type="boolean">
+  Whether the alert is enabled.
+</ParamField>
+
+<ParamField body="resources" type="array">
+  Source the alert listens to, for example `testCase`. An alert has exactly one value.
+</ParamField>
+
+<ParamField body="input" type="object">
+  Filters and triggers that decide which events the alert acts on.
+</ParamField>
+
+<ParamField body="destinations" type="array">
+  Where the alert sends notifications, for example a webhook, Slack, or email.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Owner references (users or teams) to assign to the alert.
+</ParamField>
+
+For the full request schema, see the [Alerts overview](/v2.1.x-SNAPSHOT/api-reference/alerts#request-schema).
+
 ## Update with JSON Patch
 
 - By ID: `PATCH /v1/events/subscriptions/{id}`
@@ -19,11 +59,56 @@ Update an alert in one of two ways:
 
 Send a JSON Patch document and set the `Content-Type` header to `application/json-patch+json`.
 
-<ParamField path="id" type="string" required>
-  UUID of the alert.
-</ParamField>
+Replace `{id}` with the UUID of the alert.
 
 <RequestExample dropdown>
+```bash PUT /v1/events/subscriptions
+curl -X PUT "https://your-company.open-metadata.org/api/v1/events/subscriptions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dq-failed-tests-to-webhook",
+    "displayName": "DQ failed tests to webhook",
+    "description": "Notify the endpoint when a test case fails.",
+    "alertType": "Observability",
+    "resources": ["testCase"],
+    "enabled": true,
+    "input": {
+      "filters": [
+        {
+          "name": "filterByFqn",
+          "effect": "include",
+          "prefixCondition": "AND",
+          "arguments": [{ "name": "fqnList", "input": ["svc.db.schema.orders"] }]
+        }
+      ],
+      "actions": [
+        {
+          "name": "GetTestCaseStatusUpdates",
+          "effect": "include",
+          "prefixCondition": "AND",
+          "arguments": [{ "name": "testResultList", "input": ["Failed"] }]
+        }
+      ]
+    },
+    "destinations": [
+      {
+        "category": "External",
+        "type": "Webhook",
+        "timeout": 10,
+        "readTimeout": 12,
+        "enabled": true,
+        "config": {
+          "endpoint": "https://hooks.example.com/openmetadata",
+          "httpMethod": "POST",
+          "headers": { "X-Source": "openmetadata" },
+          "authType": { "type": "bearer", "secretKey": "<hmac-secret>" }
+        }
+      }
+    ]
+  }'
+```
+
 ```bash PATCH /v1/events/subscriptions/{id}
 # Disable an alert
 curl -X PATCH "https://your-company.open-metadata.org/api/v1/events/subscriptions/$ALERT_ID" \

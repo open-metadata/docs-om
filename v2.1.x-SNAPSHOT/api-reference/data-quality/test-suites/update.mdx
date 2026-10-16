@@ -1,42 +1,34 @@
 ---
 title: Update a Test Suite
-description: Update test suite properties using JSON Patch
+description: Create or update a test suite with a full request body
 sidebarTitle: Update a Test Suite
-api: PATCH /v1/dataQuality/testSuites/{id}
+api: PUT /v1/dataQuality/testSuites
 ---
 
 # Update a Test Suite
 
-Update a test suite's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the test suite to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/dataQuality/testSuites/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the test suite.
-</ParamField>
+Create a test suite or update it if it already exists, using `PUT /v1/dataQuality/testSuites` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the test suite. Must be unique. For a basic suite, the examples use `<tableFQN>.testSuite`, matching the server's automatic naming convention.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the test suite.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the test suite in Markdown format.
+</ParamField>
+
+<ParamField body="basicEntityReference" type="string">
+  The fully qualified name (FQN) of an existing table. Required when creating a basic suite through `/v1/dataQuality/testSuites/basic`. Omit this field for logical suites.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -44,12 +36,28 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     </ParamField>
 
     <ParamField body="type" type="string">
-      Type of owner entity, for example `user`, `team`.
+      Owner entity type, such as `user` or `team`.
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/dataQuality/testSuites
+# Create a logical test suite
+curl -X PUT "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "critical_data_quality_checks",
+    "displayName": "Critical Data Quality Checks",
+    "description": "Groups all critical data quality test cases across production tables"
+  }'
+```
+
 ```python PATCH /v1/dataQuality/testSuites/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import TestSuites
@@ -147,8 +155,7 @@ Returns the updated test suite object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this test suite |
-| `404` | `NOT_FOUND` | Test suite with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |
