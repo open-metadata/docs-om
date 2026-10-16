@@ -6,26 +6,102 @@ sidebarTitle: How Column-Level Lineage Works
 
 # How Column-Level Lineage Works
 
-OpenMetadata supports rich column-level lineage for understanding the relationship between tables and to perform impact analysis. Users can manually edit both the table and column level lineage to capture any information that is not automatically surfaced.
+Column-level lineage shows how individual columns move between tables. Use it to:
+
+- Understand how one table relates to another.
+- Run impact analysis before you change a column.
+- Trace where a column comes from and what depends on it.
+
+OpenMetadata can generate this lineage automatically. You can also edit it by hand to add anything that is not detected.
 
 <img src="/public/images/how-to-guides/lineage/lineage1.png" alt="Column-Level Data Lineage in OpenMetadata" />
 
+## View Column-Level Lineage
+
+To see the column-level lineage of a table:
+
+1. From the left navigation bar, select **Explore**, or use the search bar at the top.
+2. Open the table you want to inspect.
+3. Select the **Lineage** tab.
+
+    <img src="/public/images/how-to-guides/lineage/column-lineage-tab.png" alt="Lineage tab on a table page" />
+
+4. Select the **Layers** button, and under **Level**, select **Field-level Lineage**. Each table in the graph now lists its columns.
+5. Select a column to follow it through the graph.
+
 <Tip>
-**Quick Tip:** Drilldown to view all the available columns for a table when viewing column-level lineage.
+**Quick Tip**: Expand a table in the graph to see all its columns.
 </Tip>
 
-You can generate the column-level lineage automatically by running the **Lineage Agent**.
+If a table shows no column links, generate them with a Lineage Agent (see the next section) or add them by hand.
 
-<img src="/public/images/how-to-guides/lineage/ingestion.png" alt="Lineage Ingestion" />
+## Generate Column-Level Lineage Automatically
+
+Run a **Lineage Agent** on the database service that holds the tables:
+
+1. Open the database service, then select the **Agents** tab.
+2. Select **Add Agent** > **Add Lineage Agent**.
+
+    <img src="/public/images/how-to-guides/lineage/column-lineage-add-agent.png" alt="Add Lineage Agent option in the Add Agent menu on a database service" />
+
+3. Configure the agent, then save it.
+4. On the **Agents** tab, find the Lineage Agent and select **Run**.
+
+    <img src="/public/images/how-to-guides/lineage/column-lineage-run-agent.png" alt="Run button for an agent on the Agents tab" />
+
+When the run finishes, open the table's **Lineage** tab to see the new links.
 
 ## Manually Edit Column Level Lineage
 
-OpenMetadata supports manual editing of both table and column level lineage. You can edit the lineage for the individual columns by clicking on the edit option on the top right. User the anchor points on either side of the columns to create links and trace individual columns through their lineage. You can also add new tables that have columns you want to trace. Connect the relevant columns to the current lineage.
+OpenMetadata supports manual editing of both table-level and column-level lineage. Use it to add links that are not detected automatically.
 
-<img src="/public/images/how-to-guides/lineage/column1.png" alt="Manually Edit Column Level Lineage" />
+To link columns by hand:
+
+1. Open the table and select the **Lineage** tab.
+2. Click **Edit** (the pencil icon) in the lineage toolbar. The asset panel opens next to the graph.
+
+    <img src="/public/images/how-to-guides/lineage/column-lineage-edit-icon.png" alt="Edit icon in the lineage toolbar" />
+
+3. If the table that holds the column you want to trace is not in the graph, add it first:
+    - In the asset panel, choose the asset type, such as **Tables**.
+    - Search for the table and add it to the graph.
+
+    <img src="/public/images/how-to-guides/lineage/column-lineage-asset-panel.png" alt="Asset panel in lineage edit mode listing Tables, Dashboards, Charts, Stored Procedures, Topics, and ML Models" />
+
+4. Find the column in the source table. Each column has an anchor point on its edge.
+5. Drag from the anchor point of the source column to the anchor point of the column it feeds in the other table.
+6. Repeat for each column you want to link.
+7. Optional: To remove a link, select the **x** icon on the connecting line.
+8. Save your changes.
 
 Watch the video on editing column-level lineage.
 <iframe width="800" height="450" src="https://www.youtube.com/embed/HTkbTvi2H9c?start=0&end=51" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+
+## Metric Column Lineage
+
+A metric is often calculated from a single column. Link the column to the metric so the lineage shows exactly which field feeds the metric. For example, link `sales.amount` to the metric `Total Sales`.
+
+- **Direction**: Connect a column to a metric (column feeds the metric), or a metric to a column.
+- **Endpoint**: A metric has no columns of its own. In column-level lineage, the metric appears as one connection point that carries the metric's own name.
+- **Visibility**: The connection point appears on a metric node at the **Field-level Lineage** level or in edit mode. In the default view, a metric node shows no connection point.
+- **Impact Analysis**: The column-to-metric link also appears in the column-level Impact Analysis view, so you can see which metrics depend on a column before you change it.
+
+### Link a Column to a Metric
+
+Before you start, make sure you can edit the metric and the table that holds the column.
+
+1. Open the metric and select the **Lineage** tab.
+2. Select **Edit** (the pencil icon) in the lineage toolbar.
+3. If the table that holds the column is not in the graph, add it from the asset panel. For more information, see [Manually Edit Column Level Lineage](#manually-edit-column-level-lineage).
+4. Select the **Layers** button and, under **Level**, select **Field-level Lineage** so the table's columns are listed.
+5. Drag from the anchor point beside the column to the anchor point on the metric.
+6. Save your changes.
+
+To remove the link, select the **x** icon on the connecting line in edit mode.
+
+<Note>
+You can also create these links with the API by adding a `columnsLineage` entry whose `toColumn` is the metric's fully qualified name.
+</Note>
 
 <Card title="How to Manually Add or Edit Lineage" href="/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/manual" >
     Edit the table and column level lineage manually.
