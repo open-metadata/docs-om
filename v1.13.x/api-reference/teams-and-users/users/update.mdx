@@ -1,85 +1,85 @@
 ---
 title: Update a User
-description: Update user properties using JSON Patch
+description: Create or update a user with a full request body
 sidebarTitle: Update a User
-api: PATCH /v1/users/{id}
+api: PUT /v1/users
 ---
 
 # Update a User
 
-Update a user's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the user to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/users/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the user, for example `aaron_johnson0`.
-</ParamField>
+Create a user or update it if it already exists, using `PUT /v1/users` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Username for the user. Must be unique across the organization.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address of the user. Must be unique across the organization.
+</ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the user.
 </ParamField>
 
 <ParamField body="description" type="string">
-  Updated description in Markdown format.
+  Description of the user in Markdown format.
 </ParamField>
 
-<ParamField body="email" type="string">
-  Updated email address.
+<ParamField body="isBot" type="boolean" default="false">
+  Whether this user is a bot account.
 </ParamField>
 
-<ParamField body="isAdmin" type="boolean">
-  Updated admin status.
+<ParamField body="isAdmin" type="boolean" default="false">
+  Whether this user has admin privileges.
 </ParamField>
 
 <ParamField body="teams" type="array">
-  Updated list of team references.
-
-  <Expandable title="properties">
-    <ParamField body="id" type="string">
-      UUID of the team.
-    </ParamField>
-
-    <ParamField body="type" type="string">
-      Type of entity (always `team`).
-    </ParamField>
-  </Expandable>
+  Array of team fully qualified names to assign the user to.
 </ParamField>
 
 <ParamField body="roles" type="array">
-  Updated list of role references.
+  Array of role fully qualified names to assign to the user.
+</ParamField>
+
+<ParamField body="personas" type="array">
+  Array of persona references to assign to the user.
+</ParamField>
+
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
+<ParamField body="profile" type="object">
+  Profile information for the user.
 
   <Expandable title="properties">
-    <ParamField body="id" type="string">
-      UUID of the role.
+    <ParamField body="images" type="object">
+      Profile images for the user.
     </ParamField>
 
-    <ParamField body="type" type="string">
-      Type of entity (always `role`).
+    <ParamField body="timezone" type="string">
+      Timezone of the user, for example `America/New_York`.
     </ParamField>
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
-<ParamField body="profile" type="object">
-  Updated profile information.
-</ParamField>
-
 <RequestExample dropdown>
+```bash PUT /v1/users
+curl -X PUT "{base_url}/api/v1/users" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "aaron_johnson0",
+    "displayName": "Aaron Johnson",
+    "email": "aaron_johnson0@gmail.com",
+    "description": "Data analyst in the Sales team",
+    "teams": ["Sales"],
+    "roles": ["DataSteward"]
+  }'
+```
+
 ```python PATCH /v1/users/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Users
@@ -204,8 +204,7 @@ Returns the updated user object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this user |
-| `404` | `NOT_FOUND` | User with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

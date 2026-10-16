@@ -1,25 +1,209 @@
 ---
 title: Update a Data Contract
-description: Update a data contract using JSON Patch
+description: Create or update a data contract with a full request body
 sidebarTitle: Update a Data Contract
-api: PATCH /v1/dataContracts/{id}
+api: PUT /v1/dataContracts
 ---
 
 # Update a Data Contract
 
-Update an existing data contract using a JSON Merge Patch request.
+Create a data contract or update it if it already exists, using `PUT /v1/dataContracts` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
-## Path Parameters
+## Body Parameters
 
-<ParamField path="id" type="string" required>
-  UUID of the data contract to update.
+<ParamField body="name" type="string" required>
+  Name of the data contract. Must be unique.
 </ParamField>
 
-## Body
+<ParamField body="entity" type="object" required>
+  Reference to the data asset this contract applies to.
 
-The request body should be a JSON array of patch operations following [RFC 6902](https://tools.ietf.org/html/rfc6902).
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the entity.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Entity type: `table`, `topic`, `apiEndpoint`, `dashboardDataModel`, `storedProcedure`, `database`, `databaseSchema`, `dashboard`, `chart`, `pipeline`, `searchIndex`, `apiCollection`, `mlmodel`, `container`, `dataProduct`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description in Markdown format.
+</ParamField>
+
+<ParamField body="entityStatus" type="string" default="Draft">
+  Contract status: `Draft`, `In Review`, `Approved`, `Rejected`, `Deprecated`, or `Archived`.
+</ParamField>
+
+<ParamField body="schema" type="array">
+  Expected column definitions. Each item follows the Column schema.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Column name.
+    </ParamField>
+
+    <ParamField body="dataType" type="string" required>
+      Data type, for example `INT`, `VARCHAR`, `TIMESTAMP`.
+    </ParamField>
+
+    <ParamField body="constraint" type="string">
+      Constraint: `NULL`, `NOT_NULL`, `UNIQUE`, `PRIMARY_KEY`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Column description.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="semantics" type="array">
+  Semantics rules evaluated against the entity's metadata when the contract is validated.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Rule name.
+    </ParamField>
+
+    <ParamField body="description" type="string" required>
+      Rule description. Reported as the failure reason when the rule fails.
+    </ParamField>
+
+    <ParamField body="rule" type="string" required>
+      [JSON Logic](https://jsonlogic.com/) expression. The rule passes when it returns `true`.
+    </ParamField>
+
+    <ParamField body="enabled" type="boolean" default="true">
+      Whether the rule is evaluated.
+    </ParamField>
+
+    <ParamField body="entityType" type="string">
+      Apply the rule only to this entity type.
+    </ParamField>
+
+    <ParamField body="ignoredEntities" type="array">
+      Entity types the rule skips.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="qualityExpectations" type="array">
+  References to test cases that must pass.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string" required>
+      UUID of the test case.
+    </ParamField>
+
+    <ParamField body="type" type="string" required>
+      Must be `testCase`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="sla" type="object">
+  Service level agreement expectations. Stored and shown on the contract.
+
+  <Expandable title="properties">
+    <ParamField body="refreshFrequency" type="object">
+      `interval` (integer) and `unit`: `hour`, `day`, `week`, `month`, or `year`.
+    </ParamField>
+
+    <ParamField body="maxLatency" type="object">
+      `value` (integer) and `unit`: `minute`, `hour`, or `day`.
+    </ParamField>
+
+    <ParamField body="availabilityTime" type="string">
+      Time of day the data should be available, for example `09:00`.
+    </ParamField>
+
+    <ParamField body="timezone" type="string" default="GMT+00:00 (Europe/London)">
+      Timezone for `availabilityTime`, in the form `GMT+05:30 (Asia/Kolkata)`.
+    </ParamField>
+
+    <ParamField body="retention" type="object">
+      `period` (integer) and `unit`: `day`, `week`, `month`, or `year`.
+    </ParamField>
+
+    <ParamField body="columnName" type="string">
+      Column that holds the data's refresh time.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="termsOfUse" type="string">
+  Terms of use in Markdown format. Describes allowed/disallowed use cases and compliance requirements.
+</ParamField>
+
+<ParamField body="security" type="object">
+  Security and access policy expectations.
+
+  <Expandable title="properties">
+    <ParamField body="accessPolicy" type="string">
+      Access policy description.
+    </ParamField>
+
+    <ParamField body="requiredClassifications" type="array">
+      Required classification tags, for example `PII.Sensitive`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Owner references (users or teams).
+</ParamField>
+
+<ParamField body="reviewers" type="array">
+  Reviewer user references.
+</ParamField>
+
+<ParamField body="effectiveFrom" type="string">
+  ISO 8601 date from which this contract is effective.
+</ParamField>
+
+<ParamField body="effectiveUntil" type="string">
+  ISO 8601 date until which this contract is effective.
+</ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/dataContracts
+curl -X PUT "{base_url}/api/v1/dataContracts" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sales-orders-contract",
+    "entity": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "type": "table"
+    },
+    "description": "Data contract for the sales orders table",
+    "entityStatus": "Approved",
+    "schema": [
+      {"name": "order_id", "dataType": "INT", "constraint": "PRIMARY_KEY"},
+      {"name": "customer_id", "dataType": "INT", "constraint": "NOT_NULL"},
+      {"name": "order_date", "dataType": "TIMESTAMP", "constraint": "NOT_NULL"},
+      {"name": "total_amount", "dataType": "DECIMAL"}
+    ],
+    "semantics": [
+      {
+        "name": "Owners is set",
+        "description": "The table must have an owner.",
+        "rule": "{\"and\":[{\"some\":[{\"var\":\"owners\"},{\"!=\":[{\"var\":\"fullyQualifiedName\"},null]}]}]}",
+        "enabled": true
+      }
+    ],
+    "sla": {
+      "refreshFrequency": {"interval": 1, "unit": "day"}
+    }
+  }'
+```
+
 ```python PATCH /v1/dataContracts/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import DataContracts
@@ -115,4 +299,3 @@ curl -X PATCH "{base_url}/api/v1/dataContracts/f7a1b2c3-d4e5-6789-0abc-def123456
 | `400` | `BAD_REQUEST` | Invalid patch operations |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update data contracts |
-| `404` | `NOT_FOUND` | Data contract not found |
