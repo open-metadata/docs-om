@@ -51,6 +51,10 @@ Following are some examples of conditions:
 | `matchTeam()` | The user belongs to the team that owns the asset |
 | `hasDomain()` | The user's domain access matches the asset's domain |
 
+RBAC Search supports only some of these conditions. It evaluates `noOwner()`, `isOwner()`, `matchAllTags()`, `matchAnyTag()`, `hasDomain()`, and `inAnyTeam()`, and it ignores `matchTeam()` when it filters search results. Access to the asset itself still honors `matchTeam()`.
+
+To limit search results by team, use `isOwner()`. In search, it also matches assets owned by any team the user belongs to. The `inAnyTeam('<team>')` condition checks only the user's team membership: if the user is in that team, it matches every asset.
+
 Use conditions to assess data assets like Tables, Topics, and Dashboards for specific attributes.
 
 Example: Consider the noOwner() condition when applied to the table **fact_orders**. If this table lacks an assigned owner, then the condition returns **true**. However, if an owner is present, it returns **false**.
@@ -67,9 +71,9 @@ This condition is true only if the asset has no owner and carries both of the li
 
 ### Default Rules
 
-Go to **Settings** > **Policies** > **Organization Policy** to see the two rules that come built in and apply to everyone in your organization.
+Go to **Settings** > **Policies** > **Organization Policy** to see the three rules that come built in and apply to everyone in your organization.
 
-<img src="/public/images/how-to-guides/roles-policies/rules4.png" alt="Organization Policy showing the two default rules" />
+<img src="/public/images/how-to-guides/roles-policies/rules4.png" alt="Organization Policy showing the default rules" />
 
 -  **OrganizationPolicy-NoOwner-Rule**
 
@@ -86,6 +90,12 @@ Go to **Settings** > **Policies** > **Organization Policy** to see the two rules
    This rule gives the owner of an asset – or any member of the owning team – full access to edit and view all its details.
 
    When a user, who either personally owns a table or is part of the team owning that table logs in, they're granted extensive rights. They can modify all properties of that data asset and access complete information about it.
+
+- **OrganizationPolicy-ViewAll-Rule**
+
+    This rule lets every user view every asset. It has no condition, so it applies to all users and all assets, whether or not they own the asset or belong to its team.
+
+    This is why everyone can find and open any asset in Explore by default. With RBAC Search turned on, this rule still applies. See [Roles Based Access Controls (RBAC) Search](#roles-based-access-controls-rbac-search).
 
 By setting up such default rules, the organization ensures clarity in access control based on ownership status and user roles.
 
@@ -167,7 +177,7 @@ If you have a custom role or policy that grants `EditAll` on `Ingestion Pipeline
 
 ## Roles Based Access Controls (RBAC) Search
 
-By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC search – this ensures users only see assets their role allows them to access.
+By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC Search. Search then shows only the assets that the user's policies allow them to see. The built-in Organization Policy allows everyone to see every asset, so this takes effect only after you change that. For more information, see [How Search Combines Your Policies](#how-search-combines-your-policies).
 
 To enable or disable this, go to **Settings** > **Preferences** > **Search**.
 
@@ -181,13 +191,29 @@ role gives them access to, which helps with data security and compliance.
 **Permissions apply at the point of discovery** – users can't find or browse
 assets they're not allowed to access, even through search.
 
+### How Search Combines Your Policies
+
+RBAC Search combines the rules from all of a user's policies, including the Organization Policy. An asset shows up in search if at least one allow rule lets the user see it, unless a deny rule blocks it.
+
+Search only looks at rules that grant `ViewBasic`, `ViewAll`, or `All`. It skips every other rule.
+
+The Organization Policy includes `OrganizationPolicy-ViewAll-Rule`, which grants `ViewAll` on all resources with no condition. Because of this rule, every user sees every asset in search, even with RBAC Search turned on. A role that grants `ViewAll` only under `isOwner()` doesn't change this. The unconditional rule still shows non-owned assets. Any other policy with an unconditional rule that grants `ViewBasic`, `ViewAll`, or `All` has the same effect. Examples are the policy of the Data Consumer role and a read-only viewer policy that grants `ViewBasic` on tables.
+
+For strict isolation, make sure no policy that applies to the user grants `ViewBasic`, `ViewAll`, or `All` without a condition. To change the Organization Policy, go to **Settings** > **Policies** > **Organization Policy**, and either delete `OrganizationPolicy-ViewAll-Rule` or add a condition such as `isOwner()` to it. OpenMetadata doesn't restore the built-in rules when the server restarts. Owners and owning teams keep access through `OrganizationPolicy-Owner-Rule`.
+
+<Warning>
+`ViewAll` also lets users view an asset's details, not only find it in search. After you remove an unconditional `ViewAll` rule, users can open only the assets that another rule gives them access to.
+</Warning>
+
 ### Before You Turn It On
 
 **Check your roles and policies are fully configured** – make sure every user and team has the right permissions for the assets they need. Incomplete configuration can cause users to lose visibility of assets they should see.
 
+**Check for unconditional `ViewBasic`, `ViewAll`, and `All` rules**: if you need users to see only some assets, review every policy that applies to them.
+
 **Test with real users after enabling** – ask someone from each role to run searches and confirm they're seeing the right results.
 
-For a full guide on setting up roles and policies, see [Roles and Policies](/v1.13.x/how-to-guides/admin-guide/roles-policies). Enabling RBAC search makes sure OpenMetadata's search aligns with your organization's data governance and access requirements.
+For a full guide on setting up roles and policies, see [Roles and Policies](/v1.13.x/how-to-guides/admin-guide/roles-policies). Enabling RBAC Search makes sure OpenMetadata's search aligns with your organization's data governance and access requirements.
 
 <Card title="Use Cases: Creating Roles & Policies in OpenMetadata" href="/v1.13.x/how-to-guides/admin-guide/roles-policies/use-cases" >
     Tailor your policies to meet your organizational and team needs.
