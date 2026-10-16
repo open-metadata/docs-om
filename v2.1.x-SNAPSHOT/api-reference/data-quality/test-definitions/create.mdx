@@ -64,11 +64,16 @@ Create a custom test definition to define organization-specific data quality val
   - `{{ column_name }}`: the column the test case runs against. Available only when `entityType` is `COLUMN`.
   - `{{ paramName }}`: the value of a parameter declared in `parameterDefinition`.
 
-  OpenMetadata doesn't substitute single-brace placeholders, which produce invalid SQL. The test passes only when the rendered query returns 0 rows. `table_name` is reserved for all definitions, and `column_name` is also reserved when `entityType` is `COLUMN`. Don't use reserved names as parameter names. For more information, see [Custom SQL Test Definitions](#custom-sql-test-definitions).
+  OpenMetadata doesn't substitute single-brace placeholders, which produce invalid SQL. By default, the test passes only when the rendered query returns 0 rows. To tolerate some violating rows, set a failure threshold. `table_name` is reserved for all definitions, and `column_name` is also reserved when `entityType` is `COLUMN`. Don't use reserved names as parameter names. For more information, see [Custom SQL Test Definitions](#custom-sql-test-definitions).
 </ParamField>
 
 <ParamField body="validatorClass" type="string">
-  Name of the validator that runs the test. For custom SQL-based tests, defaults to `ruleLibrarySqlExpressionValidator` when omitted.
+  Class name of the validator that runs the test. For a custom SQL test definition, set one of the following values. The OpenMetadata UI sets the same values when you create a custom SQL test definition:
+
+  - `ColumnRuleLibrarySqlExpressionValidator`: use when `entityType` is `COLUMN`.
+  - `TableRuleLibrarySqlExpressionValidator`: use when `entityType` is `TABLE`.
+
+  Built-in test definitions use their own validators, which you can't select for a custom definition. The server accepts any string for this field, so always set it explicitly for SQL-based definitions.
 </ParamField>
 
 <ParamField body="dataQualityDimension" type="string">
@@ -113,24 +118,33 @@ configure(
 )
 
 request = CreateTestDefinitionRequest(
-    name="columnValuesToMatchBusinessRule",
-    displayName="Column Values To Match Business Rule",
-    description="Validates that column values conform to a custom business rule regex pattern",
+    name="columnValuesMaxLength",
+    displayName="Column Values Max Length",
+    description="Fails when a value is longer than the allowed length",
     entityType="COLUMN",
     testPlatforms=["OpenMetadata"],
+    dataQualityDimension="SQL",
     supportedDataTypes=["STRING", "VARCHAR", "TEXT"],
+    sqlExpression="SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    validatorClass="ColumnRuleLibrarySqlExpressionValidator",
     parameterDefinition=[
         {
-            "name": "regexPattern",
-            "dataType": "STRING",
+            "name": "maxLength",
+            "dataType": "INT",
             "required": True,
-            "description": "The regex pattern to match against"
+            "description": "Maximum allowed length"
         },
         {
             "name": "threshold",
-            "dataType": "INT",
+            "dataType": "NUMBER",
             "required": False,
-            "description": "Maximum number of non-matching values allowed"
+            "description": "Number of failing rows to tolerate before the test fails"
+        },
+        {
+            "name": "thresholdUnit",
+            "dataType": "STRING",
+            "required": False,
+            "description": "ABSOLUTE for a row count or PERCENTAGE for a share of rows"
         }
     ]
 )
@@ -177,25 +191,19 @@ curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "columnValuesToMatchBusinessRule",
-    "displayName": "Column Values To Match Business Rule",
-    "description": "Validates that column values conform to a custom business rule regex pattern",
+    "name": "columnValuesMaxLength",
+    "displayName": "Column Values Max Length",
+    "description": "Fails when a value is longer than the allowed length",
     "entityType": "COLUMN",
     "testPlatforms": ["OpenMetadata"],
+    "dataQualityDimension": "SQL",
     "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
+    "sqlExpression": "SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    "validatorClass": "ColumnRuleLibrarySqlExpressionValidator",
     "parameterDefinition": [
-      {
-        "name": "regexPattern",
-        "dataType": "STRING",
-        "required": true,
-        "description": "The regex pattern to match against"
-      },
-      {
-        "name": "threshold",
-        "dataType": "INT",
-        "required": false,
-        "description": "Maximum number of non-matching values allowed"
-      }
+      {"name": "maxLength", "dataType": "INT", "required": true, "description": "Maximum allowed length"},
+      {"name": "threshold", "dataType": "NUMBER", "required": false, "description": "Number of failing rows to tolerate before the test fails"},
+      {"name": "thresholdUnit", "dataType": "STRING", "required": false, "description": "ABSOLUTE for a row count or PERCENTAGE for a share of rows"}
     ]
   }'
 ```
@@ -336,22 +344,32 @@ curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
     "dataQualityDimension": "SQL",
     "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
     "sqlExpression": "SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    "validatorClass": "ColumnRuleLibrarySqlExpressionValidator",
     "parameterDefinition": [
-      {
-        "name": "maxLength",
-        "dataType": "INT",
-        "required": true,
-        "description": "Maximum allowed length"
-      }
+      {"name": "maxLength", "dataType": "INT", "required": true, "description": "Maximum allowed length"},
+      {"name": "threshold", "dataType": "NUMBER", "required": false, "description": "Number of failing rows to tolerate before the test fails"},
+      {"name": "thresholdUnit", "dataType": "STRING", "required": false, "description": "ABSOLUTE for a row count or PERCENTAGE for a share of rows"}
     ]
   }'
 ```
 
 How OpenMetadata evaluates the SQL:
 
-- **Pass condition**: The test case passes only when the rendered query returns 0 rows. Write the query so that it returns the rows that violate the rule.
+- **Pass condition**: By default, the test case passes only when the rendered query returns 0 rows. Write the query so that it returns the rows that violate the rule.
+- **Failure threshold**: To let a test case tolerate some violating rows, declare both `threshold` and `thresholdUnit` in `parameterDefinition`. The server ignores `threshold` unless the definition declares `thresholdUnit`. For more information, see [Failure Thresholds](#failure-thresholds).
 - **Reserved names**: `table_name` is reserved for table-level definitions. `table_name` and `column_name` are reserved for column-level definitions. Do not declare them in `parameterDefinition`, because the validator supplies their values at runtime.
 - **Parameters**: A test case supplies values for `{{ paramName }}` through `parameterValues`. For more information, see [Create a Test Case](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-cases/create#custom-sql-test-cases).
+
+### Failure Thresholds
+
+A failure threshold is the number of violating rows a test case tolerates before it fails. It turns the default "fail on any row" pass condition into a tolerance.
+
+| Parameter | Data type | Description |
+|-----------|-----------|-------------|
+| `threshold` | `NUMBER` | Tolerated violations. Must be a non-negative number. Defaults to `0`. |
+| `thresholdUnit` | `STRING` | `ABSOLUTE` reads `threshold` as a row count. `PERCENTAGE` reads it as a share of the evaluated rows, up to `100`. |
+
+The test case supplies the values in `parameterValues`. For more information, see [Create a Test Case](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-cases/create#custom-sql-test-cases) and [Failure Thresholds](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality/failure-thresholds).
 
 ## Create or Update (PUT)
 

@@ -18,7 +18,7 @@ The server associates the test case with the basic suite of the table in `entity
 </ParamField>
 
 <ParamField body="testDefinition" type="string" required>
-  Fully qualified name (FQN) of the test definition to use. For example, `columnValueMaxToBeBetween`.
+  Fully qualified name (FQN) of the test definition to use. For example, `columnValueMaxToBeBetween`. For a custom SQL test case, use the name of the custom test definition, such as `columnValuesMaxLength`. For more information, see [Custom SQL Test Cases](#custom-sql-test-cases).
 </ParamField>
 
 <ParamField body="entityLink" type="string" required>
@@ -138,6 +138,21 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
       {"name": "maxValueForMaxInCol", "value": "100"}
     ],
     "description": "Validates shop_id max value stays between 1 and 100"
+  }'
+```
+
+```bash POST /v1/dataQuality/testCases (custom SQL)
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "email_max_length",
+    "testDefinition": "columnValuesMaxLength",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::email>",
+    "parameterValues": [
+      {"name": "maxLength", "value": "50"}
+    ],
+    "computePassedFailedRowCount": true
   }'
 ```
 </RequestExample>
@@ -322,7 +337,29 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
   }'
 ```
 
-For a custom test definition that uses `{{ paramName }}` placeholders, pass one `parameterValues` entry per placeholder. For more information, see [Create a Test Definition](/v2.0.x/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
+### Test Cases for a Custom Test Definition
+
+A test case for a custom SQL test definition sets `testDefinition` to the definition's name and passes one `parameterValues` entry per `{{ paramName }}` placeholder. The following request uses the `columnValuesMaxLength` definition, which declares `maxLength`:
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "email_max_length",
+    "testDefinition": "columnValuesMaxLength",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::email>",
+    "parameterValues": [
+      {"name": "maxLength", "value": "50"}
+    ],
+    "computePassedFailedRowCount": true
+  }'
+```
+
+- **Pass condition**: The test case passes only when the number of rows the SQL returns is 0.
+- **Row counts**: Set `computePassedFailedRowCount` to `true` to report passed and failed row counts.
+
+For more information, see [Create a Test Definition](/v2.0.x/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
 
 ## Error Handling
 
