@@ -68,7 +68,12 @@ Create a custom test definition to define organization-specific data quality val
 </ParamField>
 
 <ParamField body="validatorClass" type="string">
-  Name of the validator that runs the test. For custom SQL-based tests, defaults to `ruleLibrarySqlExpressionValidator` when omitted.
+  Class name of the validator that runs the test. For a custom SQL test definition, set one of the following values. The OpenMetadata UI sets the same values when you create a custom SQL test definition:
+
+  - `ColumnRuleLibrarySqlExpressionValidator`: use when `entityType` is `COLUMN`.
+  - `TableRuleLibrarySqlExpressionValidator`: use when `entityType` is `TABLE`.
+
+  Built-in test definitions use their own validators, which you can't select for a custom definition. The server accepts any string for this field, so always set it explicitly for SQL-based definitions.
 </ParamField>
 
 <ParamField body="dataQualityDimension" type="string">
@@ -113,24 +118,21 @@ configure(
 )
 
 request = CreateTestDefinitionRequest(
-    name="columnValuesToMatchBusinessRule",
-    displayName="Column Values To Match Business Rule",
-    description="Validates that column values conform to a custom business rule regex pattern",
+    name="columnValuesMaxLength",
+    displayName="Column Values Max Length",
+    description="Fails when a value is longer than the allowed length",
     entityType="COLUMN",
     testPlatforms=["OpenMetadata"],
+    dataQualityDimension="SQL",
     supportedDataTypes=["STRING", "VARCHAR", "TEXT"],
+    sqlExpression="SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    validatorClass="ColumnRuleLibrarySqlExpressionValidator",
     parameterDefinition=[
         {
-            "name": "regexPattern",
-            "dataType": "STRING",
-            "required": True,
-            "description": "The regex pattern to match against"
-        },
-        {
-            "name": "threshold",
+            "name": "maxLength",
             "dataType": "INT",
-            "required": False,
-            "description": "Maximum number of non-matching values allowed"
+            "required": True,
+            "description": "Maximum allowed length"
         }
     ]
 )
@@ -177,25 +179,17 @@ curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "columnValuesToMatchBusinessRule",
-    "displayName": "Column Values To Match Business Rule",
-    "description": "Validates that column values conform to a custom business rule regex pattern",
+    "name": "columnValuesMaxLength",
+    "displayName": "Column Values Max Length",
+    "description": "Fails when a value is longer than the allowed length",
     "entityType": "COLUMN",
     "testPlatforms": ["OpenMetadata"],
+    "dataQualityDimension": "SQL",
     "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
+    "sqlExpression": "SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    "validatorClass": "ColumnRuleLibrarySqlExpressionValidator",
     "parameterDefinition": [
-      {
-        "name": "regexPattern",
-        "dataType": "STRING",
-        "required": true,
-        "description": "The regex pattern to match against"
-      },
-      {
-        "name": "threshold",
-        "dataType": "INT",
-        "required": false,
-        "description": "Maximum number of non-matching values allowed"
-      }
+      {"name": "maxLength", "dataType": "INT", "required": true, "description": "Maximum allowed length"}
     ]
   }'
 ```
@@ -321,6 +315,8 @@ Returns the created test definition object with all specified properties and sys
 
 ## Custom SQL Test Definitions
 
+A custom test definition is a reusable SQL template. To run a one-off SQL query on a single table, such as the **Custom SQL Query** test type in the UI, create a test case with the built-in `tableCustomSQLQuery` definition instead. For more information, see [Custom SQL Test Cases](/v1.13.x/api-reference/data-quality/test-cases/create#custom-sql-test-cases).
+
 To create a test definition that runs your own SQL, set `sqlExpression` and declare every `{{ paramName }}` placeholder in `parameterDefinition`. The following request creates a column-level test that fails when any value in the column is longer than a limit:
 
 ```bash
@@ -336,13 +332,9 @@ curl -X POST "{base_url}/api/v1/dataQuality/testDefinitions" \
     "dataQualityDimension": "SQL",
     "supportedDataTypes": ["STRING", "VARCHAR", "TEXT"],
     "sqlExpression": "SELECT * FROM {{ table_name }} WHERE LENGTH({{ column_name }}) > {{ maxLength }}",
+    "validatorClass": "ColumnRuleLibrarySqlExpressionValidator",
     "parameterDefinition": [
-      {
-        "name": "maxLength",
-        "dataType": "INT",
-        "required": true,
-        "description": "Maximum allowed length"
-      }
+      {"name": "maxLength", "dataType": "INT", "required": true, "description": "Maximum allowed length"}
     ]
   }'
 ```

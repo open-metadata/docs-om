@@ -18,7 +18,7 @@ The server associates the test case with the basic suite of the table in `entity
 </ParamField>
 
 <ParamField body="testDefinition" type="string" required>
-  Fully qualified name (FQN) of the test definition to use. For example, `columnValueMaxToBeBetween`.
+  Fully qualified name (FQN) of the test definition to use. For example, `columnValueMaxToBeBetween`. For a custom SQL test (the **Custom SQL Query** test type in the UI), use `tableCustomSQLQuery`. For a test case on a custom test definition you created, use that definition's name, such as `columnValuesMaxLength`. For more information, see [Custom SQL Test Cases](#custom-sql-test-cases).
 </ParamField>
 
 <ParamField body="entityLink" type="string" required>
@@ -138,6 +138,39 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
       {"name": "maxValueForMaxInCol", "value": "100"}
     ],
     "description": "Validates shop_id max value stays between 1 and 100"
+  }'
+```
+
+```bash POST /v1/dataQuality/testCases (custom SQL)
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "orders_no_negative_amounts",
+    "testDefinition": "tableCustomSQLQuery",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.orders>",
+    "parameterValues": [
+      {"name": "sqlExpression", "value": "SELECT * FROM orders WHERE amount < 0"},
+      {"name": "strategy", "value": "ROWS"},
+      {"name": "operator", "value": "=="},
+      {"name": "threshold", "value": "0"}
+    ],
+    "computePassedFailedRowCount": true
+  }'
+```
+
+```bash POST /v1/dataQuality/testCases (custom test definition)
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "email_max_length",
+    "testDefinition": "columnValuesMaxLength",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::email>",
+    "parameterValues": [
+      {"name": "maxLength", "value": "50"}
+    ],
+    "computePassedFailedRowCount": true
   }'
 ```
 </RequestExample>
@@ -294,7 +327,14 @@ curl -X PUT "{base_url}/api/v1/dataQuality/testCases" \
 
 ## Custom SQL Test Cases
 
+OpenMetadata has two ways to run SQL in a test case:
+
+- **Custom SQL test**: the **Custom SQL Query** test type in the UI. The test case uses the built-in `tableCustomSQLQuery` test definition and carries the SQL itself in `parameterValues`. You don't create a test definition.
+- **Custom test definition**: a reusable SQL template you create once, with `{{ paramName }}` placeholders. Test cases then reference it by name. For more information, see [Test Cases for a Custom Test Definition](#test-cases-for-a-custom-test-definition).
+
 A test case passes values to a SQL-based test definition through `parameterValues`. The server rejects any parameter that the test definition doesn't declare in `parameterDefinition`, and requires every parameter marked `required`.
+
+### Custom SQL Test
 
 The built-in `tableCustomSQLQuery` test definition runs a SQL query against a table. It accepts these parameters:
 
@@ -316,13 +356,37 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
     "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.orders>",
     "parameterValues": [
       {"name": "sqlExpression", "value": "SELECT * FROM orders WHERE amount < 0"},
-      {"name": "strategy", "value": "ROWS"}
+      {"name": "strategy", "value": "ROWS"},
+      {"name": "operator", "value": "=="},
+      {"name": "threshold", "value": "0"}
     ],
     "computePassedFailedRowCount": true
   }'
 ```
 
-For a custom test definition that uses `{{ paramName }}` placeholders, pass one `parameterValues` entry per placeholder. For more information, see [Create a Test Definition](/v2.0.x/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
+### Test Cases for a Custom Test Definition
+
+A test case for a custom SQL test definition sets `testDefinition` to the definition's name and passes one `parameterValues` entry per `{{ paramName }}` placeholder. The following request uses a custom `columnValuesMaxLength` definition, which declares `maxLength`:
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "email_max_length",
+    "testDefinition": "columnValuesMaxLength",
+    "entityLink": "<#E::table::sample_data.ecommerce_db.shopify.dim_address::columns::email>",
+    "parameterValues": [
+      {"name": "maxLength", "value": "50"}
+    ],
+    "computePassedFailedRowCount": true
+  }'
+```
+
+- **Pass condition**: The test case passes only when the number of rows the SQL returns is 0.
+- **Row counts**: Set `computePassedFailedRowCount` to `true` to report passed and failed row counts.
+
+For more information, see [Create a Test Definition](/v2.0.x/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
 
 ## Error Handling
 
