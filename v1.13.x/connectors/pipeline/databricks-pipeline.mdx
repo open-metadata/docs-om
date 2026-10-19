@@ -13,12 +13,43 @@ import { MetadataIngestionUi } from '/snippets/components/MetadataIngestionUi.js
 icon='/public/images/connectors/databrick.webp'
 name="Databricks"
 stage="PROD"
-availableFeatures={["Pipelines", "Pipeline Status", "Usage"]}
-unavailableFeatures={["Owners", "Tags", "Lineage"]} />
+availableFeatures={["Pipelines", "Pipeline Status", "Usage", "Lineage"]}
+unavailableFeatures={["Owners", "Tags"]} />
 In this section, we provide guides and references to use the Databricks Pipeline connector.
 Configure and schedule Databricks Pipeline metadata workflows from the OpenMetadata UI:
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v1.13.x/connectors/pipeline/databricks-pipeline/troubleshooting)
+
+## Requirements
+
+OpenMetadata reads jobs and pipelines through the Databricks REST API, and reads lineage from the Unity Catalog lineage system tables through a SQL warehouse. Grant the following to the user or service principal OpenMetadata connects with.
+
+### Pipeline Metadata Permissions
+
+- **Can View** on the jobs you want to ingest, to list jobs and their runs.
+- **Can View** on the Lakeflow Declarative Pipelines (DLT) you want to ingest.
+- **Can Read** on the notebooks and workspace files those pipelines use. OpenMetadata parses pipeline source code to build Kafka and S3 lineage.
+
+### Lineage Permissions
+
+OpenMetadata builds table and column lineage from the `system.access.table_lineage` and `system.access.column_lineage` system tables. To read them:
+
+1. Make sure the `system.access` schema is enabled in your Unity Catalog metastore. If it is not, ask a Databricks account admin to enable it.
+2. Enter an **HTTP Path** in the connection details. OpenMetadata runs the lineage queries on that compute, so lineage cannot be fetched without it.
+3. Grant **Can Use** on the SQL warehouse that the HTTP Path points to.
+4. Grant access to the lineage system tables:
+
+```sql
+GRANT USE CATALOG ON CATALOG system TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
+GRANT SELECT ON TABLE system.access.table_lineage TO `<user>`;
+GRANT SELECT ON TABLE system.access.column_lineage TO `<user>`;
+```
+
+<Tip>
+Lineage is optional. If these permissions are missing, the **GetLineage** test step fails, but you can still save the service and OpenMetadata ingests pipelines without lineage.
+</Tip>
+
 ## Metadata Ingestion
 <MetadataIngestionUi connector={"Databricks Pipeline"} selectServicePath={"/public/images/connectors/databricks-pipeline/select-service.png"} addNewServicePath={"/public/images/connectors/databricks-pipeline/add-new-service.png"} serviceConnectionPath={"/public/images/connectors/databricks-pipeline/service-connection.png"} />
 # Connection Details
@@ -34,7 +65,7 @@ For a complete guide on managing secrets in hybrid setups, see the [Hybrid Inges
 </Tip>
 - **Host and Port**: Enter the fully qualified hostname and port number for your Databricks Pipeline deployment in the Host and Port field.
 - **Token**: Generated Token to connect to Databricks Pipeline.
-- **HTTP Path**: Databricks Pipeline compute resources URL.
+- **HTTP Path**: The HTTP path of the SQL warehouse OpenMetadata uses to query lineage system tables. Find it in Databricks under **SQL Warehouses** > your warehouse > **Connection details**. Required for lineage.
 - **Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to Databricks during the connection. These details must be added as Key-Value pairs.
   - In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
 </Step>
