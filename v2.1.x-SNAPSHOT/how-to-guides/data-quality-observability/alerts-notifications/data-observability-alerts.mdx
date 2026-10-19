@@ -74,6 +74,7 @@ Define the specific conditions that will trigger the alert:
 * **Schema Changes** - Alert on added, deleted, or updated columns
 * **Test Case Status** - Trigger when a test result has a status you select: `Success`, `Failed`, `Aborted`, or `Queued`. The alert fires on every matching result, not only when the status changes
 * **Pipeline Status** - Alert when pipeline execution has a status you select: `Successful`, `Failed`, `Pending`, or `Skipped`
+* **Ingestion Pipeline Status** - Alert when an OpenMetadata ingestion run enters a selected state, including `failed` or `partialSuccess`
 * **Metric Updates** - Notify when table metrics are updated
 
 <Tip>
@@ -81,6 +82,19 @@ You can select multiple trigger conditions to create comprehensive monitoring co
 </Tip>
 
 <img src="/public/images/how-to-guides/admin-guide/trigger.webp" alt="Select Trigger Conditions" />
+
+## Native Pipeline Alert Boundaries
+
+Native pipeline alerts react to status events reported to OpenMetadata. They do not evaluate whether an expected event is missing or whether a run took longer than a threshold.
+
+| Monitoring scenario | Native alert support | Configuration |
+|---|---|---|
+| An OpenMetadata ingestion pipeline fails or partially succeeds | Yes | Select **Ingestion Pipeline**, use **Entity Specific Name** to scope an individual ingestion pipeline, and select `failed` and `partialSuccess` in **Ingestion Pipeline Status**. |
+| An ingested pipeline asset reports a failed run | Yes | Select **Pipeline** and **Failed** in **Pipeline Status**. |
+| A scheduled run does not start | No | Use an external check that compares the expected schedule with the latest reported run. |
+| A run exceeds a duration threshold or its normal duration | No | Use an external check that calculates run duration from the reported start and end times. |
+
+For an external check, query `GET /api/v1/services/ingestionPipelines/{fqn}/pipelineStatus`. Use `startTs` and `endTs` to select a time window. The response includes `pipelineState`, `startDate`, and `endDate` for each run. A monitoring script can compare these values with the expected schedule or duration threshold before sending a notification.
 
 Choose where to send your alerts. OpenMetadata supports both internal and external channels.
 
