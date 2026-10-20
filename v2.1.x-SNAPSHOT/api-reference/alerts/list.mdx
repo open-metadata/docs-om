@@ -1,6 +1,6 @@
 ---
 title: List and Retrieve Alerts
-description: List alerts, retrieve one by ID or name, look up the sources, filters, and triggers available for an alert type, and inspect what an alert has delivered.
+description: List alerts, retrieve one by ID or name, look up what a set of sources supports, and inspect what an alert has delivered.
 sidebarTitle: List and Retrieve
 api: GET /v1/events/subscriptions
 ---
@@ -80,14 +80,98 @@ for item in alerts:
 
 ## Available Sources, Filters, and Triggers
 
-Look up the valid sources, filters, and triggers for an alert type with `GET /v1/events/subscriptions/{alertType}/resources`.
+Ask what a set of sources supports with `POST /v1/events/subscriptions/capabilities`. OpenMetadata applies the same rules when you create the alert, so use the answer to build a valid request for [Create an Alert](/v2.1.x-SNAPSHOT/api-reference/alerts/create).
 
-Set `alertType` to `Observability` or `Notification`. The response lists every valid source for that type. Each item has the source `name` and the filters it supports. Only Observability sources have triggers, and each trigger lists its argument names. Use it to build valid `input` values for [Create an Alert](/v2.1.x-SNAPSHOT/api-reference/alerts/create).
+<ParamField body="alertType" type="string" required>
+  `Observability` or `Notification`.
+</ParamField>
+
+<ParamField body="sources" type="array">
+  Names of the sources you plan to use. Leave it empty to list every source of the alert type.
+</ParamField>
+
+<ParamField body="input" type="object">
+  The filters and triggers chosen so far, in the same shape as the alert's `input`. With it, the response warns about any selected source that none of the chosen triggers applies to.
+</ParamField>
+
+Each source has one of three kinds:
+
+- `entity`: changes to one asset type, such as `table` or `pipeline`. Every Observability source is an entity source.
+- `activity`: the collaboration items `announcement`, `conversation`, and `task`.
+- `all`: every event.
+
+An alert combines sources of one kind only, and `all` can't be combined with other sources. A request that breaks either rule returns a `400` error that names the rule.
+
+This request asks about an alert on pipelines and ingestion pipelines that has one trigger:
 
 ```bash
-curl "https://your-company.open-metadata.org/api/v1/events/subscriptions/Observability/resources" \
-  -H "Authorization: Bearer $TOKEN"
+curl -X POST "https://your-company.open-metadata.org/api/v1/events/subscriptions/capabilities" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alertType": "Observability",
+    "sources": ["pipeline", "ingestionPipeline"],
+    "input": {
+      "actions": [
+        {
+          "name": "GetPipelineStatusUpdates",
+          "effect": "include",
+          "arguments": [{ "name": "pipelineStateList", "input": ["Failed"] }]
+        }
+      ]
+    }
+  }'
 ```
+
+The response has these fields:
+
+- `sources`: every source of the alert type. Each has a `name`, a `kind`, and a `selected` flag. A source you can't add to the selection has `canJoin: false` and a `reason`. A selected source that can never produce a match has a `warning`, but the alert still saves.
+- `filters`: the filters every selected source supports. Each item has the filter in `condition` and the `sources` it applies to.
+- `triggers`: the triggers at least one selected source supports. Each item has the trigger in `condition` and the `sources` it applies to.
+- `containerEntities`: the entity types a name filter can be scoped to.
+- `eventTypes`: the event types the selected sources emit.
+- `recipientCategories`: who inside OpenMetadata the alert can be sent to, such as `Owners` or `Admins`.
+
+In this shortened response, the chosen trigger applies only to `pipeline`, so `ingestionPipeline` has a warning. To clear it, add the ingestion pipeline trigger as well.
+
+```json
+{
+  "alertType": "Observability",
+  "sources": [
+    {
+      "name": "ingestionPipeline",
+      "kind": "entity",
+      "selected": true,
+      "canJoin": true,
+      "warning": "No chosen trigger applies to this source, so none of its events match."
+    },
+    { "name": "pipeline", "kind": "entity", "selected": true, "canJoin": true },
+    { "name": "testCase", "kind": "entity", "selected": false, "canJoin": true }
+  ],
+  "filters": [
+    {
+      "condition": { "name": "filterByOwner", "displayName": "Owner Name", "arguments": ["ownerNameList"] },
+      "sources": ["pipeline", "ingestionPipeline"]
+    }
+  ],
+  "triggers": [
+    {
+      "condition": { "name": "GetPipelineStatusUpdates", "displayName": "Get Pipeline Status Updates", "arguments": ["pipelineStateList"] },
+      "sources": ["pipeline"]
+    },
+    {
+      "condition": { "name": "GetIngestionPipelineStatusUpdates", "displayName": "Get Ingestion Pipeline Status Updates", "arguments": ["ingestionPipelineStateList"] },
+      "sources": ["ingestionPipeline"]
+    }
+  ],
+  "containerEntities": ["pipelineService"],
+  "recipientCategories": ["Users", "Teams", "Admins", "Owners", "Followers"]
+}
+```
+
+<Note>
+`GET /v1/events/subscriptions/{alertType}/resources` still works, but it's deprecated and will be removed in a future release. It describes each source on its own, so it can't tell you what several sources support together. Its responses include a `Deprecation` header and a `Link` header that points to the capabilities endpoint.
+</Note>
 
 ## Events and Delivery Status
 
