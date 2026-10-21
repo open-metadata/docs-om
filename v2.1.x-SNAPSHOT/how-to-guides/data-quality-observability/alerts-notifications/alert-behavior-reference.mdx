@@ -14,7 +14,7 @@ For the step-by-step UI procedures, see [Data Observability Alerts](/v2.1.x-SNAP
 
 Every alert is built from the same parts:
 
-- **Source**: the type of asset or event stream the alert watches, such as **Table** or **Test Case**. An alert has exactly one source.
+- **Source**: the type of asset or event stream the alert watches, such as **Table** or **Test Case**. An alert watches one or more sources. See [Alerts on Several Sources](#alerts-on-several-sources).
 - **Trigger**: the specific kind of change that should fire the alert, such as a test case status update. Only Observability alerts have triggers.
 - **Filter**: an optional condition that narrows which events from the source qualify, such as only assets owned by a given team.
 - **Destination**: where the alert is delivered, such as a Slack channel, an email address, or a webhook.
@@ -23,7 +23,7 @@ OpenMetadata evaluates each event in this order: source, then filters, then trig
 
 When you combine several filters, each one is joined to the previous one with **AND** or **OR**. The default is AND.
 
-An Observability alert with no filters and no triggers fires on every event for its source, including asset creation and deletion. Always select at least one trigger for a focused alert.
+An Observability alert with no filters and no triggers fires on every event for its sources, including asset creation and deletion. Always select at least one trigger for a focused alert.
 
 ## Observability Alerts and Notifications
 
@@ -49,6 +49,19 @@ Incidents are covered by **Notification** alerts only. An incident is a task, so
 No Observability source reports incident status. An Observability alert on a **Test Case** fires when a test result is posted, which is usually at about the same time an incident is opened. It doesn't fire when someone acknowledges, assigns, or resolves the incident.
 
 A failing test result creates an incident automatically, or reuses the incident that is already open for that test case. See [Incident Manager](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/incident-manager) for the workflow.
+
+## Alerts on Several Sources
+
+One alert can watch several sources, for example **Pipeline** and **Ingestion Pipeline**, so that one set of destinations hears about both. These rules apply:
+
+- **One kind of source**: **Task**, **Conversation**, and **Announcement** are collaboration sources. Every other source except **All** is a data asset source, including every Observability source. An alert combines sources of one kind only.
+- **All stands alone**: the **All** source already matches every event, so it can't be combined with other sources.
+- **Filters apply to every source**: a filter applies to every event, so every source of the alert must support it. The UI offers only the filters that all the chosen sources support. For example, **Task** and **Announcement** share no filters.
+- **Triggers apply to their own sources**: a trigger applies only to the sources that support it. An alert on **Pipeline** and **Ingestion Pipeline** needs the **Pipeline Status** trigger for pipelines and the **Ingestion Pipeline Status** trigger for ingestion pipelines. The UI names the sources of each trigger, for example **Get Pipeline Status Updates (Pipeline)**.
+- **Unreachable sources**: when the alert has triggers but none of them applies to a source, the UI warns that none of that source's events can match. The alert still saves.
+- **Recipients**: the internal recipients offered, such as **Owners** or **Followers**, are those that at least one of the chosen sources supports.
+
+OpenMetadata rejects an alert that breaks one of the first three rules, or that has a trigger no source supports, with a `400` error.
 
 ## Observability Alerts: Sources, Triggers, and Filters
 

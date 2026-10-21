@@ -41,7 +41,7 @@ Base path: `/v1/events/subscriptions`
 | Create or update by name | `PUT /v1/events/subscriptions` |
 | Update with JSON Patch | `PATCH /v1/events/subscriptions/{id}` or `/name/{name}` |
 | Delete | `DELETE /v1/events/subscriptions/{id}` or `/name/{name}` |
-| Available sources, filters, and triggers | `GET /v1/events/subscriptions/{alertType}/resources` |
+| Available sources, filters, and triggers | `POST /v1/events/subscriptions/capabilities` |
 | Test a destination | `POST /v1/events/subscriptions/testDestination` |
 
 ## Permissions
@@ -88,7 +88,7 @@ The request body for create and create-or-update is a `CreateEventSubscription` 
 </ParamField>
 
 <ParamField body="resources" type="array" required>
-  The alert **source**, for example `["testCase"]`. Provide exactly one value. Use lowercase `all` to match every source on a Notification alert. To list the valid values, see [Available Sources, Filters, and Triggers](/v2.1.x-SNAPSHOT/api-reference/alerts/list#available-sources-filters-and-triggers).
+  The alert **sources**, for example `["testCase"]` or `["pipeline", "ingestionPipeline"]`. Provide at least one value. Use lowercase `all` to match every source on a Notification alert. To check which sources you can combine and what they support, see [Available Sources, Filters, and Triggers](/v2.1.x-SNAPSHOT/api-reference/alerts/list#available-sources-filters-and-triggers).
 </ParamField>
 
 <ParamField body="input" type="object">
@@ -134,7 +134,7 @@ The request body for create and create-or-update is a `CreateEventSubscription` 
 Each filter and trigger is an object with these fields:
 
 <ParamField body="name" type="string" required>
-  Name of the filter or trigger, for example `filterByFqn` or `GetTestCaseStatusUpdates`. Valid names depend on the source. Look them up with the resources endpoint.
+  Name of the filter or trigger, for example `filterByFqn` or `GetTestCaseStatusUpdates`. Valid names depend on the sources. To look them up, see [Available Sources, Filters, and Triggers](/v2.1.x-SNAPSHOT/api-reference/alerts/list#available-sources-filters-and-triggers).
 </ParamField>
 
 <ParamField body="effect" type="string" default="include">
@@ -149,10 +149,14 @@ Each filter and trigger is an object with these fields:
   Values for the filter or trigger. Each item is `{ "name": "<argument name>", "input": ["<value>", ...] }`. Every argument the filter or trigger defines must have at least one value.
 </ParamField>
 
+With several sources, a filter must be supported by every source, because it applies to every event. A trigger must be supported by at least one source, and it applies only to the sources that support it.
+
 OpenMetadata returns a `400` error when:
 
-- You provide no source, or more than one source.
-- A filter or trigger isn't supported for the source.
+- You provide no source.
+- You combine `all` with other sources.
+- You combine sources of different kinds, such as `table` and `conversation`.
+- A filter isn't supported by every source, or a trigger isn't supported by any source.
 - A required argument is empty.
 
 ### Destination
