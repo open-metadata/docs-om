@@ -6,9 +6,9 @@ sidebarTitle: Overview
 
 # Ontology Studio
 
-**Ontology Studio** is the workspace where your glossary stops being a list and becomes a model. It is one page with four modes — **View**, **Edit**, **Query**, and **AI** — over the same graph, so you never lose your place moving between reading the model, changing it, and interrogating it.
+**Ontology Studio** is the workspace where your glossary stops being a list and becomes a model. It is one page with up to four modes, depending on your permissions and server settings: **View**, **Edit**, **Query**, and **AI**. They all work over the same graph, so you never lose your place moving between reading the model, changing it, and interrogating it.
 
-Open it from **Govern → Ontology Studio** in the left navigation, or go directly to `/governance/ontology`.
+Open it from **Govern** > **Ontology Studio** in the left navigation, or go directly to `/governance/ontology`.
 
 ## The Shell
 
@@ -16,24 +16,32 @@ Every mode shares the same header:
 
 | Control | What it does |
 |---|---|
-| **Glossary selector** | Scopes the whole studio to one ontology model, or **All glossaries**. Shows a term count per glossary. |
-| **Mode tabs** | **View · Edit · Query · AI**. Edit appears only if you have edit permission; AI only if AI-assisted flows are enabled on the server. |
-| **Import / Export** | Ontology import and export in OWL, Turtle, N-Triples, JSON-LD, SKOS, and CSV. |
-| **Library** | Opens the **Ontology Library** of standards-aligned starter packs. |
-| **Isolated badge** | A live count of concepts with no relationships — the single most useful health signal in the studio. |
+| **Scope menu** | The button at the top right of the header, labeled with your current selection. It scopes the whole studio to one item. The **Ontologies** section lists **All ontologies**, each ontology you have created, and **New Ontology**. The **Glossaries** section lists **All Glossaries** and each glossary, with a term count. Studio opens on **All ontologies** by default. |
+| **Mode tabs** | **View · Edit · Query · AI**. In a glossary scope, Edit appears only if you have edit permission. In an ontology it always appears, but actions are disabled without permission. AI appears only if AI-assisted flows are enabled on the server. |
+| **Import / Export** | An icon button (hover to see **Import / Export**). In a glossary scope it opens a dialog to export OWL, SKOS, JSON-LD, and CSV, and to import OWL, Turtle, and N-Triples files. |
+| **Library** | An icon button (hover to see **Library**) that opens the **Ontology Library** of standards-aligned starter packs. |
+| **Primary action** | The primary button changes with the mode: **Edit Ontology** in **View**, **Add Concept** in **Edit**, and **New Query** in **Query**. |
 
-Below the header, a sub-mode bar switches the surface within the current mode and shows a running `N terms · M relations` count.
+Below the header, a sub-mode bar switches the surface within the current mode, offers a **Find a concept** search, and shows a running `N terms · M relations` count. In **View** and **Edit**, an **Ontology health** panel on the graph reports how many terms are connected.
+
+<Info>
+
+Ontology Studio can work on two kinds of models: standalone **ontologies** (the **Ontologies** section of the scope menu, with their own concepts, properties, constraints, and publishing) and your existing **glossaries**. Most pages in this section describe working with glossaries: choose a glossary or **All Glossaries** in the scope menu first. For standalone ontologies, see [Native Ontologies](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ontologies).
+
+</Info>
 
 <img src="/public/images/how-to-guides/ontology/ontology-studio-view-graph.png" alt="Ontology Studio in View mode showing the concept graph, mode tabs, and ontology health" />
 
-## The Four Modes
+## The Modes
+
+Each mode has its own page. Ontology proposals derived from Memories are reviewed on a separate screen that has no tab of its own. For more information, see [Review Memory-Derived Proposals](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author#review-memory-derived-proposals).
 
 <CardGroup cols={2}>
   <Card title="View" icon="eye" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/explore">
     **Graph** and **Tree** surfaces for reading the model — filters, health, search, export, and a details inspector for any concept or relation.
   </Card>
   <Card title="Edit" icon="pen" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author">
-    **Graph** authoring plus a **Model** workbench for IRIs, patterns, subsets, merges, and OWL constraints. Guarded by an editing lease.
+    **Graph** authoring: add concepts, draw typed relations, and add mappings and data assets. Guarded by an editing lease.
   </Card>
   <Card title="Query" icon="terminal" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/query">
     A **SPARQL console** with saved queries and shared templates, and a **Visual builder** for people who would rather not write SPARQL.
@@ -48,13 +56,14 @@ Below the header, a sub-mode bar switches the surface within the current mode an
 | Mode | Requires | Notes |
 |---|---|---|
 | **View** | Nothing beyond a glossary | Works with RDF disabled. |
-| **Edit** | `EditAll` / `EditGlossaryTerms` / `EditEntityRelationship` on Glossary, or admin | Acquires an editing lease per glossary. |
-| **Query** | RDF enabled | Without it, the mode shows an explanatory notice instead of the console. |
-| **AI** | `RDF_ASK_COLLATE_ENABLED=true` **and** a configured LLM provider | The tab is hidden entirely when disabled. |
+| **Edit** | `EditAll` / `EditGlossaryTerms` on Glossary, `EditEntityRelationship` on Glossary Term, or admin | Acquires an editing lease per glossary. |
+| **Query** | RDF enabled (for glossaries) | Without it, a glossary scope shows an explanatory notice instead of the console. |
+| **AI** | `RDF_AI_ENABLED=true` (the older name `RDF_ASK_COLLATE_ENABLED` also works) **and** LLM features turned on (`LLM_ENABLED=true`) with a provider set in `LLM_PROVIDER` (`openai`, `azureOpenAI`, `bedrock`, `google`, or `anthropic`) | The tab is hidden entirely when disabled. |
+| **Memory proposals review** | A Memory-derived draft link | Not a tab. Opens from the **Draft** link on a memory. For more information, see [Review Memory-Derived Proposals](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author#review-memory-derived-proposals). |
 
 <Info>
 
-`GET /api/v1/rdf/status` is the single source of truth the UI uses for this gating. It returns `enabled`, `storageType`, `inference`, `projectionState` (`DISABLED` / `READY` / `REBUILDING` / `DEGRADED`), and `askCollateEnabled`.
+`GET /api/v1/rdf/status` is the single source of truth the UI uses for this gating. It returns `enabled`, `storageType`, `inference`, `projectionState` (`DISABLED` / `READY` / `REBUILDING` / `DEGRADED`), and `aiEnabled`.
 
 </Info>
 
@@ -62,16 +71,16 @@ Below the header, a sub-mode bar switches the surface within the current mode an
 
 <Steps>
   <Step title="Pick a model">
-    Choose a glossary in the header. Studio scopes graph, tree, authoring, and query to that model. Leave it on **All glossaries** to see cross-glossary relationships.
+    Open the scope menu in the header and choose a glossary. Studio scopes graph, tree, authoring, and query to that model. Choose **All Glossaries** to see cross-glossary relationships.
   </Step>
   <Step title="Read the health signal">
-    Look at the **isolated** badge. Isolated concepts are terms nobody has connected to anything — they are definitions, not a model. Getting that number down is the work.
+    Look at the **Ontology health** panel, for example *"38% · 232 of 607 terms connected · 375 isolated terms"*. Isolated terms are terms nobody has connected to anything: they are definitions, not a model. Select **Review** to list them, each with a **Connect** button. Getting that number down is the work.
   </Step>
   <Step title="Explore the shape">
-    Use **View → Graph** for structure and **View → Tree** for hierarchy. The tree flags both isolated terms and polyhierarchic ones (concepts with more than one parent), which are the usual sources of ambiguity.
+    Use **View** > **Graph** for structure and **View** > **Tree** for hierarchy. The tree lists terms that are not connected yet under **Not connected**, with a **Connect** button for each, and flags polyhierarchic ones (concepts with more than one parent), which are a usual source of ambiguity.
   </Step>
   <Step title="Connect what matters">
-    Switch to **Edit → Graph**, take the lease, and draw typed relations between concepts. Add attributes and external mappings in the inspector.
+    Select **Edit Ontology**, or open the **Edit** tab, and draw typed relations between concepts. Add data assets and external mappings in the inspector.
   </Step>
   <Step title="Ask a question">
     Switch to **Query**. Start from a shared template, or use the visual builder and click **Edit as SPARQL** to see the query it produced.
@@ -84,9 +93,9 @@ Ontology Studio reads from ordinary OpenMetadata APIs, which is why most of it w
 
 | Surface | API |
 |---|---|
-| Graph and stats | `GET /api/v1/glossaryTerms/studio/summary`, `GET /api/v1/glossaryTerms/studio/data` |
+| Graph and stats | `GET /api/v1/glossaryTerms/ontology/summary`, `GET /api/v1/glossaryTerms/ontology/data` |
 | Concept relations | `GET /api/v1/glossaryTerms/{id}/relationsGraph`, `POST\|PUT\|DELETE /api/v1/glossaryTerms/{id}/relations` |
-| Attached assets | `GET /api/v1/glossaryTerms/{id}/studioAssets`, `GET /api/v1/glossaryTerms/assets/counts` |
+| Attached assets | `GET /api/v1/glossaryTerms/{id}/assets`, `GET /api/v1/glossaryTerms/assets/counts` |
 | Relationship types | `GET /api/v1/relationshipTypes`, `GET /api/v1/glossaryTerms/relationTypes/usage` |
 | Glossary-scoped SPARQL | `POST /api/v1/glossaries/{id}/sparql` — works without RDF storage |
 | Catalog-wide SPARQL | `GET\|POST /api/v1/rdf/sparql` — requires RDF |
@@ -96,6 +105,7 @@ The full endpoint list is in the [Ontology API reference](/v2.1.x-SNAPSHOT/how-t
 ## In This Section
 
 <CardGroup cols={2}>
+  <Card title="Native Ontologies" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ontologies" />
   <Card title="Explore (View mode)" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/explore" />
   <Card title="Author (Edit mode)" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author" />
   <Card title="Query mode" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/query" />
