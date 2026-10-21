@@ -1,0 +1,237 @@
+---
+title: OpenLineage Events
+description: Send single or batched OpenLineage RunEvents to create lineage in OpenMetadata.
+sidebarTitle: OpenLineage Events
+api: POST /v1/openlineage/lineage
+---
+
+# OpenLineage Events
+
+Send OpenLineage `RunEvent` payloads to create lineage between the events' input and output datasets.
+
+| Method | Endpoint | Body |
+| --- | --- | --- |
+| `POST` | `/v1/openlineage/lineage` | One `RunEvent` object |
+| `POST` | `/v1/openlineage/lineage/batch` | An object with an `events` array |
+
+Paths in this reference are relative to the API base URL. For a server at `https://your-company.open-metadata.org`, the single-event URL is `https://your-company.open-metadata.org/api/v1/openlineage/lineage`.
+
+## Prerequisites
+
+Both endpoints require an OpenMetadata JWT in the `Authorization: Bearer` header and `EditLineage` permission on the `table` resource. The server's OpenLineage API must be enabled.
+
+Datasets must resolve to existing catalog assets or satisfy the server's entity creation settings. Both `inputs` and `outputs` must contain at least one dataset to create an edge. By default, the server processes only `COMPLETE` events.
+
+For more information, see [OpenLineage Compatibility](/v2.0.x/how-to-guides/data-lineage/openlineage).
+
+## Single Event Request
+
+The following fields describe the `RunEvent` request body.
+
+<ParamField body="eventTime" type="string" required>
+  Time the event occurred, as an ISO 8601 timestamp in UTC.
+</ParamField>
+
+<ParamField body="producer" type="string" required>
+  URI identifying the event producer.
+</ParamField>
+
+<ParamField body="schemaURL" type="string" required>
+  URI identifying the OpenLineage event schema.
+</ParamField>
+
+<ParamField body="eventType" type="string">
+  One of `START`, `RUNNING`, `COMPLETE`, `ABORT`, `FAIL`, or `OTHER`. Send `COMPLETE` for the default server filter. An omitted value is processed when the filter allows `COMPLETE`.
+</ParamField>
+
+<ParamField body="run" type="object" required>
+  Contains the required `runId`, a UUID string, and optional run `facets`.
+</ParamField>
+
+<ParamField body="job" type="object" required>
+  Contains the required `namespace` and `name` strings, and optional job `facets`.
+</ParamField>
+
+<ParamField body="inputs" type="array">
+  Input datasets. Each dataset requires `namespace` and `name` strings. Dataset `facets` and `inputFacets` are optional.
+</ParamField>
+
+<ParamField body="outputs" type="array">
+  Output datasets. Each dataset requires `namespace` and `name` strings. Dataset `facets` and `outputFacets` are optional.
+</ParamField>
+
+### Example RunEvent
+
+Save the following payload as `event.json`. This example assumes the namespace maps to `prod-postgres` and both tables already exist with an `id` column. The output column maps to `prod-postgres.analytics.public.raw_orders.id`.
+
+```json
+{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-10-20T10:00:00Z",
+  "producer": "https://example.com/lineage-producer",
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+  "run": {
+    "runId": "2ad9b3d8-18cb-4e15-b48c-56362a50ea5c"
+  },
+  "job": {
+    "namespace": "orders",
+    "name": "build_orders",
+    "facets": {
+      "sql": {
+        "_producer": "https://example.com/lineage-producer",
+        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SQLJobFacet.json#/$defs/SQLJobFacet",
+        "query": "INSERT INTO analytics.public.orders SELECT id FROM analytics.public.raw_orders"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "namespace": "postgresql://warehouse.example.com:5432",
+      "name": "analytics.public.raw_orders"
+    }
+  ],
+  "outputs": [
+    {
+      "namespace": "postgresql://warehouse.example.com:5432",
+      "name": "analytics.public.orders",
+      "facets": {
+        "columnLineage": {
+          "_producer": "https://example.com/lineage-producer",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+          "fields": {
+            "id": {
+              "inputFields": [
+                {
+                  "namespace": "postgresql://warehouse.example.com:5432",
+                  "name": "analytics.public.raw_orders",
+                  "field": "id"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Set the `OPENMETADATA_JWT` environment variable to your token, then send the saved event:
+
+<RequestExample>
+```bash
+curl --request POST \
+  "https://your-company.open-metadata.org/api/v1/openlineage/lineage" \
+  --header "Authorization: Bearer $OPENMETADATA_JWT" \
+  --header "Content-Type: application/json" \
+  --data-binary @event.json
+```
+</RequestExample>
+
+The following response indicates that the server wrote one lineage edge:
+
+<ResponseExample>
+```json
+{
+  "status": "success",
+  "message": "Created 1 lineage edge(s)",
+  "lineageEdgesCreated": 1
+}
+```
+</ResponseExample>
+
+## Batch Request
+
+`POST /v1/openlineage/lineage/batch` accepts an object containing a required `events` array with at least one `RunEvent`. A bare JSON array is not a batch request.
+
+Save this example as `batch.json`:
+
+```json
+{
+  "events": [
+    {
+      "eventType": "COMPLETE",
+      "eventTime": "2026-10-20T10:00:00Z",
+      "producer": "https://example.com/lineage-producer",
+      "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+      "run": {
+        "runId": "3aa06b9c-2185-4c64-959c-b549f768b251"
+      },
+      "job": {
+        "namespace": "orders",
+        "name": "build_orders"
+      },
+      "inputs": [
+        {
+          "namespace": "postgresql://warehouse.example.com:5432",
+          "name": "analytics.public.raw_orders"
+        }
+      ],
+      "outputs": [
+        {
+          "namespace": "postgresql://warehouse.example.com:5432",
+          "name": "analytics.public.orders"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Send the batch to the batch endpoint:
+
+```bash
+curl --request POST \
+  "https://your-company.open-metadata.org/api/v1/openlineage/lineage/batch" \
+  --header "Authorization: Bearer $OPENMETADATA_JWT" \
+  --header "Content-Type: application/json" \
+  --data-binary @batch.json
+```
+
+The following response represents one event that wrote one edge:
+
+```json
+{
+  "status": "success",
+  "message": "Processed 1 events: 1 successful, 0 failed, 0 skipped. Created 1 lineage edges.",
+  "summary": {
+    "received": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "lineageEdgesCreated": 1
+}
+```
+
+## Response Fields
+
+Both endpoints return a JSON object. Batch responses also include processing counts.
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `success`, `partial_success`, or `failure`. |
+| `message` | Human-readable processing result. |
+| `lineageEdgesCreated` | Number of edge writes that succeeded. This is not a count of unique new relationships. |
+| `summary.received` | Number of events in a batch. |
+| `summary.successful` | Number of batch events with at least one successful edge write. |
+| `summary.failed` | Number of batch events that raised a processing exception. |
+| `summary.skipped` | Number of batch events that produced no successful edge writes. |
+| `failedEvents` | Batch failures, each with a zero-based `index`, a `reason`, and a `retriable` flag. The server sets `retriable` to `false`. |
+
+In OpenMetadata 2.0, a single event can return `200` and `status: success` with `lineageEdgesCreated: 0`. Filtered events, empty input or output lists, unresolved datasets, and failed edge writes can all produce zero edges. The response does not list unresolved datasets.
+
+A processed batch returns `200` even when its body reports `partial_success` or `failure`. Individual edge-write failures are logged and do not necessarily produce a failed event. Check the counts and server logs, then verify the graph with [Get Lineage](/v2.0.x/api-reference/lineage/get).
+
+## HTTP Status Codes
+
+Inspect the response body as well as the HTTP status.
+
+| Code | Meaning |
+| --- | --- |
+| `200` | The server processed the request. The body describes the result. |
+| `400` | The request format is invalid. |
+| `401` | The authentication token is missing or invalid. |
+| `403` | The caller lacks `EditLineage` permission on the `table` resource. |
+| `500` | An unexpected exception prevented single-event processing. |
+| `503` | The OpenLineage API is disabled in the server settings. |

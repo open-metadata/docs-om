@@ -1,0 +1,127 @@
+---
+title: OpenLineage Compatibility
+description: Send OpenLineage events to OpenMetadata and understand dataset resolution, supported facets, and ingestion limits.
+---
+
+# OpenLineage Compatibility
+
+OpenMetadata accepts OpenLineage `RunEvent` payloads and converts their input and output datasets into lineage edges. You can send events directly over HTTP or consume events through the OpenLineage pipeline connector.
+
+## Choose an Ingestion Method
+
+Use the method that matches where your producer sends events.
+
+| Method | Configuration | Use Case |
+| --- | --- | --- |
+| HTTP API | Point the producer's HTTP transport to `/api/v1/openlineage/lineage`. | Send events directly from a client or integration. |
+| Kafka or AWS Kinesis | Configure the [OpenLineage connector](/v2.1.x-SNAPSHOT/connectors/pipeline/openlineage) to read the broker or stream. | Consume events already published to Kafka or Kinesis. |
+| Native Lineage API | Send entity references to `/api/v1/lineage`. | Create explicit relationships between assets already in OpenMetadata. |
+
+The HTTP API runs in the OpenMetadata server. It does not require a Kafka broker, Kinesis stream, or scheduled connector workflow. The connector has its own connection and ingestion settings. The HTTP settings below apply to direct event ingestion.
+
+## Prepare OpenMetadata
+
+Before you send events, complete these steps:
+
+1. Create or ingest the database services, databases, schemas, and tables referenced by the events. Include their columns if you need column-level lineage.
+2. Obtain an OpenMetadata JSON Web Token (JWT) for a user or bot with `EditLineage` permission on the `table` resource.
+3. Configure namespace mappings so each dataset resolves to the intended database service.
+4. To associate events with pipelines, create or ingest the pipeline itself. The server searches the pipeline service named by `defaultPipelineService`, which defaults to `openlineage`.
+
+If you enable automatic table creation, the caller also needs `Create` permission for each missing table, database, or database schema that the event creates.
+
+For more information, see [API Authentication](/v2.1.x-SNAPSHOT/api-reference/authentication).
+
+### Match Datasets to Catalog Assets
+
+An OpenLineage dataset has a `namespace` and a `name`. The namespace identifies its source system. The name identifies the dataset within that system.
+
+For example, this dataset can resolve to the OpenMetadata table `prod-postgres.analytics.public.orders`:
+
+```json
+{
+  "namespace": "postgresql://warehouse.example.com:5432",
+  "name": "analytics.public.orders"
+}
+```
+
+Map `postgresql://warehouse.example.com:5432` to the existing database service `prod-postgres` through `namespaceToServiceMapping`. Use the exact namespace emitted by your producer. Include the database and schema in the dataset name when available.
+
+The resolver tries the namespace mapping, datasource facet information, and table-name suffix matches. A namespace is not automatically an OpenMetadata service name. Suffix matches can be ambiguous when several services contain the same database, schema, and table names.
+
+For more information, see [Cross Database Lineage](/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/cross-database-lineage).
+
+### Configure HTTP Ingestion Settings
+
+An administrator can read the current configuration with `GET /api/v1/system/settings/openLineageSettings`. To update it, send a settings object to `PUT /api/v1/system/settings`.
+
+Preserve existing mappings and other settings when you update the configuration. The following example processes completed runs against assets already in the catalog:
+
+```json
+{
+  "configType": "openLineageSettings",
+  "configValue": {
+    "enabled": true,
+    "autoCreateEntities": false,
+    "eventTypeFilter": ["COMPLETE"],
+    "defaultPipelineService": "openlineage",
+    "namespaceToServiceMapping": {
+      "postgresql://warehouse.example.com:5432": "prod-postgres"
+    }
+  }
+}
+```
+
+The API is enabled by default. If `eventTypeFilter` is absent or empty, the server processes `COMPLETE` events. It also treats an omitted `eventType` as eligible when `COMPLETE` is allowed. Send an explicit event type to make the producer's intent clear.
+
+`autoCreateEntities` defaults to `true`. The server can create a missing table, database, and database schema under an existing database service. The dataset namespace must have a `namespaceToServiceMapping` entry, and its schema facet must contain the table's columns. Each creation requires the caller's `Create` permission and must pass the server's limits and validation.
+
+Use a dataset name such as `analytics.public.orders` to identify the database, schema, and table. If the name has only `schema.table`, automatic creation requires exactly one database in the mapped service.
+
+The HTTP API does not create database services, pipelines, or containers. An unresolved job appears in `unresolvedJobs`, and its dataset edges can still be created without a pipeline reference.
+
+## Configure an HTTP Producer
+
+For the OpenLineage Python client, save this configuration as `openlineage.yml`:
+
+```yaml
+transport:
+  type: http
+  url: https://your-company.open-metadata.org
+  endpoint: /api/v1/openlineage/lineage
+  auth:
+    type: api_key
+    api_key: "<OPENMETADATA_JWT>"
+```
+
+Replace the host and token with your deployment values. Set `OPENLINEAGE_CONFIG` to the file path if the file is outside the client's working directory. The `api_key` authentication provider sends the OpenMetadata JWT in the `Authorization: Bearer` header.
+
+Set the endpoint explicitly. The client's default `/api/v1/lineage` path is the native OpenMetadata Lineage API, which expects a different request body.
+
+For more information, see the [OpenLineage Python Client Configuration](https://openlineage.io/docs/client/python/configuration/#http-transport). Other clients and integrations have their own configuration syntax. Configure the same URL, endpoint, and bearer token using that client's HTTP transport options.
+
+## Understand the Supported Metadata
+
+The HTTP mapper uses the following event fields and facets:
+
+| Event Metadata | OpenMetadata Behavior |
+| --- | --- |
+| `inputs` and `outputs` | Creates a lineage edge for each resolved input and output pair. Both lists must contain a dataset. |
+| Dataset `schema` facet | Supplies column names and types when the server creates a table. It does not replace metadata ingestion for existing tables. |
+| Job `sql` facet | Stores `job.facets.sql.query` on the lineage edge. SQL text alone does not supply input and output datasets. |
+| Output `columnLineage` facet | Maps output fields to input fields. The mapper reads `outputFacets.columnLineage` first, then `facets.columnLineage`. |
+| Run `parent` facet | Uses the parent job to resolve the pipeline reference. Without a usable parent job, it uses the event's job. |
+
+For column-level lineage, each `inputFields` entry must match an input dataset's namespace and name. Its `field` must identify a catalog column. Ingest the tables and columns first, or supply the schema facets needed for automatic table creation.
+
+The mapper can resolve storage datasets to existing container assets by path. It does not create missing containers. Compatibility depends on the dataset names and facets emitted by your integration. An accepted event does not mean that every custom facet becomes OpenMetadata metadata.
+
+## Send an Event and Verify Lineage
+
+Use the complete request examples in the [OpenLineage Events API](/v2.1.x-SNAPSHOT/api-reference/lineage/openlineage) to send a single event or a batch.
+
+After sending an event, check `lineageEdgesCreated`, `unresolvedDatasets`, and `unresolvedJobs`. If datasets cannot be resolved, a single event returns `partial_success` when some edges were written. It returns `400` with `status: failure` when no edge was written.
+
+A `200` response with `status: success` can still contain zero edges for a filtered event or an event without inputs or outputs. Failed edge writes are logged and can also leave the count at zero.
+
+If no edges appear, check the event type and dataset names first. Use the unresolved dataset reasons to check namespace mappings, schema facets, and create permissions. Then use the [Get Lineage API](/v2.1.x-SNAPSHOT/api-reference/lineage/get) or the asset's **Lineage** tab to confirm the resulting graph.

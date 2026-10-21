@@ -81,5 +81,18 @@ openmetadata:
 
 **3. Redeploying ingestion pipelines**
 
-When the `ingestion-bot` is updated, we must redeploy our ingestion pipelines since the credentials used by the bot have been updated,
-and they will no longer be valid.
+After updating `ingestion-bot`, redeploy the ingestion pipelines because the previous credentials are no longer valid.
+
+## Automate Bot Management Securely
+
+Use a dedicated functional user account when an automation workflow creates or manages bots through the REST API. Do not use an individual administrator's Personal Access Token (PAT). The workflow would stop when that person leaves, loses access, or revokes the token.
+
+1. Create a functional user account for the automation workflow.
+2. Assign only the roles and policies required to create or update bots. Avoid granting the Admin role unless the workflow requires other administrative operations.
+3. Sign in as the functional account and [create a PAT](/v2.0.x/how-to-guides/guide-for-data-users/personal-access-token).
+4. Store the PAT in a secrets manager and inject it at runtime. Do not commit it to source control, place it directly in a script, or write it to logs.
+5. Set an expiration that matches your credential-rotation process. Rotate the PAT before it expires and revoke it immediately if it might have been exposed.
+
+Requests made with the PAT are recorded as actions by the functional account. This separates automation activity from an individual administrator's activity, but it does not identify which job or invocation used the shared credential. Use a separate functional account for each automation workflow when you need distinct audit attribution.
+
+The PAT has the same permissions as its functional account. Anyone who obtains the token can act with those permissions until the token expires or is revoked. Restrict access to the secret, use the shortest practical lifetime, and monitor the functional account's activity.
