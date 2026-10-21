@@ -78,6 +78,7 @@ The connector documentation is available in the right side panel within the Open
 To set up the metadata agent, enter and configure the following details and click **Next**:
 
 - **Name**: Pre-populated with the service name and a randomly generated suffix to ensure uniqueness.
+- **Owners**: Use the edit icon next to **Owners** to select the users and teams that own this agent. OpenMetadata fills the field with the owners of the service. If the service has no owners, OpenMetadata adds you. The agent needs at least one owner, so the field is required. To change the owners of an existing agent, you need permission to edit owners.
 - **Database Filter Pattern**: Include or exclude specific databases. A database service can contain multiple databases – use this filter to ingest only the ones you need.
 - **Schema Filter Pattern**: Include or exclude specific schemas within a database.
 - **Table Filter Pattern**: Include or exclude specific tables within a schema.
@@ -90,6 +91,8 @@ To set up the metadata agent, enter and configure the following details and clic
 - **Query Parsing Timeout Limit**: Specify the timeout limit for parsing the view definition SQL queries to perform lineage analysis. Defaults to `300`.
 
 <img src="/public/images/how-to-guides/admin-guide/snowflake6.png" alt="Configure Metadata Agent" />
+
+<img src="/public/images/how-to-guides/admin-guide/metadata-agent-owners.png" alt="Owners field on the Add Metadata Agent page" />
 
 ## Step 8: Schedule and Deploy the Metadata Agent
 
@@ -112,10 +115,37 @@ On the **Agents** tab, click the three-dot menu next to an agent to perform the 
 - **Run**: Trigger the ingestion pipeline immediately.
 - **Kill**: Stop all currently running instances of the pipeline.
 - **Re Deploy**: Redeploy the pipeline definition after configuration, schedule, or credential changes. Use this if the source connection credentials change after the initial setup — redeploying applies the new access permissions and ingests any additionally accessible data.
-- **Edit**: Edit or update an agent.
-- **Delete**: Remove an agent from the list.
+- **Edit**: Edit or update an agent, including its owners.
+- **Delete**: Remove an agent from the list. If the agent's runner is unavailable, an administrator can [force-delete the agent](#force-delete-an-agent).
 
 <img src="/public/images/how-to-guides/admin-guide/view-service.png" alt="View Service Agent" />
+
+## Force Delete an Agent
+
+When an agent's runner is unavailable, deleting a deployed agent fails, because OpenMetadata can't remove the agent's workflow from the runner. An administrator can force-delete the agent through the API. Force delete removes the agent from OpenMetadata even when the runner is unreachable.
+
+<img src="/public/images/how-to-guides/admin-guide/agent-actions-menu.png" alt="Agent actions menu with Pause, Re-deploy, Edit configuration, and Delete agent" />
+
+<Warning>
+**Warning**: Force delete can't be undone. It removes the agent's metadata and run history from OpenMetadata. If the runner is unavailable, OpenMetadata skips the runner cleanup, and the agent's workflow might stay on the runner. Remove it manually.
+</Warning>
+
+To force-delete an agent:
+
+1. Get the ID of the agent, for example from the response of `GET {base_url}/api/v1/services/ingestionPipelines`.
+2. Send a `DELETE` request with an administrator's access token and with both `hardDelete=true` and `force=true`:
+
+    ```bash
+    curl -X DELETE "{base_url}/api/v1/services/ingestionPipelines/{agent_id}?hardDelete=true&force=true" \
+      -H "Authorization: Bearer {access_token}"
+    ```
+
+3. Check the response headers. If OpenMetadata skipped the runner cleanup, the response includes `X-OpenMetadata-Runner-Cleanup: skipped-unavailable`.
+
+The request fails in the following cases:
+
+- **400**: The request has `force=true` without `hardDelete=true`.
+- **403**: The caller isn't an administrator.
 
 ## Browsing Ingested Data
 
@@ -132,6 +162,39 @@ Connecting to a database service lets you ingest databases, schemas, tables, and
 ## Managing Services
 
 Admin users can create, edit, or delete services, and view connection details for existing services.
+
+To open a service, click **Connections** in the left navigation and select the service.
+
+### View and Edit the Connection
+
+The **Connection** tab shows the connection details of the service, such as the scheme, username, host and port, and filter patterns. Sensitive values, such as passwords, are masked.
+
+To change the connection:
+
+1. Open the service and click the **Connection** tab.
+2. Click **Edit Connection**, update the connection details, and save your changes.
+
+    <img src="/public/images/how-to-guides/admin-guide/service-edit-connection.png" alt="Edit Connection and Test Connection buttons on the Connection tab of a service" />
+
+To check that OpenMetadata can reach the source, click **Test Connection**. This button appears for services that support connection tests.
+
+You see **Edit Connection** and **Test Connection** only if your role allows you to edit the service.
+
+### Manage the Service
+
+Click **Settings** at the top right of the service page to open the service menu.
+
+<img src="/public/images/how-to-guides/admin-guide/service-settings-menu.png" alt="Settings menu of a service with Announcements, Rename, Import, Export, and Delete" />
+
+The menu has the following options:
+
+- **Announcements**: Create and manage announcements for the service.
+- **Rename**: Change the display name of the service.
+- **Import**: Import service details from a CSV file. This option is available for database services only.
+- **Export**: Export the service details to a CSV file. This option is available for database services only.
+- **Delete**: Delete the service. For more information, see [Delete a Service Connection](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/delete-service-connection).
+
+The menu shows only the options that your role allows.
 
 <Tip>
 **Tip**: For agent configuration and scheduling, see [Best Practices for Metadata Agent](/v2.1.x-SNAPSHOT/connectors/ingestion/best-practices).
