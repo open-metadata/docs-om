@@ -113,11 +113,21 @@ Prepare and test a Basic Auth administrator account before an outage. Switching 
 To recover access:
 
 1. Confirm that you have deployment access and a tested Basic Auth administrator credential.
-2. Record the current SSO provider and configuration so you can restore them.
-3. Set `authenticationConfiguration.provider` to `basic`. If the configuration uses environment variables, set `AUTHENTICATION_PROVIDER=basic`.
-4. Restart the OpenMetadata server or roll out all OpenMetadata server pods so every instance uses the same provider.
-5. Open a private browser session and sign in with the Basic Auth administrator account.
-6. Restore service or correct the SSO configuration.
-7. Set `authenticationConfiguration.provider` back to the original SSO provider, restart or roll out every OpenMetadata server instance, and verify SSO sign-in.
+2. Record the current SSO provider and configuration so you can restore them. Open **Settings** > **SSO** and save the current values, or back up the `authenticationConfiguration` and `authorizerConfiguration` entries in the `openmetadata_settings` table.
+3. Set `authenticationConfiguration.provider` to `basic` in your server configuration. If the configuration uses environment variables, set `AUTHENTICATION_PROVIDER=basic`.
+4. From a deployment that can reach the OpenMetadata database, remove the stored security configuration:
+
+   ```bash
+   ./bootstrap/openmetadata-ops.sh remove-security-config --force
+   ```
+
+   OpenMetadata keeps the SSO configuration in its database and uses it over your server configuration at startup. Without this step, the server keeps using the unavailable SSO provider. This command removes both the authentication and the authorizer configuration.
+5. Restart the OpenMetadata server or roll out all OpenMetadata server pods so every instance uses the same provider and reads the configuration from your server settings.
+6. Open a private browser session and sign in with the Basic Auth administrator account.
+7. Restore service or correct the SSO configuration.
+8. Set `authenticationConfiguration.provider` back to the original SSO provider. Update any related environment variables in your server configuration as well.
+9. Run `./bootstrap/openmetadata-ops.sh remove-security-config --force` again so the server reads the restored SSO values on the next start. Alternatively, re-enter the values you recorded in step 2 under **Settings** > **SSO**.
+10. Restart or roll out every OpenMetadata server instance.
+11. Verify SSO sign-in.
 
 After you restore SSO, users must sign in again because sessions issued by Basic Auth are no longer valid.
