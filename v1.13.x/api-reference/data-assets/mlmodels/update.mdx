@@ -1,46 +1,38 @@
 ---
 title: Update an ML Model
-description: Update ML model properties using JSON Patch
+description: Create or update an ML model with a full request body
 sidebarTitle: Update an ML Model
-api: PATCH /v1/mlmodels/{id}
+api: PUT /v1/mlmodels
 ---
 
 # Update an ML Model
 
-Update an ML model's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the ML model to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/mlmodels/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the ML model, for example `mlflow_svc.customer_segmentation`.
-</ParamField>
+Create an ML model or update it if it already exists, using `PUT /v1/mlmodels` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the ML model. Must be unique within the parent ML model service.
 </ParamField>
 
-<ParamField body="displayName" type="string">
-  Updated display name.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent MlModelService, for example `mlflow_svc`.
 </ParamField>
 
 <ParamField body="algorithm" type="string">
-  Updated algorithm name.
+  Algorithm used by the ML model, for example `KMeans`, `RandomForest`, `XGBoost`, `Neural Network`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the ML model.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the ML model in Markdown format.
 </ParamField>
 
 <ParamField body="mlFeatures" type="array">
-  Updated list of ML features.
+  Array of ML features used by the model.
 
   <Expandable title="properties">
     <ParamField body="name" type="string">
@@ -50,11 +42,29 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="dataType" type="string">
       Data type of the feature, for example `numerical`, `categorical`.
     </ParamField>
+
+    <ParamField body="featureSources" type="array">
+      Sources of the feature data.
+
+      <Expandable title="properties">
+        <ParamField body="name" type="string">
+          Name of the feature source.
+        </ParamField>
+
+        <ParamField body="dataType" type="string">
+          Data type of the source.
+        </ParamField>
+
+        <ParamField body="dataSource" type="object">
+          Reference to the source entity, for example a table or column.
+        </ParamField>
+      </Expandable>
+    </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="mlHyperParameters" type="array">
-  Updated list of hyperparameters.
+  Array of hyperparameters used by the model.
 
   <Expandable title="properties">
     <ParamField body="name" type="string">
@@ -68,11 +78,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 </ParamField>
 
 <ParamField body="target" type="string">
-  Updated target variable.
+  Target variable or objective of the ML model.
+</ParamField>
+
+<ParamField body="server" type="string">
+  Endpoint URL for the model serving server.
+</ParamField>
+
+<ParamField body="dashboard" type="string">
+  Fully qualified name of the associated dashboard, for example `sample_looker.model_dashboard`.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the ML model.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -82,11 +100,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the ML model.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -103,15 +129,39 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/mlmodels
+curl -X PUT "{base_url}/api/v1/mlmodels" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customer_segmentation",
+    "displayName": "Customer Segmentation Model",
+    "service": "mlflow_svc",
+    "algorithm": "KMeans",
+    "description": "Segments customers into groups based on purchasing behavior",
+    "mlFeatures": [
+      {
+        "name": "total_spend",
+        "dataType": "numerical"
+      },
+      {
+        "name": "purchase_frequency",
+        "dataType": "numerical"
+      }
+    ],
+    "mlHyperParameters": [
+      {"name": "n_clusters", "value": "5"},
+      {"name": "max_iter", "value": "300"}
+    ],
+    "target": "customer_segment"
+  }'
+```
+
 ```python PATCH /v1/mlmodels/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import MLModels
@@ -231,8 +281,7 @@ Returns the updated ML model object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this ML model |
-| `404` | `NOT_FOUND` | ML model with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

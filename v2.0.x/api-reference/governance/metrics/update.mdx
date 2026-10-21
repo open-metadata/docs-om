@@ -1,45 +1,168 @@
 ---
 title: Update a Metric
-description: Update metric properties using JSON Patch
+description: Create or update a metric with a full request body
 sidebarTitle: Update a Metric
-api: PATCH /v1/metrics/{id}
+api: PUT /v1/metrics
 ---
 
 # Update a Metric
 
-Update a metric using an [RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902). Address the metric by UUID or fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the metric to update.
-</ParamField>
-
-## Update by Fully Qualified Name
-
-Use `PATCH /v1/metrics/name/{fqn}` to update by name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the metric, such as `customer_retention_rate`.
-</ParamField>
+Create a metric or update it if it already exists, using `PUT /v1/metrics` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send an array of JSON Patch operations with the `application/json-patch+json` content type.
-
-<ParamField body="op" type="string" required>
-  Patch operation, such as `add`, `replace`, or `remove`.
+<ParamField body="name" type="string" required>
+  Globally unique name of the metric.
 </ParamField>
 
-<ParamField body="path" type="string" required>
-  JSON Pointer path of the field to change, such as `/description` or `/metricExpression/code`.
+<ParamField body="displayName" type="string">
+  Human-readable display name for the metric.
 </ParamField>
 
-<ParamField body="value" type="JSON value">
-  New value for `add` and `replace` operations. Omit it for `remove`.
+<ParamField body="description" type="string">
+  Description of what the metric measures and how it should be used, in Markdown format.
+</ParamField>
+
+<ParamField body="metricExpression" type="object">
+  Expression used to calculate the metric.
+
+  <Expandable title="properties">
+    <ParamField body="language" type="string">
+      Expression language: `SQL`, `Java`, `JavaScript`, `Python`, or `External`.
+    </ParamField>
+
+    <ParamField body="code" type="string">
+      Code or external expression that calculates the metric.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="metricType" type="string">
+  Metric type: `COUNT`, `SUM`, `AVERAGE`, `RATIO`, `PERCENTAGE`, `MIN`, `MAX`, `MEDIAN`, `MODE`, `STANDARD_DEVIATION`, `VARIANCE`, `SIMPLE`, `CUMULATIVE`, `DERIVED`, `CONVERSION`, or `OTHER`.
+</ParamField>
+
+<ParamField body="unitOfMeasurement" type="string">
+  Unit: `COUNT`, `DOLLARS`, `PERCENTAGE`, `TIMESTAMP`, `SIZE`, `REQUESTS`, `EVENTS`, `TRANSACTIONS`, or `OTHER`.
+</ParamField>
+
+<ParamField body="customUnitOfMeasurement" type="string">
+  Custom unit name when `unitOfMeasurement` is `OTHER`.
+</ParamField>
+
+<ParamField body="granularity" type="string">
+  Time granularity: `SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`.
+</ParamField>
+
+<ParamField body="dimensions" type="array">
+  Dimensions that can be used to group or slice the metric.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Dimension name.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Dimension type: `CATEGORICAL` or `TIME`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the dimension.
+    </ParamField>
+
+    <ParamField body="expression" type="string">
+      Expression used to calculate the dimension.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="measures" type="array">
+  Measures used by the metric.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Measure name.
+    </ParamField>
+
+    <ParamField body="aggregation" type="string">
+      Aggregation function, such as `SUM`, `COUNT`, or `AVERAGE`.
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the measure.
+    </ParamField>
+
+    <ParamField body="expression" type="string">
+      Expression used to calculate the measure.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="filters" type="array">
+  Filters applied when calculating the metric.
+
+  <Expandable title="properties">
+    <ParamField body="where" type="string" required>
+      SQL `WHERE` clause for the filter.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="relatedMetrics" type="array">
+  Fully qualified names of related metrics.
+</ParamField>
+
+<ParamField body="assets" type="array">
+  Entity references for data assets this metric is calculated from or applies to.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  User or team references that own the metric.
+</ParamField>
+
+<ParamField body="reviewers" type="array">
+  User or team references responsible for reviewing the metric.
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Classification tags to apply to the metric.
+</ParamField>
+
+<ParamField body="domains" type="array">
+  Fully qualified names of domains the metric belongs to.
+</ParamField>
+
+<ParamField body="dataProducts" type="array">
+  Fully qualified names of data products that include the metric.
+</ParamField>
+
+<ParamField body="extension" type="object">
+  Custom property values defined by your organization's metadata schema.
+</ParamField>
+
+<ParamField body="provider" type="string" default="user">
+  Entity provider: `system`, `user`, or `automation`.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/metrics
+curl -X PUT "{base_url}/api/v1/metrics" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customer_retention_rate",
+    "displayName": "Customer Retention Rate",
+    "description": "Percentage of customers retained during the month.",
+    "metricExpression": {
+      "language": "SQL",
+      "code": "retained_customers * 100.0 / NULLIF(total_customers, 0)"
+    },
+    "metricType": "RATIO",
+    "unitOfMeasurement": "PERCENTAGE",
+    "granularity": "MONTH",
+    "domains": ["Customer"]
+  }'
+```
+
 ```python PATCH /v1/metrics/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Metrics
@@ -144,8 +267,7 @@ Fetch relationship fields before modifying them with an SDK. This gives the SDK 
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON Patch document or field value |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this metric |
-| `404` | `NOT_FOUND` | Metric with the given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification or naming conflict |

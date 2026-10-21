@@ -1,50 +1,34 @@
 ---
 title: Update an API Endpoint
-description: Update API endpoint properties using JSON Patch
+description: Create or update an API endpoint with a full request body
 sidebarTitle: Update an API Endpoint
-api: PATCH /v1/apiEndpoints/{id}
+api: PUT /v1/apiEndpoints
 ---
 
 # Update an API Endpoint
 
-Update an API endpoint's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the API endpoint to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/apiEndpoints/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the API endpoint, for example `sample_api_service.pet.addPet`.
-</ParamField>
+Create an API endpoint or update it if it already exists, using `PUT /v1/apiEndpoints` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the API endpoint. Must be unique within the parent API collection.
 </ParamField>
 
-<ParamField body="displayName" type="string">
-  Updated display name.
+<ParamField body="apiCollection" type="string" required>
+  Fully qualified name of the parent APICollection, for example `sample_api_service.pet`.
 </ParamField>
 
 <ParamField body="endpointURL" type="string">
-  Updated URL for the API endpoint.
+  URL for the API endpoint, for example `https://petstore3.swagger.io/#/pet/addPet`.
 </ParamField>
 
 <ParamField body="requestMethod" type="string">
-  Updated HTTP request method: `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`.
+  HTTP request method: `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`.
 </ParamField>
 
 <ParamField body="requestSchema" type="object">
-  Updated request body schema.
+  Schema describing the request body.
 
   <Expandable title="properties">
     <ParamField body="schemaType" type="string">
@@ -53,12 +37,26 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 
     <ParamField body="schemaFields" type="array">
       Array of field objects describing the schema.
+
+      <Expandable title="properties">
+        <ParamField body="name" type="string">
+          Name of the field.
+        </ParamField>
+
+        <ParamField body="dataType" type="string">
+          Data type of the field, for example `INT`, `STRING`, `RECORD`.
+        </ParamField>
+
+        <ParamField body="description" type="string">
+          Description of the field.
+        </ParamField>
+      </Expandable>
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="responseSchema" type="object">
-  Updated response body schema.
+  Schema describing the response body.
 
   <Expandable title="properties">
     <ParamField body="schemaType" type="string">
@@ -67,12 +65,34 @@ Send a JSON object with the fields to update. Only provided fields are changed.
 
     <ParamField body="schemaFields" type="array">
       Array of field objects describing the schema.
+
+      <Expandable title="properties">
+        <ParamField body="name" type="string">
+          Name of the field.
+        </ParamField>
+
+        <ParamField body="dataType" type="string">
+          Data type of the field.
+        </ParamField>
+
+        <ParamField body="description" type="string">
+          Description of the field.
+        </ParamField>
+      </Expandable>
     </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="displayName" type="string">
+  Human-readable display name for the API endpoint.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the API endpoint in Markdown format.
+</ParamField>
+
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the API endpoint.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -82,11 +102,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the API endpoint.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -103,15 +131,31 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/apiEndpoints
+curl -X PUT "{base_url}/api/v1/apiEndpoints" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "addPet",
+    "displayName": "Add Pet",
+    "apiCollection": "sample_api_service.pet",
+    "description": "add a new pet",
+    "endpointURL": "https://petstore3.swagger.io/#/pet/addPet",
+    "requestMethod": "POST",
+    "requestSchema": {
+      "schemaType": "JSON",
+      "schemaFields": [
+        {"name": "id", "dataType": "INT", "description": "ID of pet"}
+      ]
+    }
+  }'
+```
+
 ```python PATCH /v1/apiEndpoints/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import APIEndpoints
@@ -228,8 +272,7 @@ Returns the updated API endpoint object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this API endpoint |
-| `404` | `NOT_FOUND` | API endpoint with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

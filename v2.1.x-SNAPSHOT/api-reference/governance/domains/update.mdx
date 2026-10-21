@@ -1,46 +1,38 @@
 ---
 title: Update a Domain
-description: Update domain properties using JSON Patch
+description: Create or update a domain with a full request body
 sidebarTitle: Update a Domain
-api: PATCH /v1/domains/{id}
+api: PUT /v1/domains
 ---
 
 # Update a Domain
 
-Update a domain's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the domain to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/domains/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the domain, for example `TestDomain`.
-</ParamField>
+Create a domain or update it if it already exists, using `PUT /v1/domains` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the domain. Must be unique at the same level (top-level or within a parent domain).
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="domainType" type="string" required>
+  Type of domain. One of: `Source-aligned`, `Consumer-aligned`, `Aggregate`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the domain.
 </ParamField>
 
-<ParamField body="domainType" type="string">
-  Updated domain type: `Source-aligned`, `Consumer-aligned`, or `Aggregate`.
+<ParamField body="description" type="string" required>
+  Description of the domain in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent domain for creating nested domains, for example `Engineering`.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the domain.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -50,24 +42,31 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="experts" type="array">
-  Updated list of expert references.
-
-  <Expandable title="properties">
-    <ParamField body="id" type="string">
-      UUID of the user.
-    </ParamField>
-
-    <ParamField body="type" type="string">
-      Type of entity (always `user`).
-    </ParamField>
-  </Expandable>
+  Array of user names, as strings, of the subject matter experts for this domain.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/domains
+curl -X PUT "{base_url}/api/v1/domains" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "TestDomain",
+    "domainType": "Aggregate",
+    "description": "Lorem ipsum...",
+    "owners": [],
+    "experts": []
+  }'
+```
+
 ```python PATCH /v1/domains/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Domains
@@ -167,8 +166,7 @@ Returns the updated domain object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this domain |
-| `404` | `NOT_FOUND` | Domain with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |
