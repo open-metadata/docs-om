@@ -1,0 +1,115 @@
+---
+title: Notify Downstream | OpenMetadata
+description: Send an alert to the owners and other stakeholders of downstream assets when an upstream asset or data product changes, using lineage.
+sidebarTitle: Notify Downstream
+---
+
+## Notify Downstream
+
+**Notify Downstream** extends an alert destination so that it also reaches the stakeholders of assets that consume data from the asset that changed. OpenMetadata follows lineage from the changed asset and resolves the destination's recipients for every downstream asset it finds.
+
+Use it when the people affected by a change are not the people who own the changed asset. For example, you can tell the owners of a dashboard that an upstream table changed its schema.
+
+## How It Works
+
+When an event matches the alert, OpenMetadata resolves recipients in this order:
+
+1. **The changed asset**: recipients for the asset that triggered the event, based on the destination category (for example, its owners).
+2. **Downstream assets**: OpenMetadata walks lineage downstream from the changed asset, up to the configured depth. For each downstream asset it resolves the same category (for example, that asset's owners).
+3. **Deduplication**: recipients are merged. A team or user that owns several of these assets receives one notification.
+
+<Note>
+The owners of the changed asset are always included, because step 1 runs first. You can't exclude them. In the example below, Team B, which owns the upstream table, receives the alert as well as Team A.
+</Note>
+
+### Supported Destinations
+
+Notify Downstream works with the **internal** destination categories:
+
+* **Admins**
+* **Followers**
+* **Owners**
+* **Teams**
+* **Users**
+
+It has no effect on **external** destinations (Email, Slack, Microsoft Teams, Google Chat, and Generic Webhook configured with a fixed address or endpoint). The toggle appears for them in the UI, but downstream recipients are only resolved for the internal categories.
+
+To deliver to Slack, Microsoft Teams, Google Chat, or a generic webhook while using Notify Downstream, choose the **Owners** category and then select the delivery channel. OpenMetadata sends each message to the channel configured on the owning team or user. See [Set a Channel on a Team](#set-a-channel-on-a-team).
+
+## Configure Notify Downstream
+
+1. Create or edit an alert, from **Observability** > **Alerts** for Observability alerts or **Settings** > **Notifications** for Notification alerts.
+2. In **Destination**, select an internal category, such as **Owners**.
+
+   <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/notify-downstream-internal-destinations.webp" alt="Internal destination categories" />
+
+3. Turn on **Notify Downstream**.
+
+   <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/notify-downstream-toggle.webp" alt="Notify Downstream toggle" />
+
+4. In **Downstream Depth**, enter how many lineage levels to follow. The field is required once the toggle is on, and the value must be greater than 0.
+
+   <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/notify-downstream-depth.webp" alt="Downstream Depth field" />
+
+5. Save the alert.
+
+| Downstream Depth | Assets notified |
+|---|---|
+| `1` | Only assets directly downstream of the changed asset. This is the default in the UI. |
+| `2` | The directly downstream assets and the assets downstream of them. |
+| Not set (API only) | Every downstream asset, with protection against lineage cycles. |
+
+Turning **Notify Downstream** off clears the depth.
+
+<Note>
+Lineage can be wide. A high or unlimited depth on a source asset with many consumers can notify many owners. Start with a small depth.
+</Note>
+
+## Set a Channel on a Team
+
+For **Owners** routing to a chat tool or webhook, each owning team needs an endpoint for that tool. Set it on the team's **Subscription**:
+
+1. Open the team: **Settings** > **Team & User Management** > **Teams**, then select the team.
+2. In the team header, find **Subscription** and click the **Edit** icon.
+
+   <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/notify-downstream-team-subscription.webp" alt="Team Subscription setting" />
+
+3. In **Webhook**, select **Slack**, **MS Teams**, **G Chat**, or **Webhook** (generic).
+
+   <img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/notify-downstream-add-subscription.webp" alt="Add Subscription dialog" />
+
+4. In **Endpoint**, enter the incoming webhook URL, such as a Slack incoming webhook URL.
+
+5. Click **Confirm**.
+
+A webhook URL is tied to one channel, so each team that wants its own channel needs its own webhook. A team without an endpoint for the selected channel type is skipped. The same `subscription` setting exists on a user profile through the API.
+
+For how to create a webhook for each tool, see [Slack](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/slack-alerts-configuration), [Microsoft Teams](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/microsoft-teams-alerts-configuration), and [Google Chat](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/google-chat-alerts-configuration).
+
+<Note>
+For **Email**, OpenMetadata uses the email address set on the owning team or user.
+</Note>
+
+## Example
+
+Team A owns Table A1, which reads from Table B2. Team B owns Table B2. You want Team A to be told when B2 changes.
+
+1. Add lineage from B2 to A1. This is usually done by ingestion.
+2. Set a Slack **Subscription** on both teams, each with its own webhook.
+3. Create a **Notification** alert on the **Table** source. Filter on `B2` with **Entity FQN** or **Owner Name** so that only B2 events match.
+4. Add a destination: category **Owners**, type **Slack**. Turn on **Notify Downstream** with a depth of `1`.
+
+When B2 changes, Team A receives the alert in its own Slack channel. Team B, as the owner of the changed table, receives it in its channel too.
+
+## Data Products
+
+Notify Downstream follows lineage between data products as well as between assets:
+
+* **Data products as the source**: a data product can be the source of a **Notification** alert, so a change to a data product can notify the owners of downstream data products.
+* **Derived edges**: when two assets that belong to different data products are connected by lineage, OpenMetadata also records lineage between those data products. This happens however the lineage was created (ingestion, the UI, or the API), and also when an asset is added to a data product after the lineage exists.
+
+## Related Reference
+
+* [Alert Behavior Reference](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/alert-behavior-reference): sources, triggers, filters, and when each alert fires.
+* [Data Observability Alerts](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/data-observability-alerts): create and configure alerts.
+* [Alerts API](/v2.1.x-SNAPSHOT/api-reference/alerts): the `notifyDownstream` and `downstreamDepth` fields.
