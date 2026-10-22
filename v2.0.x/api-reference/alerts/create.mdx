@@ -175,6 +175,37 @@ To receive a webhook when an incident changes status, create a `Notification` al
 }
 ```
 
+## Notify Downstream Owners
+
+To notify the owners of downstream assets, set `notifyDownstream` on an internal destination. This `Observability` alert fires when a table's schema changes and sends a Slack message to each owning team of that table and of every table directly downstream of it. It uses the Slack endpoint set on each team's profile, so the destination has no `config`.
+
+```json
+{
+  "name": "schema-change-to-downstream-owners",
+  "alertType": "Observability",
+  "resources": ["table"],
+  "input": {
+    "actions": [
+      {
+        "name": "GetTableSchemaChanges",
+        "effect": "include",
+        "prefixCondition": "AND"
+      }
+    ]
+  },
+  "destinations": [
+    {
+      "category": "Owners",
+      "type": "Slack",
+      "notifyDownstream": true,
+      "downstreamDepth": 1
+    }
+  ]
+}
+```
+
+Owners are skipped when their team or user has no endpoint for the destination type. For how recipients are resolved, see [Notify Downstream](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/notify-downstream).
+
 ## Response
 
 Returns the created alert. The response includes these fields:
