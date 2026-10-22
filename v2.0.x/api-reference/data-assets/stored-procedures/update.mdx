@@ -1,42 +1,26 @@
 ---
 title: Update a Stored Procedure
-description: Update stored procedure properties using JSON Patch
+description: Create or update a stored procedure with a full request body
 sidebarTitle: Update a Stored Procedure
-api: PATCH /v1/storedProcedures/{id}
+api: PUT /v1/storedProcedures
 ---
 
 # Update a Stored Procedure
 
-Update a stored procedure's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the stored procedure to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/storedProcedures/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the stored procedure, for example `snowflake_prod.analytics.public.usp_refresh_analytics`.
-</ParamField>
+Create a stored procedure or update it if it already exists, using `PUT /v1/storedProcedures` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the stored procedure. Must be unique within the parent database schema.
 </ParamField>
 
-<ParamField body="displayName" type="string">
-  Updated display name.
+<ParamField body="databaseSchema" type="string" required>
+  Fully qualified name of the parent DatabaseSchema, for example `snowflake_prod.analytics.public`.
 </ParamField>
 
-<ParamField body="storedProcedureCode" type="object">
-  Updated source code and language.
+<ParamField body="storedProcedureCode" type="object" required>
+  The source code and language of the stored procedure.
 
   <Expandable title="properties">
     <ParamField body="code" type="string">
@@ -49,8 +33,16 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
+<ParamField body="displayName" type="string">
+  Human-readable display name for the stored procedure.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the stored procedure in Markdown format.
+</ParamField>
+
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the stored procedure.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -60,11 +52,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the stored procedure.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -81,15 +81,25 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/storedProcedures
+curl -X PUT "{base_url}/api/v1/storedProcedures" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "calculate_average",
+    "databaseSchema": "sample_data.ecommerce_db.shopify",
+    "description": "Procedure to calculate average",
+    "storedProcedureCode": {
+      "code": "CREATE OR REPLACE PROCEDURE calculate_average(numbers INT ARRAY) RETURNS FLOAT NOT NULL LANGUAGE SQL AS $$DECLARE sum_val INT = 0;count_val INT = 0;average_val FLOAT;BEGIN\n  FOR num IN ARRAY numbers DO sum_val := sum_val + num;\n  count_val := count_val + 1;\nEND FOR;\nIF count_val = 0 THEN\n  average_val := 0.0;\nELSE\n  average_val := sum_val / count_val;\nEND IF;\nRETURN average_val;\nEND;$$;"
+    }
+  }'
+```
+
 ```python PATCH /v1/storedProcedures/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import StoredProcedures
@@ -221,8 +231,7 @@ Returns the updated stored procedure object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this stored procedure |
-| `404` | `NOT_FOUND` | Stored procedure with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |
