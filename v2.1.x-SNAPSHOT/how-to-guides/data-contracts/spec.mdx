@@ -1,6 +1,6 @@
 ---
 title: Data Contract Specification | OpenMetadata Data Contracts
-description: What an OpenMetadata data contract can define, which data assets support each section, what a contract run checks, and how statuses and data product inheritance work.
+description: What an OpenMetadata data contract can define, which data assets support each section, what a contract run checks, and how statuses and data product and schema inheritance work.
 sidebarTitle: Data Contract Specification
 ---
 
@@ -150,6 +150,7 @@ A contract's `entityStatus` is one of `Draft`, `In Review`, `Approved`, `Rejecte
 - **Changing the status**: Edit the contract, or update `entityStatus` through the API. OpenMetadata has no built-in approval workflow for data contracts.
 - **Reviewers**: When a contract has reviewers, only a reviewer (or a member of a reviewer team) can move it from **In Review** to **Approved** or **Rejected**, or delete it while it's **In Review**.
 - **Data products**: An asset inherits a data product's contract only when that contract is **Approved**. See [Data Product Inheritance](#data-product-inheritance).
+- **Schemas**: A table inherits its database schema's contract only when that contract is **Approved**. See [Schema Inheritance](#schema-inheritance).
 
 ## Running a Contract
 
@@ -187,6 +188,22 @@ What an asset gets depends on whether it has its own contract:
 Schema and quality are never inherited. Inherited sections and rules are marked **Inherited** in the UI, and aren't editable from the asset. Selecting **Edit** on an inherited contract creates a new contract for the asset. An inherited contract can't be deleted from the asset.
 
 Running an inherited contract creates a contract for the asset to store its results. The run uses the data product's rules.
+
+## Schema Inheritance
+
+A table inherits the contract of its database schema, so one contract on a schema can govern every table under it. From OpenMetadata 2.0.6, a table inherits the first of these that applies:
+
+1. The contract of the table's single data product, when that contract is **Approved**.
+2. The contract of the table's database schema, when that contract is **Approved**.
+
+OpenMetadata never combines the two. The table's own contract is combined with the inherited one in the same way as for [data product inheritance](#data-product-inheritance).
+
+- Only tables inherit from a schema. Other assets, such as stored procedures, don't.
+- A table with no contract of its own shows the inherited contract as a **Draft**.
+
+## Contract Activity
+
+Changes to a contract appear in the activity feed and the activity count of the asset it governs. They also appear in notifications. Links in contract tasks, notifications, and activity entries open the **Contract** tab of the asset that owns the contract.
 
 ## Import and Export
 
