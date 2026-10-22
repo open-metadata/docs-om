@@ -48,16 +48,18 @@ pip3 install "openmetadata-ingestion[mysql]"
 ### Metadata
 OpenMetadata supports MySQL (version 8.0.42 or greater). The user must have access to the `INFORMATION_SCHEMA` table. By default, a user can see only the rows in the `INFORMATION_SCHEMA` that correspond to objects for which the user has the proper access privileges.
 
-Grant both `SELECT` and `SHOW VIEW`. This is the recommended setup and the only one that ingests views. OpenMetadata ingests base tables in full with any one of these privileges on its own, which is what makes an incomplete grant easy to miss:
+Grant both `SELECT` and `SHOW VIEW`. This is the recommended setup. From OpenMetadata 2.0.6, `SHOW VIEW` with `REFERENCES` also ingests views, as described in [Metadata Without `SELECT`](#metadata-without-select). OpenMetadata ingests base tables in full with any one of these privileges on its own, which is what makes an incomplete grant easy to miss:
 
-| Capability | `REFERENCES` only | `SELECT` only | `SHOW VIEW` only | `SELECT` + `SHOW VIEW` |
-| --- | --- | --- | --- | --- |
-| Table discovery, columns, comments, keys, indexes, and DDL | Yes | Yes | Yes | Yes |
-| Views | No | No | No | Yes |
-| Profiler, sample data, and data quality | No | Yes | No | Yes |
-| Stored procedures | No | No | No | No, `SHOW_ROUTINE` is also required |
+| Capability | `REFERENCES` only | `SELECT` only | `SHOW VIEW` only | `SELECT` + `SHOW VIEW` | `SHOW VIEW` + `REFERENCES` (2.0.6 and later) |
+| --- | --- | --- | --- | --- | --- |
+| Table discovery, columns, comments, keys, indexes, and DDL | Yes | Yes | Yes | Yes | Yes |
+| Views | No | No | No | Yes | Yes |
+| Profiler, sample data, and data quality | No | Yes | No | Yes | No |
+| Stored procedures | No | No | No | No, `SHOW_ROUTINE` is also required | No, `SHOW_ROUTINE` is also required |
 
-Views need both privileges because MySQL gates each half of a view read separately. `SHOW VIEW` authorizes `SHOW CREATE TABLE`, which returns the view definition. `SELECT` authorizes `DESCRIBE`, which returns the view columns. OpenMetadata reads both in the same step, before it builds the view entity, so `Error 1142` on either call fails that view outright rather than producing a partial entity with only DDL or only columns. Grant both privileges together or the view won't be ingested at all.
+MySQL gates each half of a view read separately. `SHOW VIEW` authorizes `SHOW CREATE TABLE`, which returns the view definition. `SELECT` authorizes `DESCRIBE`, which returns the view columns. Without `SHOW VIEW`, MySQL raises `Error 1142` and OpenMetadata doesn't ingest that view.
+
+Without `SELECT`, OpenMetadata 2.0.6 and later reads the view columns from `information_schema.COLUMNS`, which lists every column on which the user holds any column privilege, such as `REFERENCES`. If the user holds none, the view has no visible columns and the ingestion logs a warning.
 
 ```SQL
 -- Create user. If <hostName> is omitted, defaults to '%'
@@ -85,7 +87,7 @@ Granting `SHOW_ROUTINE` (as below) is the simplest way to guarantee the third ou
 
 #### Metadata Without `SELECT`
 
-`SELECT` and `SHOW VIEW` stay the recommended grants, and they are the only combination that ingests views. Use the grants below only where a data access policy rules `SELECT` out. Without `SELECT`, MySQL does not expose a view's columns, so views in scope arrive incomplete or not at all.
+`SELECT` and `SHOW VIEW` stay the recommended grants. Use the grants below only where a data access policy rules `SELECT` out. Without `SELECT`, MySQL denies `DESCRIBE` on views. From OpenMetadata 2.0.6, OpenMetadata reads the view columns from `information_schema.COLUMNS` instead, so adding `SHOW VIEW` to the `REFERENCES` grant ingests views.
 
 MySQL has no metadata-only privilege, but it gates table metadata on holding some privilege on the object rather than on `SELECT` in particular. `REFERENCES` satisfies that check and reads no table data:
 
@@ -94,13 +96,15 @@ CREATE USER '<username>'[@'<hostName>'] IDENTIFIED BY '<password>';
 GRANT USAGE ON *.* TO '<username>';
 -- Apply REFERENCES at the schema level, not table by table, so every table stays discoverable
 GRANT REFERENCES ON world.* TO '<username>';
+-- Add SHOW VIEW to ingest views (OpenMetadata 2.0.6 and later)
+GRANT SHOW VIEW ON world.* TO '<username>';
 ```
 
 With `REFERENCES` alone, OpenMetadata still ingests table and schema discovery, column names and data types, comments, primary and foreign keys, indexes, and table DDL. Usage and lineage keep working as long as the user also holds `SELECT` on `mysql.general_log`, as described in the lineage and usage requirements below. That grant covers a single system table and conveys no privilege on your own tables.
 
 Without `SELECT`, the following are unavailable on the tables in scope:
 
-- Views
+- Views, unless the user also holds `SHOW VIEW` (OpenMetadata 2.0.6 and later)
 - Profiler and sample data
 - Data quality tests
 - Sample-based auto-classification, though column-name pattern rules, manual tagging, and glossary assignment still work
