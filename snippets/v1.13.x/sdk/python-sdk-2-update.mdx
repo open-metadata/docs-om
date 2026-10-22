@@ -1,0 +1,33 @@
+### Updating Entities With SDK 2.0
+
+To change an existing entity, retrieve it, change its fields, and pass it to `update()`:
+
+```python
+from metadata.sdk.entities import Tables
+
+table = Tables.retrieve_by_name("my-service.my-database.my-schema.my-table")
+table.description = "Customer orders, one row per order"
+
+updated = Tables.update(table)
+
+if updated is None:
+    print("No changes were applied")
+else:
+    print(f"Updated to version {updated.version.root}")
+```
+
+`update()` works differently from `create()`:
+
+| | `Entity.create(request)` | `Entity.update(entity)` |
+|---|---|---|
+| **Sends** | The full request, as a `PUT` | Only the fields that changed, as a `PATCH` |
+| **If the entity doesn't exist** | Creates it | Doesn't create it. `update()` needs an entity that already exists, with an `id`. |
+| **If nothing changed** | Returns the entity | Does nothing and returns `None` |
+| **Equivalent in the original client** | `metadata.create_or_update(data=request)` | `metadata.patch(entity=Table, source=current, destination=changed)` |
+
+Keep these points in mind:
+
+- **Check for `None`.** `update()` compares your entity with the one on the server. If no field is different, it sends nothing and returns `None`, so code that reads `updated.version` fails on the second run of the same script. `update()` also returns `None`, and logs a warning, when the server rejects the change. It doesn't raise an error in that case.
+- **Start from a retrieved entity.** `update()` needs the entity's `id`. Retrieve the entity with `retrieve()` or `retrieve_by_name()`. Don't build a new object by hand.
+- **Load the fields you want to change.** `retrieve()` and `retrieve_by_name()` return only the default fields. To change fields such as owners or tags, ask for them, for example `Tables.retrieve_by_name(fqn, fields=["owners", "tags"])`.
+- **Use `create()` to apply a full definition.** When you want the server to match a complete request, or to create the entity if it's missing, use `create()`. Server-side rules can stop a `PUT` from overwriting some protected fields. `update()` is the better choice for small edits.
