@@ -161,6 +161,36 @@ sessions**, will start being silently signed out of the oldest sessions. Raise
 automation.
 </Warning>
 
+### OIDC sign-in flow changed
+
+<Note>
+**Behavioural.** Affects browser sign-in with a confidential OIDC client.
+</Note>
+
+In 2.0, browser sign-in with a confidential OIDC client uses the authorization-code flow, and the server handles the whole exchange:
+
+1. The browser is redirected to your identity provider to sign in.
+2. The provider sends an authorization code to the OpenMetadata server callback.
+3. The server exchanges the code for tokens with the provider, using your client secret.
+4. The server creates a session and stores its ID in the `OM_SESSION` cookie.
+5. The server issues its own JWT to the browser. The browser sends this token with every API call.
+
+Because the token is issued by OpenMetadata, not by your provider, OpenMetadata reads the user's identity back from it using `jwtPrincipalClaims` and `jwtPrincipalClaimsMapping`. The `OM_SESSION` cookie ties the browser to its session on the server.
+
+<Warning>
+**Known issue in 2.0.0 to 2.0.5.** If `jwtPrincipalClaimsMapping` maps `username` to a custom claim from your identity provider, sign-in works but every request after it fails with:
+
+```json
+{"code":401,"message":"Invalid JWT token, 'username' claim is not present"}
+```
+
+For example, you see this error with `jwtPrincipalClaimsMapping: [username:suffixed_name, email:email]`. The session token that OpenMetadata issued didn't carry the mapped claim, so the server couldn't find the user. The same configuration worked in 1.13.
+
+**Fix:** Upgrade to OpenMetadata 2.0.6 or later. From 2.0.6, the session token carries the username and email that `jwtPrincipalClaimsMapping` resolves. You don't need to change your configuration.
+</Warning>
+
+For more information about the mapping, see [JWT Principal Claims Mapping](/v2.0.x/deployment/security/configuration-parameters#jwt-principal-claims-mapping-jwtprincipalclaimsmapping).
+
 ### Additional trusted redirect URIs
 
 <Info>
