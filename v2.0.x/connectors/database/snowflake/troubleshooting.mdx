@@ -29,3 +29,15 @@ This indicates that the Snowflake user account used for the connection has been 
    ```sql
    ALTER USER <username> SET DISABLED = FALSE;
     ```
+
+## No View Lineage Is Processed
+
+The lineage workflow log shows `Processing View Lineage` and then `Lineage processing completed with 0/0 chunks processed`, and no lineage is created for views, materialized views or dynamic tables.
+
+`0/0` means the workflow found no view definitions to parse. Check the following:
+
+- Run the metadata workflow first. The lineage workflow reads view and dynamic table definitions that metadata ingestion stored in OpenMetadata.
+- Confirm that the views or dynamic tables exist in OpenMetadata under the same service name as the lineage workflow.
+- Check the lineage workflow **Database Filter Pattern**, **Schema Filter Pattern** and **Table Filter Pattern**. Filtered-out views are skipped.
+- Confirm that **Process View Lineage** is on. If **Incremental Lineage Processing** is on, the workflow processes only definitions that changed since the last run, so an unchanged set gives `0/0`.
+- Confirm that the Snowflake role can read the definition. For views, see [Incomplete Column Level for Views](/v2.0.x/connectors/database/snowflake#incomplete-column-level-for-views).

@@ -234,6 +234,19 @@ To monitor ingestion progress or view the service you just added, go to **Settin
 
 <MetadataAgentDatabase />
 
+## Dynamic Tables in View Lineage
+
+OpenMetadata processes a Snowflake dynamic table the same way as a view or a materialized view. During metadata ingestion, it stores the query from `CREATE DYNAMIC TABLE ... AS SELECT` as the table's definition. The lineage workflow then parses that query and creates lineage from the source tables to the dynamic table.
+
+For the lineage edges to resolve:
+
+- Use fully qualified names in the `FROM` and `JOIN` clauses, for example `analytics.public.orders`. OpenMetadata can't always match a bare name such as `orders` to the right table.
+- Ingest the metadata of both the source database and the target database first. OpenMetadata only creates an edge between tables that already exist in OpenMetadata.
+- If the source and target tables are in different OpenMetadata services, turn on **Process Cross Database Lineage** and list those services in **Cross Database Service Names**. For more information, see [Cross Database Lineage](/v2.0.x/how-to-guides/data-lineage/cross-database-lineage).
+- Don't filter out the dynamic table in the lineage workflow filter patterns.
+
+If the lineage workflow logs `Processing View Lineage` followed by `0/0 chunks processed`, see [No View Lineage Is Processed](/v2.0.x/connectors/database/snowflake/troubleshooting#no-view-lineage-is-processed).
+
 ## Incomplete Column Level for Views
 
 For views with a tag or policy, you may see incorrect lineage, this can be because user may not have enough access to fetch those policies or tags. You need to grant the following privileges in order to fix it.
