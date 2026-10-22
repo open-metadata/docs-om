@@ -25,7 +25,6 @@ export const Integrations = () => {
                 { name: 'ClickZetta', image: '/public/images/connectors/clickzetta.svg', link: '/v2.1.x-SNAPSHOT/connectors/database/clickzetta' },
                 { name: 'Cockroach', image: '/public/images/connectors/cockroach.png', link: '/v2.1.x-SNAPSHOT/connectors/database/cockroach' },
                 { name: 'Couchbase', image: '/public/images/connectors/couchbase.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/couchbase' },
-                { name: 'Delta Lake', image: '/public/images/connectors/delta-lake.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/deltalake' },
                 { name: 'Druid', image: '/public/images/connectors/druid.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/druid' },
                 { name: 'S3 Datalake', image: '/public/images/connectors/amazon-s3.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/s3-datalake' },
                 { name: 'ADLS Datalake', image: '/public/images/connectors/adls.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/adls-datalake' },
