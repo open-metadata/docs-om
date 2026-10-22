@@ -36,8 +36,8 @@ kubectl get cronjobs -l app.kubernetes.io/managed-by=openmetadata
 # List CronOMJobs (operator mode)
 kubectl get cronomjobs -l app.kubernetes.io/managed-by=openmetadata
 
-# View pod logs
-kubectl logs -l app.kubernetes.io/component=ingestion -f
+# List the pods of ingestion runs
+kubectl get pods -l app.kubernetes.io/component=ingestion
 ```
 
 ## Pipeline Logs
@@ -68,6 +68,15 @@ With the OMJob operator, each run has two pods: one ending in `-main` (the inges
 
 Kubernetes only keeps these logs while the pod exists and its container is still on the node.
 
+To run these commands, your Kubernetes user or service account needs `get` and `list` on `pods`, and `get` on `pods/log`:
+
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+```
+
 ## Troubleshooting
 
 ### Server/Client Version Mismatch
@@ -90,6 +99,24 @@ After updating, redeploy OpenMetadata:
 ```bash
 helm upgrade openmetadata open-metadata/openmetadata -f values.yaml -n openmetadata
 ```
+
+### Pods of Finished Runs Are Not Cleaned Up
+
+<Warning>
+**Known issue (OMJob operator).** Pods of finished runs are not removed automatically after `ttlSecondsAfterFinished`. The `-main` and `-exit` pods stay in the namespace until you delete them.
+</Warning>
+
+Finished pods do not use CPU, but they count toward namespace pod quotas and clutter `kubectl get pods`. To remove the pods of runs that have finished, delete them by status:
+
+```bash
+kubectl delete pods -n <namespace> -l app.kubernetes.io/component=ingestion \
+  --field-selector=status.phase=Succeeded
+
+kubectl delete pods -n <namespace> -l app.kubernetes.io/component=ingestion \
+  --field-selector=status.phase=Failed
+```
+
+Deleting a finished pod removes its logs from Kubernetes. Copy any logs you need first.
 
 ### Pipeline stuck in "Queued" state
 
