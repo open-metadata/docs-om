@@ -54,6 +54,34 @@ query_text,database_name,schema_name
 "insert into marketing select * from sales",default,information_schema
 ```
 
+## Redshift Serverless: Export SELECT Queries
+
+The Redshift connector's usage workflow on a Serverless workgroup only captures queries that change a table: `INSERT`, `UPDATE`, `MERGE` and `DELETE`. To include `SELECT` queries, export them to a query log file and run this workflow with that file.
+
+1. Run the following query in your Serverless workgroup. Adjust the time window and filters for your environment:
+
+   ```sql
+   SELECT
+       q.query_text,
+       RTRIM(u.usename) AS user_name,
+       q.start_time,
+       q.end_time,
+       q.database_name
+   FROM SYS_QUERY_HISTORY AS q
+       INNER JOIN pg_catalog.pg_user AS u
+           ON q.user_id = u.usesysid
+   WHERE q.query_type = 'SELECT'
+       AND LOWER(q.status) = 'success'
+       AND q.user_id > 1
+       AND q.start_time >= DATEADD(day, -7, GETDATE())
+   ORDER BY q.start_time DESC;
+   ```
+
+2. Save the result as a CSV file with a header row that names the columns `query_text`, `user_name`, `start_time`, `end_time` and `database_name`. Wrap each `query_text` value in quotes.
+3. Set `serviceName` to your Redshift service and `queryLogFilePath` to this file in the YAML below, then run the workflow.
+
+For more information about the view, see the [SYS_QUERY_HISTORY](https://docs.aws.amazon.com/redshift/latest/dg/SYS_QUERY_HISTORY.html) documentation from AWS.
+
 ## Usage Workflow
 In order to run a Usage Workflow we need to make sure that Metadata Ingestion Workflow for corresponding service has already been executed. We will follow the steps to create a JSON configuration able to collect the query log file and execute the usage workflow.
 
