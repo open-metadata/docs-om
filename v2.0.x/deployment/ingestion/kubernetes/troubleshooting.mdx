@@ -70,11 +70,17 @@ Kubernetes only keeps these logs while the pod exists and its container is still
 
 ### Pods of Finished Runs Are Not Cleaned Up
 
+<Note>
+Known issue in 2.0.x with the OMJob operator: pods from finished runs are not deleted when `ttlSecondsAfterFinished` expires, so they accumulate in the namespace. The fix ships in 2.1 ([OpenMetadata#33319](https://github.com/open-metadata/OpenMetadata/issues/33319)).
+</Note>
+
+Until you upgrade, delete the finished pods yourself.
+
 <Warning>
-Known issue in 2.0.x with the OMJob operator: pods from finished runs are not deleted when `ttlSecondsAfterFinished` expires, so they pile up in the namespace. The fix ships in 2.1 ([OpenMetadata#33319](https://github.com/open-metadata/OpenMetadata/issues/33319)).
+Deleting a finished pod also deletes its logs. Copy any logs you still need before you run these commands. Running pods are not touched.
 </Warning>
 
-Until you upgrade, delete the finished pods yourself. Run these two commands now and then, or put them in a scheduled job:
+Run these two commands periodically, or schedule them as a job:
 
 ```bash
 kubectl delete pods -n <namespace> -l app.kubernetes.io/managed-by=openmetadata \
@@ -83,8 +89,6 @@ kubectl delete pods -n <namespace> -l app.kubernetes.io/managed-by=openmetadata 
 kubectl delete pods -n <namespace> -l app.kubernetes.io/managed-by=openmetadata \
   --field-selector=status.phase=Failed
 ```
-
-Deleting a finished pod also deletes its logs. Copy any logs you still need first. Running pods are not touched.
 
 ## Troubleshooting
 
