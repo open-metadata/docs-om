@@ -37,6 +37,81 @@ Below are the configuration types to set up the LDAP Authentication:
 
 <ConfigureIngestion />
 
+## Map LDAP Groups to Roles
+
+You can give users OpenMetadata roles based on the LDAP groups they belong to. Each time a user signs in, OpenMetadata looks up their groups and applies the roles you mapped to those groups.
+
+### Group Lookup Settings
+
+Set these under `ldapConfiguration` so OpenMetadata can find the groups a user belongs to.
+
+| Setting | Environment variable | Description |
+|---------|----------------------|-------------|
+| `groupBaseDN` | `AUTHENTICATION_GROUP_LOOKUP_BASEDN` | Base DN to search for groups, for example `ou=groups,dc=example,dc=com`. |
+| `groupAttributeName` | `AUTHENTICATION_USER_GROUP_ATTR` | Attribute that identifies a group entry, for example `objectClass`. |
+| `groupAttributeValue` | `AUTHENTICATION_USER_GROUP_ATTR_VALUE` | Value of that attribute, for example `groupOfNames`. |
+| `groupMemberAttributeName` | `AUTHENTICATION_USER_GROUP_MEMBER_ATTR` | Attribute on the group that lists its members, for example `member`. |
+| `allAttributeName` | `AUTHENTICATION_USER_ALL_ATTR` | Set to `*`. OpenMetadata uses this value to read the group entries. It also acts as the "all roles" value in `authReassignRoles`. |
+| `roleAdminName` | `AUTHENTICATION_USER_ROLE_ADMIN_NAME` | Role name in `authRolesMapping` that makes a user an admin, for example `Admin`. |
+
+### Role Mapping (authRolesMapping)
+
+`authRolesMapping` is a JSON string. Each key is the full DN of an LDAP group. Each value is the list of OpenMetadata role names to give to members of that group.
+
+```json
+{
+  "cn=data-stewards,ou=groups,dc=example,dc=com": ["DataSteward"],
+  "cn=analysts,ou=groups,dc=example,dc=com": ["DataConsumer"],
+  "cn=platform-admins,ou=groups,dc=example,dc=com": ["Admin"]
+}
+```
+
+- Role names must match roles that already exist in OpenMetadata. A name that doesn't exist is skipped, and the server logs `Role <name> does not exist in OM Database`.
+- A group DN that is not in the mapping is ignored.
+- A user who belongs to several mapped groups gets the roles of all of them.
+- The role whose name matches `roleAdminName` doesn't assign a role. It makes the user an admin.
+
+### Roles to Reassign (authReassignRoles)
+
+`authReassignRoles` is a list of role names. It controls which roles LDAP is allowed to set each time a user signs in.
+
+| Value | Result |
+|-------|--------|
+| `["*"]` (the value of `allAttributeName`) | LDAP controls all roles. At each sign-in, the user's roles are replaced with the roles that their groups map to, and admin access follows the admin group. |
+| A list of role names, for example `["DataSteward", "DataConsumer"]` | LDAP sets only the listed roles. Mapped roles that are not in the list are not applied. Roles that are not in the list, such as roles an admin assigned by hand, are kept. |
+| `Admin` (the value of `roleAdminName`) added to the list | Admin access also follows LDAP. Without it, LDAP never grants or removes admin access. |
+| Empty (the default) | LDAP applies no mapped roles. |
+
+<Warning>
+With `["*"]`, roles that an admin assigned in OpenMetadata are removed at the user's next sign-in. List the role names instead if you want to keep manually assigned roles.
+</Warning>
+
+### Where to Set Them
+
+Set `authRolesMapping` and `authReassignRoles` in the same place as the rest of your LDAP settings:
+
+- **Docker**: environment variables `AUTH_ROLES_MAPPING` and `AUTH_REASSIGN_ROLES`. For more information, see [LDAP for Docker](/v2.0.x/deployment/security/ldap/docker).
+- **Kubernetes**: Helm values `openmetadata.config.authentication.ldapConfiguration.authRolesMapping` and `authReassignRoles`. For more information, see [LDAP for Kubernetes](/v2.0.x/deployment/security/ldap/kubernetes).
+- **Bare metal**: `authRolesMapping` and `authReassignRoles` under `ldapConfiguration` in `openmetadata.yaml`. For more information, see [LDAP for Bare Metal](/v2.0.x/deployment/security/ldap/bare-metal).
+
+Example for `openmetadata.yaml`:
+
+```yaml
+ldapConfiguration:
+  groupBaseDN: "ou=groups,dc=example,dc=com"
+  groupAttributeName: "objectClass"
+  groupAttributeValue: "groupOfNames"
+  groupMemberAttributeName: "member"
+  allAttributeName: "*"
+  roleAdminName: "Admin"
+  authRolesMapping: '{"cn=data-stewards,ou=groups,dc=example,dc=com": ["DataSteward"], "cn=platform-admins,ou=groups,dc=example,dc=com": ["Admin"]}'
+  authReassignRoles: ["DataSteward", "Admin"]
+```
+
+### When Roles Are Applied
+
+OpenMetadata reads the user's groups every time the user signs in with LDAP, so a change to a group takes effect at the user's next sign-in. A user who doesn't exist in OpenMetadata yet is created at first sign-in, with their mapped roles, when `enableSelfSignup` is enabled. Users in `adminPrincipals` stay admins whatever the mapping says.
+
 ## Troubleshooting
 
 This section covers common LDAP authentication problems and how to fix them.

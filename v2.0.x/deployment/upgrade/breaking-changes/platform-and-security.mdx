@@ -161,6 +161,35 @@ sessions**, will start being silently signed out of the oldest sessions. Raise
 automation.
 </Warning>
 
+### OIDC Sign-In Flow Changed in 2.0
+
+<Note>
+**Behavioural.** Affects OIDC deployments that use a confidential client (Authorization Code flow).
+</Note>
+
+In 2.0, OIDC sign-in works like this:
+
+1. The browser is sent to your identity provider and signs in.
+2. The provider redirects back to the OpenMetadata callback URL with an authorization code.
+3. The server exchanges the code for tokens, creates a database-backed session, and sets the `OM_SESSION` cookie in the browser.
+4. The server issues its own JWT for that session. The UI uses this JWT, not the provider's ID token, to call the API.
+
+The JWT that OpenMetadata issues carries a fixed set of claims. In 1.13, the UI received the provider's ID token instead.
+
+#### Known Issue: Login Fails With a Custom Username Claim
+
+<Note>
+**Known issue in 2.0.0 through 2.0.5.** Fixed in 2.0.6.
+</Note>
+
+If `jwtPrincipalClaimsMapping` maps `username` to a custom claim from your identity provider, such as `username:suffixed_name`, login fails after you upgrade to 2.0. Every API call returns:
+
+```
+{"code":401,"message":"Invalid JWT token, 'username' claim is not present"}
+```
+
+To fix it, upgrade to 2.0.6 or later. From 2.0.6, the JWT that OpenMetadata issues carries the username and email that the mapping resolves. For more information, see [JWT Principal Claims Mapping](/v2.0.x/deployment/security/configuration-parameters#jwt-principal-claims-mapping-jwtprincipalclaimsmapping).
+
 ### Additional trusted redirect URIs
 
 <Info>
