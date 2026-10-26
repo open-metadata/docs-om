@@ -1,0 +1,371 @@
+---
+title: AWS Cognito SSO | OpenMetadata Authentication Guide
+description: Learn to configure AWS Cognito SSO for confidential clients with OIDC, secure token handling, and client secret setup for web and backend apps.
+sidebarTitle: AWS Cognito
+---
+
+
+import SsoTroubleshooting from '/snippets/v2.1.x-SNAPSHOT/deployment/sso-troubleshooting.mdx'
+
+## Overview
+
+AWS Cognito SSO enables users to log in using credentials from an AWS Cognito User Pool through OAuth 2.0 and OpenID Connect (OIDC).
+
+This configuration supports **Confidential Clients**, which use both Client ID and Client Secret for secure backend authentication.
+
+OpenMetadata supports Single Sign-On (SSO) integration with various identity providers, enabling secure, centralized user authentication.
+
+## Configure AWS Cognito SSO
+
+Complete the following steps to configure AWS Cognito SSO.
+
+1. Navigate to **Settings** > **SSO**.
+
+    <img src="/public/images/how-to-guides/admin-guide/choose-provider.png" alt="Settings, SSO page with the Choose Provider list" />
+
+2. Click **AWS-Cognito**, and then click **Configure**.
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was select-amazon-cognito.png). */}
+
+3. Enter the configuration details. See [Confidential Configuration Fields](#confidential-configuration-fields).
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was amazon-cognito-configure.png). */}
+
+4. Click **Test Login** and complete the sign-in. For more information, see [Test Login](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/sso#test-login).
+
+5. Click **Save** to finish the SSO configuration.
+
+## Confidential Configuration Fields
+
+This section lists all fields in the order they appear in the OpenMetadata SSO configuration form.
+
+### Authentication Configuration
+
+Configure the identity provider connection and basic authentication behavior.
+
+#### Provider Name
+
+- **Definition**: A human-readable name for this AWS Cognito SSO configuration instance.
+- **Example**: `AWS Cognito SSO`, `Company Cognito`, `User Pool Authentication`
+- **Why it matters**: Helps identify this specific SSO configuration in logs and user interfaces.
+- **Note**: This is a display name and doesn't affect authentication functionality.
+
+#### Client Type
+
+- **Definition**: Defines whether the application is public (no client secret) or confidential (requires client secret).
+- **Options**: Public | Confidential
+- **Example**: Confidential
+- **Why it matters**: Determines security level and authentication flow. Confidential clients can securely store secrets.
+- **Note**:
+  - Use `Confidential` for backend services and web applications.
+  - Use `Public` for SPAs and mobile apps.
+  - You can't change **Client Type** after you save the configuration.
+
+#### Enable Self Signup
+
+- **Definition**: Allows users to automatically create OpenMetadata accounts on their first SSO login.
+- **Options**: Enabled | Disabled
+- **Example**: Enabled
+- **Why it matters**: Controls whether new users join automatically or need manual provisioning.
+- **Note**: Must also be enabled in your Cognito User Pool settings.
+
+#### Authority
+
+- **Definition**: AWS Cognito User Pool domain that issues tokens.
+- **Example**: `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123DEF`
+- **Why it matters**: Tells OpenMetadata which Cognito User Pool to authenticate against.
+- **Note**: Format: `https://cognito-idp.{region}.amazonaws.com/{user-pool-id}`.
+
+### Public Client Configuration
+
+When **Client Type** is set to **Public**, the form shows the following fields instead of **OIDC Configuration**.
+
+#### Client ID
+
+- **Definition**: The client ID of the AWS Cognito application that OpenMetadata uses to identify itself.
+- **Why it matters**: A public client has no client secret, so the client ID is the only application credential.
+
+#### Callback URL
+
+- **Definition**: The redirect URL where AWS Cognito sends authentication responses after login.
+- **Note**:
+  - **This field is read-only**: OpenMetadata fills it in as `{your-domain}/callback`.
+  - Copy this URL and register it as an authorized redirect URI in your AWS Cognito application.
+  - Use HTTPS in production.
+
+#### Authority
+
+- **Definition**: The URL of the AWS Cognito authorization server.
+- **Why it matters**: Specifies where OpenMetadata sends authentication requests.
+
+#### Public Key URLs
+
+- **Definition**: One or more URLs where AWS Cognito publishes its JWT signing keys.
+- **Why it matters**: OpenMetadata uses the keys to verify the signature of the tokens that AWS Cognito issues.
+
+#### Token Validation Algorithm
+
+- **Options**: `RS256` | `RS384` | `RS512`
+- **Note**: The value must match the signing algorithm that AWS Cognito uses. Most providers use `RS256`.
+
+### OIDC Configuration
+
+Configure the OIDC client credentials and token handling; these fields appear when **Client Type** is set to **Confidential**.
+
+#### OIDC Client ID
+
+- **Definition**: App client ID from your AWS Cognito User Pool.
+- **Example**: `1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p`
+- **Why it matters**: Identifies your application to AWS Cognito in OIDC flows.
+- **Note**: Found in **AWS Console** > **Cognito** > **User Pools** > **App integration** > **App clients**.
+
+#### OIDC Client Secret
+
+- **Definition**: App client secret for confidential client authentication with AWS Cognito.
+- **Example**: `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0`
+- **Why it matters**: Required for confidential clients to securely authenticate with Cognito.
+- **Note**:
+  - Generate in **Cognito** > **User Pool** > **App client** > **Generate client secret**.
+  - Store securely and rotate regularly.
+
+#### OIDC Request Scopes
+
+- **Definition**: Permissions requested from AWS Cognito during authentication.
+- **Default**: `openid email profile`
+- **Example**: `openid email profile aws.cognito.signin.user.admin`
+- **Why it matters**: Determines what user information OpenMetadata can access.
+- **Note**: Must be configured in your Cognito User Pool app client settings.
+
+#### OIDC Discovery URI
+
+- **Definition**: AWS Cognito's OpenID Connect metadata endpoint.
+- **Example**: `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123DEF/.well-known/openid-configuration`
+- **Why it matters**: Allows OpenMetadata to automatically discover Cognito's OIDC endpoints.
+- **Note**: Replace `{region}` and `{user-pool-id}` with your actual values.
+
+#### OIDC Callback URL
+
+- **Definition**: URL where AWS Cognito redirects after authentication.
+- **Example**: `https://openmetadata.company.com/callback`
+- **Why it matters**: Must be registered in your AWS Cognito configuration.
+- **Note**:
+  - **This field is read-only** — it is auto-populated as `{your-domain}/callback`.
+  - Copy this URL and add it to Cognito's allowed redirect URIs list.
+
+#### OIDC Prompt
+
+- **Definition**: Controls AWS Cognito's authentication prompt behavior.
+- **Options**: `none`, `login`, `consent`, `select_account`
+- **Default**: Empty. Leave it empty unless you need to force a specific behavior. OpenMetadata sends `none` itself when it re-authenticates a user silently.
+- **Example**: `login`
+- **Why it matters**: Defines how the login experience behaves for users.
+- **Note**:
+  - `login`: Always prompt for credentials.
+  - `none`: Use existing session silently (SSO).
+
+#### OIDC Custom Parameters
+
+- **Definition**: Additional parameters to include in OIDC authentication requests.
+- **Example**: `{"prompt": "login", "response_type": "code"}`
+- **Why it matters**: Allows customization of AWS Cognito authentication behavior.
+
+#### Advanced Configuration
+
+The following fields are grouped under **Advanced Config** in the UI (collapsed by default):
+
+##### OIDC Use Nonce
+
+- **Definition**: Security feature to prevent replay attacks in OIDC flows.
+- **Default**: `false`
+- **Why it matters**: Enhances security by ensuring each authentication request is unique.
+
+##### OIDC Disable PKCE
+
+- **Definition**: Whether to disable Proof Key for Code Exchange.
+- **Default**: `false`
+- **Why it matters**: PKCE adds security to the authorization code flow.
+- **Note**: Should remain `false` (enabled) in most cases.
+
+##### OIDC Max Clock Skew
+
+- **Definition**: Maximum allowed time difference in seconds between systems when validating tokens.
+- **Example**: `0`
+- **Why it matters**: Prevents token validation failures due to minor clock differences between servers.
+
+##### OIDC Token Validity
+
+- **Definition**: Duration in seconds that tokens remain valid.
+- **Default**: `3600`
+- **Example**: `3600`
+- **Why it matters**: Balances token lifetime against security requirements.
+- **Note**: The value must be positive. OpenMetadata rejects a zero or negative value, and falls back to `3600` at runtime if an invalid value is ever persisted.
+
+##### OIDC Max Age
+
+- **Definition**: The `max_age` request parameter, in seconds, that OpenMetadata sends to the identity provider.
+- **Default**: Empty.
+- **Why it matters**: Leave it empty so the identity provider can reuse its own session. A value of `0` is treated as not set. To force users to re-enter their credentials, set **OIDC Prompt** to `login`.
+
+##### OIDC Session Expiry
+
+- **Definition**: How long user sessions remain valid in seconds.
+- **Default**: `604800` (7 days)
+- **Why it matters**: Controls session timeout for confidential clients.
+
+##### End Session With Identity Provider
+
+- **Definition**: Controls whether OpenMetadata ties a user session to the identity provider's session.
+- **Default**: `false`
+- **Note**:
+  - Available for confidential OIDC clients only.
+  - When on, OpenMetadata renews the identity provider's tokens on the provider's schedule while the user is active, and signs the user out when the provider rejects the refresh token. The token that OpenMetadata issues is shortened to that schedule, with a minimum of 120 seconds. A renewal never extends the session beyond **OIDC Session Expiry**.
+  - When off, a session lasts for the configured **OIDC Session Expiry**.
+  - The sign-out depends on the provider. Keycloak revokes refresh tokens together with the provider session, and Microsoft Entra ID doesn't.
+
+### JWT Claims
+
+Map identity token claims to OpenMetadata user identities and team assignments.
+
+#### JWT Principal Claims
+
+- **Definition**: JWT fields used to identify users in OpenMetadata. The first claim that returns a value is used.
+- **Default**: `["email", "cognito:username", "sub"]`
+- **Example**: `["cognito:username", "email", "sub"]`
+- **Why it matters**: Determines how users are matched to their OpenMetadata accounts.
+- **Note**:
+  - At least one claim must correspond to the user's **email address**.
+  - Common Cognito claims: `cognito:username`, `email`, `sub`, `preferred_username`.
+  - Order matters — the first matching claim is used.
+
+<Warning>
+**Important**: Incorrect claims will lock out all users including admins. The default values (`email`, `cognito:username`, `sub`) work for most Cognito configurations. Only change if you have custom claim requirements.
+</Warning>
+
+#### JWT Principal Claims Mapping
+
+**Definition**: Maps JSON Web Token (JWT) claims to OpenMetadata user profile fields.
+
+**Supported keys**: Only `email` and `username` are valid mapping targets in `jwtPrincipalClaimsMapping`.
+
+**Example**:
+
+```yaml
+["email:email", "username:preferred_username"]
+```
+
+**Why it matters**: Controls how SSO login data maps to user profiles in OpenMetadata.
+
+**Format**: `openmetadata_field:jwt_claim` (for example, `"email:email"`).
+
+<Note>
+**Note**: The display name is derived automatically from standard OIDC/JWT claims — you don't need to configure it using `jwtPrincipalClaimsMapping`. If you need richer name handling, make sure your Cognito User Pool is configured to include `given_name` and `family_name` as standard attributes — OpenMetadata will pick them up automatically.
+</Note>
+
+<Warning>
+**Important**: Using any other key (for example, `name` or `firstName`) will cause the service to fail on startup with a validation error. JWT Principal Claims Mapping is **rarely needed** — the default JWT Principal Claims handle user identification correctly for most AWS Cognito configurations.
+</Warning>
+
+#### JWT Team Claim Mapping
+
+- **Definition**: AWS Cognito claim containing team or department information for automatic team assignment in OpenMetadata.
+- **Example**: `custom:department`, `cognito:groups`
+- **Why it matters**: Automatically assigns users to existing OpenMetadata teams based on their Cognito attributes at login.
+- **Note**:
+  - Custom attributes must be prefixed with `custom:` (for example, `custom:department`).
+  - For group-based teams, use `cognito:groups` (requires user pool groups configured).
+  - The team must already exist in OpenMetadata for assignment to work.
+  - Only teams of type **Group** can be auto-assigned. Team names are case-sensitive.
+
+### Authorizer Configuration
+
+Control which users and domains are permitted to access OpenMetadata.
+
+#### Admin Principals
+
+- **Definition**: Users granted admin access in OpenMetadata.
+- **Example**: `["admin", "superuser"]`
+- **Why it matters**: Grants full admin privileges in OpenMetadata.
+- **Note**: Enter **usernames only — not email addresses**. Use the part of the email before `@` (for example, for `admin@company.com`, enter `admin`).
+
+#### Principal Domain
+
+- **Definition**: Default domain for user principals.
+- **Example**: `company.com`
+- **Why it matters**: Used to construct full user identifiers when only a username is provided.
+
+#### Enforce Principal Domain
+
+- **Definition**: Restricts login to users belonging to the configured Principal Domain.
+- **Default**: `false`
+- **Example**: `true`
+- **Why it matters**: Adds an extra layer of security by limiting access to a specific domain.
+
+#### Enable Secure Socket Connection
+
+- **Definition**: Enables SSL/TLS for all SSO communication.
+- **Default**: `false`
+- **Example**: `true`
+- **Why it matters**: Ensures encrypted communication between OpenMetadata and AWS Cognito.
+- **Note**: Recommended in production environments.
+
+#### Allowed Domains
+
+- **Definition**: List of email domains permitted to authenticate with OpenMetadata.
+- **Example**: `["company.com", "partner.com"]`
+- **Why it matters**: Provides fine-grained control over which email domains can log in via AWS Cognito.
+- **Note**:
+  - Works in conjunction with **Enforce Principal Domain**.
+  - Leave empty if you only use a single domain configured in **Principal Domain**.
+
+#### Use Roles From Provider
+
+- **Definition**: Use roles returned by AWS Cognito in the token to assign OpenMetadata roles.
+- **Default**: `false`
+- **Why it matters**: Enables role-based access control driven by your Cognito group assignments.
+- **Note**: Roles must be included in the Cognito token and must match existing OpenMetadata role names. Roles sync on every login, not just the first, so a role change in Cognito takes effect the next time the user signs in. If the token omits the roles claim entirely, OpenMetadata treats it as no roles, because some providers leave the claim out once a user's last role is removed. A fresh sign-in then removes the roles and administrator access that the provider no longer grants. Roles from the provider can promote a user to Admin, but a sign-in never demotes an admin assigned through **Admin Principals**.
+
+#### Default OAuth Role
+
+- **Definition**: Default role assigned to new users when they first sign in via SSO self-signup.
+- **Example**: `DataConsumer`
+- **Why it matters**: Controls the starting permission level for new users who join through self-signup.
+- **Note**: Leave empty to create users without any role. Requires **Enable Self Signup** to be active. The role must already exist in OpenMetadata.
+
+### Summary
+
+Quick reference of all configuration fields and their example values.
+
+| Field | Example / Default |
+|---|---|
+| Provider Name | AWS Cognito SSO |
+| Client Type | Confidential |
+| Enable Self Signup | Enabled |
+| Authority | https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123DEF |
+| OIDC Client ID | 1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p |
+| OIDC Client Secret | a1b2c3... (confidential only) |
+| OIDC Request Scopes | openid email profile |
+| OIDC Discovery URI | https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123DEF/.well-known/openid-configuration |
+| OIDC Callback URL | `https://openmetadata.company.com/callback` (read-only) |
+| OIDC Prompt | login |
+| OIDC Custom Parameters | `{"prompt": "login"}` |
+| OIDC Use Nonce | false |
+| OIDC Disable PKCE | false |
+| OIDC Max Clock Skew | 0 |
+| OIDC Token Validity | 3600 |
+| OIDC Max Age | Leave empty |
+| OIDC Session Expiry | 604800 |
+| JWT Principal Claims | `["email", "cognito:username", "sub"]` |
+| JWT Principal Claims Mapping | `["email:email"]` |
+| JWT Team Claim Mapping | custom:department |
+| Admin Principals | `["admin", "superuser"]` |
+| Principal Domain | company.com |
+| Enforce Principal Domain | false |
+| Enable Secure Socket Connection | true |
+| Allowed Domains | `["company.com"]` |
+| Use Roles From Provider | false |
+| Default OAuth Role | DataConsumer |
+
+
+## Troubleshooting
+
+<SsoTroubleshooting />
