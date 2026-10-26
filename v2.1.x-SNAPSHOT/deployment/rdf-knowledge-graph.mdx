@@ -363,6 +363,16 @@ Starting in OpenMetadata 2.0.3, an RDF reindex job runs on one server. A cluster
 
 The `producerThreads` setting controls reader concurrency: Its default is 4, with a supported range of 1–10. The settings `consumerThreads`, `queueSize`, `useDistributedIndexing`, and `partitionSize` were removed from the RDF indexing application configuration in 2.0.3. Remove them from custom app configurations and automation that supplies these settings.
 
+The RDF indexing application also has the following settings:
+
+- **Blue/Green Rebuild** (`blueGreenRebuild`): Builds the rebuild into an idle dataset and switches to it only after the run succeeds, so queries keep seeing the previous graph instead of a partially rebuilt one. It needs roughly twice the dataset size on disk and applies only when **Recreate RDF Store** is enabled. Default: disabled.
+- **Minimum Success Ratio** (`minSuccessRatio`): Fraction of records that must index successfully before a blue/green rebuild becomes the served dataset. Below this value, the previous dataset keeps serving and OpenMetadata marks the run as failed. Default: `0.95` (range: 0–1).
+- **Relationship Isolation Failure Limit** (`relationshipIsolationMaxFailures`): Maximum number of failed per-source writes while OpenMetadata isolates a failed relationship batch. After the limit, OpenMetadata records the remaining sources as failures. Successful writes don't use the limit, and `0` disables per-source isolation. Default: `3`.
+
+When a second reindex starts while another holds the lock, such as a scheduled run during an on-demand run, the second run ends as `Stopped` with a message that names the run holding the lock. If the server running a reindex stops, OpenMetadata marks the run as failed with a message that names the server. This happens at the next server start, or about six minutes after the lock stops renewing if another server is still running.
+
+A rebuild without **Blue/Green Rebuild** that stops midway leaves the graph partial. `GET /api/v1/rdf/status` reports `DEGRADED` until a full rebuild completes. An interrupted blue/green run leaves the previous graph serving.
+
 ## Performance Considerations
 
 Indexing a large catalog (hundreds of thousands of assets) into RDF for the first time adds meaningful load to both the OpenMetadata server and Fuseki, and can noticeably slow down concurrent operations -- entity updates such as adding a tag have been observed taking 30-40 seconds while a full reindex is in progress.
