@@ -1,6 +1,6 @@
 ---
 title: Query the Ontology (Query Mode) | OpenMetadata
-description: Run SPARQL against your ontology and knowledge graph from Ontology Studio — the SPARQL console, saved queries, shared templates, and the visual query builder.
+description: "Run SPARQL against your ontology and knowledge graph from Ontology Studio: the SPARQL console, saved queries, shared templates, and the visual query builder."
 sidebarTitle: Query
 ---
 
@@ -12,24 +12,27 @@ Two surfaces: the **SPARQL console** and the **Visual builder**.
 
 <Warning>
 
-Query mode requires the RDF knowledge graph to be enabled. When it is off, the mode renders an explanatory notice instead of the console. See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable).
+The Query **tab** is gated on RDF for glossaries. When the knowledge graph is off, the mode renders an explanatory notice instead of the console, even for glossary-scoped queries. See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable).
+
+The glossary-scoped **endpoint** below is a separate matter: it runs against the relational model and keeps working with RDF off. You just cannot reach it from this screen.
 
 </Warning>
 
 ## Two Scopes, One Console
 
-Which endpoint your query runs against depends on the glossary selector in the studio header — and this determines who is allowed to run it.
+Which endpoint your query runs against depends on the scope menu in the studio header, and this determines who is allowed to run it.
 
 | Header selection | Endpoint | Who can run it | Scope |
 |---|---|---|---|
+| A native ontology | `POST /api/v1/ontologies/{id}/sparql` | Anyone with view access on every member of the active release | The active release of that ontology |
 | A specific glossary | `POST /api/v1/glossaries/{id}/sparql` | Anyone with `ViewAll` on that glossary | That glossary's ontology only |
-| **All glossaries** | `POST /api/v1/rdf/sparql` | **Admins only** | The whole knowledge graph — every entity, tag, and lineage edge |
+| **All glossaries** | `POST /api/v1/rdf/sparql` | **Admins only** | The whole knowledge graph, every entity, tag, and lineage edge |
 
-Non-admin users who leave the selector on **All glossaries** are prompted to pick one.
+Non-admin users who leave the scope on **All glossaries** see *Please Select a Glossary* when they run a query.
 
 <Info>
 
-**Why glossary-scoped SPARQL is different.** It executes against the database-primary glossary model, not the triple store. It cannot reach other metadata assets, external datasets, or `SERVICE` endpoints — and it stays available even when RDF storage is off. That makes it the safe surface to open up to modelers; catalog-wide SPARQL stays admin-only because it reads across every entity without re-applying per-entity view authorization.
+**Why glossary-scoped SPARQL is different.** It executes against the database-primary glossary model, not the triple store. It cannot reach other metadata assets, external datasets, or `SERVICE` endpoints, and it stays available even when RDF storage is off. That makes it the safe surface to open up to modelers; catalog-wide SPARQL stays admin-only because it reads across every entity without re-applying per-entity view authorization.
 
 </Info>
 
@@ -39,28 +42,45 @@ Non-admin users who leave the selector on **All glossaries** are prompted to pic
 
 ### The Query Rail
 
-The left rail holds three groups:
+The left rail is headed **Queries** and has a **New Query** action. It holds two groups:
 
-- **Ontology** — context-aware starter queries generated from the model you have selected. **New query** starts from a blank scaffold:
+- **Shared queries**: read-only queries available to everyone on this ontology. They include starters generated from the model you have selected, such as *Antonym: Current* or *Broader: glossary_term*, and the shared templates curated for the whole deployment. OpenMetadata seeds three of those: *All glossary terms*, *Glossary term relationships*, and *Isolated glossary terms*. Everyone authenticated can read and run them; only admins can create, edit, or delete the templates (**Save as sample query**).
+- **My queries**: your private library, visible only to you. Select a query to open it, use the pencil icon to rename it, or the delete icon to remove it.
 
-  ```sparql
-  PREFIX om: <https://open-metadata.org/ontology/>
+**New Query**, in the rail and in the header, opens an untitled query with a blank scaffold:
 
-  SELECT ?conceptFqn WHERE {
-    ?concept a om:GlossaryTerm ;
-             om:fullyQualifiedName ?conceptFqn .
-  }
-  LIMIT 100
-  ```
+```sparql
+PREFIX om: <https://open-metadata.org/ontology/>
 
-- **Installation queries** — shared templates curated for the whole deployment. Everyone authenticated can read and run them; only admins can create, edit, or delete them (**Save as sample query**). OpenMetadata seeds three: *All glossary terms*, *Glossary term relationships*, and *Isolated glossary terms*.
-- **Saved queries** — your private library. **Save query** stores the current editor contents against your user.
+SELECT ?conceptFqn WHERE {
+  ?concept a om:GlossaryTerm ;
+           om:fullyQualifiedName ?conceptFqn .
+}
+LIMIT 100
+```
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-query-save-buttons.png" alt="Shared query open with the Save as my query, Save as sample query, and Run query buttons highlighted" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-query-new.png" alt="New untitled query with the Save as my query, Save as sample query, and Run query buttons" />
+
+### Saving Queries
+
+The title row above the editor shows the query name, its type (for example **SELECT**), and a badge for where it lives. The buttons depend on what you opened:
+
+| You opened | Badge | Buttons |
+|---|---|---|
+| An untitled query | None | **Save as my query**, **Save as sample query** (admins), **Run query** |
+| One of your queries | **My query** | **Save as new**, **Save changes**, **Save as sample query** (admins), **Run query** |
+| A shared query | **Shared · read-only** | **Discard**, **Save as my query**, **Save as sample query** (admins), **Run query** |
+
+When you edit a shared query, an **Unsaved changes** badge appears and a banner explains: *"You're editing a shared query. Your changes stay local until you save them as your own query."* Use **Discard** to drop your edits, or **Save as my query** to keep them.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-query-console.png" alt="Ontology Studio SPARQL console with one of the user's queries, its results, and the shared queries list" />
 
 ### Running and Reading Results
 
-- **Read-only** — the console rejects `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE`. Writes go through the admin-only `POST /api/v1/rdf/sparql/update` endpoint, deliberately not exposed in the UI.
-- **Format** — `SELECT`/`ASK` results as JSON (default), CSV, TSV, or XML; `CONSTRUCT`/`DESCRIBE` results as Turtle, JSON-LD, N-Triples, or RDF/XML.
-- **Inference level** — `none`, `rdfs`, `owl`, or `custom`. See [Reasoning & Validation](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning).
+- **Read-only**: the console rejects `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE`. Writes go through the admin-only `POST /api/v1/rdf/sparql/update` endpoint, deliberately not exposed in the UI.
+- **Format and inference**: the studio console always requests JSON results with no inference. To choose another format or an inference level, use the [standalone SPARQL playground](#the-standalone-sparql-playground) or the API. See [Reasoning & Validation](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning).
 
 ### Limits
 
@@ -80,24 +100,62 @@ Queries that exceed capacity or the timeout fail with an explicit error rather t
 
 ## The Visual Builder
 
-Not everyone writing governance questions wants to write SPARQL. The visual builder composes a query from chips — *"Find **Concepts** where **Used To Calculate** **Churn Rate**"* — and compiles it live.
+Not everyone writing governance questions wants to write SPARQL. The visual builder composes a query from chips (for example, *"Find **Concepts** where **Used To Calculate** **Churn Rate**"*) and compiles it live. Open it from the **Visual builder** tab next to **SPARQL console**.
 
 <img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder.png" alt="Ontology Studio visual query builder with the generated SPARQL" />
 
-- **Find** — the starting set, drawn from the current model.
-- **where** — a relationship type and a target concept: the edge to traverse and where it lands.
-- **Generated SPARQL** — the compiled query, updated as you change the chips, with a live `N concepts match` count.
+- **Find**: the kind of thing to look for.
+  - **Concepts**: glossary terms that are concepts.
+  - **Metrics**: terms that are metrics.
+  - **Any term**: every term, whatever its kind.
+- **where**: a relationship type and a target term: the edge to traverse and where it lands. The relationship list shows each type with its color, for example **Narrower**, **Part Of**, **Related To**, **See Also**, **Subclass Of**, and **Superclass Of**.
+- **Generated SPARQL**: the compiled query, updated as you change the chips.
+
+The target field is a searchable list of terms. Type to filter it.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-target.png" alt="Visual builder with the target term search open" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-relation.png" alt="Visual builder with the relationship type list open" />
+
+The three **Find** options change the generated query. **Concepts** adds `?concept a om:GlossaryTerm`, **Metrics** adds `?concept a om:Metric`, and **Any term** adds no type constraint.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-concepts.png" alt="Visual builder with Concepts selected and the generated SPARQL" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-metrics.png" alt="Visual builder with Metrics selected and the generated SPARQL" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-any-term.png" alt="Visual builder with Any term selected and the generated SPARQL" />
 
 Two actions:
 
-- **Run query** — execute it in place.
-- **Edit as SPARQL** — hand the generated query to the console. This is the fastest way to *learn* SPARQL against your own model: build it visually, then read what it produced.
+- **Run query**: execute it in place.
+- **Edit as SPARQL**: hand the generated query to the console. This is the fastest way to *learn* SPARQL against your own model: build it visually, then read what it produced.
+
+## Query a Native Ontology
+
+Select a native ontology in the scope menu, or pick one from **Select Ontology** if the scope is **All ontologies**. Queries then run against that ontology's **active release**. Concepts you have not published yet do not appear in the results.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-query-console-ontology.png" alt="SPARQL console on a native ontology with an untitled query and the shared queries list" />
+
+The console works as described above. The rail shows **Shared queries** and **My queries**. A new query starts from a scaffold over `owl:Class` and `rdfs:label`.
+
+The **Visual builder** differs in these ways:
+
+- The description reads *Query the active native release using semantic IRIs. Unpublished definitions may have no matching results.*
+- **Find** offers only **Concepts**.
+- **where** lists the properties of the ontology, each with its kind, for example **broader · object assertion**.
+- The generated SPARQL uses the standard `rdf`, `rdfs`, `owl`, `skos`, and `xsd` prefixes, and the full IRI of the target concept.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-ontology.png" alt="Visual builder on a native ontology with the generated SPARQL" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-ontology-relation.png" alt="Visual builder with the property list open" />
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-visual-builder-ontology-target.png" alt="Visual builder with the target concept list open" />
 
 ## The Standalone SPARQL Playground
 
-The same console is also available on its own at `/governance/sparql`, without the studio chrome — useful when you are querying the whole catalog rather than working on a model. It is not in the left navigation; navigate to it directly.
+A separate **SPARQL Playground** (marked **Beta**) is available at `/governance/sparql`, without the studio chrome. It is useful when you are querying the whole catalog rather than working on a model. It is not in the left navigation; navigate to it directly.
 
-It carries the same saved-query library, shared templates, format and inference selectors, and limits, and runs against the catalog-wide endpoint (admin only).
+It is a simpler console than the studio one. It has **Saved queries** and **Installation queries** lists, an **Inject prefixes** option, a **Format** selector (JSON, XML, CSV, and TSV for `SELECT`/`ASK`; Turtle, JSON-LD, N-Triples, and RDF/XML for `CONSTRUCT`/`DESCRIBE`), an **Inference** selector (**None**, **RDFS**, **OWL**, or **Custom**), and a **Download** option for results. It shares the same limits and runs against the catalog-wide endpoint (admin only).
 
 ## Starter Queries
 
@@ -140,7 +198,7 @@ SELECT ?sourceFqn ?relationship ?targetFqn WHERE {
 LIMIT 100
 ```
 
-More recipes — PII propagation, lineage traversal, coverage gaps, contract checks — are in the [SPARQL cookbook](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql#cookbook).
+More recipes (PII propagation, lineage traversal, coverage gaps, and contract checks) are in the [SPARQL cookbook](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/sparql#cookbook).
 
 ## Next
 

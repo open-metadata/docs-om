@@ -284,6 +284,60 @@ curl -G "$OM_HOST/api/v1/rdf/sparql" \
 
 Result formats: `json` (default), `xml`, `csv`, `tsv` for `SELECT`/`ASK`; `turtle`, `jsonld`, `ntriples`, `rdfxml` for `CONSTRUCT`/`DESCRIBE`.
 
+## RDF 1.2 Support
+
+SPARQL queries can use RDF 1.2 features. Both the admin endpoint and the MCP `sparql_query` tool accept them. The MCP tool keeps its existing SELECT-only and graph-access restrictions.
+
+- **SPARQL 1.2 syntax**: `VERSION "1.2"`, the `TRIPLE()` and `LANGDIR()` functions, and `<<( s p o )>>` triple-term patterns.
+- **Triple terms**: a triple term can bind to a result variable, including `rdf:reifies` statements and blank nodes nested inside a triple.
+- **Directional literals**: language-tagged strings with a base direction, such as `"قطة"@ar--rtl`.
+
+```sparql
+VERSION "1.2"
+SELECT (TRIPLE(<https://example.com/subject>,
+               <https://example.com/predicate>,
+               "قطة"@ar--rtl) AS ?statement)
+WHERE {}
+```
+
+### Results in JSON
+
+JSON results follow the SPARQL 1.2 Query Results JSON format:
+
+- A triple binding has `type` set to `triple`. Its `value` is an object with recursive `subject`, `predicate`, and `object` terms, instead of a string.
+- A directional literal carries an `its:dir` field set to `ltr` or `rtl`, next to `xml:lang`.
+- Existing bindings for IRIs, literals, and blank nodes are unchanged.
+
+<Warning>
+
+If you call the MCP `sparql_query` tool or the generated SDK clients, the `value` of a result term can now be an object, not only a string. Update any code that assumes it is always a string.
+
+</Warning>
+
+The SPARQL console in Ontology Studio and the SPARQL Playground render a triple term as `<<( <subject> <predicate> "قطة"@ar--rtl )>>`.
+
+<img src="/public/images/how-to-guides/ontology/sparql-rdf-1-2-triple-term.png" alt="SPARQL console running an RDF 1.2 query, with the triple term shown in the result" />
+
+<Note>
+
+OpenMetadata writes the graph for its own entities as RDF 1.1. RDF 1.2 terms enter through imported ontologies and the queries you write. OpenMetadata carries them through storage, query, and results unchanged.
+
+</Note>
+
+### Serialization Formats
+
+| Format | Triple terms |
+|---|---|
+| Turtle, N-Triples | Supported. The most portable choice. |
+| RDF/XML | Supported, written as `rdf:parseType="Triple"`. Prefer Turtle if the consumer is not Jena. |
+| JSON-LD | Not supported. JSON-LD 1.1 has no triple-term syntax. |
+
+<Warning>
+
+Do not round-trip RDF 1.2 text through JSON-LD. Directional literals are written with the JSON-LD 1.1 `i18n` datatype, which does not read back as `rdf:dirLangString`.
+
+</Warning>
+
 ## Performance Notes
 
 - **Always scope to the named graph.** Unscoped patterns scan schema and shapes as well.

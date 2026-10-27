@@ -1,6 +1,6 @@
 ---
 title: Relationship Types | OpenMetadata Ontology
-description: Govern the vocabulary of edges in your ontology — categories, RDF predicates, OWL characteristics, cardinality, property chains, and disjointness.
+description: "Govern the vocabulary of edges in your ontology: categories, RDF predicates, OWL characteristics, cardinality, property chains, and disjointness."
 sidebarTitle: Relationship Types
 ---
 
@@ -8,79 +8,120 @@ sidebarTitle: Relationship Types
 
 A **relationship type** defines one kind of edge between concepts. It is the difference between "these two terms are somehow related" and "*Churn Rate* is `calculatedFrom` *Cancelled Subscriptions*, `calculatedFrom` is not symmetric, and it maps to `om:calculatedFrom` in RDF."
 
-Relationship types are **admin-governed and global**. Manage them at **Settings → Governance → Glossary Term Relations**.
+Relationship types are **admin-governed and global**. To manage them, navigate to **Settings** > **Governance** > **Glossary Term Relations**.
 
 <img src="/public/images/how-to-guides/ontology/relationship-types-settings.png" alt="Glossary Term Relations settings page" />
 
 ## The List
 
-Each row shows the type's **Name**, **Display Name**, **Category**, **Characteristics**, **Cross Glossary** flag, **Cardinality**, and **Color**. System-defined types carry a lock icon: they can be updated but never deleted, and their edit and delete actions are disabled.
+Each row shows the type's **Name**, **Display Name**, **Category**, **Characteristics**, **Cross Glossary** flag, **Cardinality**, and **Color**. System-defined types carry a lock icon: they can be updated but never deleted, and their delete action is disabled. Delete is also disabled for custom types that are in use, and for non-admin users.
 
-`GET /api/v1/glossaryTerms/relationTypes/usage` returns each type with the number of relations currently using it — check this before removing a custom type.
+`GET /api/v1/glossaryTerms/relationTypes/usage` returns each type with the number of relations currently using it. Check this before removing a custom type.
 
-## Creating a Type
+## Creating a Relationship Type
 
-Click **Add Relation Type** and fill in the panel.
+To add a custom relationship type, open **Settings** > **Governance** > **Glossary Term Relations**, then:
 
-### Identity
+1. Select **Add Relation Type**. The **Add Relation Type** panel opens.
+2. Fill in the following details:
+   - Enter a **Name** and a **Display Name**. See [Identity](#identity).
+   - Optional: Enter a **Description**. See [Identity](#identity).
+   - Select a **Category**. See [Category](#category).
+   - Optional: Select an **Inverse Relation**. See [Inverse and RDF Mapping](#inverse-and-rdf-mapping).
+   - Enter an **RDF Predicate**. See [Inverse and RDF Mapping](#inverse-and-rdf-mapping).
+   - Optional: Choose a **Cardinality**. See [Cardinality](#cardinality).
+   - Optional: Choose a **Color**. See [Color](#color).
+   - Optional: Tick the **Characteristics** that apply. See [Characteristics](#characteristics).
+   - Optional: Turn **Cross Glossary** off if the type should stay inside one glossary. See [Cross Glossary](#cross-glossary).
+3. Select **Add**. To discard the new type instead, select **Cancel**.
+
+<img src="/public/images/how-to-guides/ontology/relationship-types-add.png" alt="Add Relation Type panel with name, display name, description, category, inverse relation, RDF predicate, and cardinality" />
+
+Only **Name**, **Display Name**, and **RDF Predicate** are required. Every other option has a default.
+
+## Identity
+
+These fields name the type and explain what it means.
 
 | Field | Notes |
 |---|---|
-| **Name** | Required, unique, immutable API key. Starts with a letter; letters and numbers only. |
-| **Display name** | Required. The label drawn on graph edges and badges. |
-| **Description** | What the relationship means and when to use it. |
+| **Name** | Required. A unique key that can't be changed after the type is created. It must start with a letter and contain only letters and numbers. |
+| **Display Name** | Required. The label shown on graph edges and badges. |
+| **Description** | Optional. What the relationship means and when to use it. |
 
-### Category
+## Category
 
-| Category chip | Use for |
+The category shows where a type's meaning comes from. New types default to **Custom · Admin-defined**.
+
+| Category | Use for |
 |---|---|
-| **Core** | OpenMetadata's built-in semantic relationships — `relatedTo`, `partOf`, `hasPart`, `calculatedFrom`, `usedToCalculate`, `antonym`. |
-| **OWL / SKOS** | Types whose meaning is defined by a W3C standard — `broader`, `narrower`, `synonym`, `seeAlso`, `subClassOf`, `superClassOf`. |
-| **Custom · Admin-defined** | Everything you add for your own domain, including types auto-registered by an ontology import. |
+| **Core** | OpenMetadata's built-in semantic relationships: `relatedTo`, `partOf`, `hasPart`, `calculatedFrom`, `usedToCalculate`, and `antonym`. |
+| **OWL / SKOS** | Types whose meaning is defined by a W3C standard: `broader`, `narrower`, `synonym`, `seeAlso`, `subClassOf`, and `superClassOf`. |
+| **Custom · Admin-defined** | Types you add for your own domain, including types registered automatically by an ontology import. |
 
-### Behavior
+## Behavior
 
-**Characteristics** are OWL property characteristics. They are not labels — reasoners and the inference engine act on them.
+These settings control how the type is used in the graph and how OpenMetadata reasons over it.
+
+### Characteristics
+
+Characteristics are OWL property characteristics. They aren't labels: reasoners and the inference engine act on them. Tick every characteristic that applies.
 
 | Characteristic | Meaning |
 |---|---|
-| `SYMMETRIC` | If A→B then B→A. |
-| `ASYMMETRIC` | If A→B then never B→A. |
-| `TRANSITIVE` | If A→B and B→C then A→C. |
-| `FUNCTIONAL` | Each source has at most one target. |
-| `INVERSE_FUNCTIONAL` | Each target has at most one source. |
-| `REFLEXIVE` | Every concept relates to itself. |
-| `IRREFLEXIVE` | No concept relates to itself. |
+| **Symmetric** | If A relates to B, then B also relates to A. |
+| **Asymmetric** | If A relates to B, then B never relates to A. |
+| **Transitive** | If A relates to B and B relates to C, then A relates to C. |
+| **Functional** | Each source concept has at most one target. |
+| **Inverse Functional** | Each target concept has at most one source. |
+| **Reflexive** | Every concept relates to itself. |
+| **Irreflexive** | No concept relates to itself. |
 
-**Cardinality** constrains how many concepts can sit on each end: one-to-one, one-to-many, many-to-one, many-to-many, or **Custom** with explicit source and target maxima (blank means unlimited).
+Symmetric and Asymmetric can't be combined. **Functional** requires a **Source Max** of 1, and **Inverse Functional** requires a **Target Max** of 1, so set the **Cardinality** to **Custom** for those.
 
-**Cross-glossary** controls whether the type can connect concepts belonging to different glossaries. Turn it off for types that only make sense inside a single model.
+### Cardinality
 
-### Semantics and Mapping
+Cardinality limits how many concepts can sit at each end of the relationship:
+
+- **One to One**, **One to Many**, **Many to One**, or **Many to Many**. The default is **Many to Many**.
+- **Custom**: set a **Source Max** and a **Target Max**. Leave a field blank for no limit.
+
+### Color
+
+Color sets the color of the type's edges and badges. Choose from **Yellow**, **Blue**, **Gray**, **Green**, **Dark Blue**, **Pink**, **Purple**, **Rosé**, **Teal**, or **Violet**.
+
+### Cross Glossary
+
+Cross Glossary controls whether the type can connect concepts from different glossaries. It's on by default. Turn it off for types that only make sense inside a single glossary.
+
+## Inverse and RDF Mapping
+
+These fields define the reverse relationship and how the type appears in RDF.
 
 | Field | Notes |
 |---|---|
-| **Inverse relation** | The type that represents this one in reverse — `broader` ↔ `narrower`. Symmetric types reference themselves. Used when exporting `owl:inverseOf` and when the "include inverse relationships" export option is on. |
-| **RDF predicate** | The predicate emitted for authored edges, for example `http://www.w3.org/2004/02/skos/core#broader`. OpenMetadata warns if another type already claims it. |
-| **IRI** | The IRI identifying the OWL object property itself. |
-| **Domain / range** | Which concepts can appear on the source and target ends. |
-| **Property chain** | An ordered chain of relationship types whose composition implies this one — for example `partOf ∘ partOf ⇒ partOf`. |
-| **Disjoint with** | Types that can never co-occur on the same pair of concepts. |
-| **Color** | Palette key for edges and badges. |
-
-### Lifecycle
-
-| Field | Notes |
-|---|---|
-| **Replaced by** | Points at a successor when a type is deprecated, so consumers can follow the migration. |
-| **System-defined** | Set on shipped types. Updatable, never deletable. |
-| **Entity status**, **owners**, **reviewers** | Relationship types are versioned entities like any other, with full history. |
+| **Inverse Relation** | The type that describes this one in reverse, for example `broader` and `narrower`. A symmetric type names itself. OpenMetadata uses it to write `owl:inverseOf` on export and when the **Include inverse relationships** export option is on. |
+| **RDF Predicate** | Required. The predicate written for edges of this type. It must be an absolute IRI, for example `http://www.w3.org/2004/02/skos/core#broader`. OpenMetadata rejects a predicate that another type already uses. |
 
 <Warning>
 
-The **RDF predicate** is the identity of this relationship in the knowledge graph and in every exported ontology. Changing it after edges exist changes what downstream consumers see. Pick it when you create the type.
+The **RDF Predicate** is the identity of this relationship in the knowledge graph and in every exported ontology. Changing it after edges exist changes what downstream consumers see. Choose it carefully when you create the type.
 
 </Warning>
+
+## Fields Available Only Through the API
+
+The panel doesn't show every field. Set the fields below through the `POST`, `PUT`, and `PATCH` `/api/v1/relationshipTypes` endpoints.
+
+| Field | Notes |
+|---|---|
+| **IRI** | The IRI that identifies the OWL object property itself. |
+| **Domain** and **Range** | Which concepts can appear at the source and target ends. |
+| **Property chain** | An ordered chain of types whose composition implies this one, for example `partOf ∘ partOf ⇒ partOf`. |
+| **Disjoint with** | Types that can never appear together on the same pair of concepts. |
+| **Replaced by** | The successor type when a type is deprecated, so consumers can follow the migration. |
+| **System-defined** | Set on types that ship with OpenMetadata. They're updatable but never deletable. |
+| **Entity status**, **Owners**, **Reviewers** | Relationship types are versioned entities like any other, with full history. |
 
 ## Types Shipped by Default
 
@@ -112,7 +153,7 @@ The **RDF predicate** is the identity of this relationship in the knowledge grap
     Mapping to `skos:broader` rather than a bespoke `om:isUnder` makes your export intelligible to every SKOS-aware tool on the planet, for zero extra effort.
   </Accordion>
   <Accordion title="Deprecate, don't delete">
-    Set **Replaced by** and leave the old type in place. Deleting a type that edges still reference destroys information no one can reconstruct.
+    Set **Replaced by** (through the API) and leave the old type in place. Deleting a type that edges still reference destroys information no one can reconstruct.
   </Accordion>
 </AccordionGroup>
 
