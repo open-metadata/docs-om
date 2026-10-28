@@ -55,7 +55,7 @@ query_text,database_name,schema_name
 
 ## Redshift Serverless: Export SELECT Queries
 
-The Redshift connector's usage workflow on a Serverless workgroup only captures queries that change a table: `INSERT`, `UPDATE`, `MERGE` and `DELETE`. To include `SELECT` queries, export them to a query log file and run this workflow with that file.
+The Redshift connector's usage workflow on a Serverless workgroup only captures queries that insert, merge, or delete rows in a table. To include `SELECT` queries, export them to a query log file and run this workflow with that file.
 
 1. Run the following query in your Serverless workgroup. Adjust the time window and filters for your environment:
 
@@ -63,7 +63,7 @@ The Redshift connector's usage workflow on a Serverless workgroup only captures 
    SELECT
        q.query_text,
        RTRIM(u.usename) AS user_name,
-       q.start_time,
+       TO_CHAR(q.start_time, 'YYYY-MM-DD HH24:MI:SS.US') AS start_time,
        q.end_time,
        q.database_name
    FROM SYS_QUERY_HISTORY AS q
@@ -76,7 +76,7 @@ The Redshift connector's usage workflow on a Serverless workgroup only captures 
    ORDER BY q.start_time DESC;
    ```
 
-2. Save the result as a CSV file with a header row that names the columns `query_text`, `user_name`, `start_time`, `end_time` and `database_name`. Wrap each `query_text` value in quotes.
+2. Save the result as a CSV file with a header row. The `query_text` column is required. The `user_name`, `start_time`, `end_time`, `database_name` and `schema_name` columns are optional. Write `start_time` as `YYYY-MM-DD HH:MM:SS.ffffff`, which the export query does. If the format differs, the workflow stops reading the file and logs a warning. Quote values that contain commas or line breaks.
 3. Set `serviceName` to your Redshift service and `queryLogFilePath` to this file in the YAML below, then run the workflow.
 
 For more information about the view, see the [SYS_QUERY_HISTORY](https://docs.aws.amazon.com/redshift/latest/dg/SYS_QUERY_HISTORY.html) documentation from AWS.
