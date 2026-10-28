@@ -1,0 +1,40 @@
+---
+title: Tableau Pipeline Troubleshooting | OpenMetadata Connector
+description: Troubleshoot common Tableau Pipeline connector issues in OpenMetadata, including connection failures, permission errors, and ingestion problems.
+sidebarTitle: Troubleshooting
+---
+
+import Troubleshooting from '/snippets/connectors/troubleshooting.mdx'
+
+<Troubleshooting />
+
+## Tableau Pipeline-Specific Issues
+
+The following issues are specific to the Tableau Pipeline connector.
+
+### Test Connection Fails on a Specific Step
+
+The test runs these steps: **GetPipelines** is required, and **GetRuns**, **GetJobs**, and **GetLineage** are optional.
+
+- **GetPipelines**: OpenMetadata can't list the Tableau Prep flows available to the user. Confirm **Host and Port**, the credentials, and **Site Name**.
+- **GetRuns**: OpenMetadata can't list flow runs. Non-administrators see only the runs of flows they can view.
+- **GetJobs**: OpenMetadata can't list the extract refresh jobs of the site. Reading refresh job history requires a site administrator.
+- **GetLineage**: OpenMetadata can't query flows through the Tableau Metadata API. Confirm the Metadata API is enabled on your Tableau server.
+
+### No Lineage Is Produced
+
+Lineage needs the Tableau Metadata API. If it is not enabled, metadata and run status still ingest, but OpenMetadata draws no lineage edges. See [Start the Metadata API](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html).
+
+If the Metadata API is enabled and edges are still missing:
+
+- **Tables not found**: OpenMetadata matches tables against ingested database services. Ingest the source database service first, and set **Database Service Names List** under **Lineage Information** to limit the search to the right services.
+- **Published data sources not found**: OpenMetadata links published data sources to the data models created by the Tableau dashboard connector. Run the dashboard connector first.
+- **Ambiguous input and output pairs**: When a flow has several inputs and several outputs, Tableau must report which input feeds which output. If it does not, OpenMetadata draws no input to output edge for that flow and logs a warning that names it.
+
+### No Extract Refresh Status
+
+Tableau answers extract refresh job queries only for server and site administrators. With another user, OpenMetadata still ingests extract refresh pipelines for the refresh tasks the user owns, but without run status. To skip extract refreshes entirely, turn off **Include Extract Refreshes**.
+
+### Scheduled Flows Do Not Appear to Run
+
+Flows can run manually without Data Management, but scheduled runs need Tableau Prep Conductor. Without it, only manual runs appear as pipeline status.
