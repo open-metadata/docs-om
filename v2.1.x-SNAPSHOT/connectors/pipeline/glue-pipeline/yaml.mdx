@@ -26,6 +26,7 @@ unavailableFeatures={["Owners", "Tags"]} />
 In this section, we provide guides and references to use the Glue connector.
 Configure and schedule Glue metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
+- [Lineage](#lineage)
 - [Metadata Ingestion](#metadata-ingestion)
 <ExternalIngestionDeployment />
 ## Requirements
@@ -41,6 +42,21 @@ To run the Glue ingestion, you will need to install:
 ```bash
 pip3 install "openmetadata-ingestion[glue]"
 ```
+## Lineage
+
+The Glue connector creates lineage between Glue jobs and the Snowflake tables that the jobs read from or write to. OpenMetadata links a job to Snowflake tables that it has already ingested, so ingest the Snowflake service first.
+
+OpenMetadata reads the Snowflake sources and targets of a job from:
+
+- **Glue Studio nodes**: `SnowflakeSource` and `SnowflakeTarget` nodes. OpenMetadata skips a node that has no table, such as a source that uses a query.
+- **Job scripts**: Python scripts that use `connection_type="snowflake"` with the Glue `from_options` calls, or the Snowflake Spark connector with `format("snowflake")`. OpenMetadata doesn't read Scala scripts, so a Scala job produces no Snowflake lineage.
+
+To create the lineage, set **Database Service Names List** under **Lineage Information** in the metadata agent to the Snowflake service. In a YAML workflow, set `dbServiceNames` under `lineageInformation` in `sourceConfig.config`. When the list is empty, OpenMetadata searches all database services.
+
+OpenMetadata takes the database, schema, and table from the node or from the script. In a script, the `dbtable` option accepts `TABLE`, `SCHEMA.TABLE`, or `DB.SCHEMA.TABLE`. A database or schema that the script sets at run time, for example from a job parameter, stays unset.
+
+OpenMetadata matches the `database.schema.table` name first, then `schema.table`. It uses the table name alone only when the script doesn't set a schema. OpenMetadata links the job only when exactly one table matches. If several tables match, or no table matches, OpenMetadata skips the table and logs a warning.
+
 ## Metadata Ingestion
 All connectors are defined as JSON Schemas.
 [Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/glueConnection.json)

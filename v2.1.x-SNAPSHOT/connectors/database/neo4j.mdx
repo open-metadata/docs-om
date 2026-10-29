@@ -1,0 +1,167 @@
+---
+title: Neo4j Connector | OpenMetadata Database Integration
+description: Connect Neo4j to OpenMetadata with the database connector guide. Step-by-step setup, configuration examples, and metadata extraction tips.
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentDatabase from '/snippets/v2.1.x-SNAPSHOT/connectors/metadata-agent/database.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/neo4j.svg'
+name="Neo4j"
+stage="BETA"
+availableFeatures={["Metadata"]}
+unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures"]} />
+This section provides guides and references to use the Neo4j connector.
+Configure and schedule Neo4j metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+  - [Entity Mapping](#entity-mapping)
+  - [Data Type Mapping](#data-type-mapping)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/database/neo4j/troubleshooting)
+
+## Requirements
+
+OpenMetadata reads the graph schema of one Neo4j database. It reads schema information only and never reads node or relationship data. The connecting user needs the `ACCESS` privilege on the database and permission to execute the following procedures:
+
+- `db.info`
+- `db.labels`
+- `db.relationshipTypes`
+- `db.schema.nodeTypeProperties`
+- `db.schema.relTypeProperties`
+
+The built-in `reader` role is enough.
+
+### Entity Mapping
+
+OpenMetadata maps the Neo4j graph schema to OpenMetadata entities as follows:
+
+| Neo4j | OpenMetadata Entity | Description |
+|---|---|---|
+| **Database** | **Database** | The Neo4j database that the connection reads. Each ingestion run reads one database. |
+| **Node labels** | **Tables** in the `nodes` schema | One table for each node label. A node with several labels contributes to the table of each label. |
+| **Relationship types** | **Tables** in the `relationships` schema | One table for each relationship type. OpenMetadata creates these tables only when **Include Relationships** is on. |
+| **Properties** | **Columns** | The properties of a node label or relationship type become the columns of its table. |
+
+A property is `NOT NULL` only when every node type with that label has the property and marks it as mandatory. When a property has more than one type, or a type that OpenMetadata doesn't recognize, OpenMetadata sets the column to the `UNKNOWN` data type and ingestion continues.
+
+### Data Type Mapping
+
+OpenMetadata maps Neo4j property types to OpenMetadata data types as follows:
+
+| Neo4j Type | OpenMetadata Data Type |
+|---|---|
+| String | `STRING` |
+| Long, Integer | `BIGINT` |
+| Double, Float | `DOUBLE` |
+| Boolean | `BOOLEAN` |
+| Date | `DATE` |
+| DateTime, ZonedDateTime | `TIMESTAMPZ` |
+| LocalDateTime | `TIMESTAMP` |
+| Time, LocalTime | `TIME` |
+| Duration | `INTERVAL` |
+| Point | `POINT` |
+| ByteArray | `BYTES` |
+| Array of a type | `ARRAY` of the matching element type |
+
+## Metadata Ingestion
+
+To ingest metadata from Neo4j, you need to create a service connection. The service connects Neo4j with OpenMetadata. After you create the service and deploy the metadata agent, OpenMetadata starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Database Services**, then click the **Neo4j** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Database/select-service/neo4j.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Neo4j services you're ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Database/service-name/neo4j.png)
+
+<Note>
+The service name can't be changed after it's set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Neo4j. The inline help panel in the UI describes each field. The form groups the fields into **Connection**, **Authentication**, **Scope & Options**, and **Advanced Config** sections.
+
+- **Host and Port** (required): The host and port of the Neo4j server, for example `localhost:7687`. If you omit the port, OpenMetadata uses 7687.
+- **Username** (required): The username to connect to Neo4j. The user needs read access to the graph schema of the database.
+- **Password** (required): The password to connect to Neo4j.
+
+Expand **Scope & Options** and **Advanced Config** to set the optional fields:
+
+- **Database Name** (optional): The Neo4j database to extract metadata from. When left blank, OpenMetadata uses the home database of the user.
+- **Property Filter Pattern** (optional): A regex that includes or excludes the node and relationship properties (columns) that match the pattern. Use it, for example, to drop properties that graph algorithms write back, such as `louvain.*`.
+- **Include Relationships**: On by default. When on, OpenMetadata also ingests relationship types as tables in the `relationships` schema, with their properties as columns.
+- **Connection Scheme** (optional): The Neo4j driver URI scheme, in **Advanced Config**. Defaults to `neo4j`. Choose one of `neo4j`, `neo4j+s`, `neo4j+ssc`, `bolt`, `bolt+s`, or `bolt+ssc`. A `neo4j` scheme makes a routed connection to a cluster or a single server, and a `bolt` scheme makes a direct connection to one server. A `+s` scheme encrypts the connection with full certificate validation. A `+ssc` scheme encrypts the connection and accepts self-signed certificates. Use `neo4j+s` for Neo4j Aura.
+
+#### Test Connection
+
+After you add the credentials, click **Test Connection**, then click **Save**. The test checks that OpenMetadata can connect to Neo4j, resolve the database, and read the node labels. It also reads the relationship types, but that step is optional.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, configure filter rules for databases, schemas, and tables.
+
+#### How Filter Rules Work
+
+Each rule matches asset names using one of five match types:
+
+- **Contains**: Matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **Starts with**: Matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **Ends with**: Matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **Is exactly**: Matches the exact name only. For example, `analytics` matches only `analytics`.
+- **Matches regex**: Matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When include rules and exclude rules both match an asset, the exclude rule takes priority.
+
+<Tip>
+Leave all filter rules empty to ingest all databases, schemas, and tables available in the source.
+</Tip>
+
+#### Filter Options
+
+The **Database**, **Schema**, and **Table** sections control ingestion for the corresponding asset type. Each section provides the following controls:
+
+- **Scan Mode**: Choose one of the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Exclude system toggle**: Use this toggle to automatically filter out system-reserved names defined by the connector, for example, **Exclude system databases** for the Databases section.
+- **Always exclude**: Add permanent exclusion rules (shown in red). OpenMetadata never ingests assets matching these rules, regardless of include rules.
+- **Preview**: View a real-time summary of what's in scope based on your current rules.
+- **Include rules**: In **Only specific** mode, click **+ Add** to define a rule. Added rules appear as chips. OpenMetadata includes an asset if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentDatabase />
+
+<Related />

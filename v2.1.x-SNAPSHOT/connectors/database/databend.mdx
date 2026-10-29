@@ -12,12 +12,13 @@ import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
 icon='/public/images/connectors/databend.webp'
 name="Databend"
 stage="BETA"
-availableFeatures={["Metadata", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
-unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures"]} />
+availableFeatures={["Metadata", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
 This section provides guides and references to use the Databend connector.
 Configure and schedule Databend metadata and profiler workflows from the OpenMetadata UI:
 - [Requirements](#requirements)
   - [Profiler and Data Quality](#profiler-and-data-quality)
+  - [Lineage](#lineage)
 - [Metadata Ingestion](#metadata-ingestion)
 - [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/database/databend/troubleshooting)
 
@@ -38,6 +39,41 @@ OpenMetadata ingests only the Databend `default` catalog. Databend objects map t
 ### Profiler and Data Quality
 
 Running the profiler workflow, data quality tests, or data diff requires `SELECT` on the tables and schemas being profiled or tested. For more information, see [Profiler Workflow](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and [Data Quality](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+
+### Lineage
+
+OpenMetadata reads table and column lineage from the lineage records that Databend keeps in `system_history.lineage_history`. Databend records lineage from its query planner, so OpenMetadata doesn't parse SQL.
+
+Lineage requires:
+
+- Databend v1.2.933 or later.
+- A Databend Enterprise license.
+- `[lineage] on = true` and `[log.history] on = true` in the Databend query configuration.
+- `SELECT` on `system_history`. For example:
+
+```sql
+GRANT SELECT ON system_history.* TO <user>;
+```
+
+These requirements apply only to lineage. The metadata, profiler, and data quality workflows don't need them.
+
+OpenMetadata creates lineage as follows:
+
+- **View lineage**: OpenMetadata reads `CREATE VIEW` records and keeps only the current definition of each view. When **Override View Lineage** is on, OpenMetadata replaces the existing view lineage.
+- **Query lineage**: OpenMetadata reads `CREATE TABLE ... AS SELECT` and data manipulation language (DML) records that fall inside the **Query Log Duration**.
+
+The lineage agent has the following options:
+
+- **Query Log Duration**: How far back OpenMetadata reads query lineage records. Defaults to `1`.
+- **Override View Lineage**: Replaces existing view lineage. Off by default.
+
+OpenMetadata skips the following lineage edges:
+
+- Edges where either table isn't ingested in OpenMetadata yet. Run metadata ingestion first. A later lineage run picks up the skipped edges.
+- Edges that involve an external catalog. OpenMetadata reads only the `default` catalog.
+- A table that is its own source, such as an in-place update.
+
+Schema and table filter patterns also apply to lineage.
 
 ## Metadata Ingestion
 
@@ -101,7 +137,7 @@ Expand **Scope & Options** and **Advanced Config** to set the optional fields:
 
 #### Test Connection
 
-After you add the credentials, click **Test Connection**, then click **Save**.
+After you add the credentials, click **Test Connection**, then click **Save**. The test includes an optional **GetLineage** step. If this step fails, the message names the missing lineage requirement. The metadata, profiler, and data quality workflows aren't affected.
 
 <img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
 

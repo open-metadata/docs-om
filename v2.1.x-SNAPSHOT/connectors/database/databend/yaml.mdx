@@ -14,6 +14,7 @@ import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
 import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
 import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
 import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
 import PythonRequirements from '/snippets/v2.1.x-SNAPSHOT/connectors/python-requirements.mdx'
 import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
 import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
@@ -23,12 +24,13 @@ import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
 icon='/public/images/connectors/databend.webp'
 name="Databend"
 stage="BETA"
-availableFeatures={["Metadata", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
-unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures"]} />
+availableFeatures={["Metadata", "Lineage", "Column-level Lineage", "Data Profiler", "Data Quality", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
 This section provides guides and references for the Databend connector.
 Configure Databend metadata workflows externally with YAML:
 - [Requirements](#requirements)
 - [Metadata Ingestion](#metadata-ingestion)
+- [Lineage](#lineage)
 - [Data Profiler](#data-profiler)
 - [Data Quality](#data-quality)
 
@@ -50,6 +52,41 @@ OpenMetadata ingests only the Databend `default` catalog. Databend objects map t
 ### Profiler and Data Quality
 
 Running the profiler workflow, data quality tests, or data diff requires `SELECT` on the tables and schemas being profiled or tested. For more information, see [Profiler Workflow](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/profiler/profiler-workflow) and [Data Quality](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/quality).
+
+### Lineage
+
+OpenMetadata reads table and column lineage from the lineage records that Databend keeps in `system_history.lineage_history`. Databend records lineage from its query planner, so OpenMetadata doesn't parse SQL.
+
+Lineage requires:
+
+- Databend v1.2.933 or later.
+- A Databend Enterprise license.
+- `[lineage] on = true` and `[log.history] on = true` in the Databend query configuration.
+- `SELECT` on `system_history`. For example:
+
+```sql
+GRANT SELECT ON system_history.* TO <user>;
+```
+
+These requirements apply only to lineage. The metadata, profiler, and data quality workflows don't need them.
+
+OpenMetadata creates lineage as follows:
+
+- **View lineage**: OpenMetadata reads `CREATE VIEW` records and keeps only the current definition of each view. When **Override View Lineage** is on, OpenMetadata replaces the existing view lineage.
+- **Query lineage**: OpenMetadata reads `CREATE TABLE ... AS SELECT` and data manipulation language (DML) records that fall inside the **Query Log Duration**.
+
+The lineage agent has the following options:
+
+- **Query Log Duration**: How far back OpenMetadata reads query lineage records. Defaults to `1`.
+- **Override View Lineage**: Replaces existing view lineage. Off by default.
+
+OpenMetadata skips the following lineage edges:
+
+- Edges where either table isn't ingested in OpenMetadata yet. Run metadata ingestion first. A later lineage run picks up the skipped edges.
+- Edges that involve an external catalog. OpenMetadata reads only the `default` catalog.
+- A table that is its own source, such as an in-place update.
+
+Schema and table filter patterns also apply to lineage.
 
 ### Python Requirements
 <PythonRequirements />
@@ -151,6 +188,7 @@ source:
 </CodePreview>
 
 <IngestionCli />
+<Lineage connector="databend" />
 <DataProfiler connector="databend" />
 <AutoClassification connector="databend" />
 <DataQuality />
