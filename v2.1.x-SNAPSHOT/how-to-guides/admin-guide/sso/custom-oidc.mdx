@@ -1,0 +1,413 @@
+---
+title: Custom OIDC SSO | OpenMetadata Authentication Guide
+description: Step-by-step guide to configure Custom OIDC-based SSO using any OpenID Connect compliant identity provider for secure enterprise authentication in OpenMetadata.
+sidebarTitle: Custom OIDC
+---
+
+
+import SsoTroubleshooting from '/snippets/v2.1.x-SNAPSHOT/deployment/sso-troubleshooting.mdx'
+
+## Overview
+
+Custom OIDC authentication enables integration with any OpenID Connect (OIDC) compliant identity provider such as Keycloak, Authentik, PingIdentity, or other enterprise identity solutions.
+
+## Configure Custom OIDC SSO
+
+Complete the following steps to configure Custom OIDC SSO.
+
+1. Navigate to **Settings** > **SSO**.
+
+    <img src="/public/images/how-to-guides/admin-guide/choose-provider.png" alt="Settings, SSO page with the Choose Provider list" />
+
+2. Click **Custom-OIDC**, and then click **Configure**.
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was select-custom-oidc.png). */}
+
+3. Enter the configuration details. For more information, see [Configuration Fields](#configuration-fields).
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was custom-oidc-configure.png). */}
+
+4. Click **Test Login** and complete the sign-in. For more information, see [Test Login](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/sso#test-login).
+
+5. Click **Save** to finish the SSO configuration.
+
+## Configuration Fields
+
+This section lists all fields in the order they appear in the OpenMetadata SSO configuration form.
+
+### General Configuration
+
+Configure the identity provider connection and basic authentication behavior.
+
+#### Provider Name
+
+- **Definition**: A human-readable name for this OIDC configuration instance.
+- **Example**: `Company SSO`, `Internal Auth`, `Keycloak SSO`
+- **Why it matters**: Helps identify this SSO configuration in logs and user interfaces.
+- **Note**: This is a display name and doesn't affect authentication functionality.
+
+#### Enable Self Signup
+
+- **Definition**: Allows new users to create OpenMetadata accounts through OIDC authentication.
+- **Default**: `false`
+- **Why it matters**: Controls whether unknown users can automatically create accounts.
+- **Note**: Enable only if you trust all users from your OIDC provider.
+
+#### Authority
+
+- **Definition**: Base URL of your OIDC provider's authentication server.
+- **Example**: `https://auth.yourcompany.com` or `https://keycloak.company.com/realms/your-realm`
+- **Why it matters**: OpenMetadata uses this to discover OIDC endpoints and validate tokens.
+- **Note**: Must be publicly accessible and return a valid OIDC discovery document at `/.well-known/openid-configuration`.
+
+#### Public Key Urls
+
+- **Definition**: URLs pointing to the OIDC provider's public keys used to verify token signatures.
+- **Example**: `https://auth.yourcompany.com/oauth2/v3/certs`
+- **Why it matters**: OpenMetadata fetches public keys from these URLs to validate JSON Web Token (JWT) signatures from your provider.
+- **Note**: Enter each URL and press Enter. Leave empty to use keys from the discovery document.
+
+#### Token Validation Algorithm
+
+- **Definition**: Algorithm used to validate JWT token signatures from the OIDC provider.
+- **Default**: `RS256`
+- **Options**: `RS256`, `RS384`, `RS512`, `HS256`, `HS384`, `HS512`
+- **Example**: `RS256`
+- **Why it matters**: Must match the signing algorithm configured in your OIDC provider.
+
+### OIDC Configuration
+
+Configure the OIDC client credentials, discovery endpoint, and token behavior.
+
+#### Id
+
+- **Definition**: OAuth2 client identifier issued by your OIDC provider.
+- **Example**: `my-custom-oidc-client-12345`
+- **Why it matters**: Identifies your application to the OIDC provider.
+- **Note**: Found in your OIDC provider's application settings.
+
+#### Secret
+
+- **Definition**: OAuth2 client secret issued by your OIDC provider.
+- **Example**: `abc123-secret-xyz789`
+- **Why it matters**: Authenticates your application with the OIDC provider.
+- **Note**: Keep this value secure. Never expose it in client-side code.
+
+#### Scope
+
+- **Definition**: OAuth2 scopes to request from the OIDC provider.
+- **Default**: `openid profile email`
+- **Example**: `openid profile email groups`
+- **Why it matters**: Determines what user information OpenMetadata can access.
+- **Note**:
+  - `openid`: Required for OIDC.
+  - `profile`: Access to user profile information.
+  - `email`: Access to user email address.
+  - `groups`: Access to user group memberships (if supported by your provider).
+
+#### DiscoveryUri
+
+- **Definition**: Your OIDC provider's OpenID Connect metadata endpoint.
+- **Example**: `https://auth.yourcompany.com/.well-known/openid-configuration`
+- **Why it matters**: Allows OpenMetadata to automatically discover the provider's OIDC endpoints.
+- **Note**: Usually `{authority}/.well-known/openid-configuration`.
+
+#### PreferredJwsAlgorithm
+
+- **Definition**: Preferred JSON Web Signature algorithm for token validation.
+- **Default**: `RS256`
+- **Example**: `RS256`
+- **Why it matters**: Specifies the preferred algorithm when the provider supports multiple signing options.
+- **Note**: Must match the algorithm your OIDC provider uses to sign tokens.
+
+#### ResponseType
+
+- **Definition**: OAuth2 response type for the authorization flow.
+- **Default**: `code`
+- **Options**: `code`, `token`, `id_token`
+- **Example**: `code`
+- **Why it matters**: Determines which OAuth2 flow is used. Authorization Code flow (`code`) is the most secure.
+
+#### ClientAuthenticationMethod
+
+- **Definition**: Method used to authenticate the client with the OIDC provider.
+- **Default**: `client_secret_post`
+- **Options**: `client_secret_basic` | `client_secret_post` | `client_secret_jwt` | `private_key_jwt`
+- **Example**: `client_secret_post`
+- **Why it matters**: Must match the client authentication method configured in your OIDC provider.
+
+#### Tenant
+
+- **Definition**: Tenant identifier if your OIDC provider supports multi-tenancy.
+- **Example**: `your-tenant-id` or `company-realm`
+- **Why it matters**: Identifies the specific tenant or realm within a multi-tenant OIDC provider.
+- **Note**: Leave empty if your provider is single-tenant.
+
+#### ServerUrl
+
+- **Definition**: Base URL of your OpenMetadata deployment.
+- **Example**: `https://openmetadata.company.com`
+- **Why it matters**: Used internally to construct redirect URLs.
+- **Note**: **This field is read-only**: it is auto-populated based on your OpenMetadata deployment URL.
+
+#### CallbackUrl
+
+- **Definition**: URL where the OIDC provider redirects after authentication.
+- **Example**: `https://openmetadata.company.com/callback`
+- **Why it matters**: Must be registered in your OIDC provider configuration.
+- **Note**:
+  - **This field is read-only**: it is auto-populated as `{your-domain}/callback`.
+  - Copy this URL and add it to your OIDC provider's allowed redirect URIs list.
+
+#### Prompt
+
+- **Definition**: Controls the OIDC provider's authentication prompt behavior.
+- **Options**: `none`, `login`, `consent`, `select_account`
+- **Default**: Empty. Leave it empty unless you need to force a specific behavior. OpenMetadata sends `none` itself when it re-authenticates a user silently.
+- **Example**: `login`
+- **Why it matters**: Defines how the login experience behaves for users.
+- **Note**:
+  - `login`: Always prompt for credentials.
+  - `none`: Use existing session silently (SSO).
+  - `consent`: Prompt for permissions.
+
+#### Advanced Configuration
+
+The following fields are grouped under **Advanced Config** in the UI (collapsed by default):
+
+##### UseNonce
+
+- **Definition**: Security feature to prevent replay attacks in OIDC flows.
+- **Default**: `false`
+- **Why it matters**: Enhances security by ensuring each authentication request is unique.
+
+##### disablePkce
+
+- **Definition**: Whether to disable Proof Key for Code Exchange.
+- **Default**: `false`
+- **Why it matters**: PKCE adds security to the authorization code flow.
+- **Note**: Should remain `false` (enabled) in most cases.
+
+##### MaxClockSkew
+
+- **Definition**: Maximum allowed time difference in seconds between systems when validating tokens.
+- **Default**: `0`
+- **Why it matters**: Prevents token validation failures due to minor clock differences between servers.
+
+##### TokenValidity
+
+- **Definition**: Duration in seconds that tokens remain valid.
+- **Default**: `3600`
+- **Example**: `3600`
+- **Why it matters**: Balances token lifetime against security requirements.
+- **Note**: The value must be positive. OpenMetadata rejects a zero or negative value, and falls back to `3600` at runtime if an invalid value is ever persisted.
+
+##### MaxAge
+
+- **Definition**: The `max_age` request parameter, in seconds, that OpenMetadata sends to the identity provider.
+- **Default**: Empty.
+- **Why it matters**: Leave it empty so the identity provider can reuse its own session. A value of `0` is treated as not set. To force users to re-enter their credentials, set **Prompt** to `login`.
+
+##### SessionExpiry
+
+- **Definition**: How long user sessions remain valid in seconds.
+- **Default**: `604800` (7 days)
+- **Why it matters**: Controls session timeout for confidential clients.
+
+##### EndSessionWithProvider
+
+- **Definition**: Controls whether OpenMetadata ties a user session to the identity provider's session.
+- **Default**: `false`
+- **Note**:
+  - Available for confidential OIDC clients only.
+  - When on, OpenMetadata renews the identity provider's tokens on the provider's schedule while the user is active. It signs the user out when the provider rejects the refresh token. The token that OpenMetadata issues is shortened to that schedule, with a minimum of 120 seconds. A renewal never extends the session beyond **SessionExpiry**.
+  - When off, a session lasts for the configured **SessionExpiry**.
+  - The sign-out depends on the provider. Keycloak revokes refresh tokens together with the provider session, and Microsoft Entra ID doesn't.
+
+### JWT Claims
+
+Map identity token claims to OpenMetadata user identities and team assignments.
+
+#### Jwt Principal Claims
+
+- **Definition**: JWT claims used to identify users in OpenMetadata. The first claim that returns a value is used.
+- **Default**: `["email", "preferred_username", "sub"]`
+- **Example**: `["email", "username", "sub"]`
+- **Why it matters**: Determines how users are matched to their OpenMetadata accounts.
+- **Note**: At least one claim must correspond to the user's email address.
+
+<Warning>
+**Important**: Incorrect claims will lock out all users including admins. The default values (`email`, `preferred_username`, `sub`) work for most standard OIDC providers. Verify with your provider's documentation before changing.
+</Warning>
+
+#### Jwt Principal Claims Mapping
+
+**Definition**: Maps JSON Web Token (JWT) claims to OpenMetadata user profile fields.
+
+**Supported keys**: Only `email` and `username` are valid mapping targets in `jwtPrincipalClaimsMapping`.
+
+**Example**:
+
+```yaml
+["email:email", "username:preferred_username"]
+```
+
+**Why it matters**: Controls how SSO login data maps to user profiles in OpenMetadata.
+
+**Format**: `openmetadata_field:jwt_claim` (for example, `"email:email"`).
+
+<Note>
+**Note**: The display name is derived automatically from standard OIDC/JWT claims, so you don't need to configure it using `jwtPrincipalClaimsMapping`. If you need richer name handling, make sure your OIDC provider is configured to include `given_name` and `family_name` as claims in the ID token. OpenMetadata picks them up automatically.
+</Note>
+
+<Warning>
+**Important**: Using any other key (for example, `name` or `firstName`) will cause the service to fail on startup with a validation error.
+</Warning>
+
+#### Jwt Team Claim Mapping
+
+- **Definition**: JWT claim containing team or department information for automatic team assignment in OpenMetadata.
+- **Example**: `department`, `groups`, `organization`, `team`
+- **Why it matters**: Automatically assigns users to existing OpenMetadata teams based on their OIDC provider attributes at login.
+- **Note**:
+  - Ensure the claim is included in the ID token by your OIDC provider.
+  - Common attributes: `department`, `organization`, `groups`, `roles`.
+  - The team must already exist in OpenMetadata for assignment to work.
+  - Only teams of type **Group** can be auto-assigned. Team names are case-sensitive.
+
+#### Enable Auto Redirect
+
+- **Definition**: Automatically redirects users to the OIDC Identity Provider without showing the OpenMetadata login page.
+- **Default**: `false`
+- **Why it matters**: Provides a seamless SSO experience: users already authenticated with the IdP are logged in automatically.
+- **Note**: Disable if you need users to be able to choose between SSO and other login methods.
+
+### Authorizer Configuration
+
+Control which users and domains are permitted to access OpenMetadata.
+
+#### Admin Principals
+
+- **Definition**: Users granted admin access in OpenMetadata.
+- **Example**: `["admin", "sysadmin", "john.doe"]`
+- **Why it matters**: Grants full admin privileges in OpenMetadata.
+- **Note**: Enter usernames only, not email addresses. Use the part of the email before `@` (for example, for `admin@company.com`, enter `admin`).
+
+#### Principal Domain
+
+- **Definition**: Default domain appended to usernames when the domain is not present in claims.
+- **Example**: `company.com`
+- **Why it matters**: Ensures consistent user identification across systems.
+- **Note**: Optional: only needed if usernames don't include domain information.
+
+#### Enforce Principal Domain
+
+- **Definition**: Restricts login to users belonging to the configured Principal Domain.
+- **Default**: `false`
+- **Example**: `true`
+- **Why it matters**: Adds an extra layer of security by limiting access to a specific domain.
+
+#### Enable Secure Socket Connection
+
+- **Definition**: Enables Secure Sockets Layer/Transport Layer Security (SSL/TLS) for all SSO communication.
+- **Default**: `false`
+- **Example**: `true`
+- **Why it matters**: Ensures encrypted communication between OpenMetadata and your OIDC provider.
+- **Note**: Recommended in production environments.
+
+#### Allowed Email Registration Domains
+
+- **Definition**: Domains allowed to register new accounts via SSO self-signup.
+- **Example**: `company.com`
+- **Why it matters**: Restricts which email domains can create new OpenMetadata accounts through self-signup.
+- **Note**: Use `"all"` to allow any domain. Leave empty to block all self-signup registrations. Requires **Enable Self Signup** to be active.
+
+#### Allowed Domains
+
+- **Definition**: List of email domains permitted to authenticate with OpenMetadata.
+- **Example**: `["company.com", "external-partner.com"]`
+- **Why it matters**: Provides fine-grained control over which email domains can authenticate via your OIDC provider.
+- **Note**:
+  - Works in conjunction with **Enforce Principal Domain**.
+  - Leave empty if you only use a single domain configured in **Principal Domain**.
+
+#### Use Roles From Provider
+
+- **Definition**: Use roles returned by the OIDC provider in the token to assign OpenMetadata roles.
+- **Default**: `false`
+- **Why it matters**: Enables role-based access control driven by your provider's role assignments.
+- **Note**: Roles must be included in the token and must match existing OpenMetadata role names.
+  - Roles sync on every login. A role change at the provider takes effect the next time the user signs in.
+  - If the token omits the roles claim entirely, OpenMetadata treats it as no roles. Some providers leave the claim out once a user's last role is removed.
+  - A fresh sign-in then removes the roles and administrator access that the provider no longer grants.
+  - Roles from the provider can promote a user to Admin. A sign-in never demotes an admin assigned through **Admin Principals**.
+
+#### Default OAuth Role
+
+- **Definition**: Default role assigned to new users when they first sign in via SSO self-signup.
+- **Example**: `DataConsumer`
+- **Why it matters**: Controls the starting permission level for new users who join through self-signup.
+- **Note**: Leave empty to create users without any role. Requires **Enable Self Signup** to be active. The role must already exist in OpenMetadata.
+
+### Summary
+
+Quick reference of all configuration fields and their example values.
+
+| Field | Example / Default |
+|---|---|
+| Provider Name | Company SSO |
+| Enable Self Signup | false |
+| Authority | `https://auth.yourcompany.com` |
+| Public Key Urls | `https://auth.yourcompany.com/oauth2/v3/certs` |
+| Token Validation Algorithm | RS256 |
+| Id | my-custom-oidc-client-12345 |
+| Secret | abc123-secret-xyz789 |
+| Scope | openid profile email |
+| DiscoveryUri | `https://auth.yourcompany.com/.well-known/openid-configuration` |
+| PreferredJwsAlgorithm | RS256 |
+| ResponseType | code |
+| ClientAuthenticationMethod | client_secret_post |
+| Tenant | your-tenant-id |
+| ServerUrl | `https://openmetadata.company.com` (read-only) |
+| CallbackUrl | `https://openmetadata.company.com/callback` (read-only) |
+| Prompt | login |
+| UseNonce | false |
+| disablePkce | false |
+| MaxClockSkew | 0 |
+| TokenValidity | 3600 |
+| MaxAge | Leave empty |
+| SessionExpiry | 604800 |
+| Jwt Principal Claims | `["email", "preferred_username", "sub"]` |
+| Jwt Principal Claims Mapping | `["email:email"]` |
+| Jwt Team Claim Mapping | department |
+| Enable Auto Redirect | false |
+| Admin Principals | `["admin", "sysadmin"]` |
+| Principal Domain | company.com |
+| Enforce Principal Domain | false |
+| Enable Secure Socket Connection | true |
+| Allowed Email Registration Domains | company.com |
+| Allowed Domains | `["company.com"]` |
+| Use Roles From Provider | false |
+| Default OAuth Role | DataConsumer |
+
+### Common OIDC Provider Examples
+
+Sample configurations for popular OIDC-compliant identity providers.
+
+**Keycloak**
+```
+Authority: https://keycloak.company.com/realms/your-realm
+Id: openmetadata-client
+Scope: openid profile email groups
+```
+
+**Authentik**
+```
+Authority: https://auth.company.com/application/o/openmetadata/
+Id: your-client-id
+Scope: openid profile email groups
+```
+
+## Troubleshooting
+
+<SsoTroubleshooting />

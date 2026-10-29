@@ -172,6 +172,44 @@ This keeps permissions tight and limits the impact if a role is misconfigured.
 
 `OrganizationPolicy-Owner-Rule` keeps access to owned assets in place.
 
+### Use Case 11: Set Up a Data Owner Role That Hides Observability
+
+**Goal**: Let people own and manage assets, without letting them see profiler results, test results, sample data, or usage.
+
+Because a `Deny` rule wins over every `Allow` rule in every policy, you can take these views away from a role even though owners get broad access from `OrganizationPolicy-Owner-Rule`.
+
+1. Go to **Settings** > **Access Control** > **Policies** and click **Add Policy**. Name it `DataOwnerNoObservability`.
+2. Add a rule with these settings:
+
+   | Setting | Value |
+   |---|---|
+   | **Effect** | Deny |
+   | **Resources** | `Table` |
+   | **Operations** | `ViewDataProfile`, `ViewTests`, `ViewSampleData`, `ViewUsage` |
+
+3. Create a role named `DataOwnerLimited` and add this policy and the policies the role needs for its other work.
+4. Assign the role to the users or teams.
+5. Use the [Permission Debugger](/v1.13.x/how-to-guides/admin-guide/permission-debugger) to evaluate each of the four operations on the `Table` resource for one of these users, and confirm that each one is denied.
+
+<Note>
+Deny rules apply to every user that has the role, including when they own the table. Don't assign this role to people who need to see observability data on tables they own.
+</Note>
+
+### Use Case 12: Stop Owners From Changing Certification
+
+**Goal**: Let owners edit their assets, but only let data stewards set the certification.
+
+Add a rule to a policy that applies to owners:
+
+| Setting | Value |
+|---|---|
+| **Effect** | Deny |
+| **Resources** | `All` |
+| **Operations** | `EditCertification` |
+| **Condition** | `isOwner()` |
+
+`OrganizationPolicy-Owner-Rule` allows owners to edit everything, but the `Deny` rule wins. Add an `Allow` rule for `EditCertification` to the role that your data stewards have, without the `isOwner()` condition. A steward who doesn't own an asset can still set its certification. A steward who also owns the asset is blocked by the `Deny` rule.
+
 ## Related Pages
 
 - [Building Blocks of Authorization – Rules, Policies, and Roles](/v1.13.x/how-to-guides/admin-guide/roles-policies/authorization) – how rules, policies, and roles work

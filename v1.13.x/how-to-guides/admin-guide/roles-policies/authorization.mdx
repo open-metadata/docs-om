@@ -122,6 +122,22 @@ A policy is a named group of rules. When you access a resource in OpenMetadata, 
 
 If two rules in the same policy disagree – for example, one allows `EditDescription` and another denies it – the `Deny` always wins.
 
+**How policies combine**
+
+OpenMetadata doesn't stop at the first policy that matches. A user's policies come from several places:
+
+- The roles assigned to the user.
+- The roles and policies of the user's teams, including parent teams.
+- The Organization Policy.
+
+OpenMetadata collects all of them and then checks:
+
+1. Every `Deny` rule in every policy. If one matches the action, the action is denied.
+2. If no `Deny` rule matches, every `Allow` rule in every policy. If one matches, the action is allowed.
+3. If no rule matches, the action is denied.
+
+This means a `Deny` rule always wins, even when it sits in a different policy than the `Allow` rule. For example, `OrganizationPolicy-Owner-Rule` allows owners to edit their assets. A `Deny` rule for `EditCertification` in another policy still blocks owners from changing certification.
+
 **How policies are assigned**
 
 Policies are assigned to teams, not to individual users. When you're added to a team, you automatically inherit all the policies assigned to that team.
