@@ -68,6 +68,28 @@ With the OMJob operator, each run has two pods: one ending in `-main` (the inges
 
 Kubernetes only keeps these logs while the pod exists and its container is still on the node.
 
+### Pods of Finished Runs Are Not Cleaned Up
+
+<Note>
+Known issue in 2.0.x with the OMJob operator: pods from finished runs are not deleted when `ttlSecondsAfterFinished` expires, so they accumulate in the namespace. The fix ships in 2.1 ([OpenMetadata#33319](https://github.com/open-metadata/OpenMetadata/issues/33319)).
+</Note>
+
+Until you upgrade, delete the finished pods yourself.
+
+<Warning>
+Deleting a finished pod also deletes its logs. Copy any logs you still need before you run these commands. Running pods are not touched.
+</Warning>
+
+Run these two commands periodically, or schedule them as a job:
+
+```bash
+kubectl delete pods -n <namespace> -l app.kubernetes.io/managed-by=openmetadata \
+  --field-selector=status.phase=Succeeded
+
+kubectl delete pods -n <namespace> -l app.kubernetes.io/managed-by=openmetadata \
+  --field-selector=status.phase=Failed
+```
+
 ## Troubleshooting
 
 ### Server/Client Version Mismatch
