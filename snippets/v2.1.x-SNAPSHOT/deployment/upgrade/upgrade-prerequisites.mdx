@@ -336,3 +336,27 @@ docker restart openmetadata_ingestion
 <Warning>
 Replace `USERNAME` and `PASSWORD` with your actual MySQL credentials, and ensure the database name matches your configuration (default is `airflow_db`).
 </Warning>
+
+## Backward Incompatible Changes
+
+The following changes can affect your upgrade.
+
+### 2.1.0
+
+The 2.1.0 release includes the following changes.
+
+#### MySQL Database and Flowable Tables Convert to utf8mb4
+
+When you upgrade a MySQL deployment, the migration sets the OpenMetadata database character set to `utf8mb4` with the `utf8mb4_0900_ai_ci` collation. It also converts the Flowable workflow tables (the `ACT_*` tables) that use a different character set or collation. Tables that already match aren't changed. The migration temporarily turns off foreign key checks for its session while it converts tables, and then restores the original setting.
+
+Before you upgrade, check the following:
+
+- **MySQL version**: The `utf8mb4_0900_ai_ci` collation is available in MySQL 8.0 and later.
+- **Database user**: The user that runs the migration needs privileges to alter the database and its tables.
+- **Duration**: Converting large Flowable tables can lengthen the upgrade.
+
+This applies to MySQL only. Postgres deployments aren't affected.
+
+#### Metadata That 2.0.x Ingestion Removed Is Restored
+
+If you upgrade from a release earlier than 2.0.5, the migration restores descriptions, display names, table constraints, retention periods, and tags (including Tier tags) that 2.0.x ingestion removed. Each restore creates a new version of the entity, so the version history of affected assets grows. The migration logs and skips any entity it can't restore, so a failure doesn't stop the upgrade.

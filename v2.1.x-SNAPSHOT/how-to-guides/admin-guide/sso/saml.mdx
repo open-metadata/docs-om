@@ -1,0 +1,306 @@
+---
+title: SAML SSO | OpenMetadata Authentication Guide
+description: Step-by-step guide to configure SAML-based SSO using ADFS, Okta, or Shibboleth for secure enterprise authentication and federated login in OpenMetadata.
+sidebarTitle: SAML
+---
+
+
+import SsoTroubleshooting from '/snippets/v2.1.x-SNAPSHOT/deployment/sso-troubleshooting.mdx'
+
+## Overview
+
+SAML (Security Assertion Markup Language) SSO enables users to authenticate with enterprise identity providers (IdPs) such as Active Directory Federation Services (ADFS), Shibboleth, or Okta. This setup allows secure, federated login to OpenMetadata through SAML assertions.
+
+## Configure SAML SSO
+
+Complete the following steps to configure SAML SSO.
+
+Before you start, get the IdP Entity ID, IdP SSO Login URL, and IdP X.509 Certificate from your identity provider. The SP Entity ID and ACS URL that your IdP needs are shown in the configuration form. For more information, see [Setup Workflow](#setup-workflow).
+
+1. Navigate to **Settings** > **SSO**.
+
+    <img src="/public/images/how-to-guides/admin-guide/choose-provider.png" alt="Settings, SSO page with the Choose Provider list" />
+
+2. Click **SAML**, and then click **Configure**.
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was select-saml.png). */}
+
+3. Enter the configuration details. For more information, see [Configuration Fields](#configuration-fields).
+
+    {/* TODO IMAGE: replace with an OpenMetadata UI screenshot (was saml-configure.png). */}
+
+4. Click **Test Login** and complete the sign-in. For more information, see [Test Login](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/sso#test-login).
+
+5. Click **Save** to finish the SSO configuration.
+
+## Setup Workflow
+
+To configure SAML authentication, follow these steps:
+
+1. **Get OpenMetadata Service Provider details** from the configuration form:
+   - **SP Entity ID**: Auto-generated, read-only.
+   - **Assertion Consumer Service (ACS) URL**: Auto-generated, read-only.
+
+2. **Configure your Identity Provider**:
+   - Create a new SAML application in your IdP (ADFS, Okta, Azure AD, and so on).
+   - Copy the **SP Entity ID** and paste it as the Entity ID / Application ID in your IdP.
+   - Copy the **ACS URL** and paste it as the Reply URL / Callback URL / Consumer URL in your IdP.
+   - Configure user attribute and claim mappings in your IdP.
+
+3. **Get Identity Provider details** from your IdP:
+   - IdP Entity ID
+   - IdP SSO Login URL
+   - IdP X.509 Certificate
+
+4. Complete the configuration in OpenMetadata, run **Test Login**, and then click **Save**.
+
+## Configuration Fields
+
+This section lists all fields in the order they appear in the OpenMetadata SSO configuration form.
+
+<Tip>
+The configuration form includes an XML upload area at the top. Upload your IdP's SAML metadata XML file to auto-fill the IdP Entity ID, IdP SSO Login URL, and IdP X.509 Certificate fields automatically.
+</Tip>
+
+### General Configuration
+
+Configure the SAML provider name and sign-up behavior.
+
+#### Provider Name
+
+- **Definition**: A human-readable name for this SAML SSO configuration instance.
+- **Example**: `ADFS SSO`, `Company SAML`, `Okta SAML`
+- **Why it matters**: Helps identify this SSO configuration in logs and user interfaces.
+- **Note**: This is a display name and doesn't affect authentication functionality.
+
+#### Enable Self Signup
+
+- **Definition**: Allows users to automatically create OpenMetadata accounts on their first SAML login.
+- **Options**: Enabled | Disabled
+- **Example**: Enabled
+- **Why it matters**: Controls whether new SAML users can join automatically or need manual approval.
+- **Note**: Disable for stricter control over user access.
+
+### Identity Provider (IdP) Configuration
+
+Enter the details provided by your identity provider to establish the SAML trust relationship.
+
+#### IdP Entity ID
+
+- **Definition**: Unique identifier for the Identity Provider.
+- **Example**: `https://adfs.company.com/adfs/services/trust`
+- **Why it matters**: SAML messages use this to identify the IdP.
+- **Note**: Must match exactly what is configured in your IdP.
+
+#### IdP SSO Login URL
+
+- **Definition**: URL where users are redirected to authenticate with the IdP.
+- **Example**: `https://adfs.company.com/adfs/ls/`
+- **Why it matters**: This is where authentication requests are sent.
+- **Note**: Usually provided by your IdP administrator.
+
+#### IdP X.509 Certificate
+
+- **Definition**: Public certificate used to verify SAML assertions from the IdP.
+- **Example**: `-----BEGIN CERTIFICATE-----\nMIIC...certificate content...\n-----END CERTIFICATE-----`
+- **Why it matters**: Ensures SAML assertions are genuinely from your IdP.
+- **Note**:
+  - Must include the full certificate with `BEGIN CERTIFICATE` and `END CERTIFICATE` lines.
+  - Can be multi-line.
+
+#### Name ID Format
+
+- **Definition**: Format of the SAML NameID element that identifies users.
+- **Default**: `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`
+- **Example**: `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`
+- **Why it matters**: Determines how users are identified in SAML assertions.
+- **Note**: Email format is most common and recommended. The OpenMetadata username is derived as the part before `@`.
+
+### Service Provider (SP) Configuration
+
+Read-only OpenMetadata endpoints to register in your identity provider's SAML application settings.
+
+#### SP Entity ID
+
+- **Definition**: Unique identifier for OpenMetadata as a Service Provider.
+- **Example**: `https://openmetadata.company.com`
+- **Why it matters**: Your IdP uses this to identify OpenMetadata in SAML exchanges.
+- **Note**:
+  - **This field is read-only**: it is auto-populated based on your OpenMetadata deployment URL.
+  - Copy this value and paste it as the Entity ID (or Application ID) in your SAML Identity Provider configuration.
+
+#### Assertion Consumer Service (ACS) URL
+
+- **Definition**: URL where the IdP sends SAML assertions after authentication.
+- **Example**: `https://openmetadata.company.com/callback`
+- **Why it matters**: This is where SAML responses are posted after login.
+- **Note**:
+  - **This field is read-only**: it is auto-populated based on your OpenMetadata deployment URL.
+  - Copy this value and paste it as the ACS URL (also called Reply URL, Callback URL, or Consumer URL) in your SAML Identity Provider configuration.
+
+#### SP X.509 Certificate
+
+- **Definition**: OpenMetadata's public certificate used by the IdP to verify signed requests.
+- **Example**: `-----BEGIN CERTIFICATE-----\nMIIC...certificate content...\n-----END CERTIFICATE-----`
+- **Why it matters**: Required if signing SAML requests sent from OpenMetadata.
+- **Note**: Required when **Send Signed Auth Request** is enabled.
+
+#### SP Private Key
+
+- **Definition**: Private key used to sign SAML requests and decrypt encrypted assertions.
+- **Example**: `-----BEGIN PRIVATE KEY-----\nMIIE...private key content...\n-----END PRIVATE KEY-----`
+- **Why it matters**: Used to sign SAML requests and decrypt responses.
+- **Note**:
+  - Keep this secure and encrypted.
+  - Required when signing or encryption is enabled.
+
+### Security Configuration
+
+Control signature and encryption requirements for SAML assertions and messages.
+
+#### Strict Mode
+
+- **Definition**: Only accept valid signed and encrypted assertions when the relevant flags are set.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Enforces signature and encryption validation for enhanced security.
+- **Note**: Recommended for production environments.
+
+#### Send Signed Auth Request
+
+- **Definition**: Whether to sign authentication requests sent to the IdP.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Ensures authenticity of requests from OpenMetadata.
+- **Note**: Requires **SP Private Key** to be configured.
+
+#### Want Messages Signed
+
+- **Definition**: Require entire SAML messages to be digitally signed by the IdP.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Provides additional security beyond assertion signing.
+
+#### Want Assertions Signed
+
+- **Definition**: Require SAML assertions to be digitally signed by the IdP.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Ensures assertions haven't been tampered with.
+- **Note**: Highly recommended for security.
+
+#### Advanced Configuration
+
+The following field is grouped under **Advanced Config** in the UI (collapsed by default):
+
+##### Token Validity
+
+- **Definition**: Validity period in seconds for JWT tokens created from SAML responses.
+- **Default**: 3600 (1 hour)
+- **Example**: 7200
+- **Why it matters**: Controls how long users stay logged in after SAML authentication.
+- **Note**: This controls the OpenMetadata JWT token lifetime, not the SAML assertion lifetime. The value must be positive. OpenMetadata rejects a zero or negative value, and falls back to `3600` at runtime if an invalid value is ever persisted.
+
+#### Debug Mode
+
+- **Definition**: Enable detailed logging for SAML authentication.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Helps troubleshoot SAML configuration issues.
+- **Note**: Only enable for troubleshooting. Disable in production for security and performance.
+
+#### SAML Display Name Attributes
+
+- **Definition**: SAML assertion attributes used to derive the user's display name in OpenMetadata.
+- **Example**: `displayName`, `cn`, `givenName`
+- **Why it matters**: Controls how users' names are shown in the OpenMetadata UI after SAML login.
+- **Note**: Enter each attribute name and press Enter. OpenMetadata will use the first attribute that returns a non-empty value.
+
+#### Enable Auto Redirect
+
+- **Definition**: Automatically redirects users to the SAML Identity Provider without showing the OpenMetadata login page.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Provides a seamless SSO experience: users who are already authenticated with the IdP are logged in automatically.
+- **Note**: Disable if you need users to be able to choose between SSO and other login methods.
+
+### Authorizer Configuration
+
+Control which users and domains are permitted to access OpenMetadata.
+
+#### Admin Principals
+
+- **Definition**: Users granted admin access in OpenMetadata.
+- **Example**: `["john.doe", "jane.admin"]`
+- **Why it matters**: These users will have full administrative privileges in OpenMetadata.
+- **Note**: Enter usernames only, not email addresses. For SAML with email NameID format, the username is derived as the part before `@` (for example, `john.doe@company.com` → `john.doe`).
+
+#### Principal Domain
+
+- **Definition**: Default domain for user principals.
+- **Example**: `company.com`
+- **Why it matters**: Used to construct full user identifiers when only a username is provided.
+
+#### Enforce Principal Domain
+
+- **Definition**: Restricts login to users belonging to the configured Principal Domain.
+- **Default**: false
+- **Example**: true
+- **Why it matters**: Adds an extra layer of security by limiting access to a specific domain.
+
+#### Enable Secure Socket Connection
+
+- **Definition**: Enables Secure Sockets Layer/Transport Layer Security (SSL/TLS) for all SSO communication.
+- **Default**: `false`
+- **Example**: `true`
+- **Why it matters**: Ensures encrypted communication between OpenMetadata and the IdP.
+- **Note**: Recommended in production environments.
+
+#### Allowed Domains
+
+- **Definition**: List of email domains permitted to authenticate with OpenMetadata.
+- **Example**: `["company.com", "partner.com"]`
+- **Why it matters**: Provides fine-grained control over which email domains can authenticate via SAML.
+- **Note**:
+  - Works in conjunction with **Enforce Principal Domain**.
+  - Leave empty if you only use a single domain configured in **Principal Domain**.
+
+#### Default OAuth Role
+
+- **Definition**: Default role assigned to new users when they first sign in via SSO self-signup.
+- **Example**: `DataConsumer`
+- **Why it matters**: Controls the starting permission level for new users who join through self-signup.
+- **Note**: Leave empty to create users without any role. Requires **Enable Self Signup** to be active. The role must already exist in OpenMetadata.
+
+## Summary Table
+
+| **Field** | **Example / Default** |
+|---|---|
+| Provider Name | Company SAML |
+| Enable Self Signup | Enabled |
+| IdP Entity ID | `https://adfs.company.com/adfs/services/trust` |
+| IdP SSO Login URL | `https://adfs.company.com/adfs/ls/` |
+| IdP X.509 Certificate | Multiline PEM certificate |
+| Name ID Format | urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress |
+| SP Entity ID | `https://openmetadata.company.com` (read-only) |
+| ACS URL | `https://openmetadata.company.com/callback` (read-only) |
+| SP X.509 Certificate | Multiline PEM certificate |
+| SP Private Key | Multiline PEM private key |
+| Strict Mode | false |
+| Send Signed Auth Request | true |
+| Want Messages Signed | true |
+| Want Assertions Signed | true |
+| Token Validity | 3600 |
+| Debug Mode | false |
+| SAML Display Name Attributes | displayName |
+| Enable Auto Redirect | false |
+| Admin Principals | `["john.doe", "jane.admin"]` |
+| Principal Domain | company.com |
+| Enforce Principal Domain | false |
+| Enable Secure Socket Connection | true |
+| Allowed Domains | `["company.com"]` |
+| Default OAuth Role | DataConsumer |
+
+## Troubleshooting
+
+<SsoTroubleshooting />
