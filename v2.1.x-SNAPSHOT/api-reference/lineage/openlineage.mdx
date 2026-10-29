@@ -22,7 +22,7 @@ Both endpoints require an OpenMetadata JWT in the `Authorization: Bearer` header
 
 Automatic entity creation also requires `Create` permission for each missing table, database, or database schema that the event creates.
 
-Datasets must resolve to existing catalog assets or satisfy the server's entity creation settings. Both `inputs` and `outputs` must contain at least one dataset to create an edge. By default, the server processes only `COMPLETE` events.
+Datasets must resolve to existing catalog assets, or to a table the server can create for a namespace in `namespaceToServiceMapping`. The server never creates pipelines. Both `inputs` and `outputs` must contain at least one dataset to create an edge. By default, the server processes only `COMPLETE` events.
 
 For more information, see [OpenLineage Compatibility](/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/openlineage).
 
@@ -231,11 +231,54 @@ Both endpoints return a JSON object. Batch responses also include processing cou
 | `unresolvedDatasets` | Datasets that could not be resolved or created. No edges touching these datasets were created. |
 | `unresolvedJobs` | Jobs without a matching pipeline. Dataset edges can still be created without a pipeline reference. |
 
-Each unresolved entry contains `namespace`, `name`, `reason`, and an explanatory `message`. Batch entries also contain a zero-based `eventIndex`. Reasons include `namespaceNotMapped`, `missingColumns`, `creationDisabled`, `createNotAllowed`, and `pipelineNotFound`.
-
 A single event returns `partial_success` when it writes edges but leaves datasets unresolved. It returns `400` with `status: failure` when datasets are unresolved and no edge was written. A batch returns `400` when every event fails. Otherwise, it returns `200`, and its body reports the aggregate result.
 
 A `200` response with `status: success` can still have `lineageEdgesCreated: 0` for a filtered event or an event without inputs or outputs. Individual edge-write failures are logged and do not necessarily produce a failed event. Check the counts and server logs, then verify the graph with [Get Lineage](/v2.1.x-SNAPSHOT/api-reference/lineage/get).
+
+## Unresolved Datasets and Jobs
+
+Each entry in `unresolvedDatasets` and `unresolvedJobs` has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `eventIndex` | Zero-based index of the event in a batch request. Not set for a single event. |
+| `namespace` | OpenLineage namespace of the dataset or job. |
+| `name` | OpenLineage name of the dataset or job. |
+| `reason` | Why it did not resolve. See the values below. |
+| `message` | Human-readable detail. |
+
+The following response shows an event that wrote one edge and left one output dataset unresolved:
+
+```json
+{
+  "status": "partial_success",
+  "message": "Created 1 lineage edge(s)",
+  "lineageEdgesCreated": 1,
+  "unresolvedDatasets": [
+    {
+      "namespace": "postgresql://unmapped.example.com:5432",
+      "name": "analytics.public.audit_log",
+      "reason": "namespaceNotMapped",
+      "message": "No namespaceToServiceMapping entry matches this namespace."
+    }
+  ]
+}
+```
+
+The `message` text above is illustrative. Use `reason` in code. It is one of:
+
+| Reason | Meaning |
+| --- | --- |
+| `unparsableName` | The dataset name can't be split into database, schema, and table. |
+| `namespaceNotMapped` | The table is missing and the namespace has no `namespaceToServiceMapping` entry. |
+| `serviceNotFound` | The mapped database service doesn't exist. |
+| `missingDatabase` | The dataset name has no database, and the mapped service doesn't have exactly one database. |
+| `missingColumns` | The table is missing and the event's `schema` facet carries no columns. |
+| `creationDisabled` | The table is missing and `autoCreateEntities` is `false`. |
+| `createNotAllowed` | The table is missing, and an authorization check or a resource limit blocked creating it. |
+| `notFound` | No catalog table matches the dataset. |
+| `invalidEntity` | The table the server would create failed validation. The server writes nothing in that case. |
+| `pipelineNotFound` | Job only. No pipeline named `<namespace>-<job name>` exists under `defaultPipelineService`. |
 
 ## HTTP Status Codes
 
