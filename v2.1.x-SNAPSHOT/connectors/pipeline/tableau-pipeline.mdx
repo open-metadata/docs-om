@@ -1,0 +1,173 @@
+---
+title: Tableau Pipeline Connector | OpenMetadata Pipeline Integration
+description: Connect Tableau Pipeline to OpenMetadata to ingest Tableau Prep flows and extract refreshes with lineage and run status. Setup guide included.
+sidebarTitle: Overview
+---
+
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/tableau.webp'
+name="Tableau Pipeline"
+stage="BETA"
+availableFeatures={["Pipelines", "Pipeline Status", "Lineage", "Owners", "Tags"]}
+unavailableFeatures={["Column-level Lineage", "Usage"]} />
+This section provides guides and references to use the Tableau Pipeline connector.
+
+The connector ingests **Tableau Prep flows** as Pipelines, with the flow's input, processing, and output steps as Tasks and **flow run history** as Pipeline Status. It also ingests the **extract refreshes** of published data sources and workbooks as Pipelines, with their refresh jobs as run history. Lineage comes from the Tableau Metadata API.
+
+Configure and schedule Tableau Pipeline metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+  - [Lineage](#lineage)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.1.x-SNAPSHOT/connectors/pipeline/tableau-pipeline/troubleshooting)
+
+## Requirements
+
+OpenMetadata connects to Tableau Server or Tableau Cloud through the Tableau REST API and the Tableau Metadata API.
+
+- **Tableau Server or Tableau Cloud**: OpenMetadata must be able to reach it and authenticate with a username and password or a personal access token.
+- **Metadata API enabled**: Required for lineage. Without it, metadata and run status still ingest, but OpenMetadata draws no lineage edges. For more information, see [Start the Metadata API](https://help.tableau.com/current/api/metadata_api/en-us/docs/meta_api_start.html).
+- **Permissions**: The user needs permission to list flows and flow runs, and to query the Metadata API for lineage. Users who are not administrators see only the runs of flows they can view.
+- **Tableau Prep Conductor**: Flows can run manually without Data Management, but scheduled flow runs need [Tableau Prep Conductor](https://help.tableau.com/current/prep/en-us/prep_conductor_overview.htm).
+- **Site administrator for extract refresh status**: Tableau answers extract refresh job queries only for server and site administrators. Other users still get extract refresh pipelines for the refresh tasks they own, but without run status.
+
+### Lineage
+
+The connector reads lineage from the Tableau Metadata API:
+
+- **Input to output lineage**: Each table or published data source a flow reads is linked to the tables or published data sources it writes, with the flow shown on the lineage edge.
+- **Flow to flow lineage**: A flow is linked to the flows that consume its output. Only direct consumers are linked.
+- **Extract refresh lineage**: An extract refresh pipeline is linked to the published data source or workbook data model it refreshes.
+
+OpenMetadata resolves tables against the database services already in your instance. To restrict which services OpenMetadata searches, set **Database Service Names List** under **Lineage Information** in the metadata agent. Without it, OpenMetadata searches every database service and accepts only a single match, so a same-named table in another service never gets an edge.
+
+Published data sources and workbook extracts resolve to the data models created by the [Tableau dashboard connector](/v2.1.x-SNAPSHOT/connectors/dashboard/tableau), so run the dashboard connector first.
+
+<Note>
+**Note**: Column-level lineage is not available for Tableau Pipeline.
+</Note>
+
+## Metadata Ingestion
+
+To ingest metadata from Tableau Pipeline, you need to create a service connection. The service connects Tableau Pipeline with OpenMetadata. After you create the service and deploy the metadata agent, OpenMetadata starts ingesting metadata.
+
+### Step 1: Add New Service
+
+1. Navigate to **Settings** > **Services**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/access-services.png" alt="Navigate to Settings and Services" />
+
+2. Click **Add New Service**.
+
+   <img src="/public/images/connector2.0/metadata-ingestion/add-new-service.png" alt="Add New Service" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **Tableau Pipeline** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/tableau-pipeline.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Tableau Pipeline services you're ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/tableau-pipeline.png)
+
+<Note>
+The service name can't be changed after it's set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Tableau Pipeline. The inline help panel in the UI describes each field.
+
+The form groups fields into **Connection**, **Authentication**, **Scope & Options**, and **Advanced Config** sections.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/tableau-pipeline.png)
+
+- **Host and Port** (required): Tableau Server URL.
+- **Authentication type for Tableau** (required): Choose one method. OpenMetadata stores only the credential for the method you select, and switching methods discards the other.
+    - **BasicAuth**: Enter the **Username** and **Password** used to sign in to Tableau.
+    - **AccessTokenAuth**: Enter the **Personal Access Token Name** and **Personal Access Token Secret**. For more information, see [Personal Access Tokens](https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm).
+
+Expand **Scope & Options** to set the optional fields:
+
+![Scope and Options](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/tableau-pipeline-scope.png)
+
+- **Site Name** (optional): The Tableau site to ingest. Leave blank for the default site.
+- **API Version** (optional): Tableau REST API version. If not provided, OpenMetadata uses the version reported by the Tableau server.
+- **Verify SSL** (optional): Client SSL verification mode. The default is `no-ssl`. Configure **SSL Config** under **Advanced Config** when you select a mode that validates certificates.
+- **Number of Status** (optional, default `10`, from `1` to `100`): Number of recent runs to fetch per flow or extract refresh.
+- **Include Extract Refreshes** (optional, on by default): Ingest the extract refresh tasks of published data sources and workbooks as pipelines, with their refresh jobs as pipeline status. Reading refresh job history requires a site administrator.
+
+Expand **Advanced Config** to provide SSL certificates when **Verify SSL** validates certificates:
+
+![Advanced Config SSL](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/tableau-pipeline-ssl.png)
+
+- **CA Certificate**: The CA certificate used for SSL validation. Upload a `.pem`, `.crt`, or `.cer` file (maximum 1 MB), or paste the contents.
+- **SSL Certificate**: The client certificate, for mutual TLS.
+- **SSL Key**: The private key for the client certificate, for mutual TLS.
+
+#### Test Connection
+
+After you add the credentials, click **Test Connection**, then click **Save**.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Tableau Pipeline service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which Prep flows and extract refresh pipelines OpenMetadata ingests from Tableau.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips. An asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Settings** > **Services** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

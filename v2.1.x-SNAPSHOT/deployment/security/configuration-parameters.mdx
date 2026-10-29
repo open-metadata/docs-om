@@ -80,7 +80,7 @@ Provide the callback URL where the OIDC provider redirects after authentication.
 <Warning>
 
 The only initial part of the URL should be changed, the rest of the URL should be the same as the default one. The default URL is `http://localhost:8585/callback`.
-Also, this should match what you have configured in your OIDC provider.
+Also, this should match what you have configured in your OIDC provider. Register the `/callback` endpoint in your provider, not `/auth/callback`.
 
 </Warning>
 
@@ -111,6 +111,19 @@ For Azure SSO Provider this may be needed.
 
 ## Max Clock Skew (maxClockSkew):
 Define the maximum acceptable clock skew between your application server and the OIDC server.
+
+## Max Age (maxAge):
+The `max_age` request parameter, in seconds, that OpenMetadata sends to the identity provider. Update `${OIDC_MAX_AGE:-""}` to set it.
+Default: empty. Leave it empty so the identity provider can reuse its own session. A value of `0` is treated as not set. To force users to re-enter their credentials, set `prompt` to `login`.
+
+## Prompt (prompt):
+Controls what the identity provider displays during login: `none`, `login`, `consent`, or `select_account`. Update `${OIDC_PROMPT_TYPE:-""}` to set it.
+Default: empty. Leave it empty unless you need to force a specific behavior. OpenMetadata sends `none` itself when it re-authenticates a user silently.
+
+## End Session With Provider (endSessionWithProvider):
+Available for confidential OIDC clients only. Set `${OIDC_END_SESSION_WITH_PROVIDER:-false}` to true to tie a user session to the identity provider's session.
+Default: `false`
+When true, OpenMetadata renews the identity provider's tokens on the provider's schedule while the user is active. It signs the user out when the provider rejects the refresh token. The token that OpenMetadata issues is shortened to that schedule, with a minimum of 120 seconds. A renewal never extends the session beyond the configured session expiry. When false, a session lasts for the configured session expiry. The sign-out depends on the provider: Keycloak revokes refresh tokens together with the provider session, and Microsoft Entra ID doesn't.
 
 ## Custom Parameters (customParams):
 If you have any additional custom parameters required for OIDC configuration, specify them here.
