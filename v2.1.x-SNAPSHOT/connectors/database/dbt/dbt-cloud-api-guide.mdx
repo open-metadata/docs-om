@@ -80,7 +80,7 @@ dbt Cloud has regional deployments:
 
 ### 1.4 (Optional) Get Project/Job IDs
 
-By default, OpenMetadata will use the **most recent successful run** from any project/job. To filter to a specific project or job, you'll need their IDs.
+By default, OpenMetadata will use the **most recent completed run** (successful or failed) from any project/job. To filter to a specific project or job, you'll need their IDs.
 
 **Get IDs from dbt Cloud UI:**
 - **Account ID**: In URL: `https://cloud.getdbt.com/#/accounts/{ACCOUNT_ID}/...`
@@ -145,7 +145,7 @@ curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
 | **dbt Cloud Job ID** | *(optional)* | Leave empty to use latest run from any job |
 
 **How filtering works:**
-- **Both empty**: Uses most recent successful run from **any** job in the account
+- **Both empty**: Uses most recent completed run from **any** job in the account
 - **Project ID provided**: Uses most recent run from that specific project
 - **Both provided**: Uses most recent run from that specific job
 
@@ -174,7 +174,7 @@ Match your schedule to dbt Cloud job frequency. If jobs run every 6 hours, sched
 
 | Check | How to Verify | Expected Result |
 |-------|---------------|-----------------|
-| **dbt Cloud run exists** | Check dbt Cloud job history | Recent successful run visible |
+| **dbt Cloud run exists** | Check dbt Cloud job history | Recent completed run visible |
 | **Ingestion completed** | OpenMetadata UI → Service → Agents tab | Green status, no errors |
 | **Lineage appears** | Click on a dbt model → Lineage tab | Upstream/downstream connections |
 | **Descriptions synced** | Click on a table → Schema tab | dbt descriptions visible |
@@ -232,9 +232,9 @@ OpenMetadata makes ~3-5 API calls per ingestion. Don't schedule more frequently 
 curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
      https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/ | jq '.'
 
-# Get most recent successful run (what OpenMetadata will use)
-curl -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
-     "https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/runs/?status=10&order_by=-finished_at&limit=1" | \
+# Get most recent completed run (what OpenMetadata will use)
+curl -g -H "Authorization: Token ${DBT_CLOUD_TOKEN}" \
+     "https://cloud.getdbt.com/api/v2/accounts/${ACCOUNT_ID}/runs/?status__in=[10,20]&order_by=-finished_at&limit=1" | \
      jq '.data[0] | {id, job_id, finished_at, status_humanized}'
 
 # Download manifest from run
