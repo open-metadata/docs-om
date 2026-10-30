@@ -18,13 +18,18 @@ The default self-hosted Databend port `8000` serves plain HTTP. If the connectio
 
 ### Test Connection Fails on a Specific Step
 
-The test runs these steps: **CheckAccess**, **GetDatabases**, **GetSchemas**, and **GetTables** are required, and **GetViews** is optional.
+The test runs these steps: **CheckAccess**, **GetDatabases**, **GetSchemas**, and **GetTables** are required, and **GetViews** and **GetLineage** are optional.
 
 - **CheckAccess**: OpenMetadata can't reach or authenticate with Databend. Confirm **Host and Port**, **Username**, and **Password**.
 - **GetDatabases**: OpenMetadata can't access the Databend `default` catalog.
 - **GetSchemas**: The user can't list Databend databases.
 - **GetTables**: The user can't list tables in a Databend database. Confirm the user can read `information_schema` metadata.
+- **GetLineage**: OpenMetadata can't read `system_history.lineage_history`. Lineage needs Databend v1.2.933 or later, an Enterprise license, `[lineage] on = true`, `[log.history] on = true`, and `SELECT` on `system_history`. This step affects only lineage ingestion.
 
 ### No Schemas or Tables Are Ingested
 
 OpenMetadata excludes the `information_schema`, `system`, and `system_history` databases by default. Leave **Database Schema** blank to scan all other accessible databases, or set it to restrict ingestion to a single database. Review your filter rules in the **What to Ingest** step, and confirm the user can read the databases you expect to ingest.
+
+### No Lineage Is Produced
+
+Confirm that the lineage requirements are met. For more information, see [Lineage](/v2.1.x-SNAPSHOT/connectors/database/databend#lineage). Run metadata ingestion before the lineage workflow, because OpenMetadata skips lineage edges for tables that it hasn't ingested yet. A later run adds skipped view edges, and skipped query edges only while their records are within **Query Log Duration**. OpenMetadata also skips edges that involve an external catalog, because it reads only the `default` catalog.
