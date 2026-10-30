@@ -45,6 +45,7 @@ export const Integrations = () => {
                 { name: 'MongoDB', image: '/public/images/connectors/mongodb.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/mongodb' },
                 { name: 'MSSQL', image: '/public/images/connectors/mssql.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/mssql' },
                 { name: 'MySQL', image: '/public/images/connectors/sql.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/mysql' },
+                { name: 'Neo4j', image: '/public/images/connectors/neo4j.svg', link: '/v2.1.x-SNAPSHOT/connectors/database/neo4j' },
                 { name: 'Oracle', image: '/public/images/connectors/oracle.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/oracle' },
                 { name: 'PostgreSQL', image: '/public/images/connectors/post.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/postgres' },
                 { name: 'Presto', image: '/public/images/connectors/presto.webp', link: '/v2.1.x-SNAPSHOT/connectors/database/presto' },
