@@ -104,6 +104,7 @@ Configure the OIDC client credentials, discovery endpoint, and token behavior.
   - `profile`: Access to user profile information.
   - `email`: Access to user email address.
   - `groups`: Access to user group memberships (if supported by your provider).
+  - `offline_access`: Needed for a confidential client so the provider issues a refresh token (Okta, Microsoft Entra ID, Auth0). Google issues a refresh token only when the user sees its consent screen. Without a refresh token, the user signs in again each time the ID token expires.
 
 #### DiscoveryUri
 
@@ -194,35 +195,29 @@ The following fields are grouped under **Advanced Config** in the UI (collapsed 
 - **Default**: `0`
 - **Why it matters**: Prevents token validation failures due to minor clock differences between servers.
 
-##### TokenValidity
-
-- **Definition**: Duration in seconds that tokens remain valid.
-- **Default**: `3600`
-- **Example**: `3600`
-- **Why it matters**: Balances token lifetime against security requirements.
-- **Note**: The value must be positive. OpenMetadata rejects a zero or negative value, and falls back to `3600` at runtime if an invalid value is ever persisted.
-
 ##### MaxAge
 
 - **Definition**: The `max_age` request parameter, in seconds, that OpenMetadata sends to the identity provider.
 - **Default**: Empty.
 - **Why it matters**: Leave it empty so the identity provider can reuse its own session. A value of `0` is treated as not set. To force users to re-enter their credentials, set **Prompt** to `login`.
 
-##### SessionExpiry
+##### OIDC Session Expiry
 
 - **Definition**: How long user sessions remain valid in seconds.
 - **Default**: `604800` (7 days)
 - **Why it matters**: Controls session timeout for confidential clients.
 
-##### EndSessionWithProvider
+##### Session Expiry
 
-- **Definition**: Controls whether OpenMetadata ties a user session to the identity provider's session.
-- **Default**: `false`
-- **Note**:
-  - Available for confidential OIDC clients only.
-  - When on, OpenMetadata renews the identity provider's tokens on the provider's schedule while the user is active. It signs the user out when the provider rejects the refresh token. The token that OpenMetadata issues is shortened to that schedule, with a minimum of 120 seconds. A renewal never extends the session beyond **SessionExpiry**.
-  - When off, a session lasts for the configured **SessionExpiry**.
-  - The sign-out depends on the provider. Keycloak revokes refresh tokens together with the provider session, and Microsoft Entra ID doesn't.
+- **Definition**: How long an authenticated session remains valid across all authentication providers, in seconds.
+- **Default**: Empty. OpenMetadata then uses **OIDC Session Expiry** when it is set, and otherwise `604800`.
+- **Why it matters**: The minimum is `3600` seconds.
+
+##### Max Active Sessions Per User
+
+- **Definition**: The maximum number of active authenticated sessions each user can have.
+- **Default**: `5`
+- **Why it matters**: When a user exceeds the limit, OpenMetadata revokes the least recently used sessions.
 
 ### JWT Claims
 
@@ -263,6 +258,25 @@ Map identity token claims to OpenMetadata user identities and team assignments.
 <Warning>
 **Important**: Using any other key (for example, `name` or `firstName`) will cause the service to fail on startup with a validation error.
 </Warning>
+
+#### Email Claim
+
+- **Definition**: The claim in the sign-in token that contains the user's email address. When set, OpenMetadata resolves the user by email address. If you set **Jwt Principal Claims Mapping**, the mapping wins. **Email Claim** applies only when the mapping is empty.
+- **Example**: `email`, `upn`
+- **Why it matters**: OpenMetadata identifies the user by email address.
+- **Note**:
+  - OpenMetadata resolves users by email only when you leave **Jwt Principal Claims Mapping** empty. If you set a mapping, OpenMetadata uses the mapping instead.
+  - If the claim is missing or invalid, OpenMetadata falls back to **Jwt Principal Claims**. If that has no values, sign-in fails.
+  - The claim must be present in the ID token that the identity provider issues.
+
+#### Display Name Claim
+
+- **Definition**: The claim in the sign-in token that contains the user's display name.
+- **Example**: `name`
+- **Why it matters**: OpenMetadata uses this field only when **Email Claim** is set, and the provider's name replaces the stored display name on every sign-in.
+- **Note**: If you leave it empty, OpenMetadata reads the standard name claims: `name`, `displayName`, or the first and last name.
+
+<img src="/public/images/how-to-guides/sso/google-oidc-105.png" alt="Email Claim and Display Name Claim fields in the SSO form" />
 
 #### Jwt Team Claim Mapping
 
@@ -314,6 +328,15 @@ Control which users and domains are permitted to access OpenMetadata.
 - **Example**: `true`
 - **Why it matters**: Ensures encrypted communication between OpenMetadata and your OIDC provider.
 - **Note**: Recommended in production environments.
+
+#### Allowed Email Domains
+
+- **Definition**: The email domains that users must belong to in order to sign in to OpenMetadata.
+- **Example**: `["company.com"]`
+- **Why it matters**: Restricts which email domains can sign in. When set, it replaces **Allowed Domains** and **Enforce Principal Domain**, which are deprecated.
+- **Note**: OpenMetadata rejects creating a user outside these domains. The check is skipped for bots and for `basic` and `openmetadata` authentication.
+
+<img src="/public/images/how-to-guides/sso/google-oidc-107.png" alt="Allowed Email Domains field in the SSO form" />
 
 #### Allowed Email Registration Domains
 
@@ -374,9 +397,8 @@ Quick reference of all configuration fields and their example values.
 | UseNonce | false |
 | disablePkce | false |
 | MaxClockSkew | 0 |
-| TokenValidity | 3600 |
 | MaxAge | Leave empty |
-| SessionExpiry | 604800 |
+| OIDC Session Expiry | 604800 |
 | Jwt Principal Claims | `["email", "preferred_username", "sub"]` |
 | Jwt Principal Claims Mapping | `["email:email"]` |
 | Jwt Team Claim Mapping | department |
@@ -407,6 +429,30 @@ Authority: https://auth.company.com/application/o/openmetadata/
 Id: your-client-id
 Scope: openid profile email groups
 ```
+
+## How Confidential Clients Sign In
+
+With a confidential client, OpenMetadata passes the identity provider's ID token to the browser and renews it by redeeming the provider's refresh token. The identity provider, not OpenMetadata, sets the token lifetime. Because the browser holds the provider's ID token, the claims you map in **Jwt Principal Claims Mapping**, or the **Email Claim**, such as `upn`, must be present in the ID token the provider issues.
+
+### Token Validation
+
+A token signed by the identity provider must name one of your configured clients (`clientId`) in its audience, or OpenMetadata rejects the request with `401`. For confidential clients, the token's issuer must also match the issuer in the provider's discovery document. Tokens signed by OpenMetadata itself, such as bot tokens and personal access tokens, are not subject to these checks.
+
+### Session Renewal
+
+- **Ended session**: OpenMetadata returns `401` and ends the session if the provider issued no refresh token, rejects the refresh token (`invalid_grant` or `invalid_token`), or returns no ID token that lasts more than 60 seconds. The browser then tries to sign the user in again at the identity provider without prompting, and shows the sign-in page if that does not succeed.
+- **No answer from the provider**: OpenMetadata returns `503` and keeps the session. The browser may still sign the user out.
+- **Session limit**: The session expiry (**Session Expiry**, or **OIDC Session Expiry** when **Session Expiry** is not set) still caps the session. A renewal never extends it. Logging out or revoking a session ends it at once, but the ID token already issued stays valid until it expires, and the next renewal fails.
+
+### Display Name and Picture
+
+On sign-in with a confidential OIDC client, OpenMetadata fills the display name from the provider (`name`, or first and last name) when the user's display name is empty or only repeats the login name. A display name set in OpenMetadata is kept. If you set **Email Claim**, the provider's name replaces the stored display name on every sign-in.
+
+OpenMetadata also stores the picture from the standard `picture` claim when it is an absolute `http` or `https` URL. A new picture replaces all stored sizes. A token without a valid picture never clears the stored picture.
+
+### MCP Sign-In and Self Sign-Up
+
+MCP sign-in reads the claims mapping like web sign-in, including claim names that contain a colon. It does not read **Email Claim**. Opening `/signup` directly, without a pending self-sign-up user, redirects to the sign-in page.
 
 ## Troubleshooting
 
