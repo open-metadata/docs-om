@@ -49,7 +49,7 @@ Map `postgresql://warehouse.example.com:5432` to the existing database service `
 
 The resolver tries the namespace mapping, datasource facet information, and table-name suffix matches. A namespace is not automatically an OpenMetadata service name. Namespace mappings match the exact namespace first, then the longest matching prefix.
 
-A dataset matches only the database services that hold its table. If the table exists in one of several services of the same type, the dataset resolves to that service. If the table exists in more than one of them, the match is ambiguous and the event writes no edge. Add a `namespaceToServiceMapping` entry to resolve it.
+A dataset matches only the database services that hold its table. If the table exists in one of several services of the same type, the dataset resolves to that service. If the table exists in more than one of them, the match is ambiguous. The server uses the first match and logs a warning. Add a `namespaceToServiceMapping` entry to pin the service.
 
 For more information, see [Cross Database Lineage](/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/cross-database-lineage).
 
@@ -78,11 +78,9 @@ The API is enabled by default. If `eventTypeFilter` is absent or empty, the serv
 
 `autoCreateEntities` defaults to `true`. The server can create a missing table, database, and database schema under an existing database service. The dataset namespace must have a `namespaceToServiceMapping` entry, and its schema facet must contain the table's columns. Each creation requires the caller's `Create` permission and must pass the server's limits and validation.
 
-The server never creates pipelines. Ingest the pipeline first. If the pipeline is missing, the server writes the lineage edge without a pipeline and reports the job as unresolved.
-
 Use a dataset name such as `analytics.public.orders` to identify the database, schema, and table. If the name has only `schema.table`, automatic creation requires exactly one database in the mapped service.
 
-The HTTP API does not create database services, pipelines, or containers. An unresolved job appears in `unresolvedJobs`, and its dataset edges can still be created without a pipeline reference.
+The HTTP API does not create database services, pipelines, or containers. Ingest the pipeline first. If it is missing, the job appears in `unresolvedJobs`, and the server still writes the dataset edges without a pipeline reference.
 
 ## Configure an HTTP Producer
 
