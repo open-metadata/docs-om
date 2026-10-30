@@ -29,16 +29,21 @@ The user must have the following permissions for the ingestion to run successful
 - `glue:GetWorkflow`
 - `glue:GetJobRuns`
 
+Lineage needs the following additional permissions. Without them, ingestion still succeeds, but lineage is empty and OpenMetadata logs a warning:
+- `glue:GetJob`
+- `s3:GetObject` on the bucket that holds the job scripts
+- `glue:GetConnection`, for jobs that use a JDBC connection
+
 ## Lineage
 
-The Glue connector creates lineage between Glue jobs and the Snowflake tables that the jobs read from or write to. OpenMetadata links a job to Snowflake tables that it has already ingested, so ingest the Snowflake service first.
+The Glue connector creates lineage from the tables that a Glue job reads to the tables that it writes, including Snowflake tables, and records the Glue workflow as the pipeline of each edge. It reads only jobs that belong to a Glue workflow. OpenMetadata creates an edge only when both ends are already ingested, so ingest the Snowflake service first.
 
-OpenMetadata reads the Snowflake sources and targets of a job from:
+OpenMetadata reads the Snowflake sources and targets from the job's Glue Studio nodes. If the job has no Studio nodes, it reads the job script instead:
 
 - **Glue Studio nodes**: `SnowflakeSource` and `SnowflakeTarget` nodes. OpenMetadata skips a node that has no table, such as a source that uses a query.
 - **Job scripts**: Python scripts that use `connection_type="snowflake"` with the Glue `from_options` calls, or the Snowflake Spark connector with `format("snowflake")`. OpenMetadata doesn't read Scala scripts, so a Scala job produces no Snowflake lineage.
 
-To create the lineage, set **Database Service Names List** under **Lineage Information** in the metadata agent to the Snowflake service. In a YAML workflow, set `dbServiceNames` under `lineageInformation` in `sourceConfig.config`. When the list is empty, OpenMetadata searches all database services.
+To create the Snowflake lineage, add the Snowflake service to **Database Service Names List** under **Lineage Information** in the metadata agent. In a YAML workflow, set `dbServiceNames` under `lineageInformation` in `sourceConfig.config`. When the list is empty, OpenMetadata searches all database services.
 
 OpenMetadata takes the database, schema, and table from the node or from the script. In a script, the `dbtable` option accepts `TABLE`, `SCHEMA.TABLE`, or `DB.SCHEMA.TABLE`. A database or schema that the script sets at run time, for example from a job parameter, stays unset.
 
