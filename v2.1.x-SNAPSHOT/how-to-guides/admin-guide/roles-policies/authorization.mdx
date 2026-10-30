@@ -35,6 +35,8 @@ For a reference for common operations, risk levels, and recommended role assignm
 **Important**: `EditAll` overrides every other edit permission. Only use it when full editing access is intentional – otherwise assign the specific edit operations you need.
 </Warning>
 
+`EditDomains` controls changing the domains of an asset. A rule that allows `EditAll` also allows `EditDomains`, so existing policies keep working. To stop a role from reassigning domains, add a Deny rule with `EditDomains`.
+
 ### Condition
 
 Conditions let you make a rule apply only when certain things are true about the asset being accessed. For example, you can write a rule that only applies to assets tagged as `PII.Sensitive`, or only to assets that don't have an owner yet.
@@ -50,7 +52,7 @@ Following are some examples of conditions:
 | `matchAllTags(tagFqn, ...)` | The asset carries all of the tags listed |
 | `matchAnyTag(tagFqn, ...)` | The asset carries at least one of the tags listed |
 | `matchTeam()` | The user belongs to the team that owns the asset |
-| `hasDomain()` | The asset has no domain, or the requesting user or bot shares at least one domain with it |
+| `hasDomain()` | The asset has no domain, or the requesting user or bot shares a domain (or a sub-domain of one) with it |
 
 #### Use `hasDomain()` With Bots
 
@@ -82,6 +84,16 @@ noOwner() && matchAllTags('PersonalData.Personal', 'Tier.Tier1')
 ```
 
 This condition is true only if the asset has no owner and carries both of the listed tags.
+
+#### Control Domain Changes
+
+When a policy uses `hasDomain()`, adding or moving an asset into a domain also requires the caller to hold that target domain. OpenMetadata checks each domain you add on its own. Holding domain A does not allow adding domain B next to it. Adding a sub-domain of a held domain is allowed.
+
+The check runs on every write path: PATCH, PUT, bulk PUT, test case PATCH, and CSV import. A CSV dry run reports the rows the import will refuse. A change that moves an asset into a domain the caller does not hold returns `403`, including a PATCH that updates the whole document. OpenMetadata does not turn the refused change into a change request under an approval workflow.
+
+Administrators are never refused. A policy without a domain condition allows the change for any target domain.
+
+The error names the refused domain: `Principal: CatalogPrincipal{name='<user>'} does not belong to domains [<domain>] to perform the [EditDomains] operations.`
 
 ### Use Service Attributes in Policy Conditions
 
@@ -322,6 +334,8 @@ This architecture sets broad rules at the organizational level, with more lenien
 When designing policies for sensitive processes, it's also worth thinking
 about who should hold which permissions – not just what the permissions are.
 
+A rule that you remove from a policy takes effect on the next authorization decision on the server that processed the update. On deployments with several servers connected through Redis, the change reaches the other servers asynchronously. Requests that were already authorized are not cancelled.
+
 ### Separation of Duties
 
 For teams with compliance or regulatory requirements, it's good practice to make sure no single person can complete a sensitive process from start to finish on their own. Split the steps across two roles so each one requires a different person.
@@ -367,6 +381,46 @@ A role bundles multiple policies that match a specific job function. For example
 If you have a custom role or policy that grants `EditAll` on `Ingestion Pipeline` without an explicit `Trigger` grant, add `Trigger` to it after upgrading — otherwise pipeline triggers will start failing silently for anyone assigned that role. Scheduled runs are unaffected. This only applies to manually or programmatically triggered runs.
 </Warning>
 
+## Permissions for Related Endpoints
+
+Several endpoints that return part of an asset check the same permission the asset itself requires.
+
+| Endpoint | Permission required |
+|---|---|
+| System profile of a table | `ViewDataProfile` on the table |
+| Entity relationships of a table or schema | `ViewBasic` on the table or schema |
+| KPI results | `ViewBasic` on the KPI |
+| Pipeline status history | `ViewAll` on the ingestion pipeline |
+| Data contract validation | `ViewBasic` on the entity the contract is for |
+| Intake form for an entity type | `ViewBasic` on the intake form |
+| Lineage edge | `ViewBasic` on both the source and the target |
+| Lineage graph, export, and scene | `ViewBasic` on the root entity |
+| Vote on an asset, follow an asset, or stop following it | `ViewBasic` on the asset |
+| Trigger, redeploy, suspend, or resume a governance workflow | `EditAll` on the workflow definition |
+
+Adding or removing a follower other than yourself requires an administrator.
+
+The automations workflow trigger for **Test connection** requires `EditAll` on the service in the request, or `Create` on ingestion pipelines. Without a service in the request, it requires `Create` on ingestion pipelines.
+
+## Filtered Lists and Responses
+
+OpenMetadata filters these responses to what the caller can view:
+
+- **Asset lists**: The assets of a domain, data product, glossary term, tag, team, or user.
+- **Asset counts**: The counts of domains, data products, and teams. A user restricted to a domain sees counts for that domain and its sub-domains only.
+- **Mixed responses**: Activity feeds, lineage neighbours, column search and export, and the `semantic_search` MCP tool. Administrators skip this filtering in activity feeds and lineage.
+
+## Administrator-Only Endpoints
+
+OpenMetadata restricts these endpoints to administrators, or to administrators and bots.
+
+| Access | Endpoints |
+|---|---|
+| Administrator or bot | `GET /v1/events`, system entity and service counts, `GET /v1/system/status`, `GET /v1/analytics/web/events/collect` (raw events), search document by ID |
+| Administrator only | Reset an email template, list search reindex failures (up to 1,000 per page, default 50) |
+
+Recording a page view (`PUT /v1/analytics/web/events/collect`) stays open to all users, and OpenMetadata always records the page view for the caller. A caller who is not an administrator sees a generic message when the pipeline service is unavailable: "The pipeline service is not available. Ask an administrator to check its status."
+
 ## Roles Based Access Controls (RBAC) Search
 
 By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC Search. Search then shows only the assets that the user's policies allow them to see. The built-in Organization Policy allows everyone to see every asset, so this takes effect only after you change that. For more information, see [How Search Combines Your Policies](#how-search-combines-your-policies).
@@ -396,6 +450,8 @@ For strict isolation, make sure no policy that applies to the user grants `ViewB
 <Warning>
 `ViewAll` also lets users view an asset's details, not only find it in search. After you remove an unconditional `ViewAll` rule, users can open only the assets that another rule gives them access to.
 </Warning>
+
+The search aggregation endpoint (`/v1/search/aggregate`, GET and POST) also applies your policy conditions. With RBAC Search turned on, the counts and top hits for a non-admin user cover only the assets their policies allow. If the policies produce no usable query, the aggregation returns no results. Results are unchanged for administrators and when RBAC Search is off. Bots are not exempt: OpenMetadata evaluates their policies like any other user's.
 
 ### Before You Turn It On
 
