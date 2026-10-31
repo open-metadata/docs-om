@@ -62,3 +62,19 @@ Connection Status: Success
 ## Stored Procedure Lineage Across Databases
 
 If the same stored procedure name exists in more than one database or schema, the connector matches each query to its procedure using the database and schema reported by the query source. If the match is still ambiguous, that query is skipped rather than attached to the wrong procedure.
+
+## Profiler Fails with "The user does not have permission to perform this action"
+
+If the profiler fails with the following error (error 297):
+
+```
+(pymssql.exceptions.OperationalError) (297, b'The user does not have permission to perform this action.')
+```
+
+the ingestion user cannot read `sys.dm_db_partition_stats`, which the profiler uses for row counts and table sizes.
+
+**Fix**: Grant the permission in every database you profile. For more information, see [Profiler](/v2.1.x-SNAPSHOT/connectors/database/mssql#profiler).
+```sql
+GRANT VIEW DATABASE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+```
