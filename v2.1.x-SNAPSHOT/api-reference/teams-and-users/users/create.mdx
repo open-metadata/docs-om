@@ -290,9 +290,22 @@ curl -X PUT "{base_url}/api/v1/users/bulk" \
 
 ---
 
+## Domains
+
+Only administrators can set a user's `domains` when creating a user with `POST` or `PUT`. Other callers, including bots, get `403`. Naming no domains always works.
+
 ## Allowed Email Domains
 
-When `allowedEmailDomains` is set, creating a user whose email domain is not allowed returns `400`: `Email domain '<domain>' is not allowed. Allowed email domains: <list>`. This applies to `POST /api/v1/users`, to `PUT /api/v1/users` when it creates the user, and to CSV import rows that create a user. A CSV dry run reports a rejected row, and the other rows import with a status of `partialSuccess` (`failure` if every row is rejected). The check is skipped for bots and for the `basic` and `openmetadata` authentication providers.
+When `allowedEmailDomains` is set, creating a user whose email domain is not allowed returns `400` with a message that names the rejected domain and the allowed ones:
+
+```
+Email domain '<domain>' is not allowed. Allowed email domains: <list>
+```
+
+- **Endpoints checked**: `POST /api/v1/users`, `PUT /api/v1/users` only when the request creates the user, and CSV import rows that create a user.
+- **CSV import**: A row outside the allowed domains is rejected, including in a dry run. The other rows still import, so the result `status` is `partialSuccess`. It is `failure` when every row is rejected.
+- **Updates**: Updating an existing user is never checked, including a PUT to a user that already exists and CSV rows that update an existing user. You cannot change a user's email address with PATCH or PUT.
+- **Skipped**: The check does not apply to bots, to users that the server creates itself such as the bootstrap admins, or when the authentication provider is `basic` or `openmetadata`.
 
 ## Error Handling
 
