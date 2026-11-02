@@ -1,0 +1,162 @@
+---
+title: Run the Neo4j Connector Externally
+description: Use YAML to configure Neo4j database connections with metadata ingestion.
+sidebarTitle: Run Externally
+mode: "wide"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/v2.1.x-SNAPSHOT/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.1.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/neo4j.svg'
+name="Neo4j"
+stage="BETA"
+availableFeatures={["Metadata"]}
+unavailableFeatures={["Query Usage", "Lineage", "Column-level Lineage", "Owners", "Tags", "Stored Procedures", "Data Profiler", "Data Quality", "dbt", "Sample Data", "Auto-Classification"]} />
+This section provides guides and references for the Neo4j connector.
+Configure Neo4j metadata workflows externally with YAML:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+
+<ExternalIngestionDeployment />
+## Requirements
+
+OpenMetadata reads the graph schema of one Neo4j database. It reads schema information only and never reads node or relationship data. The connecting user needs the `ACCESS` privilege on the database and permission to execute the following procedures:
+
+- `db.info`
+- `db.labels`
+- `db.relationshipTypes`
+- `db.schema.nodeTypeProperties`
+- `db.schema.relTypeProperties`
+
+The built-in `reader` role is enough.
+
+### Entity Mapping
+
+OpenMetadata maps the Neo4j graph schema to OpenMetadata entities as follows:
+
+| Neo4j | OpenMetadata Entity | Description |
+|---|---|---|
+| **Database** | **Database** | The Neo4j database that the connection reads. Each ingestion run reads one database. |
+| **Node labels** | **Tables** in the `nodes` schema | One table for each node label. A node with several labels contributes to the table of each label. |
+| **Relationship types** | **Tables** in the `relationships` schema | One table for each relationship type. OpenMetadata creates these tables only when **Include Relationships** is on. |
+| **Properties** | **Columns** | The properties of a node label or relationship type become the columns of its table. |
+
+A property is `NOT NULL` only when every node type with that label has the property and marks it as mandatory. When a property has more than one type, or a type that OpenMetadata doesn't recognize, OpenMetadata sets the column to the `UNKNOWN` data type and ingestion continues.
+
+### Python Requirements
+<PythonRequirements />
+To run the Neo4j ingestion, install:
+```bash
+pip3 install "openmetadata-ingestion[neo4j]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+See the [Neo4j connection JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/neo4jConnection.json) for the full set of properties.
+To create and run a metadata ingestion workflow, create a YAML configuration. The configuration connects to the source, processes entities if needed, and reaches the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json).
+### 1. Define the YAML Config
+
+Use the following YAML configuration as a starting point.
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Neo4j connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Connection Scheme" lines="7">
+
+**scheme**: The Neo4j driver URI scheme. Defaults to `neo4j`. Choose one of `neo4j`, `neo4j+s`, `neo4j+ssc`, `bolt`, `bolt+s`, or `bolt+ssc`. Use `neo4j+s` for Neo4j Aura.
+
+</ContentSection>
+
+<ContentSection id={3} title="Host Port" lines="8">
+
+**hostPort**: The host and port of the Neo4j server, for example `localhost:7687`. If you omit the port, OpenMetadata uses 7687.
+
+</ContentSection>
+
+<ContentSection id={4} title="Username and Password" lines="9-10">
+
+**username**: The username to connect to Neo4j. The user needs read access to the graph schema of the database.
+
+**password**: The password to connect to Neo4j.
+
+</ContentSection>
+
+<ContentSection id={5} title="Database and Filters" lines="11-15">
+
+**databaseName**: The Neo4j database to extract metadata from. When omitted, OpenMetadata uses the home database of the user.
+
+**includeRelationships**: On by default. When on, OpenMetadata also ingests relationship types as tables in the `relationships` schema.
+
+**propertyFilterPattern**: A regex that includes or excludes the node and relationship properties (columns) that match the pattern.
+
+</ContentSection>
+
+<ContentSection id={6} title="Source Config" lines="16-68">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={7} title="Sink Configuration" lines="69-71">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={8} title="Workflow Configuration" lines="72-88">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="neo4j_config.yaml">
+
+```yaml
+source:
+  type: neo4j
+  serviceName: local_neo4j
+  serviceConnection:
+    config:
+      type: Neo4j
+      scheme: neo4j
+      hostPort: localhost:7687
+      username: <username>  # REQUIRED
+      password: <password>  # REQUIRED
+      # databaseName: neo4j  # defaults to the home database of the user
+      # includeRelationships: true
+      # propertyFilterPattern:
+      #   excludes:
+      #     - "louvain.*"
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
