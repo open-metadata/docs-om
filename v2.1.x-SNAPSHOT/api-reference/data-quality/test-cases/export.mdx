@@ -1,0 +1,123 @@
+---
+title: Export Test Cases
+description: Export test cases as CSV, with optional filters and paging
+sidebarTitle: Export Test Cases
+api: GET /v1/dataQuality/testCases/name/{name}/export
+---
+
+# Export Test Cases
+
+Export test cases as a CSV file. Two endpoints are available:
+
+| Endpoint | Behavior |
+|----------|----------|
+| `GET /v1/dataQuality/testCases/name/{name}/export` | Runs synchronously and returns the CSV as `text/plain`. |
+| `GET /v1/dataQuality/testCases/name/{name}/exportAsync` | Runs as a background job. Returns `202` with a job ID in a `CSVExportResponse`. |
+
+With no query parameters, both endpoints export every test case in scope.
+
+## Path Parameters
+
+<ParamField path="name" type="string" required>
+  Scope of the export. Use the fully qualified name (FQN) of a table, the FQN of a test suite, or `*` to export every test case in the instance.
+</ParamField>
+
+## Query Parameters
+
+All query parameters are optional. They use the same filters as the test case list and export only the matching test cases.
+
+<ParamField query="testCaseStatus" type="string">
+  Filter by status: `Success`, `Failed`, `Aborted`, or `Queued`. Pass the parameter more than once, or pass comma-separated values, to match several statuses.
+</ParamField>
+
+<ParamField query="testCaseType" type="string">
+  Filter by test case type: `column`, `table`, or `all`.
+</ParamField>
+
+<ParamField query="entityFQN" type="string">
+  Filter by the FQN of the table or column under test. A table FQN includes its column tests. Cannot be combined with `entityLink`. When `name` is a table FQN, this value must be inside that table.
+</ParamField>
+
+<ParamField query="entityLink" type="string">
+  Filter by entity link (URL-encoded). Returns test cases for a specific table or column.
+</ParamField>
+
+<ParamField query="tags" type="string">
+  Filter by tags, comma-separated.
+</ParamField>
+
+<ParamField query="tier" type="string">
+  Filter by tier tag FQN.
+</ParamField>
+
+<ParamField query="owner" type="string">
+  Filter by user or team name. A user also matches the teams they belong to.
+</ParamField>
+
+<ParamField query="q" type="string">
+  Search text applied to the test cases.
+</ParamField>
+
+<ParamField query="testPlatforms" type="string">
+  Filter by test platform, comma-separated.
+</ParamField>
+
+<ParamField query="dataQualityDimension" type="string">
+  Filter by data quality dimension.
+</ParamField>
+
+<ParamField query="serviceName" type="string">
+  Filter by service name.
+</ParamField>
+
+<ParamField query="dataProductFqn" type="string">
+  Filter by data product FQN.
+</ParamField>
+
+<ParamField query="startTimestamp" type="integer">
+  Start of the last-run window, in milliseconds. Set together with `endTimestamp`.
+</ParamField>
+
+<ParamField query="endTimestamp" type="integer">
+  End of the last-run window, in milliseconds. Set together with `startTimestamp`.
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Maximum number of test cases to export. Must be 1 or greater. Omit to export all.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Number of matching test cases to skip. Must be 0 or greater.
+</ParamField>
+
+## Paging With Domain Access Filtering
+
+`limit` and `offset` apply to the search matches before domain access filtering. A caller restricted to specific domains can therefore receive a short or empty page even when more test cases match later. A short or empty page does not mean the end of the results. Advance `offset` by the `limit` you requested until you have paged through all matches.
+
+<RequestExample dropdown>
+```bash GET /v1/dataQuality/testCases/name/{name}/export
+# Export every test case
+curl "{base_url}/api/v1/dataQuality/testCases/name/*/export" \
+  -H "Authorization: Bearer {access_token}"
+
+# Export failed test cases for a table
+curl "{base_url}/api/v1/dataQuality/testCases/name/sample_data.ecommerce_db.shopify.dim_address/export?testCaseStatus=Failed" \
+  -H "Authorization: Bearer {access_token}"
+
+# Export the second page of 100 test cases
+curl "{base_url}/api/v1/dataQuality/testCases/name/*/export?limit=100&offset=100" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+---
+
+## Error Handling
+
+The endpoints return the following errors.
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | The request is invalid. Causes: `limit` is less than 1, `offset` is less than 0, `testCaseStatus` or `testCaseType` has an invalid value, both `entityFQN` and `entityLink` are set, `entityFQN` is outside the table in `name`, `name` is neither a table nor a test suite, or only one of `startTimestamp` and `endTimestamp` is set. |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view the test cases |
