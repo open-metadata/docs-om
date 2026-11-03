@@ -1,0 +1,53 @@
+name: Shared Pages Guard
+
+# Pages listed in .shared-docs-manifest.json are generated from shared/ in
+# docs-collate by its Shared Docs Sync workflow. A hand edit here would be
+# overwritten by the next sync, so it fails this check instead. Bot sync pull
+# requests update the files and the manifest together, so they pass.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-pages-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Check Generated Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Compare generated pages with the manifest
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+
+          const manifestFile = '.shared-docs-manifest.json';
+          if (!fs.existsSync(manifestFile)) process.exit(0);
+          const { files } = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+          const edited = Object.entries(files).filter(([file, entry]) =>
+            !fs.existsSync(file)
+            || crypto.createHash('sha256').update(fs.readFileSync(file, 'utf8')).digest('hex') !== entry.sha256);
+          for (const [file, entry] of edited) {
+            console.log(`::error file=${file}::Generated from ${entry.source} in docs-collate. Edit that file there instead; the sync updates this page.`);
+          }
+          if (edited.length) process.exit(1);
+          console.log(`${Object.keys(files).length} generated page(s) match the manifest.`);
+          NODE
