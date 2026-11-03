@@ -1,139 +1,123 @@
 ---
 title: Import & Export an Ontology | OpenMetadata
-description: Bring an OWL, Turtle, N-Triples, or JSON-LD ontology into OpenMetadata as glossary terms and typed relations, and export back to OWL, SKOS, JSON-LD, or CSV.
+description: Bring a Turtle, RDF/XML, N-Triples, JSON-LD, or CSV file into an ontology as unpublished changes, and export its active release in the format other tools accept.
 sidebarTitle: Import & Export
 ---
 
 # Import & Export
 
-OpenMetadata is not a dead end for your semantics. An ontology authored in Protégé, exported from an EDM tool, or produced by a standards body can be imported as first-class glossary terms and typed relations — and exported back out in a form other tools accept.
+An ontology authored in Protégé, exported from an EDM tool, or produced by a standards body can be imported into OpenMetadata. Export an ontology back out in a format other tools accept.
 
-Select the **Import / Export** icon in the Ontology Studio header (hover to see its name). For a native ontology, the dialog exports its active release and imports into its unpublished changes. For more information, see [Export and Import](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ontologies#export-and-import) in Native Ontologies. It is available when a glossary or **All glossaries** is selected in the scope menu, and opens the **Import / export ontology** dialog on the **Export** tab. Use the glossary selector at the top of the dialog to pick what to export or import into. You can also start an import from a glossary directly: open it from **Govern** > **Glossary**, then select **Import Ontology** from its manage (**⋮**) menu.
+Import adds the file's changes to the working draft as unpublished changes. Export downloads the **active release**. For how drafts become releases, see [Releases](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases).
 
-## Import
+## Open Import / Export
 
-### Accepted Formats
+1. Select the **Import / Export** icon in the Ontology Studio header.
 
-| Syntax | Extensions | `format` value |
-|---|---|---|
-| Turtle | `.ttl` | `turtle` (default) |
-| OWL / RDF/XML | `.rdf`, `.owl`, `.xml` | `rdfxml` |
-| N-Triples | `.nt` | `ntriples` |
-| JSON-LD | `.jsonld`, `.json` | `jsonld` (API only) |
+    <img src="/public/images/how-to-guides/ontology/ontology-import-export-icon.png" alt="Ontology Studio header with the Import / Export icon highlighted" />
 
-The dialog accepts OWL (RDF/XML), Turtle, and N-Triples files (`.ttl`, `.rdf`, `.owl`, `.nt`, and `.xml`), and detects the syntax from the file you choose. JSON-LD import is available through the API only, and can use inline contexts or the bundled OpenMetadata contexts.
+2. If **All ontologies** is selected, the dialog asks you to choose one. Pick an ontology from **Select Ontology**.
 
-To import in the studio:
+    <img src="/public/images/how-to-guides/ontology/ontology-import-export-select.png" alt="Import / Export dialog asking you to select an ontology" />
 
-1. Open **Import / Export** and select the **Import** tab.
-2. If the dialog is set to **All glossaries**, choose the glossary to import into from **Import into**. Otherwise the glossary chosen at the top of the dialog is used.
-3. Select **Choose file** and pick the file.
-4. Select **Parse & dry-run**.
-
-Nothing is written until you confirm.
-
-<img src="/public/images/how-to-guides/ontology/ontology-studio-import.png" alt="Import tab of the Import / export ontology dialog" />
-
-### What Gets Mapped
-
-| Source construct | Becomes |
-|---|---|
-| `skos:Concept` / `owl:Class` | Glossary term (concept) |
-| `skos:broader` / `rdfs:subClassOf` | Parent hierarchy |
-| `owl:ObjectProperty` edges | Governed typed relationships |
-| `owl:DatatypeProperty` definitions | Per-concept ontology attributes |
-| `skos:exactMatch`, `closeMatch`, `broadMatch`, `narrowMatch`, `relatedMatch` | Concept mappings |
-| Everything else in the file | Preserved in the **lossless annex** (below) |
-
-Relationship types referenced by the ontology are registered if they do not already exist — that step requires admin, so a non-admin import proceeds without registering new global types rather than silently escalating privileges.
-
-### Dry Run First
-
-**Parse & dry-run** validates the file and produces a **Dry-run preview**, marked *nothing persisted yet*. It shows four counts: **New terms**, **Relations**, **Mappings**, and **Skipped**, plus messages for anything skipped or needing review.
-
-Only after you review that do you commit, with the **Import N terms** button that appears after the dry run. If the target glossary has reviewers, the dialog notes that imported terms enter **Draft** status, so an import lands in your normal approval flow instead of bypassing it.
-
-### The Lossless Annex
-
-Real-world ontologies contain more than OpenMetadata's model represents — annotation properties, provenance triples, vendor extensions, SWRL rules. Discarding them would make import a one-way door.
-
-Instead, OpenMetadata computes the **difference** between the source graph and what it represented natively, canonicalizes it, and stores it as an **annex revision** keyed by content checksum against the glossary. On export, the annex is merged back in.
-
-That is what makes the round-trip honest: what you import is what you get back, even for the parts OpenMetadata does not model itself.
-
-### API
-
-```bash
-curl -X PUT "$OM_HOST/api/v1/glossaries/name/{glossaryName}/importRdf?format=turtle&dryRun=true" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: text/turtle" \
-  --data-binary @my-ontology.ttl
-```
-
-Set `dryRun=false` to commit. Requires `EditAll` on the target glossary. Content types accepted: `text/turtle`, `application/rdf+xml`, `application/n-triples`, `application/ld+json`, `text/plain`.
+    The dialog is titled **Import / export ontology**. Its subtitle shows the ontology and its active release, for example "Hospital Pharmacy · Active: release-6". The **Export** and **Import** tabs sit at the top right.
 
 ## Export
 
-<img src="/public/images/how-to-guides/ontology/ontology-import-export.png" alt="Ontology import and export dialog with a live serialization preview" />
+Export downloads the active release of the selected ontology. If there is no active release, the dialog says so: **There is no active release to export. Capture, approve, and activate a release first.**
 
-### Formats
+1. In the **Import / export ontology** dialog, click the **Export** tab.
 
-| Format | Extension | What it is |
+    <img src="/public/images/how-to-guides/ontology/ontology-export.png" alt="Export tab with the OWL / RDF-XML, SKOS / SKOS-XL, JSON-LD, and CSV format cards, export options, a preview, and the Run SHACL button" />
+
+2. Choose a **Format** from the below table:
+
+    | Format | Extension | What it is |
+    |---|---|---|
+    | **OWL / RDF-XML** | `.rdf` | RDF/XML with classes and object properties. It is selected first. |
+    | **SKOS / SKOS-XL** | `.ttl` | A concept scheme with labels and mappings. Turn on **Use SKOS-XL labels** to write SKOS-XL labels. |
+    | **JSON-LD** | `.jsonld` | A linked-data context for interchange. |
+    | **CSV** | `.csv` | A bulk round-trip for terms and relations. |
+
+3. Set the following options:
+
+    - **Include inverse relationships**: also write the inverse of each relationship, using each relationship type's declared inverse. It is on by default.
+    - **Include bound assets**: also write the data assets bound to concepts. It is off by default and isn't available for **CSV**.
+    - **Block download on SHACL violations**: run SHACL validation first and block the download if the ontology doesn't conform. It is off by default.
+
+4. Check the **Preview**. It shows the start of the serialized output before you download it. **OWL / RDF-XML** and **JSON-LD** preview as Turtle, because the content is the same and Turtle is easier to read.
+
+5. Optional: Click **Run SHACL** to validate the ontology against its shapes and download the validation report.
+
+6. Click **Export**.
+
+To export a release that isn't active, use the **Export** menu on that release in the **Releases** tab. See [Export a Release](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases#export-a-release).
+
+## Import
+
+Import reads a local RDF file into an ontology. It needs edit permission on the target ontology.
+
+1. In the **Import / export ontology** dialog, click the **Import** tab.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-import.png" alt="Import tab with the Import into dropdown, a Choose file area, and the Parse and Import buttons" />
+
+2. In **Import into**, pick the ontology to change. Optionally, pick **New ontology** to create one from the file.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-import-into.png" alt="Import tab with the Import into dropdown open, listing the current ontology and New ontology" />
+
+3. Click **Choose file** and pick the file. Accepted formats are Turtle, RDF/XML, N-Triples, JSON-LD, or native CSV, up to 10 MB. OpenMetadata detects the format from the file. If it can't, the dialog asks you to use one of the supported formats.
+
+4. Click **Parse**. OpenMetadata checks the file and previews the result without saving anything.
+
+    - The preview shows how many concepts and properties the file would add, and how many would be updated or left unchanged.
+    - The dialog states **Nothing persisted yet** until you import.
+    - When you pick **New ontology**, the dialog shows the name of the ontology it will create.
+
+5. Review the preview, then click **Import**.
+
+The imported changes become unpublished changes, and imported concepts enter **Draft**. As the dialog says, the active release stays unchanged until you publish. Open **Publish** to review the changes and capture a release.
+
+## What Gets Mapped
+
+The import maps source constructs to ontology definitions as follows.
+
+| Source construct | Becomes |
+|---|---|
+| `owl:Class` and `skos:Concept` | Concept |
+| `skos:prefLabel` | The concept display name |
+| `skos:definition` | The concept description |
+| `rdfs:subClassOf` | Parent hierarchy |
+| `owl:ObjectProperty` and `owl:DatatypeProperty` | Property |
+| `skos:exactMatch`, `closeMatch`, `broadMatch`, `narrowMatch`, `relatedMatch` | Concept mappings |
+| SKOS relations such as `skos:broader` | A relationship that keeps its exact IRI |
+
+A `skos:broader` relationship isn't a subclass relationship, so it doesn't give the concept inherited properties. Export writes `rdfs:label` and `rdfs:comment` for names and descriptions. If a file has conflicting annotations for the same concept, the preview fails.
+
+## Import Limits
+
+Parsing stops with an error if a file goes past any of these limits. A file with unsupported statements fails the whole preview instead of importing part of it.
+
+| Limit | Value |
+|---|---|
+| File size | 10 MB |
+| RDF statements | 100,000 |
+| Changed definitions | 1,000 |
+| Parsing time | 30 seconds |
+
+JSON-LD files must carry inline contexts. For larger ontologies, split the file and import the parts one at a time.
+
+## REST Endpoints
+
+Paths start with `/api`.
+
+| Path | Access | Notes |
 |---|---|---|
-| **OWL** | `.owl` | RDF/XML — classes and object properties. |
-| **SKOS / SKOS-XL** | `.ttl` | Concept scheme with labels and mappings. |
-| **JSON-LD** | `.jsonld` | Linked-data context for interchange. |
-| **CSV (template)** | `.csv` | Bulk round-trip for terms and relations, via the standard glossary CSV export. |
+| `POST /v1/ontologies/{id}/imports/preview` | View | Turns an RDF file into a list of proposed changes. Does not save anything. |
+| `POST /v1/ontologyChangeSets`, `POST /v1/ontologyChangeSets/{id}/apply` | `EditAll` on the ontology, plus rights on each item changed | The UI creates and applies a change set when you select **Import**. |
+| `GET /v1/ontologyReleases/{id}/export?format=` | View | Exports one release. Default `turtle`. The UI uses `turtle`, `rdfxml`, `ntriples`, and `jsonld`. |
 
-### Options
-
-The export tab lists the formats on the left and a **Preview** of the output on the right. Select **Export** to download.
-
-- **Include inverse relationships** — emit the inverse of each typed relation as well, using each relationship type's declared `owl:inverseOf`. Maps to the `includeRelations` API parameter.
-- **Validate with SHACL shapes before export** *(admin only, on by default for admins)* — run SHACL validation first and warn if the model does not conform. Violations do not block the export; you get the report and decide. **Run SHACL report** downloads the full `sh:ValidationReport` as Turtle when violations are found.
-
-A live, syntax-highlighted preview of the serialized output is rendered beside the options, showing exactly what you are about to download before you download it.
-
-Selecting **All glossaries** exports each model and merges the results into one document. **CSV** exports one glossary at a time, so choose a specific glossary for it.
-
-### What Is Exported
-
-The export is built from the **database-primary** model, not the triple store — so it works with RDF disabled. It includes:
-
-- The glossary as an `owl:Ontology` / `skos:ConceptScheme` with its base IRI and prefixes
-- Concepts with labels, definitions, and IRIs
-- Hierarchy
-- Typed relationships, with each relationship type declared as an `owl:ObjectProperty` carrying its characteristics and `owl:inverseOf`
-- Ontology attributes as `owl:DatatypeProperty` declarations
-- Authored OWL axioms
-- Concept mappings as `skos:*Match` / `owl:sameAs`
-- The lossless annex
-
-### API
-
-```bash
-# Turtle (default)
-curl "$OM_HOST/api/v1/glossaries/{id}/exportOntology" \
-  -H "Authorization: Bearer $TOKEN"
-
-# RDF/XML without inverse relations
-curl "$OM_HOST/api/v1/glossaries/{id}/exportOntology?format=rdfxml&includeRelations=false" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Requires `ViewAll` on the glossary. `format` accepts `turtle`, `rdfxml`, `ntriples`, `jsonld`.
+For the full reference, see the [Ontology API Reference](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/api).
 
 ## Exporting the Graph, Not the Model
 
-The formats above export **one ontology model**. To export a slice of the *knowledge graph* — an entity and its neighborhood, including instance data — use `GET /api/v1/rdf/graph/explore/export` (Turtle or JSON-LD, admin only), or `GET /api/v1/rdf/ontology` for the canonical OpenMetadata ontology itself.
-
-## Next
-
-<CardGroup cols={2}>
-  <Card title="Ontology Library" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/library">
-    Pre-verified packs that install without an import step.
-  </Card>
-  <Card title="Reasoning & Validation" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning">
-    What SHACL validation checks.
-  </Card>
-</CardGroup>
+The formats above export one ontology. To export a slice of the knowledge graph, an entity and its neighborhood including instance data, use `GET /api/v1/rdf/graph/explore/export` (Turtle or JSON-LD, admin only). Use `GET /api/v1/rdf/ontology` for the canonical OpenMetadata ontology itself.

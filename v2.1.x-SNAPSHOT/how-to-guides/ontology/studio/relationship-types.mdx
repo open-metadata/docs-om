@@ -6,26 +6,48 @@ sidebarTitle: Relationship Types
 
 # Relationship Types
 
-A **relationship type** defines one kind of edge between concepts. It is the difference between "these two terms are somehow related" and "*Churn Rate* is `calculatedFrom` *Cancelled Subscriptions*, `calculatedFrom` is not symmetric, and it maps to `om:calculatedFrom` in RDF."
+A **relationship type** defines one kind of edge between concepts. It is the difference between "these two terms are somehow related" and "Churn Rate is `calculatedFrom` Cancelled Subscriptions, `calculatedFrom` is not symmetric, and it maps to `om:calculatedFrom` in RDF."
 
-Relationship types are **admin-governed and global**. To manage them, navigate to **Settings** > **Governance** > **Glossary Term Relations**.
+To open the page where you manage relationship types, see [Manage Glossary](#manage-glossary).
 
-<img src="/public/images/how-to-guides/ontology/relationship-types-settings.png" alt="Glossary Term Relations settings page" />
+## Glossary Table
 
-## The List
+The table lists every relationship type.
 
-Each row shows the type's **Name**, **Display Name**, **Category**, **Characteristics**, **Cross Glossary** flag, **Cardinality**, and **Color**. System-defined types carry a lock icon: they can be updated but never deleted, and their delete action is disabled. Delete is also disabled for custom types that are in use, and for non-admin users.
+<img src="/public/images/how-to-guides/ontology/ontology-relation-types-list.png" alt="Glossary Term Relations page in Settings listing relationship types with their category, characteristics, cross glossary flag, cardinality, and color" />
 
-`GET /api/v1/glossaryTerms/relationTypes/usage` returns each type with the number of relations currently using it. Check this before removing a custom type.
+Each row shows these columns:
+
+- **Name**: the unique key of the type. It can't change after the type is created.
+- **Display Name**: the label shown on graph edges and badges.
+- **Category**: where the meaning of the type comes from: **Core**, **OWL / SKOS**, or **Custom · Admin-defined**.
+- **Characteristics**: the OWL characteristics that apply to the type, such as **Symmetric** or **Transitive**.
+- **Cross Glossary**: a check mark shows that the type can connect concepts from different glossaries.
+- **Cardinality**: how many concepts can sit at each end of the relationship, for example **Many to Many**.
+- **Color**: the color of the type's edges and badges.
+- **Actions**: the edit and delete icons for the type.
+
+System-defined types and types in use have limits:
+
+- System-defined types carry a lock icon. They can be updated but never deleted, and their delete action is disabled.
+- Delete is also disabled for custom types that are in use, and for non-admin users.
+
+To check how many relations use a type before you remove it, call `GET /api/v1/glossaryTerms/relationTypes/usage`. It returns each type with the number of relations currently using it.
 
 ## Creating a Relationship Type
 
-To add a custom relationship type, open **Settings** > **Governance** > **Glossary Term Relations**, then:
+To add a custom relationship type, follow these steps:
 
-1. Select **Add Relation Type**. The **Add Relation Type** panel opens.
-2. Fill in the following details:
-   - Enter a **Name** and a **Display Name**. See [Identity](#identity).
-   - Optional: Enter a **Description**. See [Identity](#identity).
+1. Navigate to **Settings** > **Governance** > **Glossary Term Relations**.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-relation-types-governance.png" alt="Settings Governance page with the Glossary Term Relations card highlighted" />
+
+2. Click **Add Relation Type**. The **Add Relation Type** panel opens.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-relation-types-add.png" alt="Glossary Term Relations page with the Add Relation Type button highlighted" />
+
+3. Fill in the following details:
+   - Enter a **Name**, **Display Name**, and **Description** (optional). See [Identity](#identity).
    - Select a **Category**. See [Category](#category).
    - Optional: Select an **Inverse Relation**. See [Inverse and RDF Mapping](#inverse-and-rdf-mapping).
    - Enter an **RDF Predicate**. See [Inverse and RDF Mapping](#inverse-and-rdf-mapping).
@@ -33,9 +55,10 @@ To add a custom relationship type, open **Settings** > **Governance** > **Glossa
    - Optional: Choose a **Color**. See [Color](#color).
    - Optional: Tick the **Characteristics** that apply. See [Characteristics](#characteristics).
    - Optional: Turn **Cross Glossary** off if the type should stay inside one glossary. See [Cross Glossary](#cross-glossary).
-3. Select **Add**. To discard the new type instead, select **Cancel**.
 
-<img src="/public/images/how-to-guides/ontology/relationship-types-add.png" alt="Add Relation Type panel with name, display name, description, category, inverse relation, RDF predicate, and cardinality" />
+    <img src="/public/images/how-to-guides/ontology/ontology-relation-type-form-options.png" alt="Add Relation Type form with Inverse Relation, RDF Predicate, Cardinality, Color, the characteristics checkboxes, and Cross Glossary" />
+
+4. Click **Add**.
 
 Only **Name**, **Display Name**, and **RDF Predicate** are required. Every other option has a default.
 
@@ -125,6 +148,8 @@ The panel doesn't show every field. Set the fields below through the `POST`, `PU
 
 ## Types Shipped by Default
 
+The following types ship with OpenMetadata.
+
 | Name | Category | RDF predicate | Characteristics |
 |---|---|---|---|
 | `relatedTo` | Core | `om:relatedTo` | Symmetric |
@@ -144,10 +169,10 @@ The panel doesn't show every field. Set the fields below through the `POST`, `PU
 
 <AccordionGroup>
   <Accordion title="Prefer a few well-defined types over many similar ones">
-    Every type is a decision modelers must make correctly on every edge. Three types used consistently beat twelve used approximately. Add a type when it unlocks a query you cannot express without it.
+    Every type is a decision modelers must make correctly on every edge. Three types used consistently beat twelve used approximately. Add a type when it unlocks a query you can't express without it.
   </Accordion>
   <Accordion title="Set characteristics deliberately">
-    `TRANSITIVE` is what lets the transitive-closure rule answer "every ancestor" in one hop. `SYMMETRIC` is what stops the graph from storing both directions. Leaving these unset because you are unsure means the reasoner cannot help you.
+    `TRANSITIVE` is what lets the transitive-closure rule answer "every ancestor" in one hop. `SYMMETRIC` is what stops the graph from storing both directions. Leaving these unset because you are unsure means the reasoner can't help you.
   </Accordion>
   <Accordion title="Reuse a standard predicate when one exists">
     Mapping to `skos:broader` rather than a bespoke `om:isUnder` makes your export intelligible to every SKOS-aware tool on the planet, for zero extra effort.
@@ -158,6 +183,8 @@ The panel doesn't show every field. Set the fields below through the `POST`, `PU
 </AccordionGroup>
 
 ## API
+
+The following endpoints manage relationship types.
 
 | Endpoint | Purpose |
 |---|---|
@@ -179,3 +206,17 @@ The panel doesn't show every field. Set the fields below through the `POST`, `PU
     How characteristics drive inference.
   </Card>
 </CardGroup>
+
+## Manage Glossary
+
+Relationship types are admin-governed and global. After the glossary term relations are added you can manage them from the **Glossary Term Relations** Page.
+
+<img src="/public/images/how-to-guides/ontology/ontology-relation-types-actions.png" alt="Glossary Term Relations table with the edit and delete icons of a custom type highlighted in the Actions column" />
+
+- To edit a glossary term relation:
+  1. In the **Actions** column, click the **Edit** icon next to relation you want to edit.
+  2. Modify the details and click **Update**.
+
+- To remove a glossary term relation:
+  1. In the **Actions** column, click the **Delete** icon next to relation you want to remove.
+  2. Click **Delete**.
