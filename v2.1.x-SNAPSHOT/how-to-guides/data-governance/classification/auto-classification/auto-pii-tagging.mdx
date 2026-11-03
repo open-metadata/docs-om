@@ -19,6 +19,67 @@ Auto PII tagging for Sensitive/NonSensitive at the column level is performed bas
 
 Note that if a column is already tagged as `PII`, we will ignore its execution.
 
+## Provision Models for Restricted or Air-Gapped Environments
+
+Auto Classification needs a spaCy model for each language it processes. By default, missing models are downloaded when the workflow runs. In restricted or air-gapped environments, install them ahead of time with the `metadata install-classification-models` command.
+
+### Install the Models with the CLI
+
+Follow these steps to install the models.
+
+1. Install `openmetadata-ingestion[pii-processor]` in the same Python environment and as the same user that runs the workflow.
+
+    ```bash
+    pip install "openmetadata-ingestion[pii-processor]"
+    ```
+
+2. Run the command with the languages you need:
+
+    ```bash
+    metadata install-classification-models --languages en,es
+    ```
+
+The command needs no workflow configuration, server, or Airflow.
+
+**`--languages`**: A nonempty, comma-separated list of lowercase language identifiers. Whitespace is allowed. Uppercase, unknown, and empty values are rejected before anything is installed.
+
+<Note>
+**Note**: The identifier `any` provisions the English model. For air-gapped runs that use `any` together with recognizers for specific languages, list every language, for example `any,es,ar`.
+</Note>
+
+### Behavior of Repeated Runs
+
+Running the command again behaves as follows.
+
+- A healthy model that matches the requested one is reused.
+- A model of a different version is replaced.
+- The command stops at the first failure. Models installed before the failure stay in place.
+- Models are downloaded from the exact upstream wheel URLs. A private pip index alone isn't enough. On disconnected hosts, preinstall the wheels.
+
+### Docker
+
+The ingestion and runner Docker builds accept an optional build argument, `AUTO_CLASSIFICATION_LANGUAGES`.
+
+- The default is empty, which installs nothing.
+- The selected `INGESTION_DEPENDENCY` must include `pii-processor`.
+
+To extend a published image, add the command to a derived Dockerfile. Build arguments don't change the published base image.
+
+```dockerfile
+RUN metadata install-classification-models --languages en,es
+```
+
+### External Airflow and Runners
+
+Provision the models where the workflow runs.
+
+- For an external Airflow, run the command as the Airflow task user.
+- If a separate ingestion runner launches the workflow, provision the runner image or environment instead.
+
+### Runtime Behavior
+
+At runtime, if a required model is missing, the workflow logs a warning and tries the spaCy download. If the model still can't load, the Auto Classification workflow fails.
+
 ## Troubleshooting
 
 ### Recognizer ran but tag was not applied
@@ -43,10 +104,5 @@ get local issuer certificate (_ssl.c:1129)')))
 This is a scenario that we identified on some corporate Windows laptops. The bottom-line here is that the profiler
 is trying to download the Entity Recognition model but having certificate issues when trying the request.
 
-A solution here is to manually download the model on the ingestion container / Airflow host by running:
+The solution is to install the model ahead of time. For more information, see [Provision Models for Restricted or Air-Gapped Environments](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/classification/auto-classification/auto-pii-tagging#provision-models-for-restricted-or-air-gapped-environments).
 
-```
-pip --trusted-host github.com --trusted-host objects.githubusercontent.com install https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.5.0/en_core_web_md-3.5.0.tar.gz
-```
-
-If using Docker, you might want to customize the `OpenMetadata-ingestion` image to have this command run there by default.
