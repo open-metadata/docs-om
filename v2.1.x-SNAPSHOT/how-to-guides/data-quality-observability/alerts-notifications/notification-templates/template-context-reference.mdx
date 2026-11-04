@@ -8,6 +8,42 @@ sidebarTitle: Template Context Reference
 
 When a notification template is rendered, it has access to event data through special objects. This reference guide documents all available objects and their properties.
 
+## Top-Level Objects
+
+Every placeholder starts with one of these top-level names. A bare name such as `{{entityName}}`, `{{eventType}}`, or `{{description}}` is not defined and renders empty.
+
+| Object | Description |
+|--------|-------------|
+| `event` | The change event that triggered the notification. See [Event Object](#event-object) |
+| `entity` | The entity the event is about. See [Entity Object](#entity-object) |
+| `baseUrl` | Base URL of your instance |
+| `publisherName` | Display name of the alert that triggered the notification |
+| `emailingEntity` | Email address configured in the SMTP settings |
+
+## Event Types
+
+`event.eventType` is one of the following values:
+
+| Value | When it occurs |
+|-------|----------------|
+| `entityCreated` | An entity is created |
+| `entityUpdated` | An entity is updated |
+| `entityFieldsChanged` | Fields of an entity change |
+| `entityNoChange` | An update produces no change |
+| `entitySoftDeleted` | An entity is soft deleted |
+| `entityDeleted` | An entity is permanently deleted |
+| `entityRestored` | A soft-deleted entity is restored |
+| `threadCreated`, `threadUpdated` | A conversation is created or updated |
+| `postCreated`, `postUpdated` | A reply is added or updated |
+| `logicalTestCaseAdded` | Test cases are added to a test suite |
+| `userLogin`, `userLogout` | A user signs in or out |
+| `entityLineageAdded`, `entityLineageUpdated`, `entityLineageDeleted` | Lineage changes |
+| `ontologyImported`, `ontologyRelationshipTypeUpdated`, `ontologyChangeSetApplied` | Ontology changes |
+
+<Note>
+`entity` holds the entity JSON for the event's `event.entityType`, so the properties available differ by entity type. `event.changeDescription` is empty for `entityCreated` and `entityDeleted`. Check a property with `{{#if}}` before using it.
+</Note>
+
 ## Event Object
 
 The complete change event that triggered the notification.
@@ -17,14 +53,17 @@ The complete change event that triggered the notification.
 | Property | Type | Description |
 |----------|------|-------------|
 | `event.entityType` | string | Type of entity that changed (e.g., `table`, `dashboard`, `testCase`, `dataAsset`) |
-| `event.eventType` | string | Type of change (CREATE, UPDATE, DELETE) |
+| `event.eventType` | string | Type of change. See [Event Types](#event-types) for the possible values |
 | `event.userName` | string | Username of the user who triggered the change |
 | `event.entityId` | UUID | Unique identifier of the entity that changed |
 | `event.entityFullyQualifiedName` | string | Fully qualified name of the entity that was modified |
 | `event.timestamp` | number | Unix timestamp (milliseconds) of when the change occurred |
 | `event.previousVersion` | number | Metadata version before the change |
 | `event.currentVersion` | number | Metadata version after the change |
-| `event.changeDescription` | object | Details of what changed (see Accessing Change Details below) |
+| `event.id` | UUID | Unique identifier of the event |
+| `event.changeDescription` | object | Details of what changed (see Accessing Change Details below). Empty for `entityCreated` and `entityDeleted` |
+| `event.incrementalChangeDescription` | object | The change that led to this version of the entity |
+| `event.recursive` | boolean | `true` when the event represents a recursive (cascade) delete |
 | `event.domains` | array | List of domain IDs the entity belongs to |
 | `event.impersonatedBy` | string | Bot/service user performing the action on behalf of the actual user |
 
