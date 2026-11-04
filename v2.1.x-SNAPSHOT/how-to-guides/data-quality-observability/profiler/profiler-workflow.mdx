@@ -106,6 +106,18 @@ Select the metrics to compute and how to retrieve them:
 - **Compute Table Metrics**: Compute table-level metrics, such as row count and column count. Enabled by default.
 - **Compute Column Metrics**: Compute column-level metrics, such as null count, distinct count, and mean. Enabled by default.
 - **Use System Table Statistics**: Read available table metrics from system catalogs instead of scanning data. Keep database statistics up to date, for example by running `ANALYZE` on PostgreSQL. Metrics unavailable in system tables use the default scan method.
+- **Enable Auto Partition Detection** (`enableAutoPartitionDetection`, default `true`): When enabled, the profiler uses the partition metadata ingested for a table to scan only its recent partitions instead of the whole table. It applies only to tables that have no partition configuration. To profile full tables, turn the toggle off, or set `enableAutoPartitionDetection: false` in the YAML configuration. The toggle appears in the UI only for services that support it: BigQuery, PostgreSQL, Greenplum, CockroachDB, TimescaleDB, Doris, and StarRocks.
+
+  - **Time-unit partitions** on `DATE`, `DATETIME`, or `TIMESTAMP` columns profile a recent window, based on the partition unit:
+    - **Hourly**: The last 24 hours.
+    - **Daily**: The last 3 days.
+    - **Monthly**: The last 35 days.
+    - **Yearly**: The last 370 days.
+  - **Integer-range partitions** on numeric columns profile the range 1 to 10,000.
+  - **Column-value, list, and hash partitions**, and partition columns that aren't date or integer types, aren't affected.
+  - **Table-level metrics** such as row count and size still use the full table.
+  - **Precedence**: A table configuration in the workflow, or the table's own profiler partition configuration, takes precedence over auto partition detection.
+  - **Not affected**: This setting doesn't apply to test suites or Auto Classification. Those workflows keep their existing partition handling, which is limited to BigQuery.
 
 <img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced profiler configuration" />
 

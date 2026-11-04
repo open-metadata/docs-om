@@ -7,7 +7,7 @@ api: POST /v1/dataContracts/{id}/validate
 
 # Validate & Results
 
-Run on-demand validation of data contracts and manage execution results. Validation checks schema compliance, semantics rules, and quality expectations. SLA, security, and terms of use aren't checked.
+Run on-demand validation of data contracts and manage execution results. Validation checks schema compliance, semantics rules, and quality expectations. SLA requirements are checked for tables. Security and terms of use aren't checked.
 
 ## Validate a Contract
 
@@ -119,11 +119,11 @@ curl -X POST "{base_url}/api/v1/dataContracts/entity/validate?entityId=a1b2c3d4-
 |--------|-------------|
 | `Running` | Validation is in progress. A contract with quality expectations stays `Running` until its tests finish. |
 | `Success` | No schema column, semantics rule, or test case failed |
-| `Failed` | At least one schema column, semantics rule, or test case failed |
+| `Failed` | At least one schema column, semantics rule, or test case failed, or an SLA requirement was missed |
 | `Aborted` | The test suite couldn't be started, or a newer validation replaced this one |
 | `PartialSuccess`, `Queued` | Reserved. OpenMetadata doesn't set them, but results added with `PUT /results` can use them. |
 
-The **Data Contract Validation** application also validates every contract on a schedule, daily at midnight by default.
+The **Data Contract Validation** application also validates every contract on a schedule, daily at midnight by default. Each night it validates a contract together with the contract it inherits, and it checks the SLA.
 
 ---
 
@@ -197,6 +197,7 @@ Programmatically add a validation result (useful for external validation pipelin
     <ParamField body="passed" type="integer">Number of rules that passed.</ParamField>
     <ParamField body="failed" type="integer">Number of rules that failed.</ParamField>
     <ParamField body="total" type="integer">Total rules checked.</ParamField>
+    <ParamField body="skipped" type="integer">Number of rules not evaluated because they are disabled or don't apply to the entity's type.</ParamField>
     <ParamField body="failedRules" type="array">List of rule names that failed.</ParamField>
   </Expandable>
 </ParamField>
@@ -213,13 +214,16 @@ Programmatically add a validation result (useful for external validation pipelin
 </ParamField>
 
 <ParamField body="slaValidation" type="object">
-  SLA validation details. OpenMetadata doesn't fill this in during validation. External pipelines can set it.
+  SLA validation details. A contract run fills this in for tables. External pipelines can also set it.
 
   <Expandable title="properties">
     <ParamField body="refreshFrequencyMet" type="boolean">Whether refresh frequency target was met.</ParamField>
     <ParamField body="latencyMet" type="boolean">Whether latency target was met.</ParamField>
     <ParamField body="availabilityMet" type="boolean">Whether availability target was met.</ParamField>
     <ParamField body="actualLatency" type="integer">Actual observed latency in milliseconds.</ParamField>
+    <ParamField body="lastRefreshedAt" type="integer">When the data was last refreshed, as a timestamp in milliseconds. Absent when no source records it.</ParamField>
+    <ParamField body="refreshedAtSource" type="string">Where the last refresh time comes from: `slaColumnProfile` (newest value in the latest profile of the SLA column), `systemProfile` (the table's latest write), or `lifeCycle` (the table's last update).</ParamField>
+    <ParamField body="message" type="string">Which SLA requirements were missed, and which couldn't be evaluated and why.</ParamField>
   </Expandable>
 </ParamField>
 
