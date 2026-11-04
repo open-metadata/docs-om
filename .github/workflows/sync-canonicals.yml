@@ -1,0 +1,53 @@
+name: Sync canonical tags
+
+# Pages added or moved in an older or pre-release version need a `canonical`
+# tag pointing at the same page in the current version (the /latest redirect
+# target in docs.json). After each merge to main this re-runs
+# set-canonicals.py and, if anything changed, opens or updates one PR with the
+# fixes. Release-day re-pointing happens in bump-latest-version.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "v*/**"
+      - docs.json
+      - .github/scripts/set-canonicals.py
+  workflow_dispatch:
+
+concurrency:
+  group: sync-canonicals
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Text only: public/ holds over 1 GB of images the script never reads.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+
+      - name: Sync canonical tags
+        run: python3 .github/scripts/set-canonicals.py
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: sync-canonicals
+          base: main
+          commit-message: "Docs: Sync canonical tags to the current version"
+          title: "Docs: Sync canonical tags to the current version"
+          body: |
+            Automated by `sync-canonicals.yml`: adds or updates `canonical` frontmatter tags so
+            pages in older and pre-release versions point at the same page in the current version
+            (the `/latest` redirect target in `docs.json`).
