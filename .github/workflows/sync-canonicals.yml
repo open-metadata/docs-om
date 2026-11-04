@@ -2,10 +2,22 @@ name: Sync canonical tags
 
 # Pages added or moved in an older or pre-release version need a `canonical`
 # tag pointing at the same page in the current version (the /latest redirect
-# target in docs.json). After each merge to main this re-runs
-# set-canonicals.py and, if anything changed, opens or updates one PR with the
-# fixes. Release-day re-pointing happens in bump-latest-version.yml.
+# target in docs.json). This re-runs set-canonicals.py and:
+#
+# - on a same-repo pull request, commits any fixes straight to the PR branch;
+# - after a merge to main (fork PRs, direct pushes), opens or updates one
+#   `sync-canonicals` PR with whatever is still out of sync.
+#
+# Commits pushed with GITHUB_TOKEN don't trigger further workflow runs, so the
+# PR commit can't loop. Release-day re-pointing happens in
+# bump-latest-version.yml.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "v*/**"
+      - docs.json
+      - .github/scripts/set-canonicals.py
   push:
     branches: [main]
     paths:
@@ -15,18 +27,55 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sync-canonicals
+  group: sync-canonicals-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  sync:
+  sync-pr:
+    name: Add canonical tags to PR
+    # GITHUB_TOKEN can't push to forks; those are caught after merge instead.
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # Text only: public/ holds over 1 GB of images the script never reads.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+
+      - name: Sync canonical tags
+        run: python3 .github/scripts/set-canonicals.py
+
+      - name: Commit to pull request branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet; then
+            echo "Canonical tags already in sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Docs: Sync canonical tags to the current version"
+          git push origin "HEAD:${HEAD_REF}"
+
+  sync-main:
+    name: Open canonical sync PR
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
     steps:
-      # Text only: public/ holds over 1 GB of images the script never reads.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
