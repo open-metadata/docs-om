@@ -1,0 +1,53 @@
+---
+title: Lifecycle Stages
+description: Read and change the shared lifecycle stage on entities and discover which workflows own it
+sidebarTitle: Lifecycle Stages
+---
+
+# Lifecycle Stages
+
+In 2.1, the lifecycle stage is a shared, entity-level property named `entityStatus`. All entity types that have a lifecycle use one stage vocabulary, and an active governance workflow can own the stage for an entity type.
+
+**Breaking change**: While an active workflow owns an entity type's stage, only that workflow can change it. A client that set `entityStatus` directly on those entities now gets `403`.
+
+## Stages
+
+The general vocabulary is `Draft`, `In Review`, `Approved`, `Archived`, `Deprecated`, `Rejected`, and `Unprocessed`. A type can declare its own lifecycle: the stages it uses, which can include stages no other type has, and the moves allowed between them. Types that declare none use the general lifecycle, where any move between these stages is allowed.
+
+## Starting Stage
+
+When a create request omits `entityStatus`, the server assigns the entity type's starting stage:
+
+- **Default**: `Unprocessed`.
+- **Glossary terms and metrics**: `Draft` when they have reviewers, `Approved` when they don't.
+
+## Updates Keep the Stage
+
+A `PUT`, bulk upsert, or CSV import whose request carries no `entityStatus` keeps the entity's current stage. It doesn't reset it.
+
+## Workflow-Owned Stages
+
+A governance workflow owns an entity type's stage while it is deployed, not suspended, and sets that stage.
+
+- **Who can change it**: Only that workflow, acting as the governance bot. The workflow's trigger filter decides which entities it owns.
+- **Direct changes**: A direct change returns `403`. The message names the workflow and says to use its approval tasks or to suspend the workflow.
+- **Creates**: A create that asks for an owned stage starts in the type's own starting stage instead.
+- **Releasing**: Suspending the workflow releases the entities.
+
+## Get Lifecycle Stages
+
+Send a `GET` request to `/v1/metadata/types/lifecycleStages` to list the stages and the entity types that have a lifecycle:
+
+```bash
+curl "{base_url}/api/v1/metadata/types/lifecycleStages" \
+  -H "Authorization: Bearer {access_token}"
+```
+
+| Response field | Description |
+|---|---|
+| `stages` | Every lifecycle stage an entity can be in. |
+| `entityTypes` | Entity types that have a lifecycle stage, sorted by name. Types not listed have no lifecycle. |
+| `entityTypes[].entityType` | The entity type. |
+| `entityTypes[].stages` | Stages an entity of this type can be in. |
+| `entityTypes[].transitions` | Allowed moves, each as `from` and a list of `to` stages. Any other change is rejected. |
+| `entityTypes[].stageWorkflows` | Active workflows that own this type's stage. More than one means the workflows overwrite each other's stage. |
