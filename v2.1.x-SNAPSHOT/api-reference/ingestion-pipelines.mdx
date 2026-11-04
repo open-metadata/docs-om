@@ -1,0 +1,35 @@
+---
+title: Ingestion Pipelines
+description: Required sourceConfig type when creating or updating ingestion pipelines through the API
+sidebarTitle: Ingestion Pipelines
+---
+
+# Ingestion Pipelines
+
+**Breaking change**: Version 2.1 rejects ingestion pipeline writes whose `sourceConfig.config.type` is missing. Clients that omitted the `type` discriminator, usually because a generated model defaulted it, must now send it.
+
+## Validation Rules
+
+A write to `/v1/services/ingestionPipelines` returns `400` when:
+
+- **`sourceConfig.config` is missing or null**: The error is `sourceConfig.config.type is required`.
+- **`sourceConfig.config.type` is missing, null, blank, or not a string**: The error is `sourceConfig.config.type is required`.
+- **`sourceConfig.config` isn't an object**: The error is `sourceConfig.config must be an object with type`.
+
+A non-blank string `type` is accepted unchanged. Set it to the source config type that matches the pipeline, for example `DatabaseMetadata`:
+
+```json
+{
+  "sourceConfig": {
+    "config": {
+      "type": "DatabaseMetadata"
+    }
+  }
+}
+```
+
+## Upgrade Behavior
+
+- **Existing pipelines**: The 2.1 migration scans active, non-deleted pipelines. It writes a missing `type` only when the pipeline type and a single parent service relationship identify one known source config.
+- **Unidentifiable pipelines**: Orphaned, ambiguous, or malformed pipelines are logged and left unchanged. Update them with an explicit `type`.
+- **Python workflows**: Python workflows now fill in defaulted `sourceConfig` discriminators when they register a pipeline, so workflows that run from the SDK need no change.
