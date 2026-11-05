@@ -2,6 +2,14 @@ name: Bump /latest redirects
 
 on:
   workflow_dispatch:
+  # A released version folder (vX.Y.x, never -SNAPSHOT) landing on main means the
+  # redirects and canonicals must move to it; otherwise every page of the new
+  # release keeps telling search engines to index the previous one. Edits to an
+  # existing version's index also match; the bump step exits early for those.
+  push:
+    branches: [main]
+    paths:
+      - "v*.x/index.mdx"
 
 jobs:
   bump:
@@ -24,6 +32,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Update docs.json redirects
+        id: bump
         run: |
           node - <<'EOF'
           const fs = require('fs');
@@ -33,6 +42,7 @@ jobs:
             .find(r => r.source === '/latest/:slug*')
             .destination.match(/\/(v[\d.x]+)\//)[1];
           if (cur === nv) { console.log(`Already pointing to ${nv} — nothing to do.`); process.exit(0); }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'changed=true\n');
           const versionedSource = /^\/v\d+\.\d+\.x(?:\/|$)/;
           let n = 0;
           docs.redirects = docs.redirects.map(r => {
@@ -48,7 +58,13 @@ jobs:
         env:
           VERSION: ${{ env.VERSION }}
 
+      # Reads the version from the redirect updated above.
+      - name: Point canonical tags at the new version
+        if: steps.bump.outputs.changed == 'true'
+        run: python3 .github/scripts/set-canonicals.py
+
       - name: Open pull request
+        if: steps.bump.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -57,6 +73,7 @@ jobs:
           commit-message: "Docs: Bump /latest redirects to ${{ env.VERSION }}"
           title: "Docs: Bump /latest redirects to ${{ env.VERSION }}"
           body: |
-            Automated: bumps all unversioned redirects in `docs.json` to point to `${{ env.VERSION }}`.
+            Automated: bumps all unversioned redirects in `docs.json` to point to `${{ env.VERSION }}`,
+            and re-points every other version's `canonical` frontmatter tags at `${{ env.VERSION }}`.
 
             Version-internal redirects (e.g. old-version/… → old-version/…) are left untouched.
