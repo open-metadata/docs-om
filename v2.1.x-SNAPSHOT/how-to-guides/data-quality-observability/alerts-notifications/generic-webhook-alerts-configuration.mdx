@@ -70,7 +70,23 @@ The Generic Webhook destination supports three ways to authenticate outgoing req
 - **Bearer token with an HMAC signature**: you provide a secret key. OpenMetadata never sends this key over the network. Instead, it signs every request with it and sends the signature in the `X-OM-Signature` header. See [Verifying the Signature](#verifying-the-signature) below.
 - **OAuth2 client credentials**: you provide a token URL, client ID, client secret, and optional scope. OpenMetadata exchanges these for an access token using the OAuth2 client-credentials grant, caches the token until it's close to expiring, and sends it as an `Authorization: Bearer <token>` header. If your endpoint responds with `401 Unauthorized`, OpenMetadata fetches a fresh token and retries the request once.
 
-Custom headers are also supported, for example a static API key. Custom headers are stored in plain text and are visible to any user who can view the alert configuration, so don't put a secret in a custom header. Use the HMAC or OAuth2 option instead.
+Custom headers are also supported, for example a static API key.
+
+### How Webhook Secrets Are Stored
+
+OpenMetadata treats the **Endpoint URL**, custom header values, the HMAC secret key, and the OAuth2 client ID and client secret as secrets:
+
+- They're encrypted when you save the destination, and each one can only be decrypted for the destination that holds it.
+- They're shown as `*********` to everyone who views the alert. To keep a saved value when you edit the destination, leave the `*********` as it is.
+- If you change the **Endpoint URL** or the OAuth2 token URL, enter the destination's other secrets again. OpenMetadata doesn't send a saved secret to a new address.
+
+If a test or a delivery fails with `The value at '<field>' must be entered again`, the saved value of that field can't be used. `<field>` names the field, for example `/authType/clientSecret` for the OAuth2 client secret. Until you enter it again, OpenMetadata sends nothing to that destination and records its events as failed with this message. This can happen after upgrading to OpenMetadata 2.1, when a value saved by an earlier release can't be carried over.
+
+To enter the value again:
+
+1. Open the alert and edit the destination.
+2. Enter the value of that field again.
+3. Click **Save**.
 
 ### Verifying the Signature
 
