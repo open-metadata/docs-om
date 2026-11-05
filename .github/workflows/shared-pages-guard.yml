@@ -1,0 +1,77 @@
+name: Shared Pages Guard
+
+# Pages listed in .shared-docs-manifest.json are generated from shared/ in
+# docs-collate by its Shared Docs Sync workflow. A hand edit here would be
+# overwritten by the next sync, so it fails this check instead.
+# - Pull requests from the sync App (shared-sync/* and shared-release/*
+#   branches) may change generated pages; their files must match the manifest
+#   they ship.
+# - Any other pull request is compared with the base branch's manifest, so
+#   editing or removing a manifest entry cannot hide a hand edit.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-pages-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Check Generated Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+
+      - name: Read the base branch manifest
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE_SHA"
+          git show "$BASE_SHA:.shared-docs-manifest.json" > "$RUNNER_TEMP/base-manifest.json" 2>/dev/null \
+            || echo '{"files":{}}' > "$RUNNER_TEMP/base-manifest.json"
+
+      - name: Compare generated pages with the manifest
+        env:
+          SYNC_BOT: ${{ github.event.pull_request.user.type == 'Bot' && (startsWith(github.head_ref, 'shared-sync/') || startsWith(github.head_ref, 'shared-release/')) }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+
+          const read = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { files: {} });
+          const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file, 'utf8')).digest('hex');
+          const pr = read('.shared-docs-manifest.json').files;
+          const base = read(`${process.env.RUNNER_TEMP}/base-manifest.json`).files;
+          // The pull request that first adds the manifest is checked like a sync pull request.
+          const isSyncBot = process.env.SYNC_BOT === 'true' || !Object.keys(base).length;
+          const errors = [];
+
+          // Sync App pull requests: the files must match the manifest they ship.
+          // Everyone else: generated files and the manifest must match the base branch.
+          const manifest = isSyncBot ? pr : base;
+          for (const [file, entry] of Object.entries(manifest)) {
+            if (!fs.existsSync(file) || hash(file) !== entry.sha256) {
+              errors.push([file, `Generated from ${entry.source} in docs-collate. Edit that file there instead; the sync updates this page.`]);
+            }
+          }
+          if (!isSyncBot && JSON.stringify(pr) !== JSON.stringify(base)) {
+            errors.push(['.shared-docs-manifest.json', 'Only the docs-collate sync may change this file.']);
+          }
+          for (const [file, message] of errors) console.log(`::error file=${file}::${message}`);
+          if (errors.length) process.exit(1);
+          console.log(`${Object.keys(manifest).length} generated page(s) match the ${isSyncBot ? 'pull request' : 'base branch'} manifest.`);
+          NODE
