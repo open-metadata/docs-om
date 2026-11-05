@@ -76,6 +76,24 @@ Both `message` and `about` are required. `message` is non-blank Markdown and `ab
 
 These checks replace the permissive behavior some callers encountered on the old feed API.
 
+## Task API Changes
+
+**Breaking change**: Version 2.1 retires the legacy thread-task API. Tasks are `Task` entities served from `/v1/tasks`, and task state no longer lives on a feed thread.
+
+| Operation | Removed | Replacement |
+|---|---|---|
+| Create | Task thread through `POST /v1/feed` | `POST /v1/tasks` |
+| Get | `GET /v1/feed/tasks/{id}` | `GET /v1/tasks/{id}` |
+| Resolve | `PUT /v1/feed/tasks/{id}/resolve` | `POST /v1/tasks/{id}/resolve` |
+| Close | `PUT /v1/feed/tasks/{id}/close` | `POST /v1/tasks/{id}/close` |
+
+- **Identifiers**: Task IDs are universally unique identifiers (UUIDs). The numeric IDs that `/v1/feed/tasks/{id}` used no longer apply. The 2.0 migration kept each old thread's UUID as the task UUID.
+- **Thread schema**: `Thread.type` accepts `Conversation`, `Announcement`, and `Chatbot`. It no longer accepts `Task`, and the `Thread` and `CreateThread` schemas no longer carry task details.
+- **Request payloads**: The feed close and resolve payload schemas (`closeTask` and `resolveTask`) are removed from the feed API.
+- **Python SDK**: Replace `resolve_feed_task` and `close_feed_task` with `resolve_task` and `close_task`.
+- **Alert events**: Task lifecycle notifications use `entityCreated` and `entityUpdated` with `entityType=task`. The `taskCreated`, `taskUpdated`, `taskResolved`, and `taskClosed` event values are no longer available.
+- **Existing task threads**: Task threads created through the feed task API while on 2.0.x aren't migrated. They stay in the `thread_entity_archived` table.
+
 ## Activity Feed Endpoints
 
 Activity feed endpoints return recent activity events. Each one returns the caller's own feed unless you pass `userId`.
