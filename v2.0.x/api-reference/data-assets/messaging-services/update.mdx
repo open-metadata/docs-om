@@ -1,52 +1,44 @@
 ---
 title: Update a Messaging Service
-description: Update messaging service properties using JSON Patch
+description: Create or update a messaging service with a full request body
 sidebarTitle: Update a Messaging Service
-api: PATCH /v1/services/messagingServices/{id}
+api: PUT /v1/services/messagingServices
 ---
 
 # Update a Messaging Service
 
-Update a messaging service's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the messaging service to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/services/messagingServices/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the messaging service, for example `sample_kafka`.
-</ParamField>
+Create a messaging service or update it if it already exists, using `PUT /v1/services/messagingServices` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the messaging service. Must be unique across all messaging services.
+</ParamField>
+
+<ParamField body="serviceType" type="string" required>
+  Type of messaging service, for example `Kafka`, `Redpanda`, `Kinesis`, `CustomMessaging`.
+</ParamField>
 
 <ParamField body="description" type="string">
-  Updated description in Markdown format.
+  Description of the messaging service in Markdown format.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the messaging service.
 </ParamField>
 
-<ParamField body="connection" type="object">
-  Updated connection configuration.
+<ParamField body="connection" type="object" required>
+  Connection configuration specific to the service type.
 
   <Expandable title="properties">
     <ParamField body="config" type="object">
-      Service-specific connection configuration.
+      Service-specific connection configuration, for example `bootstrapServers`, `securityProtocol` for Kafka.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the service.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -56,11 +48,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the messaging service.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -77,11 +77,28 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <RequestExample dropdown>
+```bash PUT /v1/services/messagingServices
+curl -X PUT "{base_url}/api/v1/services/messagingServices" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sample_kafka",
+    "serviceType": "Kafka",
+    "description": "Production Kafka messaging service",
+    "connection": {
+      "config": {
+        "type": "Kafka",
+        "bootstrapServers": "localhost:9092",
+        "securityProtocol": "PLAINTEXT",
+        "saslMechanism": "PLAIN",
+        "schemaRegistryTopicSuffixName": "-value",
+        "supportsMetadataExtraction": true
+      }
+    }
+  }'
+```
+
 ```python PATCH /v1/services/messagingServices/{id}
 import requests
 
@@ -198,8 +215,7 @@ Returns the updated messaging service object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this messaging service |
-| `404` | `NOT_FOUND` | Messaging service with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

@@ -96,13 +96,22 @@ Once you configure the above settings, restart OpenMetadata server .
 
 <Tip>
 
-<h2>Note on JWKS url Network Reachbility</h2>
+<h2>Check That the JWKS URL Is Reachable</h2>
 
-Make sure the above JWKS URI - `{your domain}/api/v1/system/config/jwks` is reachable from OpenMetadata Server Instance (VM or Docker Container or Kubernetes Pod). You can run the below command from the OpenMetadata Server to test it's reachility -
+The OpenMetadata server (VM, Docker container, or Kubernetes pod) must be able to reach `{your domain}/api/v1/system/config/jwks`. The server container images don't include `curl`, so run the check from the same network as the server. Pick the command for your deployment:
 
+```bash
+# VM: run on the server host
+curl -fsS {your domain}/api/v1/system/config/jwks
+
+# Docker: start a temporary container on the server's network
+docker run --rm --network <server network> curlimages/curl -fsS {your domain}/api/v1/system/config/jwks
+
+# Kubernetes: start a temporary pod in the server's namespace
+kubectl run jwks-check --rm -i -q --restart=Never -n <namespace> --image=curlimages/curl -- -fsS {your domain}/api/v1/system/config/jwks
 ```
-wget -O - {your domain}/api/v1/system/config/jwks
-```
+
+The command prints a JSON document with a `keys` list. If the command fails, the server most likely can't reach the URL either. Check DNS, firewalls, proxies, and certificates.
 
 </Tip>
 

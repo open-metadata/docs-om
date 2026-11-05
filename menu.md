@@ -214,6 +214,8 @@ site_menu:
 
   - category: Deployment / OSS Security
     url: /deployment/oss-security
+  - category: Deployment / OpenSearch FGAC Permissions
+    url: /deployment/opensearch-fgac-permissions
 
   - category: Connectors
     url: /connectors

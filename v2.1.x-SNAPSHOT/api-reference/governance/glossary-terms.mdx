@@ -60,3 +60,31 @@ For example: `BusinessGlossary.Revenue` or `BusinessGlossary.Revenue.GrossRevenu
 | `PUT` | `/v1/glossaryTerms/restore` | [Restore soft-deleted glossary term](/v2.1.x-SNAPSHOT/api-reference/governance/glossary-terms/delete) |
 | `GET` | `/v1/glossaryTerms/{id}/versions` | [List versions](/v2.1.x-SNAPSHOT/api-reference/governance/glossary-terms/versions) |
 | `GET` | `/v1/glossaryTerms/{id}/versions/{version}` | [Get specific version](/v2.1.x-SNAPSHOT/api-reference/governance/glossary-terms/versions) |
+
+---
+
+## Bulk Add and Remove Glossary Terms on Assets
+
+Use these endpoints to apply or remove the glossary term on many assets in one request:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `PUT` | `/v1/glossaryTerms/{id}/assets/add` | Add the glossary term to the assets in the request |
+| `PUT` | `/v1/glossaryTerms/{id}/assets/remove` | Remove the glossary term from the assets in the request |
+
+The request body takes an `assets` array of entity references (`id` and `type`) and an optional `dryRun` flag.
+
+### Reading the Result
+
+Each asset is authorized and saved on its own. An asset the caller cannot edit does not fail the whole request with `403`. It comes back as a failed row with the reason, and the other assets are still updated.
+
+- **`status`**: `success` when every asset was updated, `partialSuccess` when some were and some were not, and `failure` when none were.
+- **`numberOfRowsProcessed`, `numberOfRowsPassed`, `numberOfRowsFailed`**: Counts of assets in the request, updated, and not updated.
+- **`successRequest`**: One entry per updated asset.
+- **`failedRequest`**: One entry per asset that was not updated. Each has the `request` (the asset reference) and a `message` with the reason, for example that the caller lacks permission to edit it.
+
+Clients must read `status` and `failedRequest`, not only the HTTP status code. A response of `200` does not mean every asset was updated.
+
+<Note>
+The domain and data product `assets/add` and `assets/remove` endpoints are different: they still return `403` when the caller lacks permission.
+</Note>

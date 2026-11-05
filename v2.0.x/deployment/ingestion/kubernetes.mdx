@@ -299,6 +299,88 @@ rules:
 
 ---
 
+## Storing Pipeline Logs in S3
+
+By default, OpenMetadata reads the logs of a run from its Kubernetes pod, so the logs are lost when the pod is deleted. This happens, for example, when `ttlSecondsAfterFinished` expires or when a node is scaled down or replaced. The UI then shows `No pods found for this pipeline` or `unable to retrieve container logs`.
+
+To keep the logs, store them in an S3 bucket or in S3-compatible storage such as MinIO. While a pipeline runs, the ingestion sends its logs to the OpenMetadata server. The server writes them to the bucket, and the UI reads them from there.
+
+### 1. Create a Bucket
+
+Create a bucket used only for pipeline logs. Only the OpenMetadata server needs access to it, because the ingestion pods send their logs through the server.
+
+<Warning>
+When the server starts, it replaces the bucket's lifecycle configuration with one rule that deletes logs after 30 days. Any lifecycle rules the bucket already has are removed.
+</Warning>
+
+### 2. Configure the Server
+
+Add the log storage settings to your Helm values with `extraEnvs`, then run `helm upgrade`:
+
+```yaml
+extraEnvs:
+  - name: PIPELINE_SERVICE_CLIENT_LOG_TYPE
+    value: "s3"
+  - name: PIPELINE_SERVICE_CLIENT_LOG_BUCKET_NAME
+    value: "<bucket-name>"
+  - name: PIPELINE_SERVICE_CLIENT_LOG_PREFIX   # optional folder inside the bucket
+    value: "ingestion-logs"
+  - name: PIPELINE_SERVICE_CLIENT_LOG_REGION
+    value: "<aws-region>"
+  # Credentials, read from a Kubernetes secret
+  - name: PIPELINE_SERVICE_CLIENT_LOG_AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: <secret-name>
+        key: <access-key-id-key>
+  - name: PIPELINE_SERVICE_CLIENT_LOG_AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: <secret-name>
+        key: <secret-access-key-key>
+  # To use the IAM role of the server pod instead, remove the two keys above and set:
+  # - name: PIPELINE_SERVICE_CLIENT_AWS_IAM_AUTH_ENABLED
+  #   value: "true"
+  # For S3-compatible storage such as MinIO, also set its URL:
+  # - name: PIPELINE_SERVICE_CLIENT_LOG_AWS_ENDPOINT_URL
+  #   value: "http://minio:9000"
+```
+
+After the upgrade, the server log shows `Log storage initialized successfully: type=s3`. If it doesn't, look for an error about the bucket in the server log.
+
+### 3. Enable Log Storage for Each Pipeline
+
+A pipeline sends its logs to the bucket only when its `enableStreamableLogs` property is `true`. The property is `false` by default and the UI has no setting for it, so set it with the API. Then redeploy the pipeline so that the change reaches Kubernetes:
+
+```bash
+OM=https://<openmetadata-host>/api/v1
+TOKEN=<jwt-token>   # for example, an admin's personal access token
+
+# Find the pipeline id from its fully qualified name, such as "mysql_prod.mysql_prod_metadata"
+ID=$(curl -s "$OM/services/ingestionPipelines/name/<pipeline-fqn>" \
+  -H "Authorization: Bearer $TOKEN" | jq -r .id)
+
+# Enable log storage for the pipeline
+curl -X PATCH "$OM/services/ingestionPipelines/$ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[{"op": "add", "path": "/enableStreamableLogs", "value": true}]'
+
+# Redeploy the pipeline
+curl -X POST "$OM/services/ingestionPipelines/deploy/$ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Repeat this for every pipeline whose logs you want to keep. Editing the pipeline later in the UI keeps the setting.
+
+<Note>
+The `PIPELINE_SERVICE_CLIENT_LOG_ENABLED` server setting doesn't enable log storage for your pipelines. Set `enableStreamableLogs` on each pipeline as shown above.
+</Note>
+
+From then on, the logs of every new run of these pipelines stay visible in the UI after the pods are deleted. The logs of each run are stored in their own `logs.txt` file, in a folder per pipeline and run, so the logs of earlier runs stay in the bucket too. The UI shows the logs of the latest run. Runs that finished before the change are not copied to the bucket.
+
+---
+
 <Info>
 For validating your setup, viewing pipeline logs, troubleshooting, and migrating from Airflow, see the [Operations & Troubleshooting](/v2.0.x/deployment/ingestion/kubernetes/troubleshooting) guide.
 </Info>

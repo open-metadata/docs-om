@@ -80,7 +80,7 @@ Provide the callback URL where the OIDC provider redirects after authentication.
 <Warning>
 
 The only initial part of the URL should be changed, the rest of the URL should be the same as the default one. The default URL is `http://localhost:8585/callback`.
-Also, this should match what you have configured in your OIDC provider.
+Also, this should match what you have configured in your OIDC provider. Register the `/callback` endpoint in your provider, not `/auth/callback`.
 
 </Warning>
 
@@ -111,6 +111,19 @@ For Azure SSO Provider this may be needed.
 
 ## Max Clock Skew (maxClockSkew):
 Define the maximum acceptable clock skew between your application server and the OIDC server.
+
+## Max Age (maxAge):
+The `max_age` request parameter, in seconds, that OpenMetadata sends to the identity provider. Update `${OIDC_MAX_AGE:-""}` to set it.
+Default: empty. Leave it empty so the identity provider can reuse its own session. A value of `0` is treated as not set. To force users to re-enter their credentials, set `prompt` to `login`.
+
+## Prompt (prompt):
+Controls what the identity provider displays during login: `none`, `login`, `consent`, or `select_account`. Update `${OIDC_PROMPT_TYPE:-""}` to set it.
+Default: empty. Leave it empty unless you need to force a specific behavior. OpenMetadata sends `none` itself when it re-authenticates a user silently.
+
+## End Session With Provider (endSessionWithProvider):
+Available for confidential OIDC clients only. Set `${OIDC_END_SESSION_WITH_PROVIDER:-false}` to true to tie a user session to the identity provider's session.
+Default: `false`
+When true, OpenMetadata renews the identity provider's tokens on the provider's schedule while the user is active. It signs the user out when the provider rejects the refresh token. The token that OpenMetadata issues is shortened to that schedule, with a minimum of 120 seconds. A renewal never extends the session beyond the configured session expiry. When false, a session lasts for the configured session expiry. The sign-out depends on the provider: Keycloak revokes refresh tokens together with the provider session, and Microsoft Entra ID doesn't.
 
 ## Custom Parameters (customParams):
 If you have any additional custom parameters required for OIDC configuration, specify them here.
@@ -292,10 +305,10 @@ Whether to derive roles from the authentication provider. Roles must be included
 
 Whether a role change at the provider reaches OpenMetadata depends on how the user signs in:
 
-- **OIDC sign-in**: OpenMetadata updates the user's roles each time they sign in, so a role added or removed at the provider takes effect at their next sign-in. If the token doesn't include a roles claim at all, OpenMetadata leaves the user's existing roles unchanged.
+- **OIDC sign-in**: OpenMetadata updates the user's roles each time they sign in, so a role added or removed at the provider takes effect at their next sign-in. If the token doesn't include a roles claim at all, OpenMetadata treats it as no roles, because some providers leave the claim out once a user's last role is removed. Admin access follows the provider's `Admin` role, except for users listed in `adminEmails` (or the deprecated `adminPrincipals`).
 - **SAML sign-in**: Signing in doesn't update roles from the provider. Manage these users' roles in OpenMetadata directly.
 
-The provider can make a user an admin, but removing the Admin role at the provider doesn't remove their admin access. To remove it, update the user in OpenMetadata. If the user is also listed in `adminEmails` (or the deprecated `adminPrincipals`), remove them from that list too, because OpenMetadata restores admin access to everyone on it when they sign in.
+The provider can make a user an admin, and removing the Admin role at the provider removes their admin access at the next sign-in. A user listed in `adminEmails` (or the deprecated `adminPrincipals`) keeps admin access, because OpenMetadata restores it for everyone on those lists when they sign in. To remove it, remove the user from the list.
 
 ## Initial Admins (initialAdmins):
 List of initial admin users for the system
@@ -347,7 +360,7 @@ the order can cause authentication failures.
 | LDAP | `["preferred_username","email", "sub"]` |
 
 ## JWT Principal Claims Mapping (jwtPrincipalClaimsMapping):
-**Definition:** Maps JWT claims to OpenMetadata user profile fields.
+**Definition:** Maps JWT claims to OpenMetadata user profile fields. From OpenMetadata 2.0.6, the session tokens that OpenMetadata issues after sign-in carry the username and email that this mapping resolves, so API calls stay authenticated when your provider uses a custom username claim.
 
 <Note>
 **Deprecated.** Use `emailClaim` and `displayNameClaim` instead. If this setting is present, OpenMetadata keeps using the legacy flow even when `emailClaim` is set.

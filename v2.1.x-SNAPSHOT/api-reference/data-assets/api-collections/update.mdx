@@ -1,46 +1,38 @@
 ---
 title: Update an API Collection
-description: Update API collection properties using JSON Patch
+description: Create or update an API collection with a full request body
 sidebarTitle: Update an API Collection
-api: PATCH /v1/apiCollections/{id}
+api: PUT /v1/apiCollections
 ---
 
 # Update an API Collection
 
-Update an API collection's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the API collection to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/apiCollections/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the API collection, for example `sample_api_service.pet`.
-</ParamField>
+Create an API collection or update it if it already exists, using `PUT /v1/apiCollections` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the API collection. Must be unique within the parent API service.
 </ParamField>
 
-<ParamField body="displayName" type="string">
-  Updated display name.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent APIService, for example `sample_api_service`.
 </ParamField>
 
 <ParamField body="endpointURL" type="string">
-  Updated base URL for the API collection.
+  Base URL for the API collection, for example `https://petstore3.swagger.io/#/pet`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the API collection.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the API collection in Markdown format.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the API collection.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -50,11 +42,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the API collection.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -71,15 +71,23 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/apiCollections
+curl -X PUT "{base_url}/api/v1/apiCollections" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "pet",
+    "service": "sample_api_service",
+    "endpointURL": "https://petstore3.swagger.io/#/pet",
+    "description": "Pet-related API endpoints"
+  }'
+```
+
 ```python PATCH /v1/apiCollections/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import APICollections
@@ -189,8 +197,7 @@ Returns the updated API collection object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this API collection |
-| `404` | `NOT_FOUND` | API collection with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

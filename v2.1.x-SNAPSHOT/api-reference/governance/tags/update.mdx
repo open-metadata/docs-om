@@ -1,42 +1,38 @@
 ---
 title: Update a Tag
-description: Update tag properties using JSON Patch
+description: Create or update a tag with a full request body
 sidebarTitle: Update a Tag
-api: PATCH /v1/tags/{id}
+api: PUT /v1/tags
 ---
 
 # Update a Tag
 
-Update a tag's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the tag to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/tags/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the tag, for example `Certification.Bronze`.
-</ParamField>
+Create a tag or update it if it already exists, using `PUT /v1/tags` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the tag. Must be unique within the parent classification or parent tag.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="classification" type="string" required>
+  Fully qualified name of the parent classification, for example `Certification`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the tag.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Description of the tag in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent tag for creating nested tags, for example `PII.Sensitive`.
 </ParamField>
 
 <ParamField body="style" type="object">
-  Updated visual styling.
+  Visual styling for the tag.
 
   <Expandable title="properties">
     <ParamField body="color" type="string">
@@ -44,13 +40,13 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     </ParamField>
 
     <ParamField body="iconURL" type="string">
-      URL to a custom icon.
+      URL to a custom icon for the tag.
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the tag.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -60,10 +56,31 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="provider" type="string">
+  Provider of the tag: `user` (custom) or `system` (built-in).
+</ParamField>
+
 <RequestExample dropdown>
+```bash PUT /v1/tags
+curl -X PUT "{base_url}/api/v1/tags" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Bronze",
+    "classification": "Certification",
+    "description": "Bronze certified Data Asset.",
+    "style": {"color": "#C08320"},
+    "owners": []
+  }'
+```
+
 ```python PATCH /v1/tags/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Tags
@@ -172,8 +189,7 @@ Returns the updated tag object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this tag |
-| `404` | `NOT_FOUND` | Tag with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

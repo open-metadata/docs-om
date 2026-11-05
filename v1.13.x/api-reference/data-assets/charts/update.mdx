@@ -1,50 +1,42 @@
 ---
 title: Update a Chart
-description: Update chart properties using JSON Patch
+description: Create or update a chart with a full request body
 sidebarTitle: Update a Chart
-api: PATCH /v1/charts/{id}
+api: PUT /v1/charts
 ---
 
 # Update a Chart
 
-Update a chart's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the chart to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/charts/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the chart, for example `sample_superset.114`.
-</ParamField>
+Create a chart or update it if it already exists, using `PUT /v1/charts` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the chart. Must be unique within the parent dashboard service.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent DashboardService, for example `sample_superset`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the chart.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the chart in Markdown format.
 </ParamField>
 
 <ParamField body="chartType" type="string">
-  Updated chart type: `Line`, `Bar`, `Area`, `Pie`, `Scatter`, `Table`, `Histogram`, `Other`.
+  Type of chart visualization: `Line`, `Bar`, `Area`, `Pie`, `Scatter`, `Table`, `Histogram`, `Other`.
 </ParamField>
 
 <ParamField body="sourceUrl" type="string">
-  Updated source URL.
+  URL of the chart in the source system.
 </ParamField>
 
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the chart.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -54,11 +46,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the chart.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -75,15 +75,25 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/charts
+curl -X PUT "{base_url}/api/v1/charts" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "114",
+    "displayName": "# of Games That Hit 100k in Sales By Release Year",
+    "service": "sample_superset",
+    "description": "Bar chart showing games that hit 100k in sales by release year",
+    "chartType": "Other",
+    "sourceUrl": "http://localhost:808/explore/?slice_id=114"
+  }'
+```
+
 ```python PATCH /v1/charts/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Charts
@@ -196,8 +206,7 @@ Returns the updated chart object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this chart |
-| `404` | `NOT_FOUND` | Chart with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

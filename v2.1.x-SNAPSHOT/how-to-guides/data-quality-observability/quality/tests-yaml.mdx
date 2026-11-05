@@ -496,6 +496,7 @@ Consistency
 * `threshold`: The threshold of different rows above which the test should fail -- default to 0
 * `where`: Any `where` clause to pass
 * `caseSensitiveColumns`: Whether the column comparison should be case sensitive or not. Default to `false`.
+* `parallelQueries`: Optional whole number of 1 or more, shown as **Parallel queries per database** in the UI. Defaults to `1`. Both databases are always queried at the same time. A higher value compares large tables faster, but adds load to both databases and uses more memory. OpenMetadata ignores an invalid value, logs a warning, and uses `1`.
 
 **Behavior**
 
@@ -503,6 +504,14 @@ Consistency
 | ----------- | ----------- |
 |Number of rows **is greater** than the threshold (default to 0) | Failed ❌|
 |Number of rows **is less than or equal** to the threshold | Success ✅|
+
+**Results**
+
+When rows are compared, the test result includes a `columnDiffCounts` value, a JSON object with the number of differing rows for each column. The result message ends with the three columns that differ most, for example `Columns differing most: a (n), b (n), c (n).`
+
+**Sampling on SQL Server and Azure SQL**
+
+On SQL Server and Azure SQL, sampling works only when the key columns are integer types (`TINYINT`, `SMALLINT`, `INT`, or `BIGINT`). With any other key column type, OpenMetadata skips sampling, logs a warning, and compares all rows.
 
 **YAML Config**
 
@@ -524,6 +533,8 @@ parameterValues:
     value: id != 999
   - name: caseSensitiveColumns
     value: false
+  - name: parallelQueries
+    value: 2
 ```
 
 **JSON Config**
@@ -558,6 +569,10 @@ parameterValues:
     {
       "name": "caseSensitiveColumns",
       "value": false
+    },
+    {
+      "name": "parallelQueries",
+      "value": 2
     }
   ]
 }

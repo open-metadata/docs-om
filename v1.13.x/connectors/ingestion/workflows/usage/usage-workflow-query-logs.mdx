@@ -34,15 +34,15 @@ A standard CSV should be comma separated, and each row represented as a single l
 
 </Tip>
 
-- **query_text:** This field contains the literal query that has been executed in the database. It is quite possible
+- **query_text**: This field contains the literal query that has been executed in the database. It is quite possible
     that your query has commas `,` inside. Then, wrap each query in quotes to not have any clashes
     with the comma as a separator.
-- **user_name (optional):** Enter the database user name which has executed this query.
-- **start_time (optional):** Enter the query execution start time in YYYY-MM-DD HH:MM:SS format.
-- **end_time (optional):** Enter the query execution end time in YYYY-MM-DD HH:MM:SS format.
-- **aborted (optional):** This field accepts values as true or false and indicates whether the query was aborted during execution
-- **database_name (optional):** Enter the database name on which the query was executed.
-- **schema_name (optional):** Enter the schema name to which the query is associated.
+- **user_name (optional)**: Enter the database user name which has executed this query.
+- **start_time (optional)**: Enter the query execution start time in `YYYY-MM-DD HH:MM:SS.ffffff` format. The fractional seconds are required.
+- **end_time (optional)**: Enter the query execution end time in YYYY-MM-DD HH:MM:SS format.
+- **aborted (optional)**: This field accepts values as true or false and indicates whether the query was aborted during execution
+- **database_name (optional)**: Enter the database name on which the query was executed.
+- **schema_name (optional)**: Enter the schema name to which the query is associated.
 
 Checkout a sample query log file [here](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/examples/sample_data/glue/query_log.csv).
 
@@ -52,6 +52,34 @@ query_text,database_name,schema_name
 "select * from marketing",default,information_schema
 "insert into marketing select * from sales",default,information_schema
 ```
+
+## Redshift Serverless: Export SELECT Queries
+
+The Redshift connector's usage workflow on a Serverless workgroup only captures queries that insert, merge, or delete rows in a table. To include `SELECT` queries, export them to a query log file and run this workflow with that file.
+
+1. Run the following query in your Serverless workgroup. Adjust the time window and filters for your environment:
+
+   ```sql
+   SELECT
+       q.query_text,
+       RTRIM(u.usename) AS user_name,
+       TO_CHAR(q.start_time, 'YYYY-MM-DD HH24:MI:SS.US') AS start_time,
+       q.end_time,
+       q.database_name
+   FROM SYS_QUERY_HISTORY AS q
+       INNER JOIN pg_catalog.pg_user AS u
+           ON q.user_id = u.usesysid
+   WHERE q.query_type = 'SELECT'
+       AND LOWER(q.status) = 'success'
+       AND q.user_id > 1
+       AND q.start_time >= DATEADD(day, -7, GETDATE())
+   ORDER BY q.start_time DESC;
+   ```
+
+2. Save the result as a CSV file with a header row. The `query_text` column is required. The `user_name`, `start_time`, `end_time`, `database_name`, and `schema_name` columns are optional. Write `start_time` as `YYYY-MM-DD HH:MM:SS.ffffff`, which the export query does. If the format differs, the workflow stops reading the file and logs a warning. Quote values that contain commas or line breaks.
+3. Set `serviceName` to your Redshift service and `queryLogFilePath` to this file in the YAML below, then run the workflow.
+
+For more information about the view, see the [SYS_QUERY_HISTORY](https://docs.aws.amazon.com/redshift/latest/dg/SYS_QUERY_HISTORY.html) documentation from AWS.
 
 ## Usage Workflow
 In order to run a Usage Workflow we need to make sure that Metadata Ingestion Workflow for corresponding service has already been executed. We will follow the steps to create a JSON configuration able to collect the query log file and execute the usage workflow.

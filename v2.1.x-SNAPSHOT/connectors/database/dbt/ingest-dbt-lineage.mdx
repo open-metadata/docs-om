@@ -60,3 +60,24 @@ Below is a sample `manifest.json` file node containing dbt query information und
 The query from dbt will be parsed by the Lineage parser to extract source and target tables to create the lineage.
 
 The lineage may not be created if the lineage parser is not able to parse the query. Please check the logs for any errors in this case.
+
+## Map dbt Catalog Names to OpenMetadata Databases
+
+OpenMetadata matches each model in `manifest.json` to a table using the database name that dbt writes into the manifest. That name can differ from the name the connector ingested the table under. For example, `dbt-trino` writes the Trino catalog name (`bq_catalog`) for tables that the BigQuery connector ingests under the GCP project ID (`my-gcp-project`). Without a match, OpenMetadata can't link the dbt model to the table.
+
+Use **Catalog Mapping** in the dbt ingestion configuration to resolve this. Add one entry per catalog:
+
+- **Key**: the database name in the dbt manifest, for example `bq_catalog`. Keys are matched ignoring case.
+- **Value**: the database name in OpenMetadata, for example `my-gcp-project`.
+
+In a YAML configuration, set `catalogMapping` under `sourceConfig.config`:
+
+```yaml
+sourceConfig:
+  config:
+    type: DBT
+    catalogMapping:
+      bq_catalog: my-gcp-project
+```
+
+OpenMetadata looks up the tables of a mapped catalog under the mapped database in every database service, whether or not **Search Tables Across Databases Services** is enabled. If it finds no table there, it falls back to the database name in the manifest.

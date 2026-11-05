@@ -1,0 +1,128 @@
+---
+title: "OpenSearch Fine-Grained Access Control Permissions"
+description: "Minimal OpenSearch security permissions required by the OpenMetadata server backend when running against a security-enabled cluster."
+sidebarTitle: "OpenSearch FGAC Permissions"
+collate: false
+---
+
+# OpenSearch Fine-Grained Access Control Permissions
+
+When OpenMetadata runs against a security-enabled OpenSearch cluster — for example,
+Amazon OpenSearch Service with fine-grained access control (FGAC), or a self-managed
+cluster with the security plugin — the OpenMetadata server role does **not** need
+admin-level access. This page lists the minimal set of index patterns and cluster
+permissions the server backend requires.
+
+<Info>
+**Scope:** OpenMetadata **2.0.x**, OpenSearch backend only. The Elasticsearch backend
+is not covered here. This list was compiled by auditing the search-client source
+code of the 2.0.5 release. Permission requirements can change between releases —
+validate in a non-production environment before applying least-privilege roles in
+production.
+</Info>
+
+## How OpenMetadata uses OpenSearch
+
+The server backend writes to two kinds of targets, both namespaced by the
+`clusterAlias` setting (default: `openmetadata`):
+
+- **Entity indexes and aliases** — one index per entity type, named
+  `<clusterAlias>_<entityType>` (for example `openmetadata_table_search_index`).
+- **Data Insights data streams** — `<clusterAlias>-di-data-assets-<entityType>`
+  (for example `openmetadata-di-data-assets-table`).
+
+## Index patterns
+
+Grant index-level permissions on these patterns (replace `<prefix>` with your
+`clusterAlias`):
+
+| Pattern | Used for |
+|---|---|
+| `<prefix>_*` | Entity indexes and aliases |
+| `<prefix>-di-*` | Data Insights data streams |
+
+<Note>
+On 2.x the Data Insights lifecycle (rollover) runs application-side, so the
+`.ds-<prefix>-di-*` backing-index pattern required by 1.x ISM policies is no
+longer needed for fresh 2.x deployments. If you are migrating from 1.x, keep it
+until the migration cleanup has removed the old ISM policies.
+</Note>
+
+## Cluster permissions
+
+| Permission | When needed |
+|---|---|
+| `cluster:monitor/*` | Always — cluster health, stats, settings and nodes info |
+| `cluster_composite_ops` | Always — bulk indexing and multi-search |
+| `indices:admin/index_template/*` | Always — create and delete index templates |
+| `cluster:admin/index_template/*` | Always — create and delete index templates |
+| `indices:admin/component_template/*` | Always — create and delete component templates |
+| `cluster:admin/component_template/*` | Always — create and delete component templates |
+| `cluster:admin/opendistro/ism/policy/*` | Only when migrating 1.x → 2.x — deletes the legacy DI lifecycle policies; not needed for fresh 2.x deployments |
+| `cluster:admin/search/pipeline/*` | Optional — only for deployments still serving hybrid search through the legacy named pipeline; 2.x inlines pipelines in the search request, which needs no cluster privilege |
+
+## Index-level operations
+
+All operations run against the index patterns above and need no extra
+cluster privilege: index creation, search, multi-get, document get/index/update/delete, bulk,
+delete-by-query, update-by-query, reindex, force merge, index settings and
+mapping updates, alias management, and data-stream create/delete/get/rollover.
+
+## Example security role
+
+Below is a ready-to-use OpenSearch security-plugin role for a 2.0.x deployment
+with `clusterAlias: openmetadata`. Adjust the prefix to match your configuration.
+
+```json
+{
+  "cluster_permissions": [
+    "cluster:monitor/*",
+    "cluster_composite_ops",
+    "indices:admin/index_template/*",
+    "cluster:admin/index_template/*",
+    "indices:admin/component_template/*",
+    "cluster:admin/component_template/*"
+  ],
+  "index_permissions": [
+    {
+      "index_patterns": ["openmetadata_*", "openmetadata-di-*"],
+      "allowed_actions": [
+        "crud",
+        "create_index",
+        "indices:data/write/bulk*",
+        "indices:data/write/delete_by_query",
+        "indices:data/write/update_by_query",
+        "indices:data/write/reindex",
+        "indices:admin/forcemerge",
+        "indices:admin/settings/update",
+        "indices:admin/mapping/put",
+        "indices:admin/aliases*",
+        "indices:admin/data_stream/*",
+        "indices:admin/rollover",
+        "indices:admin/refresh"
+      ]
+    }
+  ],
+  "tenant_permissions": []
+}
+```
+
+<Tip>
+On Amazon OpenSearch Service with FGAC, map this role to the IAM role or user
+OpenMetadata authenticates with (for example via IRSA) in **Security → Roles →
+Mapped users**. The server connects with SigV4 signing when IRSA is configured.
+</Tip>
+
+## Permission changes across releases
+
+Releases sometimes add OpenSearch calls that require new permissions. Notable
+changes:
+
+- **1.6.6** — Data Insights data streams, templates and the ISM policy started
+  using the `clusterAlias` prefix (`<prefix>-di-data-assets-*`). Roles scoped to
+  an unprefixed pattern break in either upgrade direction.
+- **1.13.x** — Added reindex, force merge, index settings updates and search
+  pipelines for hybrid search, expanding the required surface versus 1.6.x.
+- **2.0.x** — ISM policy management removed (lifecycle is now application-side
+  rollover); the named hybrid-search pipeline became best-effort, so
+  `cluster:admin/search/pipeline/*` is optional.

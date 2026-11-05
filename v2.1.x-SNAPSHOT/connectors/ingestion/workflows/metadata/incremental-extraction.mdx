@@ -25,6 +25,30 @@ How this is done depends a lot on the Source itself, but the general idea is to 
 5. Fetch/Compare only the entities with structural changes.
 6. Delete entities flagged for deletion.
 
+## Validate Incremental Runs
+
+Validate incremental extraction after enabling it and after changing source permissions or filters:
+
+1. Make a known structural change in the source, such as creating a test table or adding a column.
+2. Run the incremental metadata ingestion pipeline.
+3. Open the pipeline run details and confirm that the run completed successfully. If the run failed or completed with partial success, review its logs before validating the catalog.
+4. Open the affected asset in OpenMetadata and confirm that the structural change appears. For a deletion, confirm that the asset is marked as deleted when the pipeline has the corresponding **Mark Deleted** option enabled.
+5. Review the run logs for warnings about source change-history access, skipped objects, or filters. A successful run confirms that the workflow completed, but you should still verify representative source changes in OpenMetadata.
+
+Incremental extraction uses the most recent successful run for that ingestion pipeline as its starting point. If no successful run is found within **Successful Pipeline Run Lookback Days**, the pipeline performs a full extraction instead.
+
+## Schedule a Periodic Full Run
+
+Use two metadata ingestion pipelines for the same database service when you want frequent incremental updates and a periodic full reconciliation:
+
+1. Keep **Incremental Extraction** enabled on the frequently scheduled pipeline.
+2. Add a second metadata ingestion pipeline for the same service and leave **Incremental Extraction** disabled.
+3. Give the pipelines distinct names so their run histories are easy to identify.
+4. Schedule the full pipeline less frequently, such as weekly, and avoid overlapping the two schedules.
+5. Use the full run to reconcile the complete source state. Review its logs and spot-check any metadata that was missing after incremental runs.
+
+Configure both pipelines with the same database, schema, and table filters. Different scopes can produce inconsistent results when any **Mark Deleted** option is enabled.
+
 ## External Ingestion
 
 When using the Incremental Extraction feature with External Ingestions (ingesting using YAML files instead of setting it up from the UI), you must pass the ingestion pipeline fully qualified name to the configuration.

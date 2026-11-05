@@ -76,11 +76,15 @@ With **Dynamic** sampling, **Smart Sampling** is enabled by default and scales t
 
 If you turn off **Smart Sampling**, use **Thresholds** to define custom row-count thresholds and sample percentages. If you leave **Thresholds** empty, the profiler applies no sampling and scans all rows.
 
+With **Dynamic** sampling, the profiler reads the table's row count once per run to choose the sample size. Most databases return it from system catalogs or table statistics instead of scanning the table, so the value can be an estimate. For example, PostgreSQL uses `pg_class.reltuples`. When no statistic is available, the profiler runs a `COUNT(*)`. It always runs a `COUNT(*)` for tables with a partition filter.
+
 With **Static** sampling, configure these settings:
 
 - **Profile Sample**: Set a fixed sample size for each profiler run.
 - **Profile Sample Type**: Select **Percentage** for a fraction of the table or **Rows** for an absolute number of rows.
-- **Sampling Method Type**: For percentage samples on PostgreSQL and Snowflake, select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
+- **Sampling Method Type**: This setting applies to percentage samples on Snowflake, Timescale, and ClickZetta only. Other databases, including PostgreSQL, ignore it. Select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
+
+Static sampling doesn't look up the row count to choose the sample size. The exception is a **Rows** sample with **Randomized Sample** enabled, which runs a `COUNT(*)` first. How the profiler reads the sample depends on the database. BigQuery, Snowflake, Timescale, ClickZetta, SQL Server, and Azure SQL use `TABLESAMPLE`. BigQuery uses it only for **Percentage** samples on tables, and a **Rows** sample still uses a `LIMIT`. SQL Server and Azure SQL don't use it for views. On other databases, including PostgreSQL, a percentage sample scans the table, assigns each row a random number, and keeps the rows within the percentage. On those databases, a **Rows** sample uses a `LIMIT`.
 
 Druid doesn't support **Profile Sample** because it lacks the required random sampling functions. Use partitioning or a sample query to limit the data scanned.
 
@@ -102,6 +106,18 @@ Select the metrics to compute and how to retrieve them:
 - **Compute Table Metrics**: Compute table-level metrics, such as row count and column count. Enabled by default.
 - **Compute Column Metrics**: Compute column-level metrics, such as null count, distinct count, and mean. Enabled by default.
 - **Use System Table Statistics**: Read available table metrics from system catalogs instead of scanning data. Keep database statistics up to date, for example by running `ANALYZE` on PostgreSQL. Metrics unavailable in system tables use the default scan method.
+- **Enable Auto Partition Detection** (`enableAutoPartitionDetection`, default `true`): When enabled, the profiler uses the partition metadata ingested for a table to scan only its recent partitions instead of the whole table. It applies only to tables that have no partition configuration. To profile full tables, turn the toggle off, or set `enableAutoPartitionDetection: false` in the YAML configuration. The toggle appears in the UI only for services that support it: BigQuery, PostgreSQL, Greenplum, CockroachDB, TimescaleDB, Doris, and StarRocks.
+
+  - **Time-unit partitions** on `DATE`, `DATETIME`, or `TIMESTAMP` columns profile a recent window, based on the partition unit:
+    - **Hourly**: The last 24 hours.
+    - **Daily**: The last 3 days.
+    - **Monthly**: The last 35 days.
+    - **Yearly**: The last 370 days.
+  - **Integer-range partitions** on numeric columns profile the range 1 to 10,000.
+  - **Column-value, list, and hash partitions**, and partition columns that aren't date or integer types, aren't affected.
+  - **Table-level metrics** such as row count and size still use the full table.
+  - **Precedence**: A table configuration in the workflow, or the table's own profiler partition configuration, takes precedence over auto partition detection.
+  - **Not affected**: This setting doesn't apply to test suites or Auto Classification. Those workflows keep their existing partition handling, which is limited to BigQuery.
 
 <img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced profiler configuration" />
 

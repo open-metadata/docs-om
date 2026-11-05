@@ -1,58 +1,64 @@
 ---
 title: Update a Container
-description: Update container properties using JSON Patch
+description: Create or update a container with a full request body
 sidebarTitle: Update a Container
-api: PATCH /v1/containers/{id}
+api: PUT /v1/containers
 ---
 
 # Update a Container
 
-Update a container's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the container to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/containers/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the container, for example `s3_datalake.analytics-bucket`.
-</ParamField>
+Create a container or update it if it already exists, using `PUT /v1/containers` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
+<ParamField body="name" type="string" required>
+  Name of the container. Must be unique within the parent storage service or parent container.
+</ParamField>
 
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent StorageService, for example `s3_datalake`.
 </ParamField>
 
 <ParamField body="displayName" type="string">
-  Updated display name.
+  Human-readable display name for the container.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the container in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="object">
+  Reference to a parent container for nested containers.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the parent container.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of entity (always `container`).
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 <ParamField body="prefix" type="string">
-  Updated path prefix.
+  Path prefix for objects in the container, for example `/raw/events/`.
 </ParamField>
 
 <ParamField body="numberOfObjects" type="number">
-  Updated number of objects.
+  Number of objects stored in the container.
 </ParamField>
 
 <ParamField body="size" type="number">
-  Updated total size in bytes.
+  Total size of the container in bytes.
 </ParamField>
 
 <ParamField body="fileFormats" type="array">
-  Updated list of file formats.
+  List of file formats stored in the container, for example `csv`, `tsv`, `parquet`, `avro`, `json`, `jsonl`, `jsonGz`, `jsonZip`.
 </ParamField>
 
 <ParamField body="dataModel" type="object">
-  Updated data model.
+  Data model describing the schema of files in the container.
 
   <Expandable title="properties">
     <ParamField body="isPartitioned" type="boolean">
@@ -60,13 +66,31 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     </ParamField>
 
     <ParamField body="columns" type="array">
-      Array of column definitions.
+      Array of column definitions for the data model.
+
+      <Expandable title="properties">
+        <ParamField body="name" type="string" required>
+          Column name.
+        </ParamField>
+
+        <ParamField body="dataType" type="string" required>
+          Data type, for example `STRING`, `INT`, `DOUBLE`, `TIMESTAMP`.
+        </ParamField>
+
+        <ParamField body="description" type="string">
+          Description of the column.
+        </ParamField>
+      </Expandable>
     </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="fullPath" type="string">
+  Full path of the container, for example `s3://analytics-bucket/raw/events`.
+</ParamField>
+
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the container.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -76,11 +100,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the container.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -97,15 +129,36 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/containers
+curl -X PUT "{base_url}/api/v1/containers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "analytics-bucket",
+    "displayName": "Analytics Bucket",
+    "service": "s3_datalake",
+    "description": "Primary analytics data lake bucket",
+    "prefix": "/analytics/",
+    "numberOfObjects": 150000,
+    "size": 5368709120,
+    "fileFormats": ["parquet", "json"],
+    "dataModel": {
+      "isPartitioned": true,
+      "columns": [
+        {"name": "event_id", "dataType": "STRING", "description": "Unique event identifier"},
+        {"name": "timestamp", "dataType": "TIMESTAMP", "description": "Event timestamp"},
+        {"name": "user_id", "dataType": "STRING", "description": "User identifier"}
+      ]
+    },
+    "fullPath": "s3://analytics-bucket"
+  }'
+```
+
 ```python PATCH /v1/containers/{id}
 from metadata.sdk import configure
 from metadata.sdk.entities import Containers
@@ -226,8 +279,7 @@ Returns the updated container object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this container |
-| `404` | `NOT_FOUND` | Container with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

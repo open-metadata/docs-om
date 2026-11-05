@@ -23,10 +23,10 @@ The HTTP API runs in the OpenMetadata server. It does not require a Kafka broker
 
 Before you send events, complete these steps:
 
-1. Create or ingest the database services, databases, schemas, and tables referenced by the events. Include their columns if you need column-level lineage.
+1. Create or ingest the database services referenced by the events. Ingest their tables and columns too, unless you rely on [table creation for mapped namespaces](#configure-http-ingestion-settings). Column-level lineage needs the columns.
 2. Obtain an OpenMetadata JSON Web Token (JWT) for a user or bot with `EditLineage` permission on the `table` resource.
 3. Configure namespace mappings so each dataset resolves to the intended database service.
-4. To associate events with pipelines, create or ingest the pipeline itself. The server searches the pipeline service named by `defaultPipelineService`, which defaults to `openlineage`.
+4. To associate events with pipelines, create or ingest the pipelines under the pipeline service named by `defaultPipelineService`. Its default name is `openlineage`. The server never creates pipelines.
 
 If you enable automatic table creation, the caller also needs `Create` permission for each missing table, database, or database schema that the event creates.
 
@@ -47,7 +47,9 @@ For example, this dataset can resolve to the OpenMetadata table `prod-postgres.a
 
 Map `postgresql://warehouse.example.com:5432` to the existing database service `prod-postgres` through `namespaceToServiceMapping`. Use the exact namespace emitted by your producer. Include the database and schema in the dataset name when available.
 
-The resolver tries the namespace mapping, datasource facet information, and table-name suffix matches. A namespace is not automatically an OpenMetadata service name. Suffix matches can be ambiguous when several services contain the same database, schema, and table names.
+The resolver tries the namespace mapping, datasource facet information, and table-name suffix matches. A namespace is not automatically an OpenMetadata service name. Namespace mappings match the exact namespace first, then the longest matching prefix.
+
+A dataset matches only the database services that hold its table. If the table exists in one of several services of the same type, the dataset resolves to that service. If the table exists in more than one of them, the match is ambiguous. The server uses the first match and logs a warning. Add a `namespaceToServiceMapping` entry to pin the service.
 
 For more information, see [Cross Database Lineage](/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/cross-database-lineage).
 
@@ -78,7 +80,7 @@ The API is enabled by default. If `eventTypeFilter` is absent or empty, the serv
 
 Use a dataset name such as `analytics.public.orders` to identify the database, schema, and table. If the name has only `schema.table`, automatic creation requires exactly one database in the mapped service.
 
-The HTTP API does not create database services, pipelines, or containers. An unresolved job appears in `unresolvedJobs`, and its dataset edges can still be created without a pipeline reference.
+The HTTP API does not create database services, pipelines, or containers. Ingest the pipeline first. If it is missing, the job appears in `unresolvedJobs`, and the server still writes the dataset edges without a pipeline reference.
 
 ## Configure an HTTP Producer
 
@@ -107,7 +109,7 @@ The HTTP mapper uses the following event fields and facets:
 | Event Metadata | OpenMetadata Behavior |
 | --- | --- |
 | `inputs` and `outputs` | Creates a lineage edge for each resolved input and output pair. Both lists must contain a dataset. |
-| Dataset `schema` facet | Supplies column names and types when the server creates a table. It does not replace metadata ingestion for existing tables. |
+| Dataset `schema` facet | Supplies column names and types when the server creates a table for a mapped namespace. It does not replace metadata ingestion for existing tables. |
 | Job `sql` facet | Stores `job.facets.sql.query` on the lineage edge. SQL text alone does not supply input and output datasets. |
 | Output `columnLineage` facet | Maps output fields to input fields. The mapper reads `outputFacets.columnLineage` first, then `facets.columnLineage`. |
 | Run `parent` facet | Uses the parent job to resolve the pipeline reference. Without a usable parent job, it uses the event's job. |

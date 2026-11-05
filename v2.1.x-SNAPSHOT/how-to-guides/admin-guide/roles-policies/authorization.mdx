@@ -35,6 +35,8 @@ For a reference for common operations, risk levels, and recommended role assignm
 **Important**: `EditAll` overrides every other edit permission. Only use it when full editing access is intentional – otherwise assign the specific edit operations you need.
 </Warning>
 
+`EditDomains` controls changing the domains of an asset. A rule that allows `EditAll` also allows `EditDomains`, so existing policies keep working. To stop a role from reassigning domains, add a Deny rule with `EditDomains`.
+
 ### Condition
 
 Conditions let you make a rule apply only when certain things are true about the asset being accessed. For example, you can write a rule that only applies to assets tagged as `PII.Sensitive`, or only to assets that don't have an owner yet.
@@ -50,7 +52,20 @@ Following are some examples of conditions:
 | `matchAllTags(tagFqn, ...)` | The asset carries all of the tags listed |
 | `matchAnyTag(tagFqn, ...)` | The asset carries at least one of the tags listed |
 | `matchTeam()` | The user belongs to the team that owns the asset |
-| `hasDomain()` | The user's domain access matches the asset's domain |
+| `hasDomain()` | The asset has no domain, or the requesting user or bot shares a domain (or a sub-domain of one) with it |
+
+#### Use `hasDomain()` With Bots
+
+`hasDomain()` evaluates the domains on the requesting principal. For a bot request, the principal is the user account associated with that bot. Assigning a domain only to the asset does not give the bot access.
+
+For example, a bot with a policy that allows `ViewBasic` only when `hasDomain()` is true receives a `403 [ViewBasic] not allowed` response when the asset belongs to **Finance** but the bot user does not. To resolve the error:
+
+1. Open **Settings** > **Bots**, select the bot, and identify its associated bot user.
+2. In **Settings** > **Members** > **Users**, open the bot user's profile.
+3. Add the asset's domain in the **Domains** card. An administrator must make this change.
+4. Retry the request after the domain assignment is saved.
+
+If the bot must read assets across domains, use a separate policy without the `hasDomain()` condition. Limit its resources and operations to the minimum required. Removing the condition allows the rule to match resources outside the bot's domains.
 
 RBAC Search supports only some of these conditions. It evaluates `noOwner()`, `isOwner()`, `matchAllTags()`, `matchAnyTag()`, `hasDomain()`, and `inAnyTeam()`, and it ignores `matchTeam()` when it filters search results. Access to the asset itself still honors `matchTeam()`.
 
@@ -69,6 +84,20 @@ noOwner() && matchAllTags('PersonalData.Personal', 'Tier.Tier1')
 ```
 
 This condition is true only if the asset has no owner and carries both of the listed tags.
+
+#### Control Domain Changes
+
+When a policy uses `hasDomain()`, adding or moving an asset into a domain also requires the caller to hold that target domain. OpenMetadata checks each domain you add on its own. Holding domain A does not allow adding domain B next to it. Adding a sub-domain of a held domain is allowed.
+
+The check runs on every write path: PATCH, PUT, bulk PUT, test case PATCH, and CSV import. A CSV dry run reports the rows the import will refuse. A change that moves an asset into a domain the caller does not hold returns `403`, including a PATCH that updates the whole document. OpenMetadata does not turn the refused change into a change request under an approval workflow.
+
+Administrators are never refused. A policy without a domain condition allows the change for any target domain.
+
+<Warning>
+**Important**: These domain checks change how existing `hasDomain()` policies behave. A rule that allows `EditAll` or `EditDomains` when `hasDomain()` is true no longer lets a user assign any domain they choose. OpenMetadata also checks the target domain against the domains the user holds. After you add or edit a `hasDomain()` rule, test it with a non-admin user who tries to add or move an asset into a domain they do not hold, and expect a `403` response.
+</Warning>
+
+The error names the refused domain: `Principal: CatalogPrincipal{name='<user>'} does not belong to domains [<domain>] to perform the [EditDomains] operations.`
 
 ### Use Service Attributes in Policy Conditions
 
@@ -181,7 +210,7 @@ After you upgrade, reindex OpenMetadata so existing assets receive their inherit
 
 ### Restrict Requests Made Through Bots
 
-Use impersonation conditions in `Deny` rules to restrict actions attributed to a bot acting on a person's behalf. This includes requests that use the `X-Impersonate-User` header and Model Context Protocol (MCP) or artificial intelligence (AI) tool calls.
+Use impersonation conditions in `Deny` rules to restrict actions attributed to a bot acting on a person's behalf. This includes requests that use the `X-Impersonate-User` header and Model Context Protocol (MCP) or artificial intelligence (AI) tool calls. An impersonated session can't use the identity endpoints, such as generating or revoking tokens, changing a password, or signing out.
 
 | Condition | Returns true when |
 |---|---|
@@ -272,6 +301,22 @@ A policy is a named group of rules. When you access a resource in OpenMetadata, 
 
 If two rules in the same policy disagree – for example, one allows `EditDescription` and another denies it – the `Deny` always wins.
 
+**How policies combine**
+
+OpenMetadata doesn't stop at the first policy that matches. A user's policies come from several places:
+
+- The roles assigned to the user.
+- The roles and policies of the user's teams, including parent teams.
+- The Organization Policy.
+
+OpenMetadata collects all of them and then checks:
+
+1. Every `Deny` rule in every policy. If one matches the action, the action is denied.
+2. If no `Deny` rule matches, every `Allow` rule in every policy. If one matches, the action is allowed.
+3. If no rule matches, the action is denied.
+
+This means a `Deny` rule always wins, even when it sits in a different policy than the `Allow` rule. For example, `OrganizationPolicy-Owner-Rule` allows owners to edit their assets. A `Deny` rule for `EditCertification` in another policy still blocks owners from changing certification.
+
 **How policies are assigned**
 
 Policies are assigned to teams, not to individual users. When you're added to a team, you automatically inherit all the policies assigned to that team.
@@ -292,6 +337,8 @@ This architecture sets broad rules at the organizational level, with more lenien
 
 When designing policies for sensitive processes, it's also worth thinking
 about who should hold which permissions – not just what the permissions are.
+
+A rule that you remove from a policy takes effect on the next authorization decision on the server that processed the update. On deployments with several servers connected through Redis, the change reaches the other servers asynchronously. Requests that were already authorized are not cancelled.
 
 ### Separation of Duties
 
@@ -338,6 +385,46 @@ A role bundles multiple policies that match a specific job function. For example
 If you have a custom role or policy that grants `EditAll` on `Ingestion Pipeline` without an explicit `Trigger` grant, add `Trigger` to it after upgrading — otherwise pipeline triggers will start failing silently for anyone assigned that role. Scheduled runs are unaffected. This only applies to manually or programmatically triggered runs.
 </Warning>
 
+## Permissions for Related Endpoints
+
+Several endpoints that return part of an asset check the same permission the asset itself requires.
+
+| Endpoint | Permission required |
+|---|---|
+| System profile of a table | `ViewDataProfile` on the table |
+| Entity relationships of a table or schema | `ViewBasic` on the table or schema |
+| KPI results | `ViewBasic` on the KPI |
+| Pipeline status history | `ViewAll` on the ingestion pipeline |
+| Data contract validation | `ViewBasic` on the entity the contract is for |
+| Intake form for an entity type | `ViewBasic` on the intake form |
+| Lineage edge | `ViewBasic` on both the source and the target |
+| Lineage graph, export, and scene | `ViewBasic` on the root entity |
+| Vote on an asset, follow an asset, or stop following it | `ViewBasic` on the asset |
+| Trigger, redeploy, suspend, or resume a governance workflow | `EditAll` on the workflow definition |
+
+Adding or removing a follower other than yourself requires an administrator.
+
+The automations workflow trigger for **Test connection** requires `EditAll` on the service in the request, or `Create` on ingestion pipelines. Without a service in the request, it requires `Create` on ingestion pipelines.
+
+## Filtered Lists and Responses
+
+OpenMetadata filters these responses to what the caller can view:
+
+- **Asset lists**: The assets of a domain, data product, glossary term, tag, team, or user.
+- **Asset counts**: The counts of domains, data products, and teams. A user restricted to a domain sees counts for that domain and its sub-domains only.
+- **Mixed responses**: Activity feeds, lineage neighbors, column search and export, and the `semantic_search` MCP tool. Administrators skip this filtering in activity feeds and lineage.
+
+## Administrator and Bot Endpoints
+
+OpenMetadata restricts these endpoints to administrators, or to administrators and bots.
+
+| Access | Endpoints |
+|---|---|
+| Administrator or bot | `GET /v1/events`, system entity and service counts, `GET /v1/system/status`, `GET /v1/analytics/web/events/collect` (raw events), search document by ID |
+| Administrator only | Reset an email template, list search reindex failures (up to 1,000 per page, default 50) |
+
+Recording a page view (`PUT /v1/analytics/web/events/collect`) stays open to all users, and OpenMetadata always records the page view for the caller. A caller who is not an administrator sees a generic message when the pipeline service is unavailable: "The pipeline service is not available. Ask an administrator to check its status."
+
 ## Roles Based Access Controls (RBAC) Search
 
 By default, every user can search for and find any data asset in OpenMetadata, regardless of whether they have permission to access it. If you want search results to reflect each user's permissions, turn on RBAC Search. Search then shows only the assets that the user's policies allow them to see. The built-in Organization Policy allows everyone to see every asset, so this takes effect only after you change that. For more information, see [How Search Combines Your Policies](#how-search-combines-your-policies).
@@ -368,6 +455,8 @@ For strict isolation, make sure no policy that applies to the user grants `ViewB
 `ViewAll` also lets users view an asset's details, not only find it in search. After you remove an unconditional `ViewAll` rule, users can open only the assets that another rule gives them access to.
 </Warning>
 
+The search aggregation endpoint (`/v1/search/aggregate`, GET and POST) also applies your policy conditions. With RBAC Search turned on, the counts and top hits for a non-admin user cover only the assets their policies allow. If the policies produce no usable query, the aggregation returns no results. Results are unchanged for administrators and when RBAC Search is off. Bots are not exempt: OpenMetadata evaluates their policies like any other user's.
+
 ### Before You Turn It On
 
 **Check your roles and policies are fully configured** – make sure every user and team has the right permissions for the assets they need. Incomplete configuration can cause users to lose visibility of assets they should see.
@@ -381,3 +470,12 @@ For a full guide on setting up roles and policies, see [Roles and Policies](/v2.
 <Card title="Use Cases: Creating Roles & Policies in OpenMetadata" href="/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/roles-policies/use-cases" >
     Tailor your policies to meet your organizational and team needs.
   </Card>
+
+### Troubleshooting: Queries Tab Is Empty for Non-Admin Users
+
+If a table has queries and an admin can see them, but a non-admin user sees an empty Queries tab, check the following in order:
+
+1. **RBAC Search**: Go to **Settings** > **Preferences** > **Search** and check whether RBAC Search is on. When it is on, policies filter the Queries list, so continue to step 2. When it is off, search results aren't filtered by policies, so go to step 3.
+2. **Query resource rule**: Confirm that one of the user's policies has an Allow rule on the `Query` resource with `ViewAll` (or `All`) and no `isOwner()` condition. Table-level `ViewAll` or `ViewQueries` doesn't control this tab. Owning the table doesn't help either, because `isOwner()` in search matches the owners of the query.
+3. **Query ingestion**: Confirm that query ingestion has run for the service. An admin should see the queries on the table.
+4. **Permission Debugger**: Use the [Permission Debugger](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/permission-debugger) to evaluate `ViewAll` on the `Query` resource for the affected user.

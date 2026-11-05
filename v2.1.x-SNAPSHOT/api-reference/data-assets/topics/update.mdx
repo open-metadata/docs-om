@@ -1,42 +1,26 @@
 ---
 title: Update a Topic
-description: Update topic properties using JSON Patch
+description: Create or update a topic with a full request body
 sidebarTitle: Update a Topic
-api: PATCH /v1/topics/{id}
+api: PUT /v1/topics
 ---
 
 # Update a Topic
 
-Update a topic's properties using JSON Merge Patch. You can update by ID or by fully qualified name.
-
-## Update by ID
-
-<ParamField path="id" type="string" required>
-  UUID of the topic to update.
-</ParamField>
-
-## Update by Name
-
-Use `PATCH /v1/topics/name/{fqn}` to update by fully qualified name.
-
-<ParamField path="fqn" type="string" required>
-  Fully qualified name of the topic, for example `sample_kafka.address_book`.
-</ParamField>
+Create a topic or update it if it already exists, using `PUT /v1/topics` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
 
 ## Body Parameters
 
-Send a JSON object with the fields to update. Only provided fields are changed.
-
-<ParamField body="description" type="string">
-  Updated description in Markdown format.
+<ParamField body="name" type="string" required>
+  Name of the topic. Must be unique within the parent messaging service.
 </ParamField>
 
-<ParamField body="displayName" type="string">
-  Updated display name.
+<ParamField body="service" type="string" required>
+  Fully qualified name of the parent MessagingService, for example `sample_kafka`.
 </ParamField>
 
 <ParamField body="messageSchema" type="object">
-  Updated message schema.
+  Schema definition for messages in the topic.
 
   <Expandable title="properties">
     <ParamField body="schemaType" type="string">
@@ -49,8 +33,36 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
+<ParamField body="partitions" type="integer" required>
+  Number of partitions for the topic.
+</ParamField>
+
+<ParamField body="cleanupPolicies" type="array">
+  Array of cleanup policies for the topic, for example `delete`, `compact`.
+</ParamField>
+
+<ParamField body="replicationFactor" type="integer">
+  Replication factor for the topic.
+</ParamField>
+
+<ParamField body="maximumMessageSize" type="integer">
+  Maximum message size in bytes.
+</ParamField>
+
+<ParamField body="retentionSize" type="integer">
+  Retention size in bytes. Use `-1` for unlimited.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the topic.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the topic in Markdown format.
+</ParamField>
+
 <ParamField body="owners" type="array">
-  Updated list of owner references.
+  Array of owner references (users or teams) to assign to the topic.
 
   <Expandable title="properties">
     <ParamField body="id" type="string">
@@ -60,11 +72,19 @@ Send a JSON object with the fields to update. Only provided fields are changed.
     <ParamField body="type" type="string">
       Type of owner entity, for example `user`, `team`.
     </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
   </Expandable>
 </ParamField>
 
+<ParamField body="domains" type="array">
+  Fully qualified names of the domains to assign for governance purposes.
+</ParamField>
+
 <ParamField body="tags" type="array">
-  Updated classification tags.
+  Array of classification tags to apply to the topic.
 
   <Expandable title="properties">
     <ParamField body="tagFQN" type="string" required>
@@ -81,15 +101,31 @@ Send a JSON object with the fields to update. Only provided fields are changed.
   </Expandable>
 </ParamField>
 
-<ParamField body="domains" type="array">
-  Updated domains, as fully qualified names.
-</ParamField>
-
 <ParamField body="extension" type="object">
-  Updated custom property values.
+  Custom property values defined by your organization's metadata schema.
 </ParamField>
 
 <RequestExample dropdown>
+```bash PUT /v1/topics
+curl -X PUT "{base_url}/api/v1/topics" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "address_book",
+    "service": "sample_kafka",
+    "description": "All Protobuf record related events gets captured in this topic",
+    "messageSchema": {
+      "schemaType": "Protobuf",
+      "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }"
+    },
+    "partitions": 1,
+    "cleanupPolicies": ["delete"],
+    "replicationFactor": 1,
+    "maximumMessageSize": 1,
+    "retentionSize": -1
+  }'
+```
+
 ```python PATCH /v1/topics/{id}
 from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
     AuthProvider,
@@ -232,8 +268,7 @@ Returns the updated topic object with the new version number.
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid JSON patch or malformed request |
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to update this topic |
-| `404` | `NOT_FOUND` | Topic with given ID or FQN does not exist |
 | `409` | `CONFLICT` | Concurrent modification detected |

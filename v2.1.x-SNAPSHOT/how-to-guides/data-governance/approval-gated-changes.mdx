@@ -1,0 +1,85 @@
+---
+title: Approval-Gated Changes | OpenMetadata Governance Guide
+description: Hold edits to governed assets until a reviewer approves them, review pending changes, and use the change request API.
+sidebarTitle: Approval-Gated Changes
+---
+
+# Approval-Gated Changes
+
+A governance workflow with an event-based trigger can hold edits until a reviewer approves them. With **Approval Mode** set to **Enforce**, an edit to a watched field is not written to the asset. OpenMetadata turns the edit into a change request and creates a review task. The asset keeps its approved value until a reviewer approves the change.
+
+## Turn On Approval Mode
+
+Approval Mode is an option on the event-based start node of a governance workflow. See [Configure Governance Workflow Triggers and Conditions](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/governance-workflows) for the rest of the trigger configuration.
+
+1. Open the workflow and select the event-based start node.
+2. Set **Approval Mode** to **Default** or **Enforce**.
+3. Add a **User Approval** task to the workflow. In an Enforce workflow, approving the task publishes the held edit and rejecting it discards the edit.
+4. Save and deploy the workflow.
+
+| Option | Behavior |
+|---|---|
+| **Default** | Edits publish immediately and the workflow runs afterward. OpenMetadata creates no change request. This is the default. |
+| **Enforce** | Edits wait for approval. Each edit becomes a change request and a review task. The asset keeps its approved value, and the edit is published only when a reviewer approves it. |
+
+The following rules apply to an Enforce workflow:
+
+- **Existing assets only**: OpenMetadata holds edits to existing assets. It does not hold the creation of an asset.
+- **Whole edit**: If one edit touches any watched field, OpenMetadata holds the whole edit. If one edit touches fields that two different workflows govern, OpenMetadata rejects it. Submit the changes separately.
+- **Bots**: OpenMetadata never holds edits made by bots.
+- **Admins**: Admins are held to the same rules as other users.
+- **Requester**: The person who made the edit cannot approve or reject their own change request, even if they are an admin.
+- **No reviewer**: If nobody can review a change because the asset has no reviewers, no owners, and no other admins, OpenMetadata approves the change automatically.
+
+## Submit a Change
+
+When you edit a watched field on an asset covered by an Enforce workflow, OpenMetadata saves the edit as a change request.
+
+1. Edit a field that the workflow watches, then save.
+2. OpenMetadata returns the asset with its approved value unchanged and shows the message "Your change was submitted for approval. It will be published once it is approved."
+3. Wait for a reviewer to approve or reject the task.
+
+If a reviewer approves, OpenMetadata publishes the edit. If a reviewer rejects, OpenMetadata discards the edit.
+
+## Review Pending Changes
+
+The **Pending Changes** button appears in the header of the asset, glossary term, domain, or data product. It shows a count of open change requests. It appears only when an Enforce workflow covers the asset type and open change requests exist.
+
+1. Click **Pending Changes**. The **Review pending changes** window opens.
+2. Review the proposed change.
+3. Approve or reject through the review task.
+
+If you approve a revision that a newer revision has replaced, OpenMetadata refuses the approval. Reload the task and review the active revision.
+
+## Withdraw a Change Request
+
+Only the requester can withdraw a change request. Use the **Withdraw revision** action. OpenMetadata confirms with "Change request withdrawn."
+
+## Revisions and Conflicts
+
+OpenMetadata keeps one active change request for each asset and requester.
+
+- **New revision**: If you edit the asset again while your change is pending, the edit becomes a new revision. The review task reopens, and the earlier task closes as superseded. Approvals do not carry over to the new revision.
+- **Independent requests**: Edits from two requesters create two independent change requests.
+- **Conflicts**: If two requests change the same field, OpenMetadata flags the second one as conflicted when a reviewer approves it. The requester must submit an updated change.
+
+## Bulk Imports
+
+When you import a CSV file and an Enforce workflow holds some rows, OpenMetadata reports the held rows with the message "N row(s) are waiting for approval and are not published yet."
+
+## Cancel Pending Requests
+
+OpenMetadata cancels pending change requests in these cases:
+
+- You delete the workflow.
+- You change the workflow so it no longer holds changes, for example by switching **Approval Mode** from **Enforce** to **Default**.
+
+A suspended workflow holds no new edits. Existing change requests stay open until you resume the workflow.
+
+## Use the API
+
+When an Enforce workflow holds a write, the API does not apply it.
+
+- **PUT and PATCH**: A held request returns `202`. The `X-OpenMetadata-Pending-Change` response header contains the change request ID.
+- **Bulk writes**: Responses include the `X-OpenMetadata-Pending-Change-Count` header. The status is `202` only when the request held something and applied nothing. Otherwise, it is `200`.
+- **List change requests**: Use `GET /v1/changeRequests` to list the change requests for an asset or a requester.

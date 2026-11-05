@@ -5,7 +5,7 @@ sidebarTitle: Overview
 ---
 
 import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
-import MetadataAgentDatabase from '/snippets/connectors/metadata-agent/database.mdx'
+import MetadataAgentDatabase from '/snippets/v2.1.x-SNAPSHOT/connectors/metadata-agent/database.mdx'
 import Related from '/snippets/v2.1.x-SNAPSHOT/connectors/database/related.mdx'
 
 <ConnectorDetailsHeader
@@ -71,6 +71,16 @@ GRANT VIEW DEFINITION TO Mary;
 -- Or server-level: grant to the login (not the contained user) to cover all databases
 GRANT VIEW ANY DEFINITION TO [login_name];
 ```
+### Profiler
+<Note>
+**Important**: The profiler reads row counts and table sizes from `sys.dm_db_partition_stats`. Without the grant below, the profiler fails with `The user does not have permission to perform this action` (error 297). This grant is required whether or not you use Query Store.
+</Note>
+
+Database-level, in every database you profile: `VIEW DATABASE STATE` (SQL Server 2016–2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
+```sql
+GRANT VIEW DATABASE STATE TO YourUser;
+-- SQL Server 2022 and later: GRANT VIEW DATABASE PERFORMANCE STATE TO YourUser;
+```
 ### Usage & Lineage Consideration
 To perform the query analysis for Usage and Lineage computation, the connector reads query history from SQL Server's [Query Store](https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store) when it is enabled on a database. Query Store exposes this history through `sys.query_store_query`, `sys.query_store_query_text`, `sys.query_store_plan`, and `sys.query_store_runtime_stats`. Query Store keeps a durable, on-disk record of executed queries. The plan-cache Dynamic Management Views (DMVs) (`sys.dm_exec_cached_plans`, `sys.dm_exec_query_stats`, and `sys.dm_exec_sql_text`) are evicted on server restart, memory pressure, or plan recompilation, and can silently return incomplete history.
 
@@ -98,6 +108,8 @@ The default `QUERY_CAPTURE_MODE` on SQL Server 2019 and later is `AUTO`, which c
 <Warning>
 Query Store needs two permissions together. The database-level grant below lets `sys.database_query_store_options` and Query Store's other metadata views succeed, but the query text comes from `sys.query_store_query_text`, which needs the server-level grant. Without the server-level grant, usage and lineage queries can run without error while returning no query text.
 </Warning>
+
+The server-level grant is also required when Query Store is not enabled, because Usage and Lineage then read the plan-cache DMVs.
 
 Database-level, for Query Store metadata: `VIEW DATABASE STATE` (SQL Server 2016-2019) or `VIEW DATABASE PERFORMANCE STATE` (SQL Server 2022 and later).
 ```sql
@@ -183,7 +195,12 @@ Enter the connection details for MSSQL. The right-hand panel in the UI displays 
 
 ![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Database/connection-details/mssql.png)
 
-- **Connection Scheme**: Defines how to connect to MSSQL. OpenMetadata supports `mssql+pytds`, `mssql+pyodbc`, and `mssql+pymssql`. If you are using Windows Authentication from a Linux deployment, use `pymssql`.
+- **Connection Scheme**: Defines how to connect to MSSQL. OpenMetadata supports `mssql+pytds`, `mssql+pyodbc`, and `mssql+pymssql`. If you are using Windows Authentication from a Linux deployment, use `pymssql`. Data Quality table diff also connects through an ODBC driver chosen from this scheme:
+    - `mssql+pymssql`: Uses FreeTDS, so domain accounts in the `DOMAIN\user` format authenticate over NT LAN Manager (NTLM).
+    - `mssql+pyodbc`: Uses the configured ODBC driver. The default is `ODBC Driver 18 for SQL Server`.
+    - `mssql+pytds`: Uses `ODBC Driver 18 for SQL Server`, which supports SQL authentication only.
+
+    Table diff requires **Host and Port** with a numeric port, and passes **Connection Options** through to the driver.
 - **Username**: Specify the User to connect to MSSQL. It should have enough privileges to read all the metadata.
 - **Password**: Password to connect to MSSQL.
 - **Host and Port**: Enter the fully qualified hostname and port number for your MSSQL deployment in the Host and Port field.

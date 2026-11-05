@@ -8,7 +8,9 @@ import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
 # Add a Test Suite
 Test Suites are logical containers that group related test cases from different tables, letting you set a single alert for test case failures. In the UI, this kind of test suite is called a **Bundle Suite**.
 
-Before you begin, make sure you have permission to create a test suite in OpenMetadata.
+<Note>
+You will need to make sure you have the right permission in OpenMetadata to create a test.
+</Note>
 
 1. In the left navigation bar, select **Observability** > **Data Quality**.
 
@@ -34,5 +36,38 @@ Before you begin, make sure you have permission to create a test suite in OpenMe
 After creating a suite, use the search field in its details view to find a test case.
 
 Test cases are identified by their fully qualified names, which include the table or column they test. The same short test-case name can appear under different entities.
+
+## Table Test Suites and Bundle Suites
+
+OpenMetadata has two kinds of test suites. They differ in how they get their owners, which matters when you set up permissions.
+
+| | **Table test suite** | **Bundle Suite** |
+|---|---|---|
+| **Created** | Automatically, one for each table | By you, as described above |
+| **Contains** | The test cases of one table | Test cases from any tables |
+| **Owners** | Taken from the table. To change them, change the owners of the table. | Set on the suite itself. |
+
+Because of this, the owner of a table can manage that table's test suite and test cases without extra setup, while the owner of a Bundle Suite doesn't get any rights on the tables of the test cases it contains.
+
+### Let Owners View and Manage Their Tables' Tests
+
+By default, `OrganizationPolicy-Owner-Rule` gives owners full access to the assets they own. For a test case, OpenMetadata checks the owners of the table that the test case belongs to. If you removed or narrowed that rule, use this recipe to let owners view and manage the tests of their own tables:
+
+1. Go to **Settings** > **Access Control** > **Policies** and click **Add Policy**. Name it `TableOwnerDataQuality`.
+2. Add a rule with these settings:
+
+   | Setting | Value |
+   |---|---|
+   | **Effect** | Allow |
+   | **Resources** | `TestCase`, `TestSuite` |
+   | **Operations** | `ViewAll`, `EditAll`, `Create` |
+   | **Condition** | `isOwner()` |
+
+3. Add the policy to a role, and assign the role to your data owners or their team.
+4. Sign in as an owner, open one of their tables, and confirm that they can view, add, and edit its test cases.
+
+<Note>
+The Permission Debugger doesn't list the test case and test suite resources. To check these permissions, sign in as the user and try the action. For more information, see [Permission Debugger](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/permission-debugger).
+</Note>
 
 <DataQuality />
