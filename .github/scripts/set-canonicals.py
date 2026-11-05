@@ -15,6 +15,8 @@ Runs automatically from bump-latest-version.yml and sync-canonicals.yml.
   have any `canonical` line removed so they fall back to Mintlify's self-referencing canonical.
 - So do pages marked `noindex: true` (Google advises against combining noindex with canonical),
   and sidebar pages whose counterpart is hidden from the current version's sidebar.
+- Pages listed in .shared-docs-manifest.json are skipped: they are generated from docs-collate's
+  shared/ by its sync, which writes their canonical with the same rules.
 
 It then writes sitemap.xml at the repo root, which overrides Mintlify's generated sitemap, listing
 only the sidebar pages search engines should index: no canonical pointing elsewhere, and not
@@ -104,10 +106,18 @@ def canonical_url(version, current, rel, sidebars):
     return f"{BASE_URL}/{target}"
 
 
-def sync_version(version, current, sidebars):
+def generated_pages():
+    """Files the docs-collate sync owns, relative to the repo root."""
+    manifest = ROOT / ".shared-docs-manifest.json"
+    return set(json.loads(manifest.read_text())["files"]) if manifest.exists() else set()
+
+
+def sync_version(version, current, sidebars, generated):
     pointed = cleared = 0
     pages = (p for p in sorted((ROOT / version).rglob("*.md*")) if p.suffix in (".md", ".mdx"))
     for path in pages:
+        if path.relative_to(ROOT).as_posix() in generated:
+            continue
         url = canonical_url(version, current, path.relative_to(ROOT / version), sidebars)
         change = set_canonical(path, url)
         if change == "set":
@@ -160,8 +170,9 @@ def main():
 
     sidebars = sidebar_pages(docs)
     versions = sorted(d.name for d in ROOT.iterdir() if d.is_dir() and VERSION_DIR.match(d.name))
+    generated = generated_pages()
     for version in versions:
-        sync_version(version, current, sidebars)
+        sync_version(version, current, sidebars, generated)
     write_sitemap(versions, sidebars)
 
 
