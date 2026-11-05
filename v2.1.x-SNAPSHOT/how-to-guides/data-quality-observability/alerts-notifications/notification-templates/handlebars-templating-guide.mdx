@@ -18,7 +18,7 @@ Handlebars uses double curly braces `{{` and `}}` to mark placeholders where dyn
 | Syntax | Purpose | Example |
 |--------|---------|---------|
 | `{{variableName}}` | Insert a value | `{{entity.name}}` |
-| `{{#if condition}}...{{/if}}` | Conditional display | `{{#if entity.owner}}Owner: {{entity.owner}}{{/if}}` |
+| `{{#if condition}}...{{/if}}` | Conditional display | `{{#if entity.owners}}Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}` |
 | `{{#each array}}...{{/each}}` | Loop through lists | `{{#each entity.tags}}{{this}}{{/each}}` |
 | `{{helper arg1 arg2}}` | Call a helper function | `{{formatDate entity.updatedAt}}` |
 
@@ -44,8 +44,8 @@ Type: table
 Use `{{#if}}` blocks to show content only when a condition is true:
 
 ```handlebars
-{{#if entity.owner}}
-  <p>Owner: {{entity.owner}}</p>
+{{#if entity.owners}}
+  <p>Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>
 {{/if}}
 ```
 
@@ -56,8 +56,8 @@ This section only appears if the entity has an owner. If the field is empty, the
 Add `{{else}}` to provide alternative content:
 
 ```handlebars
-{{#if entity.owner}}
-  <p>Owner: <strong>{{entity.owner}}</strong></p>
+{{#if entity.owners}}
+  <p>Owner: <strong>{{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</strong></p>
 {{else}}
   <p>This entity has no owner assigned.</p>
 {{/if}}
@@ -88,6 +88,22 @@ For each item in the tags array, this creates a list item. Use `{{this}}` to ref
 
 Access properties of objects in the array.
 
+**Looping Through Owners:**
+
+An entity can have more than one owner, so `entity.owners` is a list. Each item has `id`, `name`, `displayName` and `type`. Use the lowercase name `entity.owners`. Handlebars is case-sensitive, so `entity.Owners` renders nothing.
+
+```handlebars
+{{#if entity.owners}}
+  <p>Owners:
+  {{#each entity.owners}}
+    {{displayName}} ({{name}}){{#unless @last}}, {{/unless}}
+  {{/each}}
+  </p>
+{{/if}}
+```
+
+`displayName` can be empty for some owners. Use `{{name}}` if you need a value that is always set.
+
 <Tip>
 Combine conditional logic with loops to show content only when list items exist:
 ```handlebars
@@ -107,16 +123,16 @@ Combine conditional logic with loops to show content only when list items exist:
 You can nest conditions and loops:
 
 ```handlebars
-{{#if entity.owner}}
+{{#if entity.owners}}
   {{#if entity.tags}}
-    <p>{{entity.owner}} manages this entity with {{length entity.tags}} tags</p>
+    <p>{{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}} manages this entity with {{length entity.tags}} tags</p>
   {{/if}}
 {{/if}}
 ```
 
 ## Using Helpers
 
-Helpers are functions that perform operations on your data. OpenMetadata provides 22 custom helpers beyond standard Handlebars features.
+Helpers are functions that perform operations on your data. OpenMetadata provides 24 custom helpers beyond standard Handlebars features.
 
 ### Basic Helper Syntax
 
@@ -175,7 +191,7 @@ For detailed information about available properties, see [Template Context Refer
 Use dot notation to access nested object properties:
 
 ```handlebars
-{{entity.owner.displayName}}
+{{entity.owners.0.displayName}}
 {{event.changeDescription.updates}}
 ```
 
@@ -218,7 +234,7 @@ This creates a link that opens the entity in OpenMetadata UI.
 
 Handlebars uses dot notation (`.`) to access properties:
 - `entity.name` - Access the name property
-- `entity.owner.id` - Access nested properties
+- `entity.owners.0.id` - Access nested properties
 - `entity.tags.0.name` - Access array items by index
 
 ### Empty String Rendering
@@ -226,21 +242,35 @@ Handlebars uses dot notation (`.`) to access properties:
 If a property doesn't exist or is empty, Handlebars renders an empty string:
 
 ```handlebars
-<p>Owner: {{entity.owner}}</p>
+<p>Description: {{entity.description}}</p>
 ```
 
-If `entity.owner` is missing, renders as:
+If `entity.description` is missing, renders as:
 ```html
-<p>Owner: </p>
+<p>Description: </p>
 ```
 
 Use conditionals to prevent this:
 
 ```handlebars
-{{#if entity.owner}}
-  <p>Owner: {{entity.owner}}</p>
+{{#if entity.description}}
+  <p>Description: {{entity.description}}</p>
 {{/if}}
 ```
+
+### HTML Escaping
+
+Double braces `{{ }}` escape HTML characters in the value. For example, `<` becomes `&lt;` and `&` becomes `&amp;`. Use this for plain-text fields such as names and descriptions.
+
+Triple braces `{{{ }}}` output the value as raw HTML with no escaping. Use them only for content that is already HTML and that you trust, such as the table from `renderTableSample`:
+
+```handlebars
+{{{renderTableSample entity.failedRowsSample link.arrayField 10 3}}}
+```
+
+<Warning>
+Don't use triple braces on user-written text such as `entity.description`. A description that contains `<`, `&` or HTML tags can break the layout of the notification.
+</Warning>
 
 ### Spaces in Output
 
