@@ -34,7 +34,7 @@ To create a memory, follow these steps:
     - **Metadata**:
       - **Visibility**: Choose who can see the memory. Defaults to **Private**.
         - **Shared**: Visible to people or teams in the memory's shared-with list. The **Add Memory** dialog currently doesn't let you add people or teams to that list.
-        - **Entity**: Visible organization-wide to people with access to the **Context Memory** resource. It isn't limited to people viewing a linked data asset.
+        - **Entity**: Visible to everyone who can view the linked data asset, or to everyone when no asset is linked.
         - **Private**: Visible only to you.
       - **Tags**: Optionally tag the memory using **Add Tag**.
 
@@ -49,10 +49,17 @@ An AI assistant can also create memories on its own during a conversation, for e
 The **Memories** page shows:
 
 - **Search bar**: Search memories by their content.
-- **Summary cards**: **Total Memories**, **Created by me**, and **Needs review**, each showing a count. Select a card to filter the list by it.
-- **Filters**: Switch between **All** and **Created by me**, or narrow the list by **Status**, **All Assets**, or **All Author**. Select **Clear All** to reset the filters.
-- **Sort**: Order the list, for example by **Updated by**.
-- **Memory list**: Each row shows the author's name and avatar, when it was last updated, the memory's title, its content, and how many times it's been **Cited**, that is, how often it's actually been used to answer a question.
+- **Summary cards**: Three cards, **Total Memories**, **Created by me**, and **Needs review**, each showing a count. Select a card to switch the list to that view. The cards work with the keyboard, and the page has no **All**, **Created by me**, or **Needs review** tabs.
+- **Filters**: Narrow the list by **Status**, **All Assets**, or **All Author**. **Status** defaults to **Approved**, **Unprocessed**, and **Draft**. Select **Clear All** to reset the filters.
+- **Sort**: Order the list, for example by **Recently updated** or **Most used**. **Most used** sorts by how many answers a memory was applied to.
+- **Memory list**: Each row shows the memory's author and when it was last updated, its title and status, and its content. A **Reason** line appears when a memory is held for review. When usage figures are available, the last line of a row shows how the memory has been used:
+  - **Cited N times**: The number of saved answers the memory was applied to, followed by when it was last used.
+  - **Thumbs-up and thumbs-down counts**: The helpful and unhelpful votes on those answers.
+  - **Corrected N times**: How many times a memory captured from a conversation corrected this one. This appears only when the number is above zero.
+
+    <img src="/public/images/how-to-guides/context-center/memory-row-stats.png" alt="Memory row showing Cited count, last used time, and helpful and unhelpful votes" />
+
+  Usage figures are written by an application that recounts how memories are used, so they appear only when such an application is running, as in Collate.
 - **Row actions**:
   - **Copy link**: Copy the memory URL.
   - **Edit**: Open the memory to change its title, content, type, visibility, tags, or linked assets.
@@ -62,19 +69,68 @@ The **Memories** page shows:
 
 ## Memory Statuses
 
-Every memory has a status. A new memory starts as **Unprocessed**, which means it is awaiting reconciliation. Only **Approved** memories are used to ground new memories and AI assistant answers. **Unprocessed** memories are excluded from search and from AI assistant answers.
+Every memory has a status. A new memory starts as **Approved**, because OpenMetadata has no reconciliation step. A distribution that requires review, such as Collate, starts new memories as **Unprocessed** instead. Only **Approved** memories ground AI assistant answers for other users.
 
 The **Status** filter lists these statuses:
 
 - **Unprocessed**: Awaiting reconciliation.
-- **Draft**: Not yet approved.
+- **Draft**: Held for a person to review. A **Reason** line on the memory explains why.
 - **Approved**: In use.
 - **Superseded**: Replaced by another memory. A superseded memory must name the memory that replaces it.
 - **Invalidated**: Found to be incorrect.
 - **Archived**: No longer in use.
 - **Deprecated** and **Rejected**: Older retirement stages that remain readable.
 
-By default, the list shows **Approved**, **Unprocessed**, and **Draft** memories. When you select several statuses, the filter button reads **Status: N Statuses**.
+By default, the list shows **Approved**, **Unprocessed**, and **Draft** memories, so memories held for review appear with their **Reason**. When you select several statuses, the filter button reads **Status: N Statuses**.
+
+### Who Can See Pending Memories
+
+**Unprocessed** and **Draft** memories are listed only to their owners and to admins, in the **Memories** list, in search, and on a document's memory card. A pending memory extracted from a document is also listed to that document's owners, including team owners. Everyone else sees a memory only after it is **Approved**.
+
+### Memories Held for Review
+
+OpenMetadata moves a memory to **Draft** when a saved query that supports it is permanently deleted. Select a held memory to read its **Reason** in the list or in the memory details, under **Metadata**.
+
+    <img src="/public/images/how-to-guides/context-center/memories-draft-reason.png" alt="Draft memories with a Reason line in the Memories list" />
+
+    <img src="/public/images/how-to-guides/context-center/memory-details.png" alt="Memory details showing Status, Reason, and usage" />
+
+Each **Approved** or **Unprocessed** memory that cites the deleted query moves to **Draft**. The reason reads `Supporting query <id> was deleted; review whether this memory still holds without it`, and OpenMetadata removes the query from the memory's related entities. Memories in other statuses aren't changed.
+
+A hold for a deleted query doesn't open a review task. The owner or an admin approves or rejects it directly from the memory. A reader who can't view a query sees only its ID and type in a memory's evidence.
+
+## Review Conflicting Memories
+
+A **Review conflicting memory** task asks you to decide between two memories that contradict each other. OpenMetadata creates the task as `governance-bot` and assigns it to the owners of both memories. Memory reconciliation in Collate is what detects a contradiction and holds the memory, so these tasks appear only when such an application writes the disputes. The task also appears in your **Inbox** > **Tasks**, where each row and the task detail header carry a **Memory conflict** chip.
+
+To review a conflict, follow these steps:
+
+1. Navigate to **Context Center** > **Memories** and select the **Needs review** card. Admins see all reviews. Other users see the reviews assigned to them or to their teams. The list loads 20 at a time, so select **Load more** to see the rest.
+
+    <img src="/public/images/how-to-guides/context-center/memories-needs-review.png" alt="Needs review list on the Memories page" />
+
+2. Open a review. The **Compare memories** dialog compares the two memories side by side:
+    - **Current**: The **Approved** memory that is currently in use, on the left.
+    - **In review**: The memory in review, on the right.
+    - Each side shows its title, author, date, status, and whether it is **Newer** or **Older**.
+    - **Why they conflict**: The reason for the conflict.
+    - A table compares the **Title**, **Memory**, **Question**, **Type**, and **Linked Data Assets** of both memories, with the differences highlighted.
+    - When several memories are contradicted, use the selector to switch between them.
+
+    <img src="/public/images/how-to-guides/context-center/memory-conflict-compare.png" alt="Compare memories dialog with Keep this one actions" />
+
+3. Click **Keep this one** under the memory you want to keep:
+    - Under the memory in review: **Approves this memory and supersedes** the disputed memory. The reviewed memory becomes **Approved**, and the disputed **Approved** memories become **Superseded**.
+    - Under the **Approved** memory: **Keeps this memory and rejects** the memory in review. The reviewed memory becomes **Rejected**, and the disputed memory isn't changed.
+
+OpenMetadata refuses the decision and leaves the task open when:
+
+- The memory left review another way.
+- A disputed memory was edited after the conflict was found.
+- You can't read or supersede the disputed memory.
+- Either memory changed while you were deciding.
+
+Approving or rejecting the memory elsewhere in Context Center, moving it through a workflow transition, or deleting it closes the open review. You can't create, edit, or close a review manually through the Tasks API.
 
 ## Control Access to Memories with Roles and Policies
 
@@ -95,6 +151,22 @@ Memories are a governed resource in OpenMetadata's role-based access control sys
 
 You can also add this rule while creating a new policy, instead of adding it to an existing one.
 
-This RBAC layer is separate from a memory's own **Visibility** setting (see [Create a Memory](#create-a-memory)): RBAC controls whether a role can interact with memories as a resource type at all, while Visibility and sharing control who can see one specific memory once it exists. Seeing a memory requires both: RBAC permission on Context Memory, and visibility into that memory, either as its owner, through its shared-with list, or because it uses **Entity** visibility.
+### Default Access for Data Consumers
+
+By default, every user can create memories, including the ones an AI assistant saves from their conversations. The seeded **Data Consumer** policy includes the allow rule `DataConsumerPolicy-CreateContextMemory-Rule` (**Create** on **Context Memory**), and every user receives it through the **Organization** team. The creator owns the new memory and can edit or delete it.
+
+Users who can only create memories have these limits:
+
+- They can create only memories that they own. Naming another owner returns a 403 error.
+- They can link only data assets they can view.
+- They can't set extraction sources.
+
+To make memory creation admin-only, delete `DataConsumerPolicy-CreateContextMemory-Rule` from the **Data Consumer** policy. To withdraw creation from chosen users only, add a **Deny** rule for **Create** on **Context Memory** to a role assigned to them.
+
+Memories with **Entity** visibility that are linked to an asset are also findable in search by anyone who can view that asset.
+
+### RBAC and Visibility
+
+This RBAC layer is separate from a memory's own **Visibility** setting (see [Create a Memory](#create-a-memory)): RBAC controls whether a role can interact with memories as a resource type at all, while Visibility and sharing control who can see one specific memory once it exists. Seeing a memory requires both: RBAC permission on Context Memory, and visibility into that memory, either as its owner, through its shared-with list, or through **Entity** visibility on a linked asset.
 
 See [Roles and Policies](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/roles-policies) for how rules, policies, and roles fit together, and [Resource Scope and Operations Reference](/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/roles-policies/resource-scope) for the full list of operations available on Context Memory and other resources.
