@@ -44,7 +44,7 @@ The email subject line or notification title.
 
 This renders to: `[Data Alerts] - Table Updated: database.schema.customers`
 
-The subject uses the same placeholders and helpers as the body, for example `event`, `entity`, and `publisherName`. It is plain text, so don't add HTML tags to it.
+The subject uses the same placeholders and helpers as the body, for example `event`, `entity`, and `publisherName`. It is plain text, so don't add HTML tags to it. Double braces show escaped characters literally in an email subject, for example `&amp;` instead of `&`, so use triple braces for names: `{{{entity.name}}}`.
 
 <Tip>
 Keep subjects concise (under 100 characters) as they appear in email clients where space is limited.
@@ -60,6 +60,7 @@ The main template content in HTML with Handlebars.
 <strong>{{event.userName}}</strong> updated <strong>{{camelCaseToTitle event.entityType}}</strong>:
 <a href="{{buildEntityUrl event.entityType entity}}">{{entity.fullyQualifiedName}}</a>
 
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
 {{#if changes.updates}}
 <h3>Updated Fields:</h3>
 <ul>
@@ -68,6 +69,7 @@ The main template content in HTML with Handlebars.
   {{/each}}
 </ul>
 {{/if}}
+{{/with}}
 ```
 
 #### Submit the Template
@@ -189,7 +191,7 @@ To show a message only when the status changed, group the changes and check for 
 Use `{{buildEntityUrl event.entityType entity}}` to link to the contract.
 
 <Note>
-`hasFieldInChanges` works only on update events. A create or delete event has no list of changes.
+A change to `entityStatus` appears only on update events. A create event has no list of changes, and soft-delete and restore events list only the `deleted` field.
 </Note>
 
 <Note>

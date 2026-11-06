@@ -192,7 +192,7 @@ Use dot notation to access nested object properties:
 
 ```handlebars
 {{entity.owners.0.displayName}}
-{{event.changeDescription.updates}}
+{{event.changeDescription.fieldsUpdated.0.name}}
 ```
 
 ### Default Values with If
@@ -260,17 +260,22 @@ Use conditionals to prevent this:
 
 ### HTML Escaping
 
-Double braces `{{ }}` escape HTML characters in the value. For example, `<` becomes `&lt;` and `&` becomes `&amp;`. Use this for plain-text fields such as names and descriptions.
+Double braces `{{ }}` escape HTML characters in the value. For example, `<` becomes `&lt;` and `&` becomes `&amp;`. Use them in the template body for plain-text values such as names.
 
-Triple braces `{{{ }}}` output the value as raw HTML with no escaping. Use them only for content that is already HTML and that you trust, such as the table from `renderTableSample`:
+Triple braces `{{{ }}}` output the value with no escaping. Use them for content that is already HTML, such as the table from `renderTableSample` and rich-text descriptions:
 
 ```handlebars
-{{{renderTableSample entity.failedRowsSample link.arrayField 10 3}}}
+{{{renderTableSample entity.failedRowsSample}}}
+{{{processMentions entity.description}}}
 ```
 
-<Tip>
-Don't use triple braces on user-written text such as `entity.description`. A description that contains `<`, `&`, or HTML tags can break the layout of the notification.
-</Tip>
+A description saved in the OpenMetadata UI contains HTML tags, so with double braces the notification shows those tags as text. Email notifications remove unsafe tags such as `<script>`.
+
+The email subject is plain text, so escaped characters appear literally. For example, `{{entity.name}}` shows `Sales &amp; Marketing` for an entity named `Sales & Marketing`. Use triple braces for names in the subject:
+
+```handlebars
+[{{event.eventType}}] {{{entity.name}}}
+```
 
 ### Spaces in Output
 

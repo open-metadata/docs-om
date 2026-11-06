@@ -18,7 +18,7 @@ Every placeholder starts with one of these top-level names. A bare name such as 
 | `entity` | The entity the event is about. For more information, see [Entity Object](#entity-object). |
 | `baseUrl` | Base URL of your instance |
 | `publisherName` | Display name of the alert that triggered the notification |
-| `emailingEntity` | Email address configured in the SMTP settings |
+| `emailingEntity` | Name set in the **Emailing Entity** field of the SMTP settings, for example `OpenMetadata`. It isn't an email address. |
 
 ## Event Types
 
@@ -54,7 +54,7 @@ The complete change event that triggered the notification.
 | Property | Type | Description |
 |----------|------|-------------|
 | `event.entityType` | string | Type of entity that changed (e.g., `table`, `dashboard`, `testCase`, `dataAsset`) |
-| `event.eventType` | string | Type of change. For more information, see [Event Types](#event-types). |
+| `event.eventType` | string | Type of change. For more information, see [Event Types](#event-types). To compare it in a condition, use `startsWith`, for example `{{#if (startsWith event.eventType "entityUpdated")}}`. |
 | `event.userName` | string | Username of the user who triggered the change |
 | `event.entityId` | UUID | Unique identifier of the entity that changed |
 | `event.entityFullyQualifiedName` | string | Fully qualified name of the entity that was modified |
@@ -63,7 +63,7 @@ The complete change event that triggered the notification.
 | `event.currentVersion` | number | Metadata version after the change |
 | `event.id` | UUID | Unique identifier of the event |
 | `event.changeDescription` | object | Details of what changed (see Accessing Change Details below). Empty for `entityCreated` and `entityDeleted` |
-| `event.incrementalChangeDescription` | object | The change that led to this version of the entity |
+| `event.incrementalChangeDescription` | object | Not set on notification events. Use `event.changeDescription` |
 | `event.domains` | array | List of domain IDs the entity belongs to |
 | `event.impersonatedBy` | string | Bot/service user performing the action on behalf of the actual user |
 
@@ -87,7 +87,7 @@ These properties exist on all entities that implement EntityInterface:
 |----------|------|-------------|
 | `entity.id` | UUID | Unique identifier for the entity |
 | `entity.name` | string | Simple name of the entity |
-| `entity.displayName` | string | Human-friendly display name (defaults to `name` if not set) |
+| `entity.displayName` | string | Human-friendly display name. It is empty if not set, so use `entity.name` when you need a value that is always set |
 | `entity.fullyQualifiedName` | string | Full path of the entity (e.g., `database.schema.table`) |
 | `entity.href` | string | Reference URL to access the entity |
 | `entity.description` | string | Entity description or documentation |
@@ -641,19 +641,15 @@ Properties injected into the context for system and notification configuration. 
 |----------|------|--------|-------------|
 | `baseUrl` | string | EmailUtil.getOMBaseURL() | Base URL of your OpenMetadata instance |
 | `publisherName` | string | EventSubscription displayName or FQN | Display name of the event subscription that triggered this notification (or its FQN if no display name is set) |
-| `emailingEntity` | string | SMTP settings | Email address or entity configured in SMTP settings (used in email headers) |
+| `emailingEntity` | string | SMTP settings | Name set in the **Emailing Entity** field, for example `OpenMetadata`. It isn't an email address. The sender address is a separate SMTP setting. |
 
 **Example Usage:**
 
 ```handlebars
 <p><em>This notification was sent by: {{publisherName}}</em></p>
-
-<a href="{{baseUrl}}/entity/{{event.entityType}}/{{entity.id}}">
-  View in OpenMetadata
-</a>
 ```
 
-Alternatively, use the `buildEntityUrl` helper which does this automatically:
+To link to the entity, use the `buildEntityUrl` helper. It builds the correct path for each entity type:
 
 ```handlebars
 <a href="{{buildEntityUrl event.entityType entity}}">
