@@ -44,6 +44,8 @@ The email subject line or notification title.
 
 This renders to: `[Data Alerts] - Table Updated: database.schema.customers`
 
+The subject uses the same placeholders and helpers as the body, for example `event`, `entity`, and `publisherName`. It is plain text, so don't add HTML tags to it.
+
 <Tip>
 Keep subjects concise (under 100 characters) as they appear in email clients where space is limited.
 </Tip>
@@ -163,6 +165,36 @@ Previewing a template with the `/api/v1/notificationTemplates/render` API uses s
 
 For more information about configuring the table output, see the [Custom Helpers Reference](/v2.1.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference).
 
+
+## Reacting to a Data Contract Status Change
+
+A data contract has an approval status in `entity.entityStatus`. The values are `Draft`, `In Review`, `Approved`, `Archived`, `Deprecated`, `Rejected`, and `Unprocessed`. When the status changes, the change event records it under the field name `entityStatus`.
+
+To show a message only when the status changed, group the changes and check for that field:
+
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (hasFieldInChanges changes "entityStatus")}}
+    <p>The status of <strong>{{entity.name}}</strong> changed to <strong>{{entity.entityStatus}}</strong>.</p>
+  {{/if}}
+{{/with}}
+
+{{#if entity.owners}}
+  <p>Owners:
+  {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}
+  </p>
+{{/if}}
+```
+
+Use `{{buildEntityUrl event.entityType entity}}` to link to the contract.
+
+<Note>
+`hasFieldInChanges` works only on update events. A create or delete event has no list of changes.
+</Note>
+
+<Note>
+A template changes only what the notification shows. It can't stop the alert from firing. A data contract alert can't currently filter on the approval status (`entityStatus`). The only status filter for data contracts, **Get Data Contract Status Updates**, checks the validation result (such as Failed or Aborted), not the approval status. An alert on data contracts therefore sends a notification for every matching contract change, not only for status changes.
+</Note>
 
 ## Template Preview and Testing
 

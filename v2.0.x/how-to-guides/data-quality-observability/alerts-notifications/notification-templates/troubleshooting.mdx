@@ -22,12 +22,12 @@ This guide helps you resolve common issues with notification templates.
 
    ```handlebars
    <!-- ❌ Missing closing /if -->
-   {{#if entity.owner}}
-     Owner: {{entity.owner}}
+   {{#if entity.owners}}
+     Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}
 
    <!-- ✅ Correct -->
-   {{#if entity.owner}}
-     Owner: {{entity.owner}}
+   {{#if entity.owners}}
+     Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}
    {{/if}}
    ```
 
@@ -55,7 +55,7 @@ This guide helps you resolve common issues with notification templates.
    ```
 
 **Solution:**
-- Use the **Validate** button in the template editor before saving
+- Validate the template with the `/api/v1/notificationTemplates/validate` API before saving
 - Check brackets are balanced: each opening has a closing pair
 - Verify helper names match exactly (case-sensitive)
 - Add quotes around string values in helper attributes
@@ -97,7 +97,7 @@ Double-quote all string values in Handlebars attributes: `status='Failed'` is in
 
    <!-- ✅ Shows only count and highlights (concise) -->
    {{length changes.updates}} fields updated
-   {{#if entity.owner}}(Owner: {{entity.owner}}){{/if}}
+   {{#if entity.owners}}(Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}){{/if}}
    ```
 
 4. **Remove conditional sections for optional data**
@@ -125,12 +125,12 @@ Double-quote all string values in Handlebars attributes: `status='Failed'` is in
 
 1. **Verify property names**
    - Check [Template Context Reference](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference)
-   - Use dot notation: `entity.owner`, not `entity.owner_name`
+   - Use dot notation: `entity.owners.0.name`, not `entity.owner_name`
 
 2. **Use conditionals for optional fields**
    ```handlebars
-   {{#if entity.owner}}
-     Owner: {{entity.owner}}
+   {{#if entity.owners}}
+     Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}
    {{/if}}
    ```
 
@@ -175,9 +175,9 @@ Double-quote all string values in Handlebars attributes: `status='Failed'` is in
    <ul><li>Item 1</li></ul>
    ```
 
-2. **Use the Preview feature**
-   - Preview shows how template renders with sample data
-   - Check preview across different channel types
+2. **Preview the template**
+   - Call the `/api/v1/notificationTemplates/render` API to see how the template renders with sample data
+   - Check the result for each resource type your alert covers
 
 3. **Send test notifications**
    - Test to your actual Slack/email/Teams channels
@@ -241,8 +241,8 @@ Double-quote all string values in Handlebars attributes: `status='Failed'` is in
 
 1. **Use conditionals to handle missing data**
    ```handlebars
-   {{#if entity.owner}}
-     <p>Owner: {{entity.owner}}</p>
+   {{#if entity.owners}}
+     <p>Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>
    {{else}}
      <p><em>No owner assigned</em></p>
    {{/if}}
@@ -334,7 +334,7 @@ Always use `groupEventChanges` to organize change data:
 
 **Symptoms:**
 - "Helper not found" error
-- Helper name is red/underlined in editor
+- The `/api/v1/notificationTemplates/validate` API reports an error for the helper
 - Results are unexpected
 
 **Common Issues:**
@@ -369,20 +369,19 @@ Always use `groupEventChanges` to organize change data:
 **Solution:**
 - Check [Custom Helpers Reference](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference)
 - Verify exact helper name and argument order
-- Use Preview to test
+- Use the `/api/v1/notificationTemplates/render` API to test
 
 ## Best Debugging Practices
 
-### 1. Use Preview Frequently
+### 1. Preview Frequently
 
-In the template editor, click **Preview** to:
-- See how template renders with sample data
+Call the `/api/v1/notificationTemplates/render` API to:
+- See how the template renders with sample data
 - Catch formatting issues early
-- Test across different channels
 
 ### 2. Send Test Notifications
 
-Click **Send Test** to:
+Call the `/api/v1/notificationTemplates/send` API to:
 - Send to real email/Slack/Teams
 - Verify how it actually appears to users
 - Test with your actual notification setup
@@ -414,4 +413,4 @@ Provide:
 - The template code
 - What error or unexpected behavior occurs
 - What data you expected to see
-- Screenshots of Preview/test results
+- The output of the validate, render, or send call
