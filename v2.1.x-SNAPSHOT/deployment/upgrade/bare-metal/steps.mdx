@@ -86,4 +86,35 @@ binaries. You may restart the server by running the following command.
 ./bin/openmetadata.sh start
 ```
 
+## Step 7: Upgrade Airflow and the ingestion packages
+
+If you run Airflow on the same host for metadata ingestion, upgrade it to the version that matches your new OpenMetadata release. See the [Airflow and Python version table](/v2.1.x-SNAPSHOT/deployment/bare-metal#airflow-or-other-workflow-schedulers) for the supported versions.
+
+Install Airflow together with the matching `openmetadata-managed-apis` and `openmetadata-ingestion` packages in a single `pip` command, using the `airflow-constraints-<airflow-version>.txt` constraints file from the release. Download it from the `ingestion` directory of the [OpenMetadata repository](https://github.com/open-metadata/OpenMetadata) at your release tag (`x.y.z-release`). For example, use `https://raw.githubusercontent.com/open-metadata/OpenMetadata/x.y.z-release/ingestion/airflow-constraints-<airflow-version>.txt`.
+
+Run the following command:
+
+```commandline
+pip3 install "apache-airflow==<airflow-version>" \
+  "openmetadata-managed-apis==x.y.z" \
+  "openmetadata-ingestion[<plugins>]==x.y.z" \
+  --constraint airflow-constraints-<airflow-version>.txt
+```
+
+Replace `x.y.z` with your OpenMetadata server version and `<plugins>` with the connector plugins you use.
+
+<Warning>
+Always pin `apache-airflow` to the exact version for your release. `openmetadata-managed-apis` only requires a minimum Airflow version, so without the pin `pip` can keep your existing Airflow installation.
+</Warning>
+
+<Note>
+The constraints file targets Python 3.12, which is the recommended Python version.
+</Note>
+
+After the packages are installed, run the Airflow database migration, then restart the Airflow Scheduler and the Airflow API Server:
+
+```commandline
+airflow db migrate
+```
+
 <PostUpgradeSteps />
