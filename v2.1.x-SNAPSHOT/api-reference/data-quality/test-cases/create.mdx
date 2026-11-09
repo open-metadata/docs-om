@@ -399,11 +399,21 @@ curl -X POST "{base_url}/api/v1/dataQuality/testCases" \
 
 For more information, see [Create a Test Definition](/v2.1.x-SNAPSHOT/api-reference/data-quality/test-definitions/create#custom-sql-test-definitions).
 
+## Parameter Validation
+
+OpenMetadata checks a new test case against its test definition before it stores it:
+- **Parameter values**: Each value must be one of the `optionValues` of the matching parameter in the test definition. The comparison ignores case, and a blank value counts as not set.
+- **Column data type**: When the test definition lists `supportedDataTypes`, the data type of the column in `entityLink` must be one of them.
+
+A request that fails either check returns `400`. `POST /v1/dataQuality/testCases` and `POST /v1/dataQuality/testCases/createMany` both apply the checks. `createMany` checks every test case before it stores any, so one rejected test case means none are stored.
+
+An update checks only what it changes. A changed parameter value must be one of the options, and a test case moved to another column or test definition is checked in full. A test case stored before these checks, or one whose column changed data type later, stays editable.
+
 ## Error Handling
 
 | Code | Error Type | Description |
 |------|-----------|-------------|
-| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `400` | `BAD_REQUEST` | Invalid request body, missing required fields, a parameter value that is not one of the definition's options, or a column data type the definition does not support |
 | `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
 | `403` | `FORBIDDEN` | User lacks permission to create test cases |
 | `409` | `ENTITY_ALREADY_EXISTS` | Test case with same name already exists for this entity (POST only) |
