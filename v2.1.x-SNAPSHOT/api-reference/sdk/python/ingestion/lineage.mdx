@@ -393,14 +393,55 @@ will be surfaced soon. Thanks!
 
 </Tip>
 
-## Automated SQL lineage
+## Automated SQL Lineage
 
-SQL-based lineage parsing is not part of `metadata.sdk.api.Lineage` today. If you need lineage generated from raw SQL,
-use the lineage ingestion workflow or CLI. The older `add_lineage_by_query` helper belongs to the legacy
-`metadata.ingestion.ometa` client surface, not the current `metadata.sdk` API.
+To have lineage generated from a SQL query, call `add_lineage_by_query`. `metadata.sdk.api.Lineage` doesn't expose it,
+but the client returned by `configure(...)` does, through its `ometa` property. This is the same call the
+[CLI](#automated-sql-lineage-via-cli) makes.
+
+```python
+from metadata.sdk import configure
+from metadata.generated.schema.entity.services.databaseService import DatabaseService
+
+ometa = configure(
+    host="http://localhost:8585/api",
+    jwt_token="<token>",
+).ometa
+
+database_service = ometa.get_by_name(entity=DatabaseService, fqn="local_mysql")
+if database_service is None:
+    raise ValueError("Database service local_mysql not found")
+
+ometa.add_lineage_by_query(
+    database_service=database_service,
+    sql="INSERT INTO target_table (id) SELECT id FROM source_table",
+    database_name="my_db",  # Optional: database for table names without one
+    schema_name="my_schema",  # Optional: schema for table names without one
+    timeout=300,  # Parsing timeout in seconds
+    check_patch=True,
+)
+```
+
+This example creates lineage from `source_table` to `target_table` within the `local_mysql` database service.
+
+`add_lineage_by_query` takes these parameters:
+
+- **database_service**: The database service that contains the tables in the query. The SQL dialect is taken from its service type.
+- **sql**: The query to parse.
+- **database_name** and **schema_name**: (Optional) The database and schema to use for table names that the query doesn't qualify.
+- **timeout**: Timeout for the lineage parsing process, in seconds.
+- **check_patch**: Defaults to `False`. The CLI sets it to `True`.
+
+<Note>
+
+`add_lineage_by_query` returns `None` and doesn't raise on failure. Parsing and API errors are only logged, so enable
+logging to see them. Check that `get_by_name` found the service before calling it: when `database_service` is `None`,
+the method does nothing.
+
+</Note>
 
 
-## Automated SQL lineage via CLI
+## Automated SQL Lineage via CLI
 
 To create the automated sql lineage via CLI, you need to make sure that you have installed the openmetadata-ingestion package in your local environment using command `pip install openmetadata-ingestion`.
 
@@ -408,7 +449,7 @@ Once that is done you will have to prepare a yaml file as follows.
 
 ```yaml
 serviceName: local_mysql
-query: insert into target_table(id) as select id from source_table
+query: insert into target_table(id) select id from source_table
 # filePath: test.sql
 # parseTimeout: 360 # timeout in seconds
 workflowConfig:
