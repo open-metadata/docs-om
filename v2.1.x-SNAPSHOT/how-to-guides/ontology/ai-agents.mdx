@@ -70,13 +70,13 @@ The full ontology is roughly 65 KB, so prefer a focused `DESCRIBE`.
 
 ### `sparql_query`
 
-Read-only SPARQL (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledge graph.
+Read-only SPARQL (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledge graph. Non-administrators are limited to `SELECT` queries with JSON output, as described in the access model above.
 
 | Parameter | Notes |
 |---|---|
 | `query` | Required. Use `https://open-metadata.org/ontology/` as the `om:` prefix. |
-| `format` | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle` (recommended), `jsonld`, `ntriples`, `rdfxml`. |
-| `inferenceLevel` | `none` (default), `rdfs`, `owl`, `custom`. |
+| `format` | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle` (recommended), `jsonld`, `ntriples`, `rdfxml`. Non-administrators get `json` only. |
+| `inferenceLevel` | `none` (default), `rdfs`, `owl`, `custom`. Non-administrators get `none` only. |
 | `maxBytes` | Default and maximum 80,000; minimum 1,024. |
 
 `UPDATE`, `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE` are rejected. `SERVICE` clauses against external endpoints are rejected unless the target is on the federation allowlist — which is empty and disabled by default, so in a stock deployment this tool never reaches outside the local graph.
@@ -158,7 +158,7 @@ The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/ho
   </Accordion>
   <Accordion title="Privacy review: where did this sensitive data end up?">
     1. `find_by_tag` with `PII.Sensitive` → the asserted set.
-    2. `sparql_query` with `inferenceLevel: custom` → the propagated set, if the PII-propagation rule is materialized.
+    2. `sparql_query` (administrators) with `inferenceLevel: custom` → the propagated set, if the PII-propagation rule is materialized.
     3. Diff the two → columns that are sensitive by inference but not yet tagged. That diff is the remediation list.
   </Accordion>
   <Accordion title="Answering a business question correctly">
@@ -182,7 +182,7 @@ The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/ho
 Things that measurably improve results:
 
 - **Force schema discovery first.** "Before writing any SPARQL, call `ontology_describe` for the classes involved." Predicate hallucination is the dominant failure mode and this eliminates most of it.
-- **Always scope the named graph.** Tell the agent to wrap instance patterns in `GRAPH <https://open-metadata.org/graph/knowledge> { … }`. Unscoped queries return ontology triples and confuse the model about its own results.
+- **Always scope the named graph (administrators).** Tell the agent to wrap instance patterns in `GRAPH <https://open-metadata.org/graph/knowledge> { … }`. Unscoped queries return ontology triples and confuse the model about its own results. Non-administrators can't use `GRAPH`, because their queries run against the default graph.
 - **Require the query in the answer.** "Show the SPARQL you ran." Cheap, and it makes every answer auditable.
 - **Teach it to read `truncated` and `warning`.** An agent that ignores these reports partial results as complete.
 - **Budget with `LIMIT`, not `maxBytes`.** `maxBytes` is clamped at 80,000; the fix for a large result is a narrower query.
@@ -217,7 +217,7 @@ Things that measurably improve results:
     A 429 means the knowledge graph is being rebuilt or has not run yet, so retry later. A 400 means the graph is degraded and retrying will not help. Ask an administrator to run a full rebuild of the RDF index.
   </Accordion>
   <Accordion title="Queries return zero rows">
-    Usually a missing `GRAPH` clause or an invented predicate. Have the agent call `ontology_describe` and re-derive the query.
+    For administrators, usually a missing `GRAPH` clause or an invented predicate. For non-administrators, usually an invented predicate, because `GRAPH` isn't allowed. Have the agent call `ontology_describe` and re-derive the query.
   </Accordion>
   <Accordion title="Results look incomplete">
     Check for `truncated: true` and for a `warning` saying inference could not be applied. Both mean the answer is partial.
