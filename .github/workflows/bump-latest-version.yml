@@ -33,28 +33,7 @@ jobs:
 
       - name: Update docs.json redirects
         id: bump
-        run: |
-          node - <<'EOF'
-          const fs = require('fs');
-          const nv = process.env.VERSION;
-          const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
-          const cur = docs.redirects
-            .find(r => r.source === '/latest/:slug*')
-            .destination.match(/\/(v[\d.x]+)\//)[1];
-          if (cur === nv) { console.log(`Already pointing to ${nv} — nothing to do.`); process.exit(0); }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'changed=true\n');
-          const versionedSource = /^\/v\d+\.\d+\.x(?:\/|$)/;
-          let n = 0;
-          docs.redirects = docs.redirects.map(r => {
-            if (r.destination.startsWith(`/${cur}/`) && !versionedSource.test(r.source)) {
-              n++;
-              return { ...r, destination: r.destination.replace(`/${cur}/`, `/${nv}/`) };
-            }
-            return r;
-          });
-          fs.writeFileSync('docs.json', JSON.stringify(docs, null, 2) + '\n');
-          console.log(`Updated ${n} redirects: ${cur} → ${nv}`);
-          EOF
+        run: node .github/scripts/bump-redirects.js
         env:
           VERSION: ${{ env.VERSION }}
 
@@ -76,4 +55,7 @@ jobs:
             Automated: bumps all unversioned redirects in `docs.json` to point to `${{ env.VERSION }}`,
             and re-points every other version's `canonical` frontmatter tags at `${{ env.VERSION }}`.
 
-            Version-internal redirects (e.g. old-version/… → old-version/…) are left untouched.
+            Redirects from retired versions now point straight at `${{ env.VERSION }}`, rules that pointed
+            at the pre-release folder are renamed, and page moves local to the previous version
+            (e.g. `sdk/*` → `api-reference/sdk/*`) are copied to `${{ env.VERSION }}` so it doesn't serve
+            duplicate pages. Other version-internal redirects are left untouched.

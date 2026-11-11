@@ -1,0 +1,44 @@
+name: SEO and redirect lint
+
+# Catches the problems Search Console would otherwise surface months later:
+# redirects that point at missing pages, moved or deleted pages without a
+# redirect, missing or duplicate titles and descriptions, and pages whose body
+# is identical to another page in the same version.
+# Run locally: python3 .github/scripts/lint-docs-seo.py --base origin/main
+on:
+  pull_request:
+    paths:
+      - "v*/**"
+      - docs.json
+      - release.config.json
+      - .github/scripts/lint-docs-seo.py
+      - .github/workflows/seo-lint.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seo-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Text only: public/ holds over 1 GB of images the script never reads.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+
+      - name: Lint
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          BASE=$(git merge-base "origin/${BASE_REF}" HEAD)
+          python3 .github/scripts/lint-docs-seo.py --base "$BASE"
