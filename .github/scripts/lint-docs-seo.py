@@ -14,7 +14,8 @@ Checks (each can be run alone with --check NAME; default is all):
                 text with another page in the same version. Existing pairs are
                 only listed as warnings, so they never block unrelated edits
 
-Live versions and the current version come from release.config.json.
+Live versions come from the navigation in docs.json; the current version is the
+/latest redirect target.
 Exit code 1 if any check fails. Standard library only.
 
 Usage:
@@ -31,9 +32,13 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-CFG = json.loads((ROOT / "release.config.json").read_text())
-LIVE = [v["dir"] for v in CFG["versions"]]
-CURRENT = CFG["defaultVersionDir"]
+# release.config.json is gitignored, so CI can't read it. Everything comes from
+# docs.json: the versions in the navigation, and the /latest redirect target.
+_DOCS = json.loads((ROOT / "docs.json").read_text())
+LIVE = [v["version"] for v in _DOCS["navigation"]["versions"]]
+CURRENT = next(
+    r["destination"].split("/")[1] for r in _DOCS["redirects"] if r["source"] == "/latest/:slug*"
+)
 
 # Pages that legitimately share a title/description or body (add paths here
 # with a reason, relative to the repo root without extension).

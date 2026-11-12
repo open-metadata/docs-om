@@ -147,7 +147,9 @@ def main():
     ap.add_argument("--fail-on-problems", action="store_true")
     a = ap.parse_args()
     base = a.base.rstrip("/")
-    current = json.loads((ROOT / "release.config.json").read_text())["defaultVersionDir"]
+    # release.config.json is gitignored (not in CI); read the current version from docs.json.
+    docs = json.loads((ROOT / "docs.json").read_text())
+    current = next(r["destination"].split("/")[1] for r in docs["redirects"] if r["source"] == "/latest/:slug*")
 
     urls = sitemap_urls(base)
     if a.limit:
