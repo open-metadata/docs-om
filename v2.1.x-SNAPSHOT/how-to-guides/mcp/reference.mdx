@@ -511,6 +511,8 @@ Explore data dependencies, trace upstream sources, and analyze downstream impact
 | `upstreamDepth` | integer | No | Hops to traverse upstream (default: 3, max: 10) |
 | `downstreamDepth` | integer | No | Hops to traverse downstream (default: 3, max: 10) |
 | `includeColumnLineage` | boolean | No | Include column-level lineage mappings. Default is `false` (table-level only) |
+| `column` | string | No | Fully qualified name of one column of this entity. Returns only the edges and column mappings that carry that column, followed hop by hop, including renames. Use it instead of `includeColumnLineage` for single-column questions |
+| `cursor` | string | No | Pagination cursor. When a response has `hasMore`, pass its `nextCursor` here with the same other arguments. Omit it for the first page |
 
 **Examples**
 
@@ -872,11 +874,31 @@ Traverse the RDF knowledge graph directly. See [Ontology & Knowledge Graph for A
 
 <Info>
 
-**Availability and access.** All five tools require an **administrator principal** — they return 403 for ordinary users and for bot tokens. Four of them (`sparql_query`, `entity_neighborhood`, `find_by_tag`, `shacl_validate`) are **not advertised at all** when RDF is disabled, so a client never sees a tool it cannot call. `ontology_describe` is always advertised because its default path serves the bundled ontology document from the classpath.
+**Availability and access.** `sparql_query`, `entity_neighborhood`, `find_by_tag`, and `ontology_describe` called with a `resource` require the **ExecuteSparqlQuery** permission. Administrators have it, and so do non-admin users and bots that hold it. The Data Consumer policy grants it by default through `DataConsumerPolicy-ExecuteSparqlQuery-Rule`.
+
+- `ontology_describe` without a `resource` needs no permission.
+- `shacl_validate` remains administrator-only and returns 403 for everyone else.
+- Four of the five tools (`sparql_query`, `entity_neighborhood`, `find_by_tag`, `shacl_validate`) are **not advertised at all** when RDF is disabled, so a client never sees a tool it cannot call.
+- `ontology_describe` is always advertised because its default path serves the bundled ontology document from the classpath.
+- A tool returns 429 while the knowledge graph is being rebuilt, and 400 when it is degraded.
+
+Non-administrators run `sparql_query` through a restricted read-only profile with these limits:
+
+- `SELECT` queries only.
+- JSON output only.
+- No inference.
+- No `FROM`, `GRAPH`, `SERVICE`, or `CALL`.
+- Bounded result size and runtime.
 
 See [Enable RDF (Knowledge Graph)](/v2.1.x-SNAPSHOT/deployment/rdf-knowledge-graph).
 
 </Info>
+
+<Warning>
+
+Results from these tools are **not filtered by asset or domain policies**. If you restrict who can view assets through custom policies or domains, remove `DataConsumerPolicy-ExecuteSparqlQuery-Rule` from the Data Consumer policy so ordinary users and bots can't read the graph. Removal can take effect late for principals that are already connected over MCP.
+
+</Warning>
 
 ### sparql_query
 
