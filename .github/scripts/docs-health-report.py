@@ -143,6 +143,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="only check the first N URLs of each list")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--slack-out", default="", help="also write the Slack message payload (JSON, Block Kit) to this file")
+    ap.add_argument("--extra-md", default="", help="Markdown file to append to the report (the Search Console section)")
+    ap.add_argument("--gsc-summary", default="", help="JSON summary written by gsc-index-report.py; adds its findings to the Slack counts")
     ap.add_argument("--skip-history", action="store_true")
     ap.add_argument("--fail-on-problems", action="store_true")
     a = ap.parse_args()
@@ -204,6 +206,18 @@ def main():
         if len(v) > 50:
             lines.append(f"- … and {len(v) - 50} more")
         lines.append("")
+    # Search Console results (optional). An unreadable or missing summary file means
+    # the step was not run, so nothing is added.
+    gsc = None
+    if a.gsc_summary and Path(a.gsc_summary).exists():
+        try:
+            gsc = json.loads(Path(a.gsc_summary).read_text())
+        except ValueError:
+            gsc = {"unavailable": "summary file unreadable"}
+    if a.extra_md and Path(a.extra_md).exists():
+        lines += Path(a.extra_md).read_text().splitlines()
+    elif gsc and gsc.get("unavailable"):
+        lines += ["", "## Search Console index status", "", f"**Search Console could not be checked:** {gsc['unavailable']}"]
     Path(a.out).write_text("\n".join(lines) + "\n")
     total = sum(len(v) for v in problems.values())
     if a.slack_out:
@@ -217,6 +231,19 @@ def main():
         }
         errors = sum(len(v) for k, v in problems.items() if k in error_kinds)
         warnings = total - errors
+        gsc_rows = []
+        if gsc is not None:
+            # Pages Google skips, and a check that could not run, are what this report
+            # exists to catch, so they count as errors. Impression drops are warnings.
+            if gsc.get("unavailable"):
+                errors += 1
+                gsc_rows = [("Search Console check", "Could not run")]
+            else:
+                errors += gsc.get("not_indexed", 0) + gsc.get("failed", 0)
+                warnings += gsc.get("impression_drops", 0)
+                gsc_rows = [("Not indexed by Google", gsc.get("not_indexed", 0)),
+                            ("Search Console inspections failed", gsc.get("failed", 0)),
+                            ("Pages with impressions down 50%+", gsc.get("impression_drops", 0))]
         run_url = os.environ.get("RUN_URL", "")
         actor = os.environ.get("GITHUB_ACTOR", "scheduled run")
         ping = "<!here> " if os.environ.get("PING_CHANNEL") == "true" else ""
@@ -228,7 +255,7 @@ def main():
                 el["style"] = {"bold": True}
             return {"type": "rich_text", "elements": [{"type": "rich_text_section", "elements": [el]}]}
 
-        data = [("Sitemap URLs checked", len(rows)), ("Historic paths replayed", replayed),
+        data = [("Sitemap URLs checked", len(rows)), ("Historic paths replayed", replayed)] + gsc_rows + [
                 ("Warnings", warnings), ("Errors", errors)]
         payload = {
             "text": f"Docs health report: {status}",

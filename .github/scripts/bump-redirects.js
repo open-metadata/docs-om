@@ -8,8 +8,8 @@
 //  3. Rules that point into the pre-release folder (<new>-SNAPSHOT) are renamed to <new>,
 //     since that folder becomes the released one.
 //  4. Page moves local to the previous version (e.g. sdk/* -> api-reference/sdk/*) are
-//     copied to the new version when it has the same source page, so the new version
-//     doesn't serve both paths.
+//     copied to the new version when their destination exists there, even if the old
+//     source page is gone, so saved links to removed pages keep working.
 const fs = require('fs');
 const nv = process.env.VERSION;
 const docs = JSON.parse(fs.readFileSync('docs.json', 'utf8'));
@@ -48,13 +48,10 @@ for (const r of R) {
   const src = r.source.replace(`/${cur}`, `/${nv}`);
   const dst = r.destination.replace(`/${cur}`, `/${nv}`);
   if (have.has(src)) continue;
-  const wildcard = src.endsWith(':slug*');
-  // Only carry a rule that is still needed: the old path exists in the new version
-  // (or is a wildcard whose folder exists) and the destination is real.
-  const srcBase = src.replace(/\/:slug\*$/, '');
-  const needed = wildcard ? fs.existsSync(srcBase.slice(1)) : pageExists(src);
+  // Carry the rule whenever its destination is real, even if the old source page is
+  // gone: removed pages are exactly the ones that need a redirect for saved links.
   const destOk = dst.includes(':slug*') || pageExists(dst.split('#')[0]);
-  if (needed && destOk) { carried.push({ source: src, destination: dst }); have.add(src); stats.carried++; }
+  if (destOk) { carried.push({ source: src, destination: dst }); have.add(src); stats.carried++; }
 }
 if (carried.length) {
   const i = R.findIndex(r => r.source === '/latest/:slug*');

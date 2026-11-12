@@ -28,14 +28,11 @@ jobs:
             !/public/
           sparse-checkout-cone-mode: false
 
-      - name: Crawl sitemap and replay history
-        run: python3 .github/scripts/docs-health-report.py --out docs-health-report.md --slack-out slack-payload.json
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # Only the scheduled run pings the channel; manual runs post quietly.
-          PING_CHANNEL: ${{ github.event_name == 'schedule' }}
-
+      # Runs first so the crawl step can add its findings to the report and the Slack
+      # counts. It never fails the job: if Search Console can't be reached, the report
+      # says so instead of the summary, artifact and Slack post being skipped.
       - name: Search Console index status
+        continue-on-error: true
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
@@ -44,8 +41,16 @@ jobs:
             echo "Search Console secrets not set; skipping."
             exit 0
           fi
-          pip install --quiet google-auth requests
-          python3 .github/scripts/gsc-index-report.py --out docs-health-report.md
+          if ! { pip install --quiet google-auth requests && python3 .github/scripts/gsc-index-report.py --out gsc-report.md --summary-out gsc-summary.json; }; then
+            echo '{"unavailable": "the Search Console step failed; see its log"}' > gsc-summary.json
+          fi
+
+      - name: Crawl sitemap and replay history
+        run: python3 .github/scripts/docs-health-report.py --out docs-health-report.md --slack-out slack-payload.json --extra-md gsc-report.md --gsc-summary gsc-summary.json
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # Only the scheduled run pings the channel; manual runs post quietly.
+          PING_CHANNEL: ${{ github.event_name == 'schedule' }}
 
       - name: Publish report
         run: cat docs-health-report.md >> "$GITHUB_STEP_SUMMARY"

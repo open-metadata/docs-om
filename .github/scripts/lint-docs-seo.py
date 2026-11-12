@@ -132,6 +132,24 @@ def redirect_covers(redirects, route):
     return False
 
 
+def final_destination(pages, redirects, route, depth=0):
+    """Follow redirects from a route (first matching rule wins) to where it ends.
+    Returns None if no rule matches, else the last path or external URL reached."""
+    dest = None
+    for r in redirects:
+        dest = r["destination"] if r["source"] == route else wildcard_map(r, route)
+        if dest is not None:
+            break
+    if dest is None:
+        return None
+    if dest.startswith("http"):
+        return dest
+    target = dest.split("#")[0].split("?")[0].rstrip("/") or "/"
+    if target in pages or target in {f"/{v}" for v in LIVE} or depth >= 5:
+        return target
+    return final_destination(pages, redirects, target, depth + 1) or target
+
+
 def check_wildcard_bases(pages, redirects):
     """`/a/:slug*` may or may not match bare `/a`; require an explicit rule."""
     errs = []
@@ -163,8 +181,11 @@ def check_moved(pages, redirects, base):
             route = to_route(old)
             if route in pages:  # path still served (e.g. .md -> .mdx)
                 continue
-            if not redirect_covers(redirects, route):
+            end = final_destination(pages, redirects, route)
+            if end is None:
                 errs.append(f"page removed or renamed without a redirect: {route}")
+            elif not end.startswith("http") and end not in pages and end not in {f"/{v}" for v in LIVE}:
+                errs.append(f"redirect for a removed page ends on a missing page: {route} -> {end}")
     return errs
 
 
