@@ -214,6 +214,9 @@ def main():
             gsc = json.loads(Path(a.gsc_summary).read_text())
         except ValueError:
             gsc = {"unavailable": "summary file unreadable"}
+    # The Search Console step is configured but left no summary: it was killed or never ran.
+    if gsc is None and os.environ.get("GSC_CONFIGURED") == "true":
+        gsc = {"unavailable": "the Search Console step did not finish"}
     if a.extra_md and Path(a.extra_md).exists():
         lines += Path(a.extra_md).read_text().splitlines()
     elif gsc and gsc.get("unavailable"):
@@ -241,7 +244,10 @@ def main():
             else:
                 errors += gsc.get("not_indexed", 0) + gsc.get("failed", 0)
                 warnings += gsc.get("impression_drops", 0)
-                gsc_rows = [("Not indexed by Google", gsc.get("not_indexed", 0)),
+                if gsc.get("analytics_failed"):
+                    errors += 1
+                gsc_rows = [("Search analytics", "Could not run" if gsc.get("analytics_failed") else "OK"),
+                            ("Not indexed by Google", gsc.get("not_indexed", 0)),
                             ("Search Console inspections failed", gsc.get("failed", 0)),
                             ("Pages with impressions down 50%+", gsc.get("impression_drops", 0))]
         run_url = os.environ.get("RUN_URL", "")

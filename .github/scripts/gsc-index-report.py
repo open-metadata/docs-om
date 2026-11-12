@@ -13,6 +13,9 @@ fails the workflow: if Search Console cannot be reached, both files say so.
 
 An inspection that fails (403, rate limit, timeout) tells us nothing about whether the
 page is indexed, so failures are counted separately and never listed as "not indexed".
+The whole run is bounded (--budget-seconds, default 15 minutes) and stops early after
+repeated transport failures, so a Google outage cannot hold up the report. URLs left
+unchecked count as failed inspections.
 Also lists pages whose impressions fell by half or more in the last 28 days compared
 with the 28 days before.
 """
@@ -21,11 +24,13 @@ import datetime as dt
 import json
 import os
 import sys
+import threading
+import time
 import xml.etree.ElementTree as ET
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
@@ -44,16 +49,31 @@ def run(a):
     urls = [e.text.strip() for e in ET.parse(ROOT / "sitemap.xml").iter() if e.tag.endswith("loc")]
     if a.limit:
         urls = urls[: a.limit]
+    # A domain property (sc-domain:open-metadata.org) also covers the main site and
+    # other subdomains; keep search analytics to the docs host.
+    docs_host = "{0.scheme}://{0.netloc}/".format(urlparse(urls[0])) if urls else "https://docs.open-metadata.org/"
+    deadline = time.monotonic() + a.budget_seconds
+    transport_failures = 0
+    lock = threading.Lock()
 
     def inspect(u):
         """Return (url, coverage state, Google's canonical, error). Exactly one of state and error is set."""
+        nonlocal transport_failures
+        if time.monotonic() > deadline:
+            return u, None, "", "not checked: time budget reached"
+        if transport_failures >= 10:
+            return u, None, "", "not checked: stopped after repeated network failures"
         try:
             r = s.post(
                 "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
-                json={"inspectionUrl": u, "siteUrl": site}, timeout=60,
+                json={"inspectionUrl": u, "siteUrl": site}, timeout=30,
             )
         except Exception as e:  # timeout, connection error
+            with lock:
+                transport_failures += 1
             return u, None, "", f"{type(e).__name__}: {str(e)[:80]}"
+        with lock:
+            transport_failures = 0
         if r.status_code != 200:
             try:
                 msg = r.json()["error"]["message"][:80]
@@ -87,7 +107,11 @@ def run(a):
 
     def query(start, end, dims):
         try:
-            r = s.post(base_url, json={"startDate": str(start), "endDate": str(end), "dimensions": dims, "rowLimit": 25000}, timeout=120)
+            body = {
+                "startDate": str(start), "endDate": str(end), "dimensions": dims, "rowLimit": 25000,
+                "dimensionFilterGroups": [{"filters": [{"dimension": "page", "operator": "contains", "expression": docs_host}]}],
+            }
+            r = s.post(base_url, json=body, timeout=60)
         except Exception:
             return None
         return r.json().get("rows", []) if r.status_code == 200 else None
@@ -97,7 +121,8 @@ def run(a):
 
     # Impressions by week for the last 8 weeks, to spot site-wide drops.
     rows = query(end - dt.timedelta(weeks=8), end, ["date"])
-    lines += ["", "### Weekly clicks and impressions", ""]
+    analytics_failed = rows is None
+    lines += ["", f"### Weekly clicks and impressions ({docs_host})", ""]
     if rows is None:
         lines.append("Search analytics query failed.")
     else:
@@ -117,6 +142,7 @@ def run(a):
     lines += ["", "### Pages with impressions down 50% or more (last 28 days vs the 28 before)", ""]
     drops = []
     if recent is None or prior is None:
+        analytics_failed = True
         lines.append("Search analytics query failed.")
     else:
         now = {r["keys"][0]: r["impressions"] for r in recent}
@@ -130,6 +156,7 @@ def run(a):
     summary = {
         "inspected": len(ok), "failed": len(failed), "not_indexed": len(not_indexed),
         "other_canonical": len(other), "impression_drops": len(drops),
+        "analytics_failed": analytics_failed,
     }
     return lines, summary
 
@@ -139,6 +166,7 @@ def main():
     ap.add_argument("--out", default="gsc-report.md")
     ap.add_argument("--summary-out", default="gsc-summary.json")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--budget-seconds", type=int, default=900, help="stop inspecting URLs after this long")
     a = ap.parse_args()
     try:
         lines, summary = run(a)

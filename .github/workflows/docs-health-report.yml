@@ -33,6 +33,9 @@ jobs:
       # says so instead of the summary, artifact and Slack post being skipped.
       - name: Search Console index status
         continue-on-error: true
+        # Backstop: the script stops itself after 15 minutes. If this still fires, the
+        # crawl step reports Search Console as unavailable.
+        timeout-minutes: 25
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
@@ -49,6 +52,7 @@ jobs:
         run: python3 .github/scripts/docs-health-report.py --out docs-health-report.md --slack-out slack-payload.json --extra-md gsc-report.md --gsc-summary gsc-summary.json
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GSC_CONFIGURED: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON != '' && secrets.GSC_SITE_URL != '' }}
           # Only the scheduled run pings the channel; manual runs post quietly.
           PING_CHANNEL: ${{ github.event_name == 'schedule' }}
 

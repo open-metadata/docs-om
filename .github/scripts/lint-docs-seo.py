@@ -93,34 +93,76 @@ def wildcard_map(rule, route):
     return dst.replace(":slug*", slug) if dst.endswith(":slug*") else dst
 
 
+class Resolver:
+    """Follows docs.json redirects the way the site does: the first matching rule wins,
+    and a rule overrides a page file at the same path."""
+
+    def __init__(self, redirects):
+        self.exact = {}
+        self.wild = []
+        for i, r in enumerate(redirects):
+            if r["source"].endswith("/:slug*"):
+                self.wild.append((i, r["source"][: -len(":slug*")], r["destination"]))
+            else:
+                self.exact.setdefault(r["source"], (i, r["destination"]))
+
+    def step(self, route):
+        """The destination of the first rule matching route, or None."""
+        best = self.exact.get(route)
+        for i, prefix, dst in self.wild:
+            if best is not None and i > best[0]:
+                break
+            if route.startswith(prefix):
+                best = (i, dst.replace(":slug*", route[len(prefix):]) if dst.endswith(":slug*") else dst)
+                break
+        return best[1] if best else None
+
+    def follow(self, route):
+        """Follow redirects from route. Returns (final, status): status is "none" when no
+        rule matches route, "loop" when the chain never ends, else "ok". final is the last
+        path reached (or an external URL), which the caller must check exists."""
+        seen, cur = {route}, route
+        for hop in range(20):
+            dest = self.step(cur)
+            if dest is None:
+                return (None, "none") if hop == 0 else (cur, "ok")
+            if dest.startswith("http"):
+                return dest, "ok"
+            cur = dest.split("#")[0].split("?")[0].rstrip("/") or "/"
+            if cur in seen:
+                return cur, "loop"
+            seen.add(cur)
+        return cur, "loop"
+
+
+def served(route, pages):
+    return route in pages or route in {f"/{v}" for v in LIVE} or route.startswith("http")
+
+
 def check_redirects(pages, redirects):
     errs = []
     routes = set(pages)
-    live_roots = {f"/{v}" for v in LIVE}
+    res = Resolver(redirects)
     for r in redirects:
         src, dst = r["source"], r["destination"]
-        if dst.startswith("http"):
+        if dst.startswith("http") or ":slug*" in dst:
             continue
-        if ":slug*" in dst:
-            continue
-        target = dst.split("#")[0].split("?")[0].rstrip("/") or "/"
-        if target not in routes and target not in live_roots:
-            errs.append(f"redirect destination missing: {src} -> {dst}")
-    # The first matching rule wins, so only that rule's target must exist.
+        end, status = res.follow(src)
+        if status == "loop":
+            errs.append(f"redirect loop: {src} -> {dst} (comes back to {end})")
+        elif not served(end, routes):
+            errs.append(f"redirect destination missing: {src} -> {dst}" + (f" (ends at {end})" if end != dst else ""))
+    # A redirect overrides a page at the same path, so follow every page that has one.
     for route in sorted(routes):
-        for r in redirects:
-            if r["source"] == route:
-                break
-            mapped = wildcard_map(r, route)
-            if mapped is None:
-                continue
-            if ":slug*" not in mapped and mapped.split("#")[0] not in routes:
-                errs.append(
-                    f"page under wildcard maps to a missing page: {route} -> {mapped} (rule {r['source']})"
-                )
-            break
+        end, status = res.follow(route)
+        if status == "none":
+            continue
+        if status == "loop":
+            errs.append(f"page is part of a redirect loop: {route}")
+        elif not served(end, routes):
+            errs.append(f"page under a redirect ends on a missing page: {route} -> {end}")
     errs += check_wildcard_bases(pages, redirects)
-    return errs
+    return sorted(set(errs))
 
 
 def redirect_covers(redirects, route):
@@ -130,24 +172,6 @@ def redirect_covers(redirects, route):
         if wildcard_map(r, route) is not None:
             return True
     return False
-
-
-def final_destination(pages, redirects, route, depth=0):
-    """Follow redirects from a route (first matching rule wins) to where it ends.
-    Returns None if no rule matches, else the last path or external URL reached."""
-    dest = None
-    for r in redirects:
-        dest = r["destination"] if r["source"] == route else wildcard_map(r, route)
-        if dest is not None:
-            break
-    if dest is None:
-        return None
-    if dest.startswith("http"):
-        return dest
-    target = dest.split("#")[0].split("?")[0].rstrip("/") or "/"
-    if target in pages or target in {f"/{v}" for v in LIVE} or depth >= 5:
-        return target
-    return final_destination(pages, redirects, target, depth + 1) or target
 
 
 def check_wildcard_bases(pages, redirects):
@@ -162,11 +186,23 @@ def check_wildcard_bases(pages, redirects):
     return errs
 
 
+def versions_at(base):
+    """Versions in the navigation of docs.json at the base commit."""
+    out = subprocess.run(["git", "show", f"{base}:docs.json"], cwd=ROOT, capture_output=True, text=True)
+    if out.returncode != 0:
+        return []
+    return [v["version"] for v in json.loads(out.stdout)["navigation"]["versions"]]
+
+
 def check_moved(pages, redirects, base):
     errs = []
-    # Compares the working tree to BASE, so it also sees uncommitted changes.
+    res = Resolver(redirects)
+    # Versions live at the base commit count too, so retiring one from the navigation
+    # cannot hide its deleted pages. Compares the working tree to BASE, so it also sees
+    # uncommitted changes.
+    dirs = sorted(set(LIVE) | set(versions_at(base)))
     out = subprocess.run(
-        ["git", "diff", "--name-status", "-M", base, "--", *LIVE],
+        ["git", "diff", "--name-status", "-M", base, "--", *dirs],
         cwd=ROOT, capture_output=True, text=True,
     )
     if out.returncode != 0:
@@ -179,12 +215,13 @@ def check_moved(pages, redirects, base):
             if not old.endswith((".md", ".mdx")):
                 continue
             route = to_route(old)
-            if route in pages:  # path still served (e.g. .md -> .mdx)
-                continue
-            end = final_destination(pages, redirects, route)
-            if end is None:
-                errs.append(f"page removed or renamed without a redirect: {route}")
-            elif not end.startswith("http") and end not in pages and end not in {f"/{v}" for v in LIVE}:
+            end, st = res.follow(route)
+            if st == "none":
+                if route not in pages:  # a page still served at this path needs no redirect
+                    errs.append(f"page removed or renamed without a redirect: {route}")
+            elif st == "loop":
+                errs.append(f"redirect for a removed page loops: {route}")
+            elif not served(end, pages):
                 errs.append(f"redirect for a removed page ends on a missing page: {route} -> {end}")
     return errs
 
