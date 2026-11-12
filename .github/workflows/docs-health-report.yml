@@ -1,0 +1,77 @@
+name: Weekly docs health report
+
+# Crawls the published sitemap and replays every page path that ever existed in
+# git history, then posts a summary to Slack (#docs-linkchecker) when the
+# SLACK_DOCS_LINKCHECKER_WEBHOOK_URL secret exists. The Search Console section
+# runs only when GSC_SERVICE_ACCOUNT_JSON and GSC_SITE_URL exist.
+# The full report is always in the run summary and the uploaded artifact.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      # History replay needs every commit; public/ images are not needed.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/public/
+          sparse-checkout-cone-mode: false
+
+      # Runs first so the crawl step can add its findings to the report and the Slack
+      # counts. It never fails the job: if Search Console can't be reached, the report
+      # says so instead of the summary, artifact and Slack post being skipped.
+      - name: Search Console index status
+        continue-on-error: true
+        # Backstop: the script stops itself after 15 minutes. If this still fires, the
+        # crawl step reports Search Console as unavailable.
+        timeout-minutes: 25
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+        run: |
+          if [ -z "$GSC_SERVICE_ACCOUNT_JSON" ] || [ -z "$GSC_SITE_URL" ]; then
+            echo "Search Console secrets not set; skipping."
+            exit 0
+          fi
+          if ! { pip install --quiet google-auth requests && python3 .github/scripts/gsc-index-report.py --out gsc-report.md --summary-out gsc-summary.json; }; then
+            echo '{"unavailable": "the Search Console step failed; see its log"}' > gsc-summary.json
+          fi
+
+      - name: Crawl sitemap and replay history
+        run: python3 .github/scripts/docs-health-report.py --out docs-health-report.md --slack-out slack-payload.json --extra-md gsc-report.md --gsc-summary gsc-summary.json
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GSC_CONFIGURED: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON != '' && secrets.GSC_SITE_URL != '' }}
+          # Only the scheduled run pings the channel; manual runs post quietly.
+          PING_CHANNEL: ${{ github.event_name == 'schedule' }}
+
+      - name: Publish report
+        run: cat docs-health-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-health-report
+          path: docs-health-report.md
+
+      # Same message layout as the old Link-checker job in docs-v1. A Slack
+      # webhook is tied to one channel, so create it for #docs-linkchecker.
+      - name: Post to Slack
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DOCS_LINKCHECKER_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "No Slack webhook configured; skipping."
+            exit 0
+          fi
+          curl -fsS -X POST -H 'Content-type: application/json' --data @slack-payload.json "$WEBHOOK"
