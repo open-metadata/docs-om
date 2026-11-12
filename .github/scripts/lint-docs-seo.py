@@ -10,6 +10,9 @@ Checks (each can be run alone with --check NAME; default is all):
   frontmatter   pages in the current version need a title and description,
                 and titles and descriptions must be unique per version
   duplicates    two pages in the same version must not have the same body
+  near-duplicates  a page added since --base must not share 80% or more of its
+                text with another page in the same version. Existing pairs are
+                only listed as warnings, so they never block unrelated edits
 
 Live versions and the current version come from release.config.json.
 Exit code 1 if any check fails. Standard library only.
@@ -207,17 +210,74 @@ def check_duplicates(pages, redirects):
     return errs
 
 
+NEAR_DUPLICATE_THRESHOLD = 0.8
+MIN_WORDS = 60  # shorter pages share too many phrases by chance
+MAX_PAGES_PER_PHRASE = 60  # skip boilerplate phrases found on many pages
+
+
+def added_routes(base):
+    out = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=AR", "-M", base, "--", *LIVE],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    return {to_route(l) for l in out.stdout.splitlines() if l.endswith((".md", ".mdx"))}
+
+
+def check_near_duplicates(pages, redirects, base):
+    """Compare pages by shared 4-word phrases (Jaccard). Returns (errors, warnings)."""
+    errs, warns = [], []
+    new = added_routes(base) if base else set()
+    for v in CHECKED:
+        phrases = {}
+        for route, f in pages.items():
+            if not route.startswith(f"/{v}/") or redirect_covers(redirects, route):
+                continue
+            fm, body = split_frontmatter(f.read_text())
+            if fm.get("noindex") in ("true", "True"):
+                continue
+            words = re.findall(r"[a-z0-9]+", re.sub(r"```.*?```", " ", body, flags=re.S).lower())
+            if len(words) >= MIN_WORDS:
+                phrases[route] = {" ".join(words[i:i + 4]) for i in range(len(words) - 3)}
+        index = defaultdict(list)
+        for route, ps in phrases.items():
+            for p in ps:
+                index[p].append(route)
+        shared = defaultdict(int)
+        for routes in index.values():
+            if 1 < len(routes) <= MAX_PAGES_PER_PHRASE:
+                for i in range(len(routes)):
+                    for j in range(i + 1, len(routes)):
+                        shared[(routes[i], routes[j])] += 1
+        for (a, b), n in sorted(shared.items()):
+            score = n / (len(phrases[a]) + len(phrases[b]) - n)
+            if score < NEAR_DUPLICATE_THRESHOLD:
+                continue
+            msg = f"{score:.0%} of text shared in {v}: {a} and {b}"
+            (errs if (a in new or b in new) else warns).append(msg)
+    return errs, warns
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--check", action="append", choices=["redirects", "moved-pages", "frontmatter", "duplicates"])
+    ap.add_argument("--check", action="append", choices=["redirects", "moved-pages", "frontmatter", "duplicates", "near-duplicates"])
     ap.add_argument("--base", help="git ref to compare against for moved-pages")
     a = ap.parse_args()
-    checks = a.check or ["redirects", "moved-pages", "frontmatter", "duplicates"]
+    checks = a.check or ["redirects", "moved-pages", "frontmatter", "duplicates", "near-duplicates"]
     pages, redirects = version_pages(), load_redirects()
     failed = False
     for c in checks:
         if c == "moved-pages" and not a.base:
             print("moved-pages: skipped (no --base)")
+            continue
+        if c == "near-duplicates":
+            errs, warns = check_near_duplicates(pages, redirects, a.base)
+            print(f"{c}: {'OK' if not errs else str(len(errs)) + ' problem(s)'}"
+                  + (f" ({len(warns)} existing pair(s), warning only)" if warns else ""))
+            for e in errs:
+                print(f"  - {e}")
+            for w in warns:
+                print(f"  ~ {w}")
+            failed |= bool(errs)
             continue
         errs = {
             "redirects": lambda: check_redirects(pages, redirects),
