@@ -17,7 +17,7 @@ Tools are labeled **Read** (retrieve data only) or **Write** (create or modify d
 |---|---|
 | **Discover** | [search_metadata](#search_metadata), [semantic_search](#semantic_search), [company_context](#company_context) |
 | **Inspect** | [get_entity_details](#get_entity_details) |
-| **Context** | [get_user_context](#get_user_context), [get_persona_context](#get_persona_context), [find_context](#find_context) |
+| **Context** | [get_user_context](#get_user_context), [get_persona_context](#get_persona_context), [find_context](#find_context), [get_concept_context](#get_concept_context) |
 | **Lineage & Impact** | [get_entity_lineage](#get_entity_lineage), [create_lineage](#create_lineage), [root_cause_analysis](#root_cause_analysis) |
 | **Create & Modify** | [create_entity](#create_entity), [describe_entity_type](#describe_entity_type), [patch_entity](#patch_entity) |
 | **Data Quality** | [get_test_definitions](#get_test_definitions), [create_test_case](#create_test_case) |
@@ -465,7 +465,7 @@ Retrieve context knowledge associated with the current user, a persona, or a bus
 
 **Type**: Read
 
-**Description**: For a business question where no specific asset has been chosen yet, semantically searches the company-knowledge layer — glossary term definitions, metric definitions, and Context Center articles — and returns the matching definitions plus the candidate data assets each concept points to (glossary terms → the tables tagged with them, metrics → the assets they apply to, and articles → the assets they're about). Use this to bootstrap a data question from business concepts into candidate tables, then call `get_entity_details` with `include: ["context"]` on those FQNs. This is a semantic search over company knowledge, not a keyword search over asset or persona memories.
+**Description**: For a business question where no specific asset has been chosen yet, semantically searches the company-knowledge layer — glossary term definitions, metric definitions, and Context Center articles — and returns the matching definitions plus the candidate data assets each concept points to (glossary terms → the tables tagged with them, metrics → the assets they apply to, and articles → the assets they're about). Use this to bootstrap a data question from business concepts into candidate tables, then call `get_entity_details` with `include: ["context"]` on those FQNs. For a glossary term or metric hit, call [`get_concept_context`](#get_concept_context) with its `entityType` and `fullyQualifiedName` (as `fqn`) to resolve its exact column bindings, profiles, and evidence. This is a semantic search over company knowledge, not a keyword search over asset or persona memories.
 
 **Parameters**
 
@@ -487,6 +487,47 @@ Retrieve context knowledge associated with the current user, a persona, or a bus
     "arguments": {
       "query": "PII handling policy",
       "size": 5
+    }
+  }
+}
+```
+
+### get_concept_context
+
+**Type**: Read
+
+**Description**: Resolve a glossary term or metric to everything the catalog knows about it: its definition, typed ontology attributes, the assets and columns it is tagged on or applied to, profiles and sample values for those columns, related metrics, and the saved queries that use it. Pass the concept's `fullyQualifiedName` from [`find_context`](#find_context) as `fqn`. It returns the same result as `GET /v1/glossaryTerms/name/{fqn}/context` and `GET /v1/metrics/name/{fqn}/context`.
+
+Profiles and sample values follow the caller's permissions. Profiles need **ViewDataProfile**, sample values need **ViewSampleData**, and sensitive values stay masked.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | string | Yes | `glossaryTerm` or `metric` |
+| `fqn` | string | Yes | Fully qualified name of the glossary term or metric |
+| `format` | string | No | `markdown` (default) or `json` |
+| `query` | string | No | A question used to choose which excerpts of attached articles and memories to include |
+
+**Limits**
+
+- Bindings cover at most 10 visible assets and 25 bindings per asset.
+- `totalAssets`, `totalBindings`, and `truncated` report what was left out. Counting stops after 500 candidate assets, so totals are lower bounds when `truncated` is `true`.
+- Up to 20 saved-query evidence entries are returned, with query text cut at 4,000 characters.
+- Attached articles and memories share the same size budget as the other context tools.
+
+**Example**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_concept_context",
+    "arguments": {
+      "entityType": "glossaryTerm",
+      "fqn": "Finance.Revenue"
     }
   }
 }
@@ -910,10 +951,10 @@ Results from these tools are **not filtered by asset or domain policies**. If yo
 |---|---|---|---|
 | `query` | string | Yes | The SPARQL query. Use `https://open-metadata.org/ontology/` as the `om:` prefix |
 | `format` | string | No | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle`, `jsonld`, `ntriples`, `rdfxml` |
-| `inferenceLevel` | string | No | Reasoning applied at query time: `none` (default), `rdfs`, `owl`, `custom` |
+| `inferenceLevel` | string | No | Reasoning applied at query time: `none` (default), or `custom` when materialized inference is enabled. `rdfs` and `owl` fail with a 503 error |
 | `maxBytes` | integer | No | Response body cap. Default and maximum 80000; minimum 1024 |
 
-A `truncated: true` flag plus `byteCount` appears when the body does not fit — narrow the query with `LIMIT` rather than raising `maxBytes`, which is clamped. A `warning` field appears when the requested `inferenceLevel` could not be applied because the graph was too large; **results are then not inferred**.
+A `truncated: true` flag plus `byteCount` appears when the body does not fit — narrow the query with `LIMIT` rather than raising `maxBytes`, which is clamped. An `rdfs` or `owl` request fails instead of returning un-inferred results, and so does `custom` when materialized inference is off.
 
 **Example**
 

@@ -10,28 +10,36 @@ A knowledge graph earns its keep when it can tell you things nobody explicitly w
 
 ## Inference Levels
 
-Every SPARQL query can request a reasoning level:
+Every SPARQL query can request a reasoning level. Two levels work:
 
 | Level | What it derives |
 |---|---|
-| `NONE` | Nothing. Only asserted triples. The default. |
-| `RDFS` | RDFS entailment — subclass and subproperty closure, domain/range typing. |
-| `OWL_LITE` / `OWL_DL` | OWL entailment at the corresponding profile: inverse properties, transitivity, symmetry, equivalence. |
-| `CUSTOM` | OpenMetadata's own rule set — transitive lineage traversal, tag propagation, domain inheritance. |
+| `none` | Nothing. Only asserted triples. The default. |
+| `custom` | The triples written by your [materialized inference rules](#materialized-inference-rules), such as transitive lineage traversal, tag propagation, and domain inheritance. Available only when `RDF_MATERIALIZED_INFERENCE_ENABLED=true` on a Fuseki triple store. |
 
-Configure the default with `RDF_DEFAULT_INFERENCE_LEVEL`, and enable inference at all with `RDF_INFERENCE_ENABLED`. Callers can override per query (`inference=` on the REST endpoint, `inferenceLevel` on the MCP tool).
+Callers choose the level per query (`inference=` on the REST endpoint, `inferenceLevel` on the MCP tool). `GET /api/v1/rdf/status` reports the default level (`NONE`) and which levels are available.
 
-`GET /api/v1/rdf/status` reports which levels are available and what the default is.
+<Warning>
 
-### Two Execution Strategies
+**`rdfs` and `owl` are no longer supported.** OpenMetadata 2.1 removed the reasoner that ran inside the server process. A query that asks for `rdfs`, `owl`, `owl_lite`, or `owl_dl` fails with `503 Service Unavailable`. The error message lists the levels that work. `custom` also returns 503 when materialized inference is not enabled. Remove these levels from saved queries, scripts, and agent prompts.
 
-**In-process inference** builds a Jena inference model over the dataset in memory at query time. Accurate for any level, but bounded: if the store exceeds `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES` (default 100,000), the query silently falls back to direct execution **without** inference and returns a `warning` field saying so. Enable `cacheInferredTriples` to reuse bounded in-memory models for 60 seconds.
+</Warning>
 
-**Materialized inference** (`RDF_MATERIALIZED_INFERENCE_ENABLED=true`) runs each rule as a SPARQL `CONSTRUCT` inside the triple store and writes the results to a durable named graph, one per rule. Queries then read materialized triples with no in-memory model at all.
+### How Inference Works
+
+Inference comes only from **materialized inference**. Each rule runs as a SPARQL `CONSTRUCT` inside the triple store and writes its results to a durable named graph, one per rule. Queries read those materialized triples directly, so the server never loads the graph into memory.
+
+To use inference, set `RDF_MATERIALIZED_INFERENCE_ENABLED=true` and request `custom`. The rule graphs are part of the triple store's default graph, so a `custom` query runs unchanged and sees both asserted and inferred triples.
+
+<Info>
+
+The settings `RDF_INFERENCE_ENABLED`, `RDF_DEFAULT_INFERENCE_LEVEL`, `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES`, and `RDF_CACHE_INFERRED_TRIPLES` are deprecated. The server ignores them and logs a warning at startup if `RDF_INFERENCE_ENABLED` or `RDF_CACHE_INFERRED_TRIPLES` is set. You can remove them from your configuration.
+
+</Info>
 
 <Tip>
 
-**Use materialized inference for anything past a small catalog.** In-process inference does not scale past the triple limit, and a silent fallback that returns un-inferred results is worse than no inference at all — you get an answer that looks right and is incomplete. Materialization has the opposite failure mode: staleness, which is visible as a `dirty` flag.
+**Staleness is the trade-off.** Materialized triples are only as fresh as the last rule run. A stale rule shows a `dirty` flag, so you can tell when an answer may be out of date.
 
 </Tip>
 
@@ -202,7 +210,7 @@ Agents call the same thing through the `shacl_validate` MCP tool, which addition
 
 ## OWL Profile Guardrails
 
-`RDF_STRICT_OWL_PROFILE=true` (the default) makes OpenMetadata reject authored axioms outside the supported OWL 2 DL profile. This is not pedantry: OWL Full is undecidable, and a reasoner over an undecidable ontology can run forever. The guardrail is what keeps `OWL_DL` inference a bounded operation.
+`RDF_STRICT_OWL_PROFILE=true` (the default) makes OpenMetadata reject authored axioms outside the supported OWL 2 DL profile. The OWL 2 DL profile keeps authored ontologies decidable, while OWL Full is undecidable. That is why the guardrail is on by default.
 
 ## Next
 
