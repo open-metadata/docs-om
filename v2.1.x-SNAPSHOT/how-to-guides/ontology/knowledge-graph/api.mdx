@@ -25,13 +25,15 @@ Most knowledge-graph endpoints are **admin-only**. Graph node hydration resolves
 
 | Endpoint | Access | Returns |
 |---|---|---|
-| `GET /status` | Authenticated | `baseUri`, `enabled`, `storageType`, `inference` (`enabled`, `defaultLevel`, `availableLevels`), `projectionState` (`DISABLED` / `READY` / `REBUILDING` / `DEGRADED`), `askCollateEnabled` |
+| `GET /status` | Authenticated | `baseUri`, `enabled`, `storageType`, `inference` (`enabled`, `defaultLevel`, `availableLevels`), `projectionState` (`DISABLED` / `READY` / `REBUILDING` / `DEGRADED`), `aiEnabled` |
+
+`defaultLevel` is `NONE`, and `availableLevels` lists `NONE`, plus `CUSTOM` when materialized inference is available. The status response uses uppercase, and the `inference` query parameter uses lowercase.
 
 ## SPARQL
 
 | Endpoint | Access | Notes |
 |---|---|---|
-| `GET /sparql` | Admin | `query`, `format` (`json`, `xml`, `csv`, `tsv`), `inference` (`none`, `rdfs`, `owl`, `custom`) |
+| `GET /sparql` | Admin | `query`, `format` (`json`, `xml`, `csv`, `tsv`), `inference` (`none`, or `custom` when materialized inference is enabled). `rdfs` and `owl` return `503`. |
 | `POST /sparql` | Admin | JSON body `{ "query": "...", "format": "...", "inference": "..." }` |
 | `POST /sparql/update` | Admin | SPARQL UPDATE. See the warning below. |
 | `GET /queries/saved` | Authenticated | The caller's private saved queries. |
@@ -48,14 +50,14 @@ Most knowledge-graph endpoints are **admin-only**. Graph node hydration resolves
 
 | Endpoint | Access | Notes |
 |---|---|---|
-| `GET /entity/{entityType}/{id}` | Admin | The entity as RDF. `format`: `jsonld` (default), `turtle`, `rdfxml`, `ntriples`. |
+| `GET /entity/{entityType}/{id}` | `ViewAll` on the entity. A user entity also needs access to PII, because the RDF includes the email. | The entity as RDF. `format`: `jsonld` (default), `turtle`, `rdfxml`, `ntriples`. |
 | `GET /entity/{entityType}/{id}/diff` | Admin | Diff two RDF versions of an entity. |
 | `GET /graph/explore` | Admin | `entityId`, `entityType`, `depth` (default 2), `entityTypes`, `relationshipTypes` (comma-separated filters). |
 | `GET /graph/explore/export` | Admin | Same parameters plus `format`: `turtle` (default) or `jsonld`. |
 | `GET /ontology` | Authenticated | Download the canonical OpenMetadata ontology. |
 | `GET /glossary/graph` | Authenticated | Glossary term relationship graph. See parameters below. |
 | `GET /glossary/{id}/export` | Authenticated | Export a glossary as an ontology. |
-| `GET /inference/lineage/{entityId}` | Admin | Full lineage with inference applied. Requires `entityType`. |
+| `GET /inference/lineage/{entityId}` | Admin | Full lineage, traversed with SPARQL property paths. Requires `entityType`. |
 | `GET /debug/glossary-relations` | Admin | Diagnostic view of glossary relations in RDF. |
 
 ### `GET /glossary/graph` Parameters
@@ -137,15 +139,17 @@ All admin-only.
 |---|---|
 | `GET /api/v1/lod/entity/{entityType}/{id}` | Authenticated, content-negotiated redirect for a minted IRI. Requires `RDF_DEREFERENCEABLE_IRIS=true`. |
 
-## Glossary Ontology Endpoints
+## Ontology Endpoints
 
-These live under `/api/v1/glossaries` and — importantly — **work with RDF storage disabled**, because they read the database-primary model.
+Ontologies have their own endpoints under `/api/v1/ontologies`, `/api/v1/ontologyReleases`, and related paths. They **work with RDF storage disabled**, because they read the database-primary model.
 
-| Endpoint | Access | Notes |
-|---|---|---|
-| `PUT /api/v1/glossaries/name/{name}/importRdf` | `EditAll` on the glossary | `format` (`turtle`, `rdfxml`, `ntriples`, `jsonld`), `dryRun` (default `true`). |
-| `GET /api/v1/glossaries/{id}/exportOntology` | `ViewAll` | `format`, `includeRelations` (default `true`). |
-| `POST /api/v1/glossaries/{id}/sparql` | `ViewAll` | Read-only SPARQL scoped to that glossary. No `SERVICE`, no other assets. |
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/ontologies/{id}/sparql` | Read-only SPARQL over the active release of one ontology. |
+| `POST /api/v1/ontologies/{id}/imports/preview` | Preview an RDF or CSV file as proposed changes. |
+| `GET /api/v1/ontologyReleases/{id}/export` | Export a release as Turtle, RDF/XML, N-Triples, JSON-LD, SKOS, or CSV. |
+
+For the full list, see the [Ontology API Reference](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/api).
 
 ## Applications
 

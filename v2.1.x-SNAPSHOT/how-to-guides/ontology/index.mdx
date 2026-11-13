@@ -1,6 +1,6 @@
 ---
 title: Ontology & Knowledge Graph | OpenMetadata
-description: Understand what an ontology is, why it matters in the AI era, and how OpenMetadata turns your glossary into a governed semantic model and a queryable knowledge graph.
+description: Understand what an ontology is, why it matters in the AI era, and how OpenMetadata turns your business concepts into governed, versioned ontologies and a queryable knowledge graph.
 sidebarTitle: Overview
 ---
 
@@ -91,41 +91,57 @@ Tables get renamed, warehouses get migrated, dbt models get refactored. The conc
 
 ## How OpenMetadata Implements It
 
-OpenMetadata does not ask you to stand up a separate semantic-modeling tool and then reconcile it with your catalog. The ontology is built **on top of the glossary you already have**.
+OpenMetadata does not ask you to stand up a separate semantic-modeling tool and then reconcile it with your catalog. Ontologies are first-class OpenMetadata entities. You author them in Ontology Studio, version them as releases, and bind their concepts to the data assets in your catalog.
 
 | Ontology concept | OpenMetadata entity | Standard it maps to |
 |---|---|---|
-| Ontology / concept scheme | **Glossary** | `owl:Ontology`, `skos:ConceptScheme` |
-| Concept | **Glossary Term** | `owl:Class`, `skos:Concept` |
-| Typed relationship | **Relationship Type** on a term relation | `owl:ObjectProperty` |
-| Attribute | **Ontology Attribute** on a term | `owl:DatatypeProperty` |
-| Logical axiom | **Ontology Axiom** | `rdfs:subClassOf`, `owl:equivalentClass`, `owl:disjointWith`, … |
+| Ontology | **Ontology** | `owl:Ontology` |
+| Concept | **Ontology Concept** | `owl:Class`, `skos:Concept` |
+| Typed relationship | **Relationship Type** | `owl:ObjectProperty` |
+| Property | **Ontology Property** (object, data, or annotation) | `owl:ObjectProperty`, `owl:DatatypeProperty`, `owl:AnnotationProperty` |
+| Logical axiom | **Constraint** (stored as an axiom) | `rdfs:subClassOf`, `owl:equivalentClass`, `owl:disjointWith`, … |
 | External crosswalk | **Concept Mapping** | `skos:exactMatch`, `closeMatch`, `broadMatch`, … |
+| Version | **Release** | A frozen snapshot of the ontology |
 | Instance data | Tables, columns, dashboards, pipelines, … | `om:Table`, `om:Column`, `dcat:Dataset`, … |
 
 Two consequences worth understanding before you go further:
 
-1. **Your relational database stays authoritative.** Concepts, relationships, attributes, axioms, and mappings are stored as ordinary OpenMetadata entities with versioning, ownership, reviewers, and change events. Authoring, import/export, impact analysis, and even glossary-scoped SPARQL all work with **no triple store deployed**.
-2. **The RDF knowledge graph is a projection.** When you enable RDF, OpenMetadata mirrors the ontology *and every other entity in the catalog* into an Apache Jena Fuseki triple store as a derived index — the same way it mirrors entities into Elasticsearch/OpenSearch for search. That projection is what unlocks catalog-wide SPARQL, reasoning, SHACL validation, graph insights, and the knowledge-graph MCP tools.
+1. **Your relational database stays authoritative.** Ontologies, concepts, properties, constraints, and releases are stored as ordinary OpenMetadata entities with versioning, ownership, reviewers, and change events. Authoring, import and export, publishing releases, and SPARQL over an ontology's draft or active release all work with **no triple store deployed**.
+2. **The RDF knowledge graph is a projection.** When you enable RDF, OpenMetadata mirrors the ontology *and every other entity in the catalog* into an Apache Jena Fuseki triple store as a derived index, the same way it mirrors entities into Elasticsearch/OpenSearch for search. That projection is what unlocks catalog-wide SPARQL, reasoning, SHACL validation, graph insights, and the knowledge-graph MCP tools.
 
 <Warning>
 
-The RDF knowledge graph is a **Beta** feature and is **disabled by default**. Ontology Studio's authoring and exploration surfaces work without it; Query mode, the AI assistant, the 3D Knowledge Graph tab, and the knowledge-graph MCP tools require it. See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable).
+The RDF knowledge graph and Ontology Studio are **Beta** features. RDF is **disabled by default**. Ontology Studio's View, Edit, and Query modes work without it; the AI assistant, the Knowledge Graph tab, and the knowledge-graph MCP tools require it. See [Enabling Ontology & Knowledge Graph](/v2.1.x-SNAPSHOT/how-to-guides/ontology/enable).
 
 </Warning>
+
+## What Needs What
+
+Not every surface needs the triple store. This is the fastest way to tell which half of the feature you are looking at.
+
+| Surface | Requires |
+|---|---|
+| Ontology Studio **View**, **Edit**, and **Query** modes: graph, tree, health, inspector, concepts, relationships, properties, constraints, mappings, releases, and SPARQL over an ontology's draft or active release | Nothing beyond an ontology |
+| **Relationship type** management, **Ontology Library** packs, ontology **import and export**, the `ontology_describe` MCP tool | Nothing beyond an ontology |
+| The **SPARQL Playground** | RDF |
+| The **Knowledge Graph** tab, catalog-wide SPARQL, graph exploration and export | RDF |
+| **Inference**, **SHACL validation**, and **graph insights** | RDF |
+| The `sparql_query`, `entity_neighborhood`, `find_by_tag`, and `shacl_validate` MCP tools | RDF |
+| **Linked Open Data** IRI dereferencing | RDF |
+| Ontology Studio **AI** mode | RDF and a configured LLM provider |
 
 ## The Pieces
 
 <Steps>
   <Step title="Model your domain in Ontology Studio">
-    Author concepts, typed relationships, attributes, and OWL axioms in a purpose-built workspace — or install a standards-aligned starter pack (FIBO, HL7 FHIR, GS1, EPCIS, ISA-95, HR Open) and adapt it.
+    Create an ontology and author its concepts, relationships, properties, and constraints, or install a standards-aligned pack from the library (16 packs, including FIBO, HL7 FHIR, GS1, EPCIS, and IOF) and adapt it. Publish a release when the model is ready, or request a review if the ontology has reviewers.
 
     [Ontology Studio →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio)
   </Step>
   <Step title="Attach concepts to real assets">
-    Assign glossary terms to tables, columns, dashboards, and pipelines the way you already do. This is the join between the blueprint and the building.
+    Link tables and columns to a concept in the Studio. This is the join between the blueprint and the building.
 
-    [Glossary assets →](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/glossary/assets)
+    [Link data assets →](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/author#link-data-assets)
   </Step>
   <Step title="Project it into the knowledge graph">
     Enable RDF and run the indexing application. Every entity, tag, owner, and lineage edge becomes triples in a queryable named graph.

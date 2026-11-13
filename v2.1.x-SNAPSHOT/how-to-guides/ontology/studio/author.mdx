@@ -1,177 +1,392 @@
 ---
 title: Author the Ontology (Edit Mode) | OpenMetadata
-description: Draw typed relations, add attributes and OWL axioms, apply modeling patterns, build subsets, merge structures, and preview delete impact — safely, behind an editing lease.
+description: Add concepts, relationships, properties, mappings, data assets, and constraints to an ontology in Edit mode, in the Graph, Tree, or Ontology view.
 sidebarTitle: Author (Edit)
 ---
 
-# Author — Edit Mode
+# Edit Mode
 
-Edit mode turns the studio into an authoring workspace. It has two surfaces: **Graph**, for direct manipulation of concepts and relations, and **Model**, a workbench of structured modeling tools.
+Edit mode turns Ontology Studio into an authoring workspace for one ontology. It has three views in the sub-mode bar:
 
-Edit mode appears only if you hold `EditAll`, `EditGlossaryTerms`, or `EditEntityRelationship` on Glossary — or you are an admin.
-
-## The Editing Lease
-
-Ontology edits are structural: one person retyping a relation while another deletes its target produces a model neither of them intended. OpenMetadata guards this with a **lease** rather than a lock you can forget to release.
-
-- Entering Edit mode acquires a lease on the selected glossary.
-- The lease is short — the UI takes **60 seconds** and renews it on a heartbeat while you are working. The server accepts leases between 10 and 300 seconds.
-- The lease status is shown in the sub-mode bar with a retry action.
-- If someone else holds the lease you can still read the model; you cannot write to it.
-- Abandoning the tab lets the lease expire on its own, leaving no stuck lock to clear.
-
-API: `POST /api/v1/ontologyEditLocks/acquire`, `PUT /api/v1/ontologyEditLocks/renew`, `GET|DELETE /api/v1/ontologyEditLocks/{resourceType}/{resourceId}`.
-
-## Graph Authoring
-
-With the lease held, the graph canvas becomes editable and the sub-mode bar gains an **Add Concept** action plus an **Edit · Active** lease indicator. Each concept node grows a **+** handle you drag to draw a relation.
-
-<img src="/public/images/how-to-guides/ontology/ontology-studio-edit-graph.png" alt="Ontology Studio Edit mode with the editing lease active" />
-
-- **Add concept** — new concepts are created in the glossary you have selected.
-- **Draw a relation** — connect two concepts and pick the relationship type. Cross-glossary edges are only offered for types where `crossGlossaryAllowed` is set.
-- **Retype or remove a relation** — select an edge and change its type or delete it.
-- **Inspect and edit** — the authoring inspector edits everything that hangs off a concept.
-
-### The Authoring Inspector
-
-| Section | What you can do |
+| View | What you do there |
 |---|---|
-| **Concept** | Name, display name, description, concept IRI. |
-| **Relationships** | Add, retype, and remove typed relations; pick the target concept by search. |
-| **Attributes** | Add typed attributes (`STRING`, `INTEGER`, `DECIMAL`, `BOOLEAN`, `DATE`, `ENUM`), mark identifiers, set units and enum values. Inherited attributes are shown read-only with the ancestor that declares them. |
-| **Mappings** | Map the concept to an external scheme by IRI with a match type (exact, close, broad, narrow, related, same-as). Duplicate mappings and malformed IRIs are rejected inline. |
-| **Realization** | The data assets carrying this concept, grouped by service. |
+| **Graph** | Add concepts, draw relationships, and edit a concept in the inspector, including its relationships, mappings, and data assets. |
+| **Tree** | Work through the concept hierarchy and open any concept in the inspector. |
+| **Ontology** | Work through lists of **Concepts**, **Properties**, and **Constraints**, review the **Overview**, and change the ontology **Settings**. |
 
-## Delete with an Impact Preview
+Each item is saved on its own, and there is no editing lease, so two people can work on different items at the same time. Every save is an unpublished change to the working **Draft**. Other users don't see it until you [publish a release](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases).
 
-Deleting a concept in an ontology is not like deleting a row. Children have to go somewhere, typed relations disappear, external crosswalks break, and assets lose their semantic anchor.
+The **Edit** tab appears only if you have edit permission. Buttons are disabled for items you can't change. For the full list, see [Permissions](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ontologies#permissions).
 
-Selecting **Delete** opens an **impact preview** before anything happens, showing:
+## Open Edit Mode
 
-- **Children** — immediate child concepts that must be reassigned, or explicitly cascaded.
-- **Relationships** — every typed relation that would be removed.
-- **Bound assets** — assets currently carrying the concept, with a total count and a flag when the sample is truncated (the preview shows up to 100).
-- **Mappings** — external crosswalks that would be lost.
-- Whether the resulting projection needs SHACL revalidation.
+1. Pick the ontology you want to edit in the **Ontology selector**. Edit mode works on one ontology at a time, so with **All ontologies** selected it asks you to pick one.
 
-The preview is **version-bound**: it is generated against a specific version of the concept and carries a short-lived signed token (valid for two minutes) tied to both you and that exact snapshot. If the concept changes underneath you, the token no longer applies and you get a fresh preview instead of applying a stale decision.
+2. Click the **Edit** tab.
 
-API: `GET /api/v1/ontology/impacts/glossaryTerms/{id}/delete` to preview, `POST` the same path with the token to apply.
+    <img src="/public/images/how-to-guides/ontology/ontology-author-edit-graph.png" alt="Edit mode in Graph view with the Add concept and Publish buttons, a plus handle on each concept, the Draft and Published chip, and the Health card" />
 
-## The Model Workbench
+    The header shows **Add concept** and **Publish (N)**, where N is the number of unpublished changes. The canvas shows a **+** handle on each concept. The **Draft** chip at the bottom shows that you are editing the working version.
 
-**Edit → Model** is a set of structured tools for changes that are awkward to make node-by-node. Five tabs:
+Edit always works on the draft. If you switch the version chip to **Published**, the **Edit** tab isn't available until you switch back to **Draft**.
 
-### Concept IRI
+## Add a Concept
 
-Preview the IRI a new concept will receive under the glossary's current `baseIri` and minting pattern *before* creating it. Placeholders are `{glossary}`, `{term}`, and `{uuid}`.
+1. In **Edit** mode, click **Add concept** in the header. The **New concept** panel opens.
 
-API: `POST /api/v1/ontology/modeling/iris/preview`.
+    Alternatively, navigate to **Ontology** > **Concepts** and click **Add concept**.
 
-### Template — Modeling Patterns
+    <img src="/public/images/how-to-guides/ontology/ontology-author-add-concept-button.png" alt="Edit mode in Graph view with the Add concept button highlighted in the Ontology Studio header" />
 
-Instantiate a known-good sub-model instead of hand-drawing it. Three patterns ship today:
+2. Under **Identity**, complete the fields.
 
-| Pattern | Shape |
-|---|---|
-| **Regulatory Control** | Control `hasPart` Requirement `hasPart` Evidence |
-| **Measured KPI** | KPI `calculatedFrom` Metric `calculatedFrom` Dimension |
-| **Product Hierarchy** | Product `partOf` Portfolio; Feature `partOf` Product |
+    | Field | Required | Notes |
+    |---|---|---|
+    | **Name** | Yes | The unique ID the system uses. Use letters, digits, underscores, and hyphens. Locked after you create the concept. |
+    | **Display name** | No | Shown on the graph and in lists. Defaults to the name. |
+    | **Synonyms** | No | Type a synonym and press `Enter`. |
+    | **Type** | No | How the concept is modeled. See the list below. It starts on **Class (OWL)**. |
+    | **Concept IRI** | No | Leave it empty to generate it from the namespace and name. It can't change after you create the concept. |
 
-You supply names for each role; the pattern is materialized as a **draft change set** for review rather than applied directly.
+    **Type** has three options:
 
-API: `GET /api/v1/ontology/patterns`, `POST /api/v1/ontology/patterns/instantiate`.
+    - **Class (OWL)**: Best when you need rules like cardinality or disjointness.
+    - **Concept (SKOS)**: A vocabulary term, for hierarchies and mappings.
+    - **Both (OWL + SKOS)**: A class you can reason over that also reads as a vocabulary term.
 
-### Include: Subsets
+    <img src="/public/images/how-to-guides/ontology/ontology-author-new-concept.png" alt="New concept panel showing the Identity section with Name, Display name, Synonyms, Type, and Concept IRI fields, and the Cancel, Create and add another, and Create buttons" />
 
-Build a scoped **application ontology** from a canonical one. Pin the source concepts a project needs, optionally pull in descendants and relationships, and OpenMetadata produces a draft change set that creates them in the target glossary.
+3. Under **Definition**, enter a **Description** that explains what the concept means in the business.
 
-Each materialized concept records its provenance: source glossary and term, the **exact versions** they were pinned at, the source IRI for exact-match traceability, and whether the modeler selected it directly or it came along as a descendant. That is what lets you answer "which version of the canonical model is this project actually built on" months later.
+4. Optional: Under **Mappings**, link the concept to equivalent terms in other vocabularies.
 
-API: `POST /api/v1/ontology/subsets`.
+    <img src="/public/images/how-to-guides/ontology/ontology-author-new-concept-mappings.png" alt="New concept panel showing the Definition, Mappings, and Advanced sections with the Mapping type, Concept IRI, Add mapping, Subclass of, and Equivalent to fields" />
 
-### Merge — Structural Diff and Merge
+    - Choose a **Mapping type**. It starts on **Exact match**.
+    - Search for the **Concept IRI** of the external concept, or paste a full IRI.
+    - Click **Add mapping**.
 
-Compare two ontology structures and reconcile them. The panel previews changes per concept — name, description, parent, entity status, relationships, mappings, custom properties — labels each as changed or unchanged, and offers conflict resolution before producing a draft change set.
+5. Optional: Expand **Advanced** for the following.
 
-API: `POST /api/v1/ontology/structure/diff`, `POST /api/v1/ontology/structure/merge`.
+    <img src="/public/images/how-to-guides/ontology/ontology-author-new-concept-advanced.png" alt="Advanced section of the New concept panel with Subclass of, Equivalent to, Disjoint with, Abstract, Definition source, Inherited properties, and Own properties" />
 
-### Ontology Constraints — Axioms
+    - **Subclass of**: The parent concepts. With no parent, the concept is a top-level class (`owl:Thing`).
+    - **Equivalent to**: Concepts that mean exactly the same thing.
+    - **Disjoint with**: Concepts that can't overlap with this one.
+    - **Abstract**: Check it to mark the concept as one that isn't used directly.
+    - **Definition source**: Where the definition comes from. It must be an absolute IRI.
+    - **Inherited properties**: Properties the concept receives from its parents.
+    - **Own properties**: Properties for this concept. Enter a **Property name** and choose a **Type**, for example **String**.
 
-Author OWL axioms with a structured class-expression editor: pick the constraint type, build the subject and target expressions, and **Validate** before saving.
+    The **Subclass of**, **Equivalent to**, and **Disjoint with** fields are disabled if you can't create constraints.
 
-<img src="/public/images/how-to-guides/ontology/ontology-modeling-workbench.png" alt="Ontology Constraints tab in the Model workbench" />
+6. Click **Create**. To add several concepts in a row, click **Create & add another** instead. **Create** stays disabled until you enter a name, and the footer says "Enter a name."
 
-The type dropdown uses plain-language labels for the OWL axiom types:
+The concept appears in the graph and counts as an unpublished change.
 
-| Label in the UI | OWL axiom |
-|---|---|
-| **Child Of** | `rdfs:subClassOf` |
-| **Exact Match** | `owl:equivalentClass` |
-| **Conflict Resolution** | `owl:disjointWith` |
-| **Classification** | class assertion |
-| **Relationship** | object-property assertion |
-| **Custom Property** | data-property assertion |
+## Edit a Concept
 
-Class expressions compose named classes, intersections, unions, enumerations, and restrictions (`SOME`, `ONLY`, `VALUE`, `MIN`, `MAX`, `EXACT`). With `RDF_STRICT_OWL_PROFILE` enabled — the default — axioms outside the supported OWL 2 DL profile are rejected with an explanation.
+1. In the **Graph** tab, click a concept. Alternatively, in the **Tree** tab, click a row. The inspector opens beside the canvas.
 
-Axioms are versioned entities in their own right, with owners, reviewers, and history.
+    <img src="/public/images/how-to-guides/ontology/ontology-author-inspector.png" alt="Concept inspector in Edit mode showing the concept name, type, IRI, completeness, an editable Display name, Description, and Type, and a Relationships list with Add, edit, and delete controls" />
 
-API: `GET|POST|PUT|PATCH|DELETE /api/v1/ontologyAxioms`, `POST /api/v1/ontologyAxioms/validate`.
+    In Edit mode the inspector is a form. At the top it shows the breadcrumb, the concept name with its type badge, the IRI, and a **Completeness** bar, for example "1 of 5 sections".
 
-## Change Sets
+2. Change the fields you need.
 
-Patterns, subsets, and merges all produce an **ontology change set** — a durable authoring session containing typed, reversible operations.
+    - **Display name**
+    - **Description**
+    - **Type**: Hover the help icon for what each type means.
+    - **Relationships**, **Properties**, **Rules**, **Synonyms**, **Mappings**, and **Data assets**: Each section has its own **Add** action, and each item has edit and delete controls.
 
-| State | Meaning |
-|---|---|
-| `DRAFT` | Being edited. Operations can be added, undone, and redone. |
-| `SUBMITTED` | Sent for review; a review task is attached. |
-| `APPLIED` | Operations executed against the ontology. |
-| `APPLY_FAILED` | Application failed; the result records why. |
-| `DISCARDED` | Abandoned. |
+    **Name** and **Concept IRI** are locked.
 
-Operations are typed rather than free-form patches: `CREATE_TERM`, `UPDATE_TERM`, `DELETE_TERM`, `ADD_RELATIONSHIP`, `UPDATE_RELATIONSHIP`, `DELETE_RELATIONSHIP`, `UPSERT_ATTRIBUTE`, `DELETE_ATTRIBUTE`, `UPSERT_MAPPING`, `DELETE_MAPPING`, `UPSERT_AXIOM`, `DELETE_AXIOM`.
+3. Click **Save**. The footer reads "All changes saved" when nothing is pending. Click **Cancel** to discard your edits.
 
-Each operation that touches an existing entity carries a `baseVersion` for **optimistic concurrency**: if the target moved since the draft was built, application fails loudly instead of silently overwriting. An `undoCursor` tracks the undo/redo position, so a draft is genuinely reviewable — you can walk it backwards before deciding.
+To delete the concept, see [Delete a Concept](#delete-a-concept).
 
-API: `POST /api/v1/ontologyChangeSets`, then `/{id}/operations`, `/{id}/undo`, `/{id}/redo`, `/{id}/submit`, `/{id}/apply`, `/{id}/discard`.
+## Add a Relationship
 
-<Tip>
+A relationship is a typed link between two concepts, such as **broader**.
 
-The review path exists so ontology change can follow the same governance as anything else in the catalog: a suggester builds a draft, submits it, a reviewer approves, and application is a single audited event with a recorded result.
+1. Start the relationship in either of two ways:
 
-</Tip>
+    - **From the inspector**: Open the concept and click **Add** next to **Relationships**.
+    - **From the graph**: Click the **+** handle on a concept node. A banner reads "Click another term to draw a connection from" the concept. Click the concept you want to relate it to. Press `Esc`, or click the close icon on the banner, to cancel.
 
-## Bulk Operations
+        <img src="/public/images/how-to-guides/ontology/ontology-author-connect.png" alt="Graph with a banner reading Click another term to draw a connection from Medication Record, and a dashed line from the plus handle" />
 
-Changes too large to make interactively — retyping every `relatedTo` edge in a glossary, find-and-replace across concept descriptions, mass attribute upserts — go through an asynchronous **bulk API**:
+2. In the **Relationship** field, choose a relationship type. Each type shows its inverse, for example **Broader** with **Inverse: Narrower**.
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/v1/ontology/bulk/template` | Download a CSV template for the operation. |
-| `POST /api/v1/ontology/bulk` | Submit a bulk job (supports dry run). |
-| `GET /api/v1/ontology/bulk/jobs` | List your jobs. |
-| `GET /api/v1/ontology/bulk/jobs/{jobId}` | Job status. |
-| `PUT /api/v1/ontology/bulk/jobs/{jobId}/cancel` | Cancel a running job. |
-| `GET /api/v1/ontology/bulk/jobs/{jobId}/artifact` | Download the result artifact. |
+    - The list includes types such as **Subclass Of**, **Superclass Of**, **Antonym**, **Broader**, and **Calculated From**. Scroll for more.
 
-Bulk submissions are planned and validated before execution, and can be run as a **dry run** that produces a full report without persisting anything. Like the workbench tools, they can land as a draft change set for review.
+        <img src="/public/images/how-to-guides/ontology/ontology-author-relationship-type.png" alt="Relationship menu in the inspector listing Subclass Of, Superclass Of, Antonym, Broader, and Calculated From with their inverses" />
+    - If no type fits, create one if you have permission. For more information, see [Relationship Types](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/relationship-types).
 
-## Next
+3. In **Target concept**, click **Choose concept...** and pick the concept to link to. Studio shows "Pick a concept to complete the sentence" until you do.
 
-<CardGroup cols={2}>
-  <Card title="Relationship Types" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/relationship-types">
-    Govern the edge vocabulary you author with.
-  </Card>
-  <Card title="Ontology Library" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/library">
-    Start from a standard instead of a blank canvas.
-  </Card>
-  <Card title="Import & Export" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/import-export">
-    Bring an existing OWL/SKOS ontology in.
-  </Card>
-  <Card title="AI Assistant" href="/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ai-assistant">
-    Get proposals for the parts you have not modeled yet.
-  </Card>
-</CardGroup>
+    <img src="/public/images/how-to-guides/ontology/ontology-author-relationship-target.png" alt="Target concept menu listing the concepts of the ontology" />
+
+4. Click **Add relationship**. Click **Cancel** to discard it.
+
+Ontology Studio checks for links from a concept to itself, duplicate links, and loops in the hierarchy before it saves.
+
+The relationship appears as a labeled edge between the two concepts and counts as an unpublished change.
+
+### Edit or Delete a Relationship
+
+Click an edge in the graph, or a relationship in the inspector, to open the relationship panel.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-relationship.png" alt="Relationship panel for Medication Record broader Clinical Record showing the Link type, Source, Status, Description, and a Delete Relationship button" />
+
+- **Link type**: The relationship type. Click the pencil icon to change it.
+- **Source**: How the link was created, for example **imported**.
+- **Status**: For example **No issues**.
+- **Description**: A note about the link.
+- **Advanced IDs and IRIs**: The identifiers of the link.
+- **Delete Relationship**: Removes the link.
+
+Click the back arrow to return to the concept.
+
+## Link Data Assets
+
+The **Data assets** section of the inspector lists the tables and columns bound to the concept. It shows "Current catalog links, separate from semantic releases." Data asset links apply to the catalog right away and aren't part of a release.
+
+<img src="/public/images/how-to-guides/ontology/ontology-studio-view-inspector-data.png" alt="Inspector Data assets section listing linked tables with their column bindings, a more link, and the Live data section with generated SQL and a Search around button" />
+
+Each linked asset shows its name, a **Sample Data** link, its full path, and the number of column bindings, for example "table · 0 column bindings". Click **+N more** to show the rest.
+
+To link more assets, switch the canvas to **Data** and click **Link data**. For more information, see [Data Mode](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/explore#data-mode). When you link a table, Studio can suggest which property each column maps to. Accept the suggestions, or choose to link the whole table only.
+
+### Live Data
+
+Below the linked assets, **Live data** shows a query generated from the bindings, for example `SELECT TOP 50 * FROM [cdc].[Customer_CustomerPreferences_CT]`. The query is labeled **not stored**. Click the copy icon to copy it, or click **Search around** to explore the data near the concept.
+
+## The Ontology View
+
+The **Ontology** view has five tabs: **Overview**, **Concepts**, **Properties**, **Constraints**, and **Settings**. The counts next to the tab names show how many items each list has.
+
+### Overview
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-ontology-overview.png" alt="Ontology view with the Overview tab showing counts of concepts, relationships, properties, and constraints, the Validation and Health cards, and Recent changes with a Review and publish button" />
+
+The **Overview** shows:
+
+- **Concepts**, **Relationships**, **Properties**, and **Constraints**: The count of each. Click the arrow on a card to open its tab.
+- **Validation**: The result of the checks on the working draft. Click **Validate all** to run them again. If constraints conflict, the card shows the number of conflicts, for example **1 conflict**, and a **Review conflicts** button. Conflicts block publishing, and each one is explained in **Constraints**.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-overview-conflict.png" alt="Overview tab showing 1 in conflict on the Constraints card, a Validation card with 1 conflict and a Review conflicts button, and the Health card" />
+- **Health**: What to review, for example "7 of 8 concepts have no description" or "3 concepts have no relations yet". Click **Review** to go to those items.
+- **Recent changes**: The latest unpublished changes, each marked **Added**, **Changed**, or **Removed**, with the count and a **Review & publish** button.
+
+### Concepts
+
+A concept is a class or term in your ontology, such as Patient or Medication.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-concepts.png" alt="Concepts tab listing concepts with Type, Parent, Description, Relations, Properties, Rules, Completeness, and Last edited columns, with search, type, and level filters and an Add concept button" />
+
+The **Concepts** tab lists every concept with its **Name**, **Type**, **Parent**, **Description**, the number of **Relations**, **Properties**, and **Rules**, a **Completeness** percentage, and when it was **Last edited**.
+
+- **Search concepts**: Filters by name.
+- **All types** and **Any level**: Filter by concept type and by layer.
+- **Add concept**: Opens the [New concept](#add-a-concept) panel.
+
+Click a concept to open it in the inspector.
+
+### Properties
+
+A property describes how concepts relate to each other or to values.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-properties.png" alt="Properties tab listing properties with Kind, Used by, Value type or target, and Description columns, with All, Object, Data, and Annotation filters and an Add property button" />
+
+The **Properties** tab lists each property with its **Name**, **Kind**, **Used by**, **Value type or target**, and **Description**.
+
+- **All**, **Object**, **Data**, and **Annotation**: Filter by kind. Each shows its count.
+- **Search properties**: Filters by name.
+- **Add property**: Opens the **New property** panel.
+
+#### Add a Property
+
+1. Click **Add property**. The **New property** panel opens.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-property-form.png" alt="New property panel showing the Basics section with Name, Display Name, Description, and Type fields and the Cancel and Create Property buttons" />
+
+2. Under **Basics**, complete the fields.
+
+    | Field | Required | Notes |
+    |---|---|---|
+    | **Name** | Yes | The unique ID the system uses. No spaces, for example `prescribedBy`. Locked after you create the property. |
+    | **Display Name** | No | What people see in lists and on the graph, for example "prescribed by". |
+    | **Description** | No | One sentence on what the property means. |
+    | **Type** | Yes | The kind of property. See the list below. It starts on **Object**. |
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-property-type.png" alt="New property panel showing the Object, Data, and Annotation type options and the Domain classes, Range, and Superproperties fields" />
+
+    - **Object**: Links one concept to another. For example, Prescription → prescribed by → Doctor.
+    - **Data**: Holds a plain value like a number, text, or date. For example, Prescription → dosage → 500.
+    - **Annotation**: A note for people, like "source" or "reviewed by". No logic is applied.
+
+3. Set where the property applies. In each field, search by name, or paste a full IRI and click **Add**.
+
+    - **Domain classes**: The concepts the property applies to.
+    - **Range**: For an **Object** property, the concepts it points to. For a **Data** property, the data types.
+    - **Superproperties**: Properties that this one specializes.
+
+4. Optional: Expand **Advanced**.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-property-advanced.png" alt="Advanced section of the New property panel with the Characteristics checkboxes, Inverse, Disjoint properties, and Property chain fields" />
+
+    | Field | Applies to | Notes |
+    |---|---|---|
+    | **Characteristics** | **Object** and **Data** | For an **Object** property: `ASYMMETRIC`, `FUNCTIONAL`, `INVERSE_FUNCTIONAL`, `IRREFLEXIVE`, `REFLEXIVE`, `SYMMETRIC`, `TRANSITIVE`. For a **Data** property, only `FUNCTIONAL`. |
+    | **Inverse** | **Object** | The property that runs the opposite way. |
+    | **Disjoint properties** | **Object** and **Data** | Properties that can never both hold between the same pair. One IRI per line. |
+    | **Property chain** | **Object** | Properties that, applied in order, imply this one. One IRI per line. The order is preserved. |
+
+5. Click **Create Property**. The footer reads "No changes" until you change a field.
+
+### Constraints
+
+A constraint is a logical rule about your concepts. The technical name is an axiom: a statement the ontology asserts to be true.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-constraints.png" alt="Constraints tab listing constraints with Sentence, Type, Source, and Description columns, a Show on graph link on each row, and the Validate all and Add constraint buttons" />
+
+The **Constraints** tab lists each constraint with its **Name**, a **Sentence** that reads the rule in plain language, its **Type**, its **Source**, and its **Description**.
+
+- **All types** and **Any source**: Filter the list. **Source** shows whether a constraint was created in Ontology Studio or **Imported**.
+- **Validate all**: Runs the checks on the working draft. The text beside it shows the result, for example "No problems found in the working draft." Conflicts block publishing.
+- **Show on graph**: Opens the constraint's concepts in the graph.
+- **Add constraint**: Opens the **New constraint** panel.
+
+Constraints that came from an import or a library pack are named **Imported object property assertion**.
+
+#### Add a Constraint
+
+1. Click **Add constraint**. The **New constraint** panel opens with two modes, **Quick** and **Advanced**.
+
+2. In **Quick** mode, write one rule about one concept as a sentence.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-constraint-quick.png" alt="New constraint panel in Quick mode showing the Subject, Rule, Quantity, Cardinality, and Property fields" />
+
+    - **Subject**: The concept the rule is about. Search by name, or paste an address for a concept in another ontology.
+    - **Rule**: The kind of sentence. A description below the field explains the one you choose.
+
+        <img src="/public/images/how-to-guides/ontology/ontology-author-constraint-quick-rule.png" alt="Rule menu in the New constraint panel listing must have, can never also be, and is the same as" width="520" />
+
+        - **must have**: Every member of the subject must have this many values for the property, such as Patient must have exactly 1 date of birth. The rule is recorded; existing data is not checked against it.
+        - **can never also be**: Nothing can be both the subject and the other concept, such as Medicine can never also be Person.
+        - **is the same as**: The subject and the other concept have exactly the same members, such as Patient is the same as Case. To map a concept to another vocabulary, use a mapping instead.
+    - **Quantity**, **Cardinality**, and **Property**: For **must have**, how many values of which property, for example **exactly** `1` of a date of birth property.
+    - **Display Name (Optional)** and **Description (Optional)**.
+
+3. In **Advanced** mode, build any constraint type, with and/or conditions. If you open a constraint that Quick mode can't show, for example one with several conditions, Studio keeps it in Advanced and explains why.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-constraint-advanced.png" alt="New constraint panel in Advanced mode showing the Type, Rule name, and Subject fields and an expression with Property Concept IRI, Constraint Type, and Cardinality" />
+
+    - **Type**: Choose what the constraint states.
+
+        <img src="/public/images/how-to-guides/ontology/ontology-author-constraint-type.png" alt="Constraint Type menu listing Class membership, Data property fact, Disjoint with, Equivalent to, Object property fact, and Subclass of" />
+
+        | Type | What it states |
+        |---|---|
+        | **Subclass of** | Every member of the subject must satisfy the condition, such as being a kind of another concept or having a property rule. |
+        | **Equivalent to** | The subject means exactly the same as the expression. |
+        | **Disjoint with** | The subject can't overlap with the expression. |
+        | **Class membership** | The subject is an instance of a concept. |
+        | **Object property fact** | The subject is linked to a target by a property. |
+        | **Data property fact** | The subject has a fixed value for a property. |
+
+    - **Rule name**: Required. Studio fills in a generated name that is editable.
+    - **Subject**: Required. The concept the rule is about.
+    - **Expression**: The condition. Each expression has its own **Type**. Click **Remove** to delete an expression, and click **Add Constraint** inside the panel to add another.
+
+        <img src="/public/images/how-to-guides/ontology/ontology-author-constraint-expression.png" alt="Expression Type menu listing Classification, Constraint, and, or, and Select" />
+
+        | Expression type | What it means | Fields |
+        |---|---|---|
+        | **Classification** | A single named concept | **Concept IRI** |
+        | **Constraint** | A rule about a property | **Property Concept IRI**, **Constraint Type**, and a value or nested expression |
+        | **and** | All of the nested expressions must hold | Nested expressions |
+        | **or** | At least one nested expression must hold | Nested expressions |
+        | **Select** | One of a list of named individuals | The target concepts |
+
+        For a **Constraint** expression, **Constraint Type** includes **Cardinality =**, with the number you enter in **Cardinality**. Nesting goes at most four levels deep.
+
+4. Click **Save**.
+
+### Settings
+
+The **Settings** tab holds the ontology's identity and governance fields.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-settings.png" alt="Settings tab showing the Display Name, Description, Owners, Reviewers, Layer, Name, and Ontology IRI fields" />
+
+It shows **Display Name**, **Description**, **Owners**, **Reviewers**, **Layer**, and the locked **Name**, **Ontology IRI**, and **Namespace**. For what each field does, see [Edit Ontology Settings](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/ontologies#edit-ontology-settings).
+
+## Work in the Tree
+
+In Edit mode, the **Tree** view lists the concepts by hierarchy, as in View mode. Click a row to open the concept in the inspector and edit it. The header shows **Add concept**, and each row shows its number of children and relations.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-edit-tree.png" alt="Edit mode in Tree view listing concepts by hierarchy with child and relation counts and the Add concept and Publish buttons" />
+
+## Delete a Concept
+
+1. Open the concept in the inspector.
+
+2. Click the three dots at the top of the inspector, and then click **Delete Concept**. The item is disabled if you don't have delete permission.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-concept-delete-menu.png" alt="Concept inspector with the three-dot menu open, showing the Delete Concept action" />
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-concept-delete.png" alt="Delete Clinical Record dialog listing the rules that will be removed, with the Remove these relationships and rules checkbox and the Cancel and Delete buttons" />
+
+3. Review the **Delete {concept}** dialog. It says "Deleting {concept} also affects:" and lists:
+
+    - Child concepts, which move to the top level.
+    - Relationships and rules, which are removed.
+    - Data asset bindings, which are removed. The assets themselves aren't changed.
+    - Concepts that still point at this one through a domain, range, or replacement. These block the deletion. Change them first.
+
+    If relationships and rules reference the concept, check **Remove these relationships and rules together with** the concept to continue.
+
+4. Click **Delete**. Click **Cancel** to keep the concept.
+
+The deletion is an unpublished change like any other, and it is included in your next release. To delete a relationship, see [Edit or Delete a Relationship](#edit-or-delete-a-relationship).
+
+## Delete a Property or Constraint
+
+1. In the **Ontology** view, open the **Properties** or **Constraints** tab and click the item. Its panel opens.
+2. Click the trash icon at the top right of the panel, next to the close icon. The icon is disabled if you don't have delete permission.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-property-delete.png" alt="Property panel with the trash icon highlighted at the top right, next to the close icon" />
+
+3. In the delete dialog, choose how to delete the item.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-author-property-delete-dialog.png" alt="Delete contains Ontology Property dialog with the Soft Delete and Permanently Delete options" width="520" />
+
+    - **Soft Delete**: Turns off the item. You can restore it later. This is the default.
+    - **Permanently Delete**: Deletes the item and all its metadata forever. This can't be undone.
+
+4. Click **Delete**. Click **Cancel** to keep the item.
+
+For a constraint, the trash icon sits in the same place in the panel header.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-constraint-delete.png" alt="Constraint panel with the trash icon highlighted at the top right, next to the close icon" />
+
+Constraints use the same dialog, titled **Delete "{name}" Ontology Axiom**, with the same two options.
+
+<img src="/public/images/how-to-guides/ontology/ontology-author-axiom-delete-dialog.png" alt="Delete Prescription for Patient Ontology Axiom dialog with the Soft Delete and Permanently Delete options" width="520" />
+
+## Review Banners
+
+When a release is waiting for review, a banner appears on the canvas of that ontology in **View** and **Edit**.
+
+- **Reviewers** see "{name}, a release is waiting for your review". The banner shows the ontology, version, number of changes, requester, and task ID, with a **Review now** button.
+- **The requester and other users** see the status, for example "In review · waiting on {names}", with a **View task** button.
+- **After a decision**, the requester sees "{reviewer} approved {version}. Publish it from Review & publish." or "{reviewer} rejected {version}: {reason}".
+- **With All ontologies selected**, each open review has its own line with **View task**. With several, they collapse into "N reviews in progress".
+
+Click **Review now** or **View task** to open the review in the **Tasks** drawer. For more information, see [The Tasks Drawer](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases#the-tasks-drawer).
+
+## Next Steps
+
+- [Publish a release](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases) to make your changes visible to other users.
+- [Import & Export](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/import-export) to bring a file in as unpublished changes.
