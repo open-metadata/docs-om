@@ -78,11 +78,11 @@ RDF is configured in `openmetadata.yaml` under the `rdf` section. Every setting 
 
 | Environment Variable | Default | Description |
 |---|---|---|
-| `RDF_INFERENCE_ENABLED` | `false` | Enable inference on SPARQL queries. |
-| `RDF_DEFAULT_INFERENCE_LEVEL` | `NONE` | Default reasoning level: `NONE`, `RDFS`, `OWL_LITE`, `OWL_DL`, or `CUSTOM`. `CUSTOM` applies OpenMetadata's own rules — transitive lineage, tag propagation, domain inheritance. |
-| `RDF_MATERIALIZED_INFERENCE_ENABLED` | `false` | Use durable per-rule inferred named graphs produced inside the triplestore instead of building an in-memory Jena model. **Recommended for anything past a small catalog.** |
-| `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES` | `100000` | Above this store size, in-process inference falls back to direct execution — with a `warning` in the response, and **without** inference applied. |
-| `RDF_CACHE_INFERRED_TRIPLES` | `false` | Cache bounded in-memory inference models for 60 seconds. |
+| `RDF_MATERIALIZED_INFERENCE_ENABLED` | `false` | Write inference rule results to durable per-rule named graphs produced inside the triplestore. This is the only source of inference and makes the `custom` inference level available. **Recommended for anything past a small catalog.** |
+
+<Warning>
+`RDF_INFERENCE_ENABLED`, `RDF_DEFAULT_INFERENCE_LEVEL`, `RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES`, and `RDF_CACHE_INFERRED_TRIPLES` are deprecated and ignored. OpenMetadata no longer runs a reasoner in the server process, so SPARQL requests for `rdfs` or `owl` inference fail with `503`. Remove these variables from your configuration.
+</Warning>
 
 ### Validation and OWL profile
 
@@ -114,14 +114,10 @@ rdf:
   bulkEntityBatchSize: ${RDF_BULK_ENTITY_BATCH_SIZE:-100}
   bulkRelationshipSourceBatchSize: ${RDF_BULK_RELATIONSHIP_SOURCE_BATCH_SIZE:-100}
   bulkLineageEdgeBatchSize: ${RDF_BULK_LINEAGE_EDGE_BATCH_SIZE:-50}
-  maxInMemoryInferenceTriples: ${RDF_MAX_IN_MEMORY_INFERENCE_TRIPLES:-100000}
   materializedInferenceEnabled: ${RDF_MATERIALIZED_INFERENCE_ENABLED:-false}
   username: ${RDF_REMOTE_USERNAME:-"admin"}
   password: ${RDF_REMOTE_PASSWORD:-"admin"}
   dataset: ${RDF_DATASET:-"openmetadata"}
-  inferenceEnabled: ${RDF_INFERENCE_ENABLED:-false}
-  defaultInferenceLevel: ${RDF_DEFAULT_INFERENCE_LEVEL:-"NONE"}
-  cacheInferredTriples: ${RDF_CACHE_INFERRED_TRIPLES:-false}
   shaclValidationMode: ${RDF_SHACL_VALIDATION_MODE:-"REPORT"}
   dereferenceableIris: ${RDF_DEREFERENCEABLE_IRIS:-false}
   strictOwlProfile: ${RDF_STRICT_OWL_PROFILE:-true}

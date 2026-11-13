@@ -60,15 +60,16 @@ Read-only SPARQL (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledg
 |---|---|
 | `query` | Required. Use `https://open-metadata.org/ontology/` as the `om:` prefix. |
 | `format` | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle` (recommended), `jsonld`, `ntriples`, `rdfxml`. |
-| `inferenceLevel` | `none` (default), `rdfs`, `owl`, `custom`. |
+| `inferenceLevel` | `none` (default), or `custom` when materialized inference is enabled. `rdfs` and `owl` fail with a 503 error. |
 | `maxBytes` | Default and maximum 80,000; minimum 1,024. |
 
 `UPDATE`, `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE` are rejected. `SERVICE` clauses against external endpoints are rejected unless the target is on the federation allowlist — which is empty and disabled by default, so in a stock deployment this tool never reaches outside the local graph.
 
-Two response fields matter for agent behavior:
+One response field matters for agent behavior:
 
 - **`truncated: true`** with a `byteCount` when the body exceeds `maxBytes`. Narrow the query with `LIMIT` rather than raising `maxBytes` — values above the maximum are clamped, because a larger body is discarded wholesale by the response budget.
-- **`warning`** when the requested `inferenceLevel` could not be applied because the graph was too large. **Results are then NOT inferred.** An agent that ignores this field will confidently report an incomplete answer.
+
+A request for `rdfs` or `owl` inference fails with a 503 error instead of returning un-inferred results, so an agent never gets an answer that silently skipped inference.
 
 ### `entity_neighborhood`
 
@@ -120,6 +121,7 @@ The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/ho
 |---|---|
 | `semantic_search` | Meaning-based discovery when you do not know exact names. Good first step; hand results to the graph tools to confirm. |
 | `find_context` | Semantic search over the company-knowledge layer — glossary definitions, metric definitions, Context Center notes — when no asset has been chosen yet. |
+| `get_concept_context` | Resolves a glossary term or metric from `find_context` to its definition, the exact assets and columns it is bound to, profiles, sample values, and saved-query evidence. |
 | `get_entity_lineage` | A compact lineage graph without writing SPARQL. |
 | `get_entity_details` | Full entity payloads once the graph has identified them. |
 
@@ -147,8 +149,9 @@ The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/ho
   </Accordion>
   <Accordion title="Answering a business question correctly">
     1. `find_context` → which concept the question is actually about.
-    2. `sparql_query` following `om:hasGlossaryTerm` → the assets bound to it.
-    3. Filter by tier, owner, or contract → the *governed* one, not merely a matching one.
+    2. `get_concept_context` → the definition and the exact tables and columns bound to it.
+    3. `sparql_query` following `om:hasGlossaryTerm` → any other assets bound to it.
+    4. Filter by tier, owner, or contract → the *governed* one, not merely a matching one.
 
     This is the flow that stops an agent from answering a revenue question off `revenue_v2_final_DONOTUSE`.
   </Accordion>
@@ -168,7 +171,7 @@ Things that measurably improve results:
 - **Force schema discovery first.** "Before writing any SPARQL, call `ontology_describe` for the classes involved." Predicate hallucination is the dominant failure mode and this eliminates most of it.
 - **Always scope the named graph.** Tell the agent to wrap instance patterns in `GRAPH <https://open-metadata.org/graph/knowledge> { … }`. Unscoped queries return ontology triples and confuse the model about its own results.
 - **Require the query in the answer.** "Show the SPARQL you ran." Cheap, and it makes every answer auditable.
-- **Teach it to read `truncated` and `warning`.** An agent that ignores these reports partial results as complete.
+- **Teach it to read `truncated`.** An agent that ignores it reports partial results as complete.
 - **Budget with `LIMIT`, not `maxBytes`.** `maxBytes` is clamped at 80,000; the fix for a large result is a narrower query.
 
 ## Setting It Up
@@ -207,7 +210,7 @@ Ontology content reaches the graph from the **active release** of each ontology.
     Usually a missing `GRAPH` clause or an invented predicate. Have the agent call `ontology_describe` and re-derive the query.
   </Accordion>
   <Accordion title="Results look incomplete">
-    Check for `truncated: true` and for a `warning` saying inference could not be applied. Both mean the answer is partial.
+    Check for `truncated: true`. It means the answer is partial. Narrow the query with `LIMIT` and page through the rest.
   </Accordion>
   <Accordion title="Query capacity or timeout errors">
     The admission guard allows 8 concurrent queries globally and 2 per principal, with a 30-second timeout. Narrow the query, or materialize the traversal as an [inference rule](/v2.1.x-SNAPSHOT/how-to-guides/ontology/knowledge-graph/reasoning).
