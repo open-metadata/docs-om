@@ -1,6 +1,6 @@
 ---
 title: Query the Ontology (Query Mode) | OpenMetadata
-description: Run SPARQL against the active release of an ontology in Ontology Studio, with the SPARQL console, saved queries, and the visual query builder.
+description: Run SPARQL against the draft or the published release of an ontology in Ontology Studio, with the SPARQL console, saved queries, and the visual query builder.
 sidebarTitle: Query
 ---
 
@@ -8,40 +8,45 @@ sidebarTitle: Query
 
 Query mode is where the model earns its keep. A graph canvas shows you shape, and a query answers a question.
 
-Two surfaces share the sub-mode bar: the **SPARQL console** and the **Visual builder**. Both query the **active release** of the selected ontology. The release version, such as **v1.5.0**, is shown in the bar.
+Two surfaces share the sub-mode bar: the **SPARQL console** and the **Visual builder**. Both query one version of the selected ontology at a time. The version chip next to the surfaces shows which one: **Draft** or **Published** with its version, such as **v1.5.0**.
 
-<Info>
+## Choose the Version to Query
 
-Concepts, properties, and constraints you have not published yet don't appear in query results. To make an edit queryable, [publish a release](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases) and activate it.
+<img src="/public/images/how-to-guides/ontology/ontology-query-shared.png" alt="SPARQL console with the Draft and Published version chip highlighted, a shared read-only query open, and its results" />
 
-</Info>
+- **Draft**: The working version, including unpublished changes. The number is the count of unpublished changes. Only users with edit permission can query the draft.
+- **Published**: The active release, for example **v1.5.0**. Concepts you haven't published don't appear in these results.
+
+Users without edit permission always query the **Published** release. The results area names the version a query ran against, for example **Hospital Pharmacy · draft**, and the editor footer shows the same scope.
+
+To make an edit visible to everyone's queries, [publish a release](/v2.1.x-SNAPSHOT/how-to-guides/ontology/studio/releases).
 
 ## Open Query Mode
 
-1. Select the ontology you want to query in the Ontology selector. With **All ontologies** selected, **Query** first asks you to pick one ontology.
+1. Pick the ontology you want to query in the Ontology selector. With **All ontologies** selected, **Query** first asks you to pick one ontology.
 
-2. Select the **Query** tab.
+2. Click the **Query** tab.
 
-3. Choose **SPARQL console** or **Visual builder**.
+3. Click **SPARQL console** or **Visual builder**.
 
-Querying an ontology doesn't need the RDF knowledge graph. The query runs against `POST /api/v1/ontologies/{id}/sparql`, which any user with view access on every member of the active release can call.
+Querying an ontology doesn't need the RDF knowledge graph. The query runs against `POST /api/v1/ontologies/{id}/sparql`, with `scope=release` (the default) or `scope=draft`. Any user with view access on every member of the active release can query the release. Querying the draft needs edit permission on the ontology.
 
 ## The SPARQL Console
 
 The SPARQL console is where you write, save, and run SPARQL queries.
 
-<img src="/public/images/how-to-guides/ontology/ontology-query-console.png" alt="SPARQL console with the Queries rail, an untitled SELECT query, the Save and Run query buttons, and an empty results area" />
+<img src="/public/images/how-to-guides/ontology/ontology-query-console.png" alt="SPARQL console with the Queries panel, an untitled SELECT query, the Duplicate and Run query buttons, and the Results area" />
 
-### The Query Rail
+### The Queries Panel
 
-The left rail is headed **Queries** and has a **New Query** action. It holds two groups:
+The left panel is headed **Queries**. Click the **+** button to start a new query, or use **Search queries** to filter the list. It holds two groups:
 
-- **Shared queries**: read-only queries available to everyone on this ontology. They are the shared templates saved for the whole deployment. Everyone authenticated can read and run them, and only admins can create, edit, or delete them with **Save as sample query**. The built-in starters that query glossary terms are hidden here, because an ontology doesn't hold glossary terms. A starter you have edited stays visible.
-- **My queries**: your private library, visible only to you. Select a query to open it, use the pencil icon to rename it, or the delete icon to remove it. An empty library shows **No queries yet. Save a shared query or start a new one.**
+- **My queries**: Your private library, visible only to you. An empty library shows "No queries yet. Save a shared query or start a new one." Hover a query to rename, duplicate, or delete it.
+- **Shared**: Read-only queries available to everyone on this ontology. Everyone can read and run them, and only admins can create, update, or delete them with **Save as sample query**. The built-in starters that query glossary terms are hidden here, because an ontology doesn't hold glossary terms.
 
 ### Run a Query
 
-1. Select **New Query**, in the rail or in the sub-mode bar. It opens an untitled query with a starter scaffold:
+1. Click **New query** in the header, or the **+** button in the panel. It opens an untitled query with a starter scaffold:
 
     ```sparql
     PREFIX owl: <http://www.w3.org/2002/07/owl#>
@@ -55,25 +60,39 @@ The left rail is headed **Queries** and has a **New Query** action. It holds two
     LIMIT 100
     ```
 
-2. Edit the query, or select a saved one from the rail.
+2. Edit the query, or click a saved one in the panel.
 
-3. Select **Run query**. Until you run it, the results area says **No results yet**.
+3. Click **Run query**, or press `Cmd+Enter` (`Ctrl+Enter` on Windows and Linux). Until you run it, the results area is empty.
+
+The footer under the editor shows the line count, the ontology and version the query will run against, for example "9 lines · Hospital Pharmacy · draft", and the shortcut.
+
+### Read the Results
+
+After a run, the **Results** header shows the row count and run time, for example **4 rows · 1954 ms**, when it ran, and the version it ran against.
+
+- **Copy**: Copies the results.
+- **CSV**: Downloads the results as a CSV file.
+- **Table** and **Graph**: For queries that return graph data, switch between a table and a graph view.
+- If a query matches nothing, the area says "The query ran without matching any results."
 
 ### Saving Queries
 
-The title row above the editor shows the query name, its type (for example **SELECT**), and a badge for where it lives. The buttons depend on what you opened:
+The title row above the editor shows the query name, its type (for example **SELECT**), and where it lives. The buttons depend on what you opened.
 
-| You opened | Badge | Buttons |
+| You opened | What you see | Actions |
 |---|---|---|
-| An untitled query | None | **Save as my query**, **Save as sample query** (admins), **Run query** |
-| One of your queries | **My query** | **Save as new**, **Save Changes**, **Save as sample query** (admins), **Run query** |
-| A shared query | **Shared · read-only** | **Discard**, **Save as my query**, **Save as sample query** (admins), **Run query** |
+| An untitled query | **Untitled query** | **Duplicate**, **Run query**. In the three-dot menu: **Save as my query**, and **Save as sample query** for admins. |
+| One of your queries | The query name, "Only visible to you" | **Save** (reads **Saved** when nothing changed), **Duplicate**, a delete icon, **Run query**. In the three-dot menu: **Save as new**, **Save as sample query** for admins, and **Discard**. |
+| A shared query | The query name, a **Read-only** badge, "Shared with everyone" | **Duplicate to edit**, **Run query**. |
 
-When you edit a shared query, an **Unsaved Changes** badge appears and a banner explains that your changes stay local until you save them as your own query. Use **Discard** to drop your edits, or **Save as my query** to keep them.
+When you edit a shared query, an **Unsaved changes** badge appears and a banner explains that your changes stay local until you save them as your own query. Use **Discard** to drop your edits, or **Save as my query** to keep them.
+
+When you save a query, a dialog asks you to name it.
 
 ### Limits and Read-Only Rules
 
-- **Read-only**: the console rejects `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE`.
+- **Read-only**: The console rejects `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE`.
+- **No federation**: The console refuses `SERVICE`, including `SERVICE` nested inside `EXISTS`.
 - **Format**: `SELECT` and `ASK` results as JSON (default), CSV, TSV, or XML. `CONSTRUCT` and `DESCRIBE` results as Turtle, JSON-LD, N-Triples, or RDF/XML.
 
 Every SPARQL read runs behind an admission guard with hard limits, so one expensive query can't take the triple store down:
@@ -88,27 +107,33 @@ Every SPARQL read runs behind an admission guard with hard limits, so one expens
 | Global concurrency | 8 concurrent queries |
 | Per-principal concurrency | 2 concurrent queries |
 
-Queries that exceed capacity or the timeout fail with an explicit error rather than degrading everyone else's latency.
+These limits apply to catalog-wide queries. Ontology queries run in a separate, isolated process with their own memory and size limits, and one query at a time is admitted across the server. If an ontology is too large to load for a query, the request fails with an error that says so. Queries that exceed capacity or the timeout fail with an explicit error rather than degrading everyone else's latency.
 
 ## The Visual Builder
 
-Not everyone writing governance questions wants to write SPARQL. The visual builder composes a query from choices and compiles it live. It queries the active release using semantic IRIs.
+Not everyone writing governance questions wants to write SPARQL. The visual builder composes a query from choices and compiles it live. It queries the version selected in the version chip.
 
-<img src="/public/images/how-to-guides/ontology/ontology-query-builder.png" alt="Visual query builder with Find Concepts, a where clause set to isA sub class of Person, the generated SPARQL, and the Run query and Edit as SPARQL buttons" />
+<img src="/public/images/how-to-guides/ontology/ontology-query-builder.png" alt="Visual builder with Find Concepts, a where clause set to isA sub class of Person, the Generated SPARQL panel, and the Reset, Edit as SPARQL, and Run query buttons" />
 
-1. Open the **Visual builder** tab. **Find** offers **Concepts**.
+1. Open the **Visual builder** tab. Under **Find**, choose **Concepts** or **Properties**. **Limit** sets the maximum number of rows, which starts at `100`.
 
-2. Under **where**, select a relationship. The list shows each property of the ontology with its kind, for example **isA · sub class of**, **contains · object assertion**, and **disjointWith · disjoint with**.
+2. Under **where**, choose a condition. The list shows each relationship in the ontology with its kind, for example **isA · sub class of**, **contains · object assertion**, **broader · object assertion**, **disjointWith · disjoint with**, and **dosage · object property**.
 
-    <img src="/public/images/how-to-guides/ontology/ontology-query-builder-relationship.png" alt="Relationship list in the visual builder showing isA sub class of, contains object assertion, prescribed by object assertion, and other options" />
+    <img src="/public/images/how-to-guides/ontology/ontology-query-builder-relationship.png" alt="Condition list in the visual builder showing isA sub class of, contains object assertion, prescribed by object assertion, broader object assertion, disjointWith disjoint with, and contains object property" />
 
-3. Select the target concept. Type in the box to search the list.
+3. Choose the target concept. Type in the box to search the list.
 
-    <img src="/public/images/how-to-guides/ontology/ontology-query-builder-target.png" alt="Target concept list in the visual builder with Person selected" />
+    <img src="/public/images/how-to-guides/ontology/ontology-query-builder-target.png" alt="Target concept list in the visual builder showing Doctor, Allergy, Analgesic, Antibiotic, Dispensing, and other concepts" />
 
-4. Read the **Generated SPARQL**. It updates as you change the choices and uses the standard `rdf`, `rdfs`, `owl`, `skos`, and `xsd` prefixes and the full IRI of the target concept.
+4. Optional: Click **Add condition** to combine another condition. Click the **x** beside a condition to remove it, or click **Reset** to start over.
 
-5. Select **Run query** to execute it in place, or **Edit as SPARQL** to hand the generated query to the console.
+5. Read the **Generated SPARQL** panel. It updates as you change the choices and uses the standard `rdf`, `rdfs`, `owl`, `skos`, and `xsd` prefixes and the full IRI of the target concept. Click the copy icon to copy it, or the close icon to hide the panel.
+
+6. Click **Run query** to run it in place. The results appear in a table.
+
+    <img src="/public/images/how-to-guides/ontology/ontology-query-builder-results.png" alt="Visual builder results table listing Nurse, Pharmacist, Doctor, and Patient with their IRIs, the row count and run time, and the Copy and CSV buttons" />
+
+7. Optional: Click **Edit as SPARQL** to hand the generated query to the console.
 
 **Edit as SPARQL** is the fastest way to learn SPARQL against your own model: build the query visually, then read what it produced. For **isA · sub class of** with the target **Person**, it generates:
 

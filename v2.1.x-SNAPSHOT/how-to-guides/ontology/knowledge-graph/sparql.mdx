@@ -13,10 +13,10 @@ SPARQL is to a graph what SQL is to tables. If you can write a `SELECT` with joi
 | Surface | Endpoint | Access |
 |---|---|---|
 | **SPARQL Playground** (`/governance/sparql`) | `GET \| POST /api/v1/rdf/sparql` | Admin |
-| **Ontology Studio** > **Query**, one ontology selected | `POST /api/v1/ontologies/{id}/sparql` | View access on every member of the active release |
+| **Ontology Studio** > **Query**, one ontology selected | `POST /api/v1/ontologies/{id}/sparql` | View access on every member of the active release. Querying the draft needs edit permission on the ontology. |
 | **MCP** `sparql_query` tool | Same as above | Admin principal (not bots) |
 
-Ontology-scoped SPARQL reads only the active release of that ontology. It works with RDF storage off and cannot reach other assets or external datasets. Catalog-wide SPARQL runs against the triple store and is admin-only.
+Ontology-scoped SPARQL reads one version of that ontology: the active release by default, or the working draft (`scope=draft`) for users with edit permission. It works with RDF storage off and cannot reach other assets or external datasets. Catalog-wide SPARQL runs against the triple store and is admin-only.
 
 ## Named Graphs
 
@@ -88,7 +88,7 @@ Every read runs behind an admission guard:
 
 Writes (`INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, `CREATE`) are rejected on the read endpoints. `POST /api/v1/rdf/sparql/update` exists for admins, but see the warning below.
 
-**Federation** (`SERVICE` clauses to external endpoints) is **disabled by default**. When enabled, target URIs must appear verbatim in an allowlist — trailing slashes matter.
+**Federation** (`SERVICE` clauses to external endpoints) is **disabled by default**. A `SERVICE` clause hidden inside `EXISTS` is refused too. Ontology-scoped queries run in an isolated process with their own memory limit. If an ontology is too large to load, the query fails with an error that says so. When enabled, target URIs must appear verbatim in an allowlist — trailing slashes matter.
 
 <Warning>
 

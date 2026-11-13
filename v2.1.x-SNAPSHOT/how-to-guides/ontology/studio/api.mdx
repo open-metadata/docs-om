@@ -34,15 +34,33 @@ Paths in the tables start with `/api`. Every entity group below also supports th
 | `POST` | `/v1/ontologies/{id}/releases` | Capture a release. See [Capture a Release](#capture-a-release). |
 | `GET` | `/v1/ontologies/{id}/releases` | List the sealed releases of the ontology, newest first. |
 | `PUT` | `/v1/ontologies/{id}/activation` | Activate an approved release, or roll back to an older approved one. |
-| `POST` | `/v1/ontologies/{id}/sparql` | Read-only SPARQL over the active release. Excludes unpublished edits. |
+| `POST` | `/v1/ontologies/{id}/sparql` | Read-only SPARQL over one version of the ontology. Takes `scope=release` (default, the active release) or `scope=draft`. The draft includes unpublished edits and needs `EditAll` on the ontology. |
 | `POST` | `/v1/ontologies/{id}/imports/preview` | Turn a local RDF or native CSV file into a list of proposed changes. Saves nothing. |
 | `POST` | `/v1/ontologies/imports/preview` | Count what a file would import into a new ontology. |
 | `POST` | `/v1/ontologies/imports/detect` | Name the format of a local ontology file. |
+| `GET` | `/v1/ontologies/{id}/export` | Export the current draft. Takes `format`. Needs edit permission. |
+| `GET` | `/v1/ontologies/{id}/working/validation` | Validate the working draft. Needs edit permission. |
+| `POST` | `/v1/ontologies/{id}/library/{packId}/summary` | Summarize the selected library pack modules for the ontology. |
 | `POST` | `/v1/ontologies/{id}/library/{packId}/preview` | Preview library pack modules as draft changes. |
+| `POST` | `/v1/ontologies/{id}/library/{packId}/review` | List the changes an install would make. |
+| `POST` | `/v1/ontologies/{id}/library/{packId}/install` | Start a pack install as a background job. |
+| `GET` | `/v1/ontologies/{id}/library/jobs/{jobId}` | Read the progress of an install job. |
+| `PUT` | `/v1/ontologies/{id}/library/jobs/{jobId}/cancel` | Cancel an install job. |
 | `GET` | `/v1/ontologies/{id}/references` | Find working definitions that reference an IRI. Takes `iri`. |
 | `GET` | `/v1/ontologies/{id}/dataGraph` | Data graph of the ontology for the **Data** layer. |
 | `POST` | `/v1/ontologies/{id}/dataGraph/pages` | Read a page of the data graph. |
-| `GET` | `/v1/ontologies/reviews` | List the open release reviews the calling user is part of. |
+| `GET` | `/v1/ontologies/reviews` | List release reviews. Takes `view` (`assigned`, `created`, or `pending`) and `ontologyId`. |
+
+### Notable Fields
+
+The ontology and release entities carry the review state of a release. These fields are read-only outputs of the release flow.
+
+| Entity | Fields |
+|---|---|
+| Ontology | `approvalRule` (the rule that decides when reviewers approve), `installedPacks`, and the working and activation revisions. |
+| Release | `publicationStatus`, `lifecycleStatus`, `approvalBasis` (`REVIEWED` or `NO_REVIEWERS_CONFIGURED`), and `changeSummary`. |
+| Concept | `abstract`, `definitionSource`, `deprecated`, and `replacedBy`. |
+| Property | `superProperties`. |
 
 ## Concepts
 
@@ -62,6 +80,8 @@ Paths in the tables start with `/api`. Every entity group below also supports th
 | `PUT` | `/{id}/bindings` | Replace one binding. |
 | `DELETE` | `/{id}/bindings/{assetType}/{assetId}` | Remove one binding. Takes `expectedRevision`. |
 | `POST` | `/{id}/query` | Generate SQL over the concept's bound tables. |
+| `GET` | `/{id}/deleteImpact` | Count what deleting the concept would affect, such as child concepts, relationships, rules, and bindings, and list the definitions that block the deletion. |
+| `GET` | `/boundTo/{assetType}/{assetId}` | List the concepts bound to a catalog asset. |
 
 Concept bindings are catalog links. They apply right away and aren't part of a release.
 
@@ -103,7 +123,7 @@ A release is an immutable snapshot of an ontology. `/api/v1/ontologyReleases`
 | `GET` | `/{id}/validation` | Validate the release. |
 | `GET` | `/{id}/export` | Export the release. See [Export a Release](#export-a-release). |
 | `GET` | `/{id}/review` | Read the review of the release as the calling user sees it. |
-| `GET` | `/{id}/events` | Captured, approved, rejected, and activated events. Takes `limit` and `after`. |
+| `GET` | `/{id}/events` | Captured, review requested, review withdrawn, approved, rejected, and activated events. Takes `limit` and `after`. |
 | `GET` | `/{id}/members/{kind}` | Page through the immutable members of the release. |
 | `GET` | `/{id}/members/{kind}/{memberId}` | Read one member. |
 
@@ -158,7 +178,7 @@ curl -X POST "$OM_HOST/api/v1/ontologies/{id}/imports/preview" \
 
 ## Change Sets
 
-Durable authoring sessions with typed operations. Studio creates and applies a change set for you when you import a file or install a library pack. `/api/v1/ontologyChangeSets`
+Durable authoring sessions with typed operations. Studio creates and applies a change set for you when you import a file. `/api/v1/ontologyChangeSets`
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -184,7 +204,9 @@ Durable authoring sessions with typed operations. Studio creates and applies a c
 | `GET` | `/{packId}` | Manifest: modules, dependencies, counts, SHA-256 checksums, and license. |
 | `GET` | `/{packId}/sample` | Preview selected concepts. Takes `moduleIds`. |
 
-To install a pack into an ontology, preview it with `POST /v1/ontologies/{id}/library/{packId}/preview` and apply the resulting change set.
+| `POST` | `/{packId}/install` | Install a pack into a new ontology. |
+
+To install a pack into an existing ontology, review it with `POST /v1/ontologies/{id}/library/{packId}/review`, start it with `POST /v1/ontologies/{id}/library/{packId}/install`, and read the job with `GET /v1/ontologies/{id}/library/jobs/{jobId}`.
 
 ## Relationship Types
 
@@ -217,7 +239,7 @@ The following endpoints explain inferences and propose changes with AI.
 
 The `/api/v1/ontology/ai` routes need `RDF_AI_ENABLED=true` and a configured LLM provider.
 
-## Example: Create a Custom Relationship Type
+## Create a Custom Relationship Type
 
 This request creates a custom relationship type.
 
@@ -237,7 +259,7 @@ curl -X POST "$OM_HOST/api/v1/relationshipTypes" \
   }'
 ```
 
-## Example: Read the Unpublished Changes of an Ontology
+## Read the Unpublished Changes of an Ontology
 
 This request reads the unpublished changes of an ontology.
 

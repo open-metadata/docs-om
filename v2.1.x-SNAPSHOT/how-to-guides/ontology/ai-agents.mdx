@@ -42,7 +42,7 @@ Returns the OpenMetadata ontology: the full canonical document, or a SPARQL `DES
 |---|---|
 | `resource` | Optional. Full URI of a class or property, for example `https://open-metadata.org/ontology/Column`. Omit for the whole ontology. |
 | `format` | `turtle` (default), `jsonld`, `ntriples`, `rdfxml`. |
-| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+| `maxBytes` | Default and maximum are 80% of the MCP server's `maxResponseChars` setting, which is 100,000 by default, so 80,000. Minimum 1,024. |
 
 The full ontology is roughly 65 KB, so prefer a focused `DESCRIBE`.
 
@@ -61,7 +61,7 @@ Read-only SPARQL (`SELECT`, `ASK`, `DESCRIBE`, `CONSTRUCT`) against the knowledg
 | `query` | Required. Use `https://open-metadata.org/ontology/` as the `om:` prefix. |
 | `format` | `SELECT`/`ASK`: `json` (default), `xml`, `csv`, `tsv`. `CONSTRUCT`/`DESCRIBE`: `turtle` (recommended), `jsonld`, `ntriples`, `rdfxml`. |
 | `inferenceLevel` | `none` (default), or `custom` when materialized inference is enabled. `rdfs` and `owl` fail with a 503 error. |
-| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+| `maxBytes` | Default and maximum are 80% of the MCP server's `maxResponseChars` setting, which is 100,000 by default, so 80,000. Minimum 1,024. |
 
 `UPDATE`, `INSERT`, `DELETE`, `DROP`, `LOAD`, `CLEAR`, and `CREATE` are rejected. `SERVICE` clauses against external endpoints are rejected unless the target is on the federation allowlist — which is empty and disabled by default, so in a stock deployment this tool never reaches outside the local graph.
 
@@ -109,7 +109,7 @@ SHACL validation of a single entity's subgraph or the whole dataset.
 | `entityUri` | Alternative full URI. |
 | `fullGraph` | Must be `true` to validate the entire dataset when no scope is given. Opt-in because it is expensive. |
 | `format` | `turtle` (default) or `jsonld`. |
-| `maxBytes` | Default and maximum 80,000; minimum 1,024. |
+| `maxBytes` | Default and maximum are 80% of the MCP server's `maxResponseChars` setting, which is 100,000 by default, so 80,000. Minimum 1,024. |
 
 `conforms` and `violationCount` are always returned in full even when the report body is truncated — so an agent can act on the verdict without parsing a partial report. Read-only; never blocks writes.
 
@@ -120,7 +120,7 @@ The graph tools sit alongside the rest of the [MCP tool set](/v2.1.x-SNAPSHOT/ho
 | Tool | Use it for |
 |---|---|
 | `semantic_search` | Meaning-based discovery when you do not know exact names. Good first step; hand results to the graph tools to confirm. |
-| `find_context` | Semantic search over the company-knowledge layer — glossary definitions, metric definitions, Context Center notes — when no asset has been chosen yet. |
+| `find_context` | Semantic search over the company-knowledge layer — glossary definitions, metric definitions, Context Center notes — when no asset has been chosen yet. Glossary terms and metrics that are in draft or in review are left out. Only **Approved** definitions, or ones with no review stage, are returned as governed knowledge. |
 | `get_concept_context` | Resolves a glossary term or metric from `find_context` to its definition, the exact assets and columns it is bound to, profiles, sample values, and saved-query evidence. |
 | `get_entity_lineage` | A compact lineage graph without writing SPARQL. |
 | `get_entity_details` | Full entity payloads once the graph has identified them. |
@@ -172,7 +172,7 @@ Things that measurably improve results:
 - **Always scope the named graph.** Tell the agent to wrap instance patterns in `GRAPH <https://open-metadata.org/graph/knowledge> { … }`. Unscoped queries return ontology triples and confuse the model about its own results.
 - **Require the query in the answer.** "Show the SPARQL you ran." Cheap, and it makes every answer auditable.
 - **Teach it to read `truncated`.** An agent that ignores it reports partial results as complete.
-- **Budget with `LIMIT`, not `maxBytes`.** `maxBytes` is clamped at 80,000; the fix for a large result is a narrower query.
+- **Budget with `LIMIT`, not `maxBytes`.** `maxBytes` is clamped to the maximum above; the fix for a large result is a narrower query.
 
 ## Setting It Up
 
