@@ -41,6 +41,17 @@ When you edit a watched field on an asset covered by an Enforce workflow, OpenMe
 
 If a reviewer approves, OpenMetadata publishes the edit. If a reviewer rejects, OpenMetadata discards the edit.
 
+## Move a Glossary Term
+
+Moving a glossary term with **Change Parent Term** goes through the same approval gate as dragging the term. When an Enforce workflow watches the `parent` or `glossary` field, OpenMetadata holds the move as a change request.
+
+- The **Change Parent** dialog closes, a toast reads "Your change was submitted for approval", and the **Pending Changes** indicator refreshes.
+- The term stays where it is until a reviewer approves the change. After approval, OpenMetadata moves the term and re-parents its child terms, so their names update as they do for a drag.
+- If a reviewer rejects the change, the term stays in place.
+- If no Enforce workflow watches `parent` or `glossary`, the move runs as a background job, as before.
+
+You need the same access that changing the term's parent through the API needs. Without it, the move is refused.
+
 ## Review Pending Changes
 
 The **Pending Changes** button appears in the header of the asset, glossary term, domain, or data product. It shows a count of open change requests. It appears only when an Enforce workflow covers the asset type and open change requests exist.
@@ -81,5 +92,6 @@ A suspended workflow holds no new edits. Existing change requests stay open unti
 When an Enforce workflow holds a write, the API does not apply it.
 
 - **PUT and PATCH**: A held request returns `202`. The `X-OpenMetadata-Pending-Change` response header contains the change request ID.
+- **Move a glossary term**: `PUT /v1/glossaryTerms/{id}/moveAsync` returns `202` with the `X-OpenMetadata-Pending-Change` header and no `jobId` when a workflow holds the move. A move that nothing holds returns `202` with a `jobId` and runs as a background job. A request without a parent returns `400`.
 - **Bulk writes**: Responses include the `X-OpenMetadata-Pending-Change-Count` header. The status is `202` only when the request held something and applied nothing. Otherwise, it is `200`.
 - **List change requests**: Use `GET /v1/changeRequests` to list the change requests for an asset or a requester.

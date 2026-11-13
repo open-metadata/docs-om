@@ -43,6 +43,8 @@ The email subject line or notification title.
 
 This renders to: `[Data Alerts] - Table Updated: database.schema.customers`
 
+The subject uses the same placeholders and helpers as the body. It is plain text, so don't add HTML tags. To keep a `&` in a name from showing as `&amp;`, use triple braces: `{{{entity.name}}}`.
+
 <Tip>
 Keep subjects concise (under 100 characters) as they appear in email clients where space is limited.
 </Tip>
@@ -57,6 +59,7 @@ The main template content in HTML with Handlebars.
 <strong>{{event.userName}}</strong> updated <strong>{{camelCaseToTitle event.entityType}}</strong>:
 <a href="{{buildEntityUrl event.entityType entity}}">{{entity.fullyQualifiedName}}</a>
 
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
 {{#if changes.updates}}
 <h3>Updated Fields:</h3>
 <ul>
@@ -65,6 +68,7 @@ The main template content in HTML with Handlebars.
   {{/each}}
 </ul>
 {{/if}}
+{{/with}}
 ```
 
 #### Submit the Template
@@ -162,6 +166,36 @@ Previewing a template with the `/api/v1/notificationTemplates/render` API uses s
 
 For more information about configuring the table output, see the [Custom Helpers Reference](/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/custom-helpers-reference).
 
+
+## Reacting to a Data Contract Status Change
+
+A data contract has an approval status in `entity.entityStatus`. The values are `Draft`, `In Review`, `Approved`, `Archived`, `Deprecated`, `Rejected`, and `Unprocessed`. When the status changes, the change event records it under the field name `entityStatus`.
+
+To show a message only when the status changed, group the changes and check for that field:
+
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (hasFieldInChanges changes "entityStatus")}}
+    <p>The status of <strong>{{entity.name}}</strong> changed to <strong>{{entity.entityStatus}}</strong>.</p>
+  {{/if}}
+{{/with}}
+
+{{#if entity.owners}}
+  <p>Owners:
+  {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}
+  </p>
+{{/if}}
+```
+
+Use `{{buildEntityUrl event.entityType entity}}` to link to the contract.
+
+<Note>
+A change to `entityStatus` appears only on update events. A create event has no list of changes, and soft-delete and restore events list only the `deleted` field.
+</Note>
+
+<Note>
+A template changes only what the notification shows. It can't stop the alert from firing. A data contract alert can't currently filter on the approval status (`entityStatus`). The only status filter for data contracts, **Get Data Contract Status Updates**, checks the validation result (such as Failed or Aborted), not the approval status. An alert on data contracts therefore sends a notification for every matching contract change, not only for status changes.
+</Note>
 
 ## Template Preview and Testing
 

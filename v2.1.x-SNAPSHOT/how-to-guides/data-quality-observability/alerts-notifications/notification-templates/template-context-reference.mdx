@@ -2,6 +2,7 @@
 title: Template Context Reference
 description: Learn about available data objects and how to access event information in notification templates. Includes entity-specific property references.
 sidebarTitle: Template Context Reference
+canonical: "https://docs.open-metadata.org/v2.0.x/how-to-guides/data-quality-observability/alerts-notifications/notification-templates/template-context-reference"
 ---
 
 # Template Context Reference
@@ -18,27 +19,22 @@ Every placeholder starts with one of these top-level names. A bare name such as 
 | `entity` | The entity the event is about. For more information, see [Entity Object](#entity-object). |
 | `baseUrl` | Base URL of your instance |
 | `publisherName` | Display name of the alert that triggered the notification |
-| `emailingEntity` | Email address configured in the SMTP settings |
+| `emailingEntity` | Name set in the **Emailing Entity** field of the SMTP settings, for example `OpenMetadata`. It isn't an email address. |
 
 ## Event Types
 
-`event.eventType` is one of the following values:
+`event.eventType` is one of the following values. The last column shows where you can select each value in the **Event Type** filter of an alert.
 
-| Value | When it occurs |
-|-------|----------------|
-| `entityCreated` | An entity is created |
-| `entityUpdated` | An entity is updated |
-| `entityFieldsChanged` | Fields of an entity change |
-| `entityNoChange` | An update produces no change |
-| `entitySoftDeleted` | An entity is soft-deleted |
-| `entityDeleted` | An entity is permanently deleted |
-| `entityRestored` | A soft-deleted entity is restored |
-| `threadCreated`, `threadUpdated` | A conversation is created or updated |
-| `postCreated`, `postUpdated` | A reply is added or updated |
-| `logicalTestCaseAdded` | Test cases are added to a test suite |
-| `userLogin`, `userLogout` | A user signs in or out |
-| `entityLineageAdded`, `entityLineageUpdated`, `entityLineageDeleted` | Lineage changes |
-| `ontologyImported`, `ontologyRelationshipTypeUpdated`, `ontologyChangeSetApplied` | Ontology changes |
+| Value | When it occurs | Event Type filter |
+|-------|----------------|-------------------|
+| `entityCreated`, `entityUpdated`, `entitySoftDeleted`, `entityDeleted`, `entityRestored` | An entity is created, updated, soft-deleted, permanently deleted, or restored | Any entity source and **All** |
+| `threadCreated`, `threadUpdated`, `postCreated`, `postUpdated` | A conversation or reply is created or updated | Any entity source and **All** |
+| `logicalTestCaseAdded` | Test cases are added to a test suite | **All** only |
+| `entityLineageAdded`, `entityLineageUpdated`, `entityLineageDeleted` | Lineage changes | **All** only |
+| `ontologyImported` | An ontology is imported | Glossary and **All** |
+| `ontologyRelationshipTypeUpdated`, `ontologyChangeSetApplied` | Ontology relationship types or change sets change | **All** only |
+
+Observability alerts, including data contract alerts, have no **Event Type** filter.
 
 <Note>
 `entity` holds the entity JSON for the event's `event.entityType`, so the properties available differ by entity type. `event.changeDescription` is empty for `entityCreated` and `entityDeleted`. Check a property with `{{#if}}` before using it.
@@ -62,7 +58,7 @@ The complete change event that triggered the notification.
 | `event.currentVersion` | number | Metadata version after the change |
 | `event.id` | UUID | Unique identifier of the event |
 | `event.changeDescription` | object | Details of what changed (see Accessing Change Details below). Empty for `entityCreated` and `entityDeleted` |
-| `event.incrementalChangeDescription` | object | The change that led to this version of the entity |
+| `event.incrementalChangeDescription` | object | Not set on notification events. Use `event.changeDescription` |
 | `event.recursive` | boolean | `true` when the event represents a recursive (cascade) delete |
 | `event.domains` | array | List of domain IDs the entity belongs to |
 | `event.impersonatedBy` | string | Bot/service user performing the action on behalf of the actual user |
@@ -87,7 +83,7 @@ These properties exist on all entities that implement EntityInterface:
 |----------|------|-------------|
 | `entity.id` | UUID | Unique identifier for the entity |
 | `entity.name` | string | Simple name of the entity |
-| `entity.displayName` | string | Human-friendly display name (defaults to `name` if not set) |
+| `entity.displayName` | string | Human-friendly display name. It is empty if not set, so use `entity.name` when you need a value that is always set |
 | `entity.fullyQualifiedName` | string | Full path of the entity (e.g., `database.schema.table`) |
 | `entity.href` | string | Reference URL to access the entity |
 | `entity.description` | string | Entity description or documentation |
@@ -258,8 +254,10 @@ Additional properties available based on entity type:
 
 **Description**: A Data Contract defines expectations for data quality, schema, and SLAs. It ensures that data meets specified requirements for consumers.
 
+A data contract also has all the [common properties](#common-properties-available-for-all-entity-types). The ones you are most likely to use are `entity.owners`, `entity.reviewers`, and `entity.entityStatus`. The values of `entity.entityStatus` are `Draft`, `In Review`, `Approved`, `Archived`, `Deprecated`, `Rejected`, and `Unprocessed`.
+
 **DataContract-Specific Fields**:
-- `entity.entity` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Entity the contract applies to
+- `entity.entity` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - The asset (for example a table) the contract is attached to. Use `entity.entity.name` or `entity.entity.fullyQualifiedName`
 - `entity.testSuite` ([`EntityReference`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/type/entityReference.json)) - Reference to test suite
 - `entity.schema` (Array of [`Column`](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/table.json#L292)) - Schema definition
 - `entity.semantics` (array) - Semantic validation rules
@@ -604,7 +602,7 @@ The available properties vary by entity type. Use conditionals to handle missing
 ```handlebars
 <h2>{{entity.displayName}}</h2>
 <p><strong>Type:</strong> {{camelCaseToTitle event.entityType}}</p>
-<p><strong>Owner:</strong> {{entity.owner}}</p>
+<p><strong>Owner:</strong> {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>
 
 {{#if entity.description}}
   <p><strong>Description:</strong> {{entity.description}}</p>
@@ -639,19 +637,15 @@ Properties injected into the context for system and notification configuration. 
 |----------|------|--------|-------------|
 | `baseUrl` | string | EmailUtil.getOMBaseURL() | Base URL of your OpenMetadata instance |
 | `publisherName` | string | EventSubscription displayName or FQN | Display name of the event subscription that triggered this notification (or its FQN if no display name is set) |
-| `emailingEntity` | string | SMTP settings | Email address or entity configured in SMTP settings (used in email headers) |
+| `emailingEntity` | string | SMTP settings | Name set in the **Emailing Entity** field, for example `OpenMetadata`. It isn't an email address. The sender address is a separate SMTP setting. |
 
 **Example Usage:**
 
 ```handlebars
 <p><em>This notification was sent by: {{publisherName}}</em></p>
-
-<a href="{{baseUrl}}/entity/{{event.entityType}}/{{entity.id}}">
-  View in OpenMetadata
-</a>
 ```
 
-Alternatively, use the `buildEntityUrl` helper which does this automatically:
+To link to the entity, use the `buildEntityUrl` helper. It builds the correct path for each entity type:
 
 ```handlebars
 <a href="{{buildEntityUrl event.entityType entity}}">
@@ -721,8 +715,8 @@ Here's a comprehensive example using multiple objects and entity-specific proper
   <strong>{{event.userName}}</strong> on {{formatDate event.timestamp}}
 </p>
 
-{{#if entity.owner}}
-  <p><strong>Owner:</strong> {{entity.owner}}</p>
+{{#if entity.owners}}
+  <p><strong>Owner:</strong> {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>
 {{/if}}
 
 <p><a href="{{buildEntityUrl event.entityType entity}}">
@@ -772,8 +766,8 @@ Not all properties exist for all entity types. Always use conditionals to preven
 ### Check Before Use
 
 ```handlebars
-{{#if entity.owner}}
-  <p>Owner: {{entity.owner}}</p>
+{{#if entity.owners}}
+  <p>Owner: {{#each entity.owners}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>
 {{else}}
   <p>No owner assigned</p>
 {{/if}}

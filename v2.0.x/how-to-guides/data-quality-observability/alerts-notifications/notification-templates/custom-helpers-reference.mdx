@@ -232,11 +232,13 @@ Displays the difference between old and new text with strikethrough and highligh
 
 **Example:**
 ```handlebars
-{{#each changes.updates}}
-  {{#if (eq name 'description')}}
-    Description change: {{textDiff oldValue newValue}}
-  {{/if}}
-{{/each}}
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#each changes.updates}}
+    {{#if (eq name 'description')}}
+      Description change: {{textDiff oldValue newValue}}
+    {{/if}}
+  {{/each}}
+{{/with}}
 ```
 
 Renders old text with strikethrough and new text highlighted, making changes easy to spot.
@@ -246,11 +248,13 @@ Renders old text with strikethrough and new text highlighted, making changes eas
 You can customize the HTML tags used for insertions and deletions:
 
 ```handlebars
-{{textDiff oldValue newValue insTag="mark" delTag="del"}}
+{{textDiff oldValue newValue insTag="strong" delTag="del"}}
 ```
 
 - `insTag`: HTML tag for inserted text (default: `"b"`)
 - `delTag`: HTML tag for deleted text (default: `"s"`)
+
+Email notifications remove tags they don't allow, such as `mark`.
 
 
 
@@ -292,6 +296,10 @@ Checks if two values are equal.
 {{/if}}
 ```
 
+<Note>
+`eq` doesn't match `event.eventType`. Use `startsWith` instead, for example `{{#if (startsWith event.eventType "entityUpdated")}}`.
+</Note>
+
 
 
 ### `gt` - Greater than
@@ -327,9 +335,11 @@ Combines multiple conditions with logical AND.
 
 **Example:**
 ```handlebars
-{{#if (and (eq event.entityType "table") changes.updates)}}
-  <p>Table was updated</p>
-{{/if}}
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (and (eq event.entityType "table") changes.updates)}}
+    <p>Table was updated</p>
+  {{/if}}
+{{/with}}
 ```
 
 Shows content only if both conditions are true.
@@ -371,7 +381,7 @@ Inverts a condition.
 
 **Example:**
 ```handlebars
-{{#if (not entity.owner)}}
+{{#if (not entity.owners)}}
   <p>This entity has no owner assigned</p>
 {{/if}}
 ```
@@ -471,10 +481,14 @@ Checks if a specific field was modified in the change description.
 
 **Syntax:**
 ```handlebars
-{{#if (hasFieldInChanges changes "fieldName")}}
-  Content shown if field changed
-{{/if}}
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (hasFieldInChanges changes "fieldName")}}
+    Content shown if field changed
+  {{/if}}
+{{/with}}
 ```
+
+The first argument is the grouped changes from `groupEventChanges`, not `event`. The second argument is the field name as recorded in the change event, for example `entityStatus` or `testCaseResult`. The helper checks the updated, added, and deleted fields.
 
 **Example:**
 ```handlebars
@@ -485,8 +499,17 @@ Checks if a specific field was modified in the change description.
 {{/with}}
 ```
 <Note>
-Must be used with changes from `groupEventChanges`
+Must be used with changes from `groupEventChanges`. Passing `event` or `event.changeDescription` directly doesn't work. A create event has no list of changes, so the helper returns false for it. Soft-delete and restore events list only the `deleted` field.
 </Note>
+
+**Example**: data contract status change
+```handlebars
+{{#with (groupEventChanges event.changeDescription) as |changes|}}
+  {{#if (hasFieldInChanges changes "entityStatus")}}
+    <p>Contract status is now {{entity.entityStatus}}</p>
+  {{/if}}
+{{/with}}
+```
 
 
 ### `length` - Get array/string length
@@ -515,7 +538,7 @@ Converts timestamps to human-readable date and time format.
 
 **Syntax:**
 ```handlebars
-{{formatDate timestamp}}
+{{formatDate event.timestamp}}
 ```
 
 **Example:**
@@ -525,6 +548,8 @@ Converts timestamps to human-readable date and time format.
 
 Converts timestamps to format like: `2025-11-13 14:30:00`
 
+The helper takes one value and has no format or timezone option. The output is always `yyyy-MM-dd HH:mm:ss` in the timezone of the OpenMetadata server. It accepts a timestamp in milliseconds, a date, or a number written as text. For any other value it returns the value unchanged, and for an empty value it returns an empty string.
+
 
 
 ### `buildEntityUrl` - Generate UI links
@@ -533,8 +558,13 @@ Creates a clickable URL that opens the entity in OpenMetadata UI.
 
 **Syntax:**
 ```handlebars
-{{buildEntityUrl entityType entity}}
+{{buildEntityUrl event.entityType entity}}
+{{buildEntityUrl event.entityType entity "tasks"}}
 ```
+
+The first argument is the entity type and the second is the entity. You can also pass the entity type and a fully qualified name, for example `{{buildEntityUrl 'table' entity.fullyQualifiedName}}`. This form renders an empty link for data contracts, queries, and ingestion pipelines, so pass the full entity for those. For a data contract, the link opens the contract tab of its asset. A single argument, such as `{{buildEntityUrl entity}}`, doesn't work and renders an empty link.
+
+The optional last argument adds the entity's Activity Feed to the link. Use `"tasks"` to open the **Tasks** view of the feed. Any other value, for example `"all"`, opens the **All** view. For a test case, any value of this argument opens the **Issues** tab instead.
 
 **Example:**
 ```handlebars
@@ -543,7 +573,7 @@ Creates a clickable URL that opens the entity in OpenMetadata UI.
 </a>
 ```
 
-Generates a link like: `https://your-OpenMetadata/entity/table/database.schema.table`
+Generates a link like: `https://your-OpenMetadata/table/database.schema.table`
 
 
 
@@ -610,7 +640,7 @@ Converts @mention syntax to clickable user profile links. Typically used with us
 <p>{{{processMentions entity.description}}}</p>
 ```
 
-Converts `@john.doe` in text to a link to that user's profile.
+Converts mentions added in the rich text editor to links to the user's profile. Text typed as a plain `@john.doe` stays unchanged.
 
 <Note>
 Use three curly braces `{{{` to render HTML output without escaping.
@@ -637,7 +667,7 @@ Displays domain names even when passed as object references.
 This helper gracefully handles multiple input types:
 - Domain object references: `{{resolveDomain domain}}`
 - Already-resolved domain strings: `{{resolveDomain "domain-name"}}`
-- Null/undefined values: Returns empty string
+- Null/undefined values: Returns `(no domain)`
 </Note>
 
 
@@ -650,22 +680,29 @@ Performs mathematical operations on numbers.
 
 **Syntax:**
 ```handlebars
-{{math value1 "operator" value2 "round" decimalPlaces}}
+{{math value1 "operator" value2}}
 ```
+
+The helper takes exactly three values: a number, an operator, and a second number. It ignores anything after the second number.
 
 **Supported Operators:**
 - `+` - Addition
 - `-` - Subtraction
 - `*` - Multiplication
 - `/` - Division
-- `round` - Round to decimal places
+- `%` - Remainder (modulo)
+- `round` - Round the first number to the number of decimal places given as the second number
 
 **Example:**
 ```handlebars
-Success rate: {{math (math passedTests "/" totalTests) "*" 100 "round" 2}}%
+Success rate: {{math (math (math passedTests "/" totalTests) "*" 100) "round" 2}}%
 ```
 
-Calculates: (passedTests ÷ totalTests) × 100, rounded to 2 decimal places.
+Calculates: (passedTests ÷ totalTests) × 100, rounded to 2 decimal places. `round` is a separate step, so nest one `math` call inside another for each step.
+
+<Note>
+If a value isn't a number, the operator isn't supported, or you divide by zero with `/`, the helper returns `0` and doesn't show an error. A remainder by zero (`%` with `0`) returns `NaN`.
+</Note>
 
 **More Examples:**
 ```handlebars
