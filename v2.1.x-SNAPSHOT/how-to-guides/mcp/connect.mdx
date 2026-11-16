@@ -13,7 +13,7 @@ OpenMetadata provides a Model Context Protocol (MCP) server that allows AI assis
 
 - **Server Name**: `openmetadata-mcp-stateless`
 - **Version**: `1.1.0`
-- **Endpoint**: `{OMURL}/mcp`
+- **Endpoint**: `{OMURL}/mcp`. If OpenMetadata runs under a sub-path, the endpoint includes it, for example `https://your-host/openmetadata/mcp`.
 - **Protocol**: Streamable HTTP (MCP spec `2025-03-26`)
 - **Authentication**: OAuth 2.0 (interactive clients) or JWT Bearer Token (unattended agents)
 
@@ -27,10 +27,16 @@ Your MCP server is available at:
 
 Replace `{OMURL}` with your OpenMetadata instance URL (e.g., `https://your-openmetadata.com/mcp`)
 
+#### Sub-path Deployments
+
+If OpenMetadata runs under a sub-path, the MCP endpoint and its OAuth routes are served under the base path, for example `https://your-host/openmetadata/mcp`. Set the **MCP base URL** in the MCP Server application settings to the external URL that includes the base path, for example `https://your-host/openmetadata`. A trailing slash is ignored. If the base URL is missing the base path, the server logs a warning at startup.
+
+The server answers `https://your-host/openmetadata/mcp/.well-known/oauth-authorization-server`, `https://your-host/openmetadata/mcp/.well-known/openid-configuration`, and `https://your-host/openmetadata/mcp/.well-known/oauth-protected-resource`. Clients that look only for `https://your-host/.well-known/...` at the host root need a reverse proxy route that forwards those requests to OpenMetadata. For more information about sub-path setup, see the [Docker](/v2.1.x-SNAPSHOT/deployment/docker/subpath), [Kubernetes](/v2.1.x-SNAPSHOT/deployment/kubernetes/subpath), and [bare metal](/v2.1.x-SNAPSHOT/deployment/bare-metal/subpath) sub-path deployment pages.
+
 ### 2. Authentication
 The MCP server supports two authentication methods:
 
-- **OAuth 2.0 (interactive clients)**: Sign in with your existing OpenMetadata login. Requires a browser and a signed-in user, so it isn't suitable for headless or unattended agents. See [OAuth 2.0 Authentication](/v2.1.x-SNAPSHOT/how-to-guides/mcp/oauth) for setup instructions.
+- **OAuth 2.0 (interactive clients)**: Sign in with your existing OpenMetadata login. With SSO or SAML, you click **Approve** on a consent page before the client is connected. Requires a browser and a signed-in user, so it isn't suitable for headless or unattended agents. See [OAuth 2.0 Authentication](/v2.1.x-SNAPSHOT/how-to-guides/mcp/oauth) for setup instructions.
 - **Bot JWT token**: For unattended agents and environments where browser-based login isn't available. Generate a token from a [Bot](/v2.1.x-SNAPSHOT/developers/bots) as described in [Bot Token](/v2.1.x-SNAPSHOT/how-to-guides/mcp#bot-token), then include it in the Authorization header:
 ```http
 Authorization: Bearer <your-token>
