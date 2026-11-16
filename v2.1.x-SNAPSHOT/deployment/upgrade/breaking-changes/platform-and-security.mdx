@@ -25,6 +25,8 @@ several token claims. For the full setting reference, see
 
 ### New Settings
 
+The email-first settings are:
+
 | Setting | Purpose |
 | --- | --- |
 | `authenticationConfiguration.emailClaim` | Token claim that holds the user's email address |
@@ -34,6 +36,8 @@ several token claims. For the full setting reference, see
 | `authorizerConfiguration.botDomain` | Email domain used for system-created bots |
 
 ### Deprecated Settings
+
+These settings are deprecated in favor of the email-first settings.
 
 | Deprecated | Use instead |
 | --- | --- |
@@ -100,11 +104,11 @@ detect an existing user should look the user up by email first.
 
 ### Email Handling Changes in the Database Migration
 
-The 2.1.0 migration:
+The 2.1.0 migration makes these changes:
 
-- **lowercases every stored user email**;
-- on PostgreSQL, adds indexes on `LOWER(email)` and `LOWER(name)` so sign-in lookups stay fast;
-- on MySQL, changes the database default collation to `utf8mb4_0900_ai_ci`, which makes comparisons
+- **Lowercases every stored user email.**
+- On PostgreSQL, adds indexes on `LOWER(email)` and `LOWER(name)` so sign-in lookups stay fast.
+- On MySQL, changes the database default collation to `utf8mb4_0900_ai_ci`, which makes comparisons
   accent-insensitive for tables created from 2.1 on. It also converts the workflow engine's `ACT_*`
   tables to that collation.
 
@@ -116,8 +120,8 @@ The 2.1.0 migration:
 
 | Setting | 2.0 default | 2.1 default / behavior |
 | --- | --- | --- |
-| `oidcConfiguration.prompt` | `consent` | empty. Users are no longer asked for consent at every login. Set it back explicitly if you need it |
-| `oidcConfiguration.maxAge` | `0` | empty (`0` is treated as unset), so the provider can reuse its own session |
+| `oidcConfiguration.prompt` | `consent` | Empty. Users are no longer asked for consent at every login. Set it back explicitly if you need it |
+| `oidcConfiguration.maxAge` | `0` | Empty (`0` is treated as unset), so the provider can reuse its own session |
 | `oidcConfiguration.tokenValidity` | seconds | **Deprecated and ignored.** The browser now presents the identity provider's ID token, whose lifetime the provider sets. The server also now checks the token's issuer and audience |
 | `oidcConfiguration.endSessionWithProvider` | optional | **Deprecated and ignored.** Sessions always end with the provider's |
 
@@ -128,6 +132,8 @@ your identity provider instead.
 </Tip>
 
 ## Other Configuration Changes
+
+The following configuration changes apply in 2.1.
 
 ### Configuration Source for Security and Email Settings
 
@@ -147,6 +153,8 @@ security settings to the file. Switching to `ENV` refuses to replace a UI-config
 with a different one unless `SECURITY_CONFIG_SOURCE_CONFIRM_PROVIDER_CHANGE=true`.
 
 ### Defaults That Changed
+
+These defaults changed in 2.1.
 
 | Setting | 2.0 | 2.1 | Who is affected |
 | --- | --- | --- | --- |
@@ -260,9 +268,14 @@ Switch to AI mode now, and update documentation or runbooks that describe the Cl
 ### Other New Settings, Off by Default
 
 <Info>
-**Additive.** `scimConfiguration` in the file,
-`llmConfiguration.memoryExtractionEnabled`, the `alerting` tuning block, and
-`eventMonitoringConfiguration.requestLatencyPercentileHistogram`. The new RDF settings are listed under
+**Additive.** 2.1 adds these settings, all off by default:
+
+- `scimConfiguration`
+- `llmConfiguration.memoryExtractionEnabled`
+- the `alerting` tuning block
+- `eventMonitoringConfiguration.requestLatencyPercentileHistogram`
+
+The new RDF settings are listed under
 [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).
 </Info>
 
@@ -274,12 +287,14 @@ Switch to AI mode now, and update documentation or runbooks that describe the Cl
 
 ### Steps That Need Planning
 
+These migration steps need planning.
+
 | Step | Effect |
 | --- | --- |
 | Delta Lake retirement | Retypes Delta Lake services to Custom Database and deletes their ingestion pipelines. For more information, see [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) |
-| Authentication secrets encrypted | The OIDC client secret, LDAP bind and trust store passwords, and the SAML private key and key store password are stored encrypted. This only happens if a Fernet key is configured; otherwise the values stay as they are |
+| Authentication secrets encrypted | The OIDC client secret, LDAP bind and trust store passwords, and the SAML private key and key store password are stored encrypted. This only happens if a Fernet key is configured. Otherwise, the values stay as they are |
 | User emails lowercased | See email-first section above |
-| PostgreSQL `isBot` column rebuilt | The migration drops and recreates the generated `isBot` column on `user_entity`. This rewrites the table and holds an exclusive lock, so sign-ins and user writes wait. Fast for most installs, but run it in a window if you have a very large `user_entity` |
+| PostgreSQL `isBot` column rebuilt | The migration drops and recreates the generated `isBot` column on `user_entity`. This rewrites the table and holds an exclusive lock, so sign-ins and user writes wait. Run it in a maintenance window if you have a very large `user_entity` |
 | MySQL collation change | Database default collation becomes `utf8mb4_0900_ai_ci`, and workflow-engine tables are converted |
 | Search reindex flagged | The search indexing app is set to cover **all** entities and earlier success records for it and the RDF index are cleared. Run **Search Indexing** after the upgrade so new indexes and mappings are built |
 | Task, lineage and alert data fixes | Task field paths are rewritten into one format, lineage edges that point at non-pipeline entities are cleaned, and alerts get new internal destination ids and encrypted webhook secrets |
@@ -296,7 +311,6 @@ indexes (for example on `entity_usage` and the test case incident tables). Index
 tables are the slowest part of the migration on PostgreSQL.
 
 <Tip>
-Ontology and glossary data is rewritten by this migration. For more information, see
-[Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance) for what changes
-and for the effect on glossary term attributes.
+Ontology and glossary data is rewritten by this migration, including glossary term attributes. For more
+information, see [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).
 </Tip>
