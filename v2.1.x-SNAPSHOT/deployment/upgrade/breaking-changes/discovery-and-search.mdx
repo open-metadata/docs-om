@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Discovery & Search | Official Documentation
-description: What changes in search and discovery when you upgrade from OpenMetadata 2.0 to 2.1, including the required reindex, stricter search access rules, new indexes and ranking updates.
+description: What changes in search and discovery when you upgrade from OpenMetadata 2.0 to 2.1, including the required reindex, stricter search access rules, new indexes, and ranking updates.
 sidebarTitle: Discovery & Search
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/discovery-and-search"
@@ -8,8 +8,8 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 
 # Discovery & Search
 
-Nothing in search stops working outright when you upgrade from 2.0 to 2.1, but you must **reindex after
-upgrading**, and a few search endpoints are now stricter about who can call them.
+Nothing in search stops working outright when you upgrade from 2.0 to 2.1, but you must reindex after
+upgrading, and a few search endpoints are now stricter about who can call them.
 
 ## What Changed at a Glance
 
@@ -18,63 +18,75 @@ The table summarizes the search changes in 2.1.
 | Change | Class | Who is affected |
 | --- | --- | --- |
 | Reindex required after upgrade | Behavioral | Every deployment |
-| Non-admin users can no longer search, sort or filter on user emails | Behavioral | Integrations and UI screens that search users |
-| Search preview, raw document lookup and reindex failure list are restricted | Behavioral | Scripts calling these endpoints |
+| Non-admin users can no longer search, sort, or filter on user emails | Behavioral | Integrations and UI screens that search users |
+| Search preview, raw document lookup, and reindex failure list are restricted | Behavioral | Scripts calling these endpoints |
 | Semantic (vector) search results are filtered by what the caller can view | Behavioral | Users of semantic search |
 | Hybrid search weights swapped to favor keyword matching | Behavioral | Deployments using semantic search with default weights |
 | Ranking can now boost by Tags and Certification | Additive | Search administrators |
-| New indexes for metric groups, data contracts and relationship types | Additive | Search administrators |
+| New indexes for metric groups, data contracts, and relationship types | Additive | Search administrators |
 | New setting to turn column indexing on or off | Additive | Search administrators |
 
 <Info>
-The Explore URL parameters, ordering model and CSV export did not change between 2.0 and 2.1. If you
-are upgrading from 1.13 instead, see the 2.0 breaking changes.
+The Explore URL parameters, ordering model, and CSV export did not change between 2.0 and 2.1. If you
+are upgrading from 1.13, see [Breaking Changes: 1.13 to 2.0](/v2.0.x/deployment/upgrade/breaking-changes/overview).
 </Info>
 
 ## Reindex After You Upgrade
 
-<Warning>
+<Note>
 **Behavioral.** Affects every deployment. Run a full reindex as soon as the upgrade finishes.
-</Warning>
+</Note>
 
 OpenMetadata 2.1 adds new search indexes and changes the layout of existing ones, so documents written by 2.0 do not
-have the new fields. Until you reindex, some results, counts and filters are incomplete.
+have the new fields. Until you reindex, some results are incomplete. Counts and filters are also affected.
 
-What the upgrade does for you:
+The upgrade does the following:
 
-- It sets the **Search Indexing** application to reindex **all** entities.
+- It sets the **Search Indexing** application to reindex all entities.
 - It clears the record of earlier successful indexing runs, so the Applications page shows that
   indexing must be run again.
 
-What you must do: click the profile icon, go to **Settings** > **Applications**, click **Search Indexing**, and run it once with all entities
-selected, or trigger it from your own automation. Reindexing is also what fills in:
+To reindex, follow these steps:
 
-- The new `relationshipType` index and the new glossary term attribute mapping.
-- The access-control fields that search now relies on (see below). Documents written before the upgrade
-  are filtered only on the fields they already carry.
-- Newly enabled indexes such as metric groups and data contracts.
+1. Click the profile icon.
+2. Go to **Settings** > **Applications**.
+3. Click **Search Indexing**.
+4. Run it once with all entities selected.
 
-<Tip>
+You can also trigger the reindex from your own automation.
+
+Reindexing also does the following:
+
+- It builds the new `relationshipType` index and the new glossary term attribute mapping.
+- It fills in the access-control fields that search now relies on. Documents written before the upgrade
+  are filtered only on the fields they already carry. For more information, see
+  [Search Applies the Same Access Rules as Entity Reads](#search-applies-the-same-access-rules-as-entity-reads).
+- It builds newly enabled indexes, such as metric groups and data contracts.
+
+<Note>
 If you turn on **Enable Roles & Policies in Search** after upgrading, run another reindex. Tag-based
 rules on table columns only take effect once the column documents have been rebuilt.
-</Tip>
+</Note>
 
 ## Search Applies the Same Access Rules as Entity Reads
 
-<Warning>
+<Note>
 **Behavioral.** Affects non-admin users, bots with restricted roles, and any client that searches users.
-</Warning>
+</Note>
 
 OpenMetadata already hides user email addresses from non-admin users when they open a user. Search now
-follows the same rule. For callers who are not admins or bots:
+follows the same rule. The following applies to callers who are not admins or bots:
 
 - Search results from the user index never include `email`.
-- A search that can reach user documents and refers to an email field, searches every field, runs a
-  script, or carries a filter that is not plain JSON is **rejected with a 400 error**.
+- A search that can reach user documents is rejected with a 400 error if it does any of the following:
+  - It refers to an email field.
+  - It searches every field.
+  - It runs a script.
+  - It carries a filter that is not plain JSON.
 - Free-text searches over users keep working, but they no longer match on email addresses.
 - Searching on a column called `email`, or on the tag `PII.Email`, is not affected.
 
-The same applies to aggregations, sorting and the export endpoints. A client that adds an email clause
+The same applies to aggregations, sorting, and the export endpoints. A client that adds an email clause
 to every user search will now get an error for non-admin callers. Send that clause only when the caller
 is an admin or bot.
 
@@ -83,26 +95,28 @@ The Settings bot search adds an email clause. A non-admin who is allowed to view
 on that screen until the clause is sent for admins only.
 </Note>
 
-Also in this group, test case search results are now masked for people who cannot view the underlying
+Test case search results are also now masked for people who cannot view the underlying
 table or column.
 
 ## Restricted Search Endpoints
 
-<Warning>
+<Note>
 **Behavioral.** Affects scripts and integrations that call these endpoints with a non-admin token.
-</Warning>
+</Note>
 
 | Endpoint | 2.0 | 2.1 |
 | --- | --- | --- |
-| `POST /v1/search/preview` | Any authenticated user | **Admins only** |
-| `GET /v1/search/get/{index}/doc/{id}` | Any authenticated user | **Admins and bots only** |
-| `GET /v1/search/reindex/failures` | Any authenticated user | **Admins only**, and `limit` is capped at 1,000 |
+| `POST /v1/search/preview` | Any authenticated user | Admins only |
+| `GET /v1/search/get/{index}/doc/{id}` | Any authenticated user | Admins and bots only |
+| `GET /v1/search/reindex/failures` | Any authenticated user | Admins only, and `limit` is capped at 1,000 |
 
-Why: the preview runs caller-supplied ranking settings that can slow the whole cluster, the document
-lookup returns raw documents without policy filtering, and failure records contain entity names and
-server error details.
+The endpoints are restricted for the following reasons:
 
-What to do: call these with an admin or bot token, or stop using them. Everyday search from the UI is
+- The preview runs caller-supplied ranking settings that can slow the whole cluster.
+- The document lookup returns raw documents without policy filtering.
+- Failure records contain entity names and server error details.
+
+Call these endpoints with an admin or bot token, or stop using them. Everyday search from the UI is
 not affected.
 
 ## Semantic Search Results Respect Permissions
@@ -113,8 +127,8 @@ not affected.
 
 Semantic search now drops any hit whose source entity the caller is not allowed to view. Admins see all
 hits. Non-admins may see fewer results than in 2.0 for the same query. Semantic search also now covers
-**queries** (saved SQL queries) as a searchable entity type. For more information, see
-[Semantic Search](/v2.1.x-SNAPSHOT/deployment/semantic-search).
+queries (saved SQL queries) as a searchable entity type. For more information, see
+[Enable Semantic Search](/v2.1.x-SNAPSHOT/deployment/semantic-search).
 
 ## Hybrid Search Weights Changed
 
@@ -123,7 +137,7 @@ hits. Non-admins may see fewer results than in 2.0 for the same query. Semantic 
 </Note>
 
 The default split between keyword and semantic matching in hybrid search moves from 40% keyword and
-60% semantic to **60% keyword and 40% semantic**. The upgrade rewrites the stored weights only if they
+60% semantic to 60% keyword and 40% semantic. The upgrade rewrites the stored weights only if they
 are still exactly the old defaults. If you chose your own weights, they are left alone.
 
 To keep the old behavior, set `keywordWeight` to `0.4` and `semanticWeight` to `0.6` in the search
@@ -133,12 +147,12 @@ settings after the upgrade.
 
 <Info>
 **Additive.** The ranking signals now allow `tags.tagFQN` and `certification.tagLabel.tagFQN`, in
-addition to entity type, Tier, status, usage and votes.
+addition to entity type, Tier, status, usage, and votes.
 </Info>
 
 The upgrade repairs saved term boosts that used an invalid certification field path, so boosts you
 configured in **Settings** > **Search** for a certification now actually apply. This can change result
-order for those assets. Re-baseline any automated test that asserts the top result for a query.
+order for those assets. Update any automated test that checks the top result for a query.
 
 The upgrade also fixes a mistyped field in the stored aggregation settings:
 
@@ -149,20 +163,22 @@ The upgrade also fixes a mistyped field in the stored aggregation settings:
 ## New Indexes and Settings
 
 <Info>
-**Additive.** All of these are filled by the reindex above.
+**Additive.** The reindex above fills all of these.
 </Info>
 
-- **New indexes** for metric groups, data contracts and relationship types.
-- **Column indexing setting.** Search settings gain `enableColumnIndexing` (default `true`). Turning it
-  off stops indexing columns as standalone search documents and **deletes the column search index**.
-  Turning it on creates the index again, and a reindex of tables fills it.
-- **Highlight flag.** Each searchable field in the search settings now reports whether highlighting can
-  be turned on for it. The UI only shows the highlight toggle where it can work.
-- **Entity types endpoint.** `GET /v1/search/entityTypes` lists every entity type that has a search
-  index. It requires permission to view Applications.
-- **Connection pool defaults.** `ELASTICSEARCH_MAX_CONN_TOTAL` now defaults to 100 (was 30) and
+The upgrade adds the following:
+
+- **New indexes**: metric groups, data contracts, and relationship types
+- **Column indexing setting**: `enableColumnIndexing` in the search settings (default `true`). Turning it
+  off stops indexing columns as standalone search documents and deletes the column search index.
+  Turning it on creates the index again, and a reindex of tables fills it
+- **Highlight flag**: a report in the search settings of whether highlighting can be turned on for each
+  searchable field. The UI only shows the highlight toggle where it can work
+- **Entity types endpoint**: `GET /v1/search/entityTypes`, which lists every entity type that has a search
+  index and requires permission to view Applications
+- **Connection pool defaults**: `ELASTICSEARCH_MAX_CONN_TOTAL` now defaults to 100 (was 30) and
   `ELASTICSEARCH_MAX_CONN_PER_ROUTE` to 50 (was 10). If your cluster limits connections, set both
-  explicitly.
+  explicitly
 
 ## Search Settings Use New Aggregation Field Names
 
@@ -177,5 +193,5 @@ the new fields are built.
 
 ## Search API Changes
 
-For changes to request and response shapes, see
+Some search API changes affect request and response shapes. For more information, see
 [API & Schema Contracts](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema).

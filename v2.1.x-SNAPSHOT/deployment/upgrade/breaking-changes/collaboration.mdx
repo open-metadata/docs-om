@@ -1,37 +1,37 @@
 ---
 title: Breaking Changes - Collaboration | Official Documentation
-description: The OpenMetadata 2.1 removal of the /v1/feed API, new Conversations API, task and alert event changes, announcement permissions and alert behavior changes.
+description: The OpenMetadata 2.1 removal of the /v1/feed API, new Conversations API, task and alert event changes, announcement permissions, and alert behavior changes.
 sidebarTitle: Collaboration
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/collaboration"
 ---
 
-# Collaboration: Conversations, Tasks, Announcements, Activity & Alerts
+# Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts
 
-OpenMetadata 2.1 finishes the move away from the old activity feed API. The `/v1/feed` API is removed, and each kind
+OpenMetadata 2.1 finishes the move away from the old Feed API. The `/v1/feed` API is removed, and each kind
 of collaboration now has its own API:
 
 | Concern | 2.0 API | 2.1 API |
 | --- | --- | --- |
-| Conversations | `/v1/feed` | **`/v1/conversations`** |
+| Conversations | `/v1/feed` | `/v1/conversations` |
 | Tasks | `/v1/tasks` (plus task calls on `/v1/feed`) | `/v1/tasks` only |
 | Announcements | `/v1/announcements` | `/v1/announcements` (unchanged path) |
 | System activity | `/v1/activity` | `/v1/activity` (unchanged path) |
 
-For the full endpoint list, see [Conversations](/v2.1.x-SNAPSHOT/api-reference/conversations).
+For more information, see [Conversation V2](/v2.1.x-SNAPSHOT/api-reference/conversations).
 
 ## The `/v1/feed` API Is Removed
 
-<Warning>
-**Breaking.** Affects scripts, bots, integrations and SDK users that call `/v1/feed`.
-</Warning>
+<Note>
+**Breaking.** Affects scripts, bots, integrations, and SDK users that call `/v1/feed`.
+</Note>
 
-In 2.0, `/v1/feed` still served conversations and a set of legacy task calls. In 2.1 the whole `/v1/feed`
-resource is gone, so every call to it fails.
+OpenMetadata 2.0 served conversations and a set of legacy task calls on `/v1/feed`. OpenMetadata 2.1 removes the
+whole `/v1/feed` resource, so every call to it fails.
 
 | What you did on `/v1/feed` | What to do in 2.1 |
 | --- | --- |
-| List, create, read, update or delete a conversation | Use `/v1/conversations` |
+| List, create, read, update, or delete a conversation | Use `/v1/conversations` |
 | Reply to a conversation or react to it | Use `/v1/conversations/{id}/replies` and the `reaction` endpoints |
 | Create a task with `POST /v1/feed` | `POST /v1/tasks` |
 | `GET /v1/feed/tasks/{id}` | `GET /v1/tasks/{id}` |
@@ -40,46 +40,46 @@ resource is gone, so every call to it fails.
 | Read generated activity | `GET /v1/activity` |
 | Read announcements | `GET /v1/announcements` |
 
-Things to know when you switch:
+Note the following when you switch:
 
-- **Task IDs are UUIDs.** The numeric task IDs that `/v1/feed/tasks/{id}` used no longer apply. The
+- Task IDs are Universally Unique Identifiers (UUIDs). The numeric task IDs that `/v1/feed/tasks/{id}` used no longer apply. The
   migration keeps each old thread's UUID as the new task's UUID.
-- **Conversations have their own request and response shape.** Creating a conversation needs a
+- Conversations have their own request and response shape. Creating a conversation needs a
   non-blank `message` and an `about` entity link. Update any code that built `CreateThread` requests.
-- **Threads no longer carry tasks.** The `Thread` type accepts `Conversation`, `Announcement` and
-  `Chatbot` only. The `Task` type, the thread `task` details and the feed `closeTask` and `resolveTask`
+- Threads no longer carry tasks. The `Thread` type accepts `Conversation`, `Announcement`, and
+  `Chatbot` only. The `Task` type, the thread `task` details, and the feed `closeTask` and `resolveTask`
   request types are removed.
-- **Python SDK.** Replace `resolve_feed_task` and `close_feed_task` with `resolve_task` and `close_task`. The
-  `OMetaFeedMixin` class is removed, and with it `list_threads`, `get_thread`, `get_task_thread`, `create_thread`,
-  `create_post` and `list_posts`. The `OpenMetadata` client now uses `OMetaConversationMixin`, which offers
+- Python SDK: Replace `resolve_feed_task` and `close_feed_task` with `resolve_task` and `close_task`. The
+  `OMetaFeedMixin` class is removed. This also removes `list_threads`, `get_thread`, `get_task_thread`, `create_thread`,
+  `create_post`, and `list_posts`. The `OpenMetadata` client now uses `OMetaConversationMixin`. It offers
   `list_conversations`, `create_conversation`, `get_conversation`, `patch_conversation`, `delete_conversation`,
-  `add_conversation_reaction`, `create_conversation_reply` and `list_conversation_replies`.
-  The Java SDK feed service is also removed.
+  `add_conversation_reaction`, `create_conversation_reply`, and `list_conversation_replies`.
+- Java SDK: The feed service is also removed.
 
 <Warning>
-The 2.1 upgrade renames the old thread table `thread_entity_legacy` to `thread_entity_archived` and
+The upgrade to OpenMetadata 2.1 renames the old thread table `thread_entity_legacy` to `thread_entity_archived` and
 keeps it. Task threads that were created through the feed task API while you were running 2.0.x are
-not migrated and stay there, and so do Chatbot threads (the upgrade skips them and logs a warning).
+not migrated and stay in that table. Chatbot threads are also skipped, and the upgrade logs a warning.
 Resolve or close any task you still need before you upgrade, or recreate it with `POST /v1/tasks`
 afterwards.
 </Warning>
 
 ## Task and Suggestion Events Are Removed From Alerts
 
-<Warning>
-**Breaking.** Affects alerts, webhooks and event consumers that filter on task or suggestion events.
-</Warning>
+<Note>
+**Breaking.** Affects alerts, webhooks, and event consumers that filter on task or suggestion events.
+</Note>
 
 These change event types no longer exist: `taskCreated`, `taskUpdated`, `taskResolved`, `taskClosed`,
 `suggestionCreated`, `suggestionUpdated`, `suggestionAccepted`, `suggestionRejected`, and
 `suggestionDeleted`. Tasks and suggestions are now regular entities, so their lifecycle is reported
 as `entityCreated` and `entityUpdated` with `entityType` set to `task`.
 
-<Tip>
+<Note>
 Open every alert and webhook that listens for a task or suggestion event type and change it to match
 `entityCreated` or `entityUpdated` on the `task` entity type. An alert that still names a removed
 event type stops matching.
-</Tip>
+</Note>
 
 ## Task Changes
 
@@ -92,8 +92,8 @@ The following task changes apply in 2.1.
 </Note>
 
 Two new task types, `MemoryConflictReview` and `MetadataCompletion`, are opened and kept up to date by
-OpenMetadata itself (the first for AI context memories, the second by lifecycle workflows). `POST
-/v1/tasks`, `PATCH` and bulk edits reject them with a `400` that explains what to do instead.
+OpenMetadata itself. The first is for AI context memories, and lifecycle workflows manage the second. `POST /v1/tasks`,
+`PATCH`, and bulk edits reject them with a `400` that explains what to do instead.
 
 ### Reviewing a Change Request
 
@@ -102,7 +102,8 @@ OpenMetadata itself (the first for AI context memories, the second by lifecycle 
 </Note>
 
 `POST /v1/tasks/{id}/resolve` accepts `changeRequestRevision` and `changeDecisions` when the task
-reviews an [approval-gated change](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
+reviews an approval-gated change. For more information, see
+[Approval-Gated Changes](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
 `changeRequestRevision` is required for those tasks. Tasks also gain a server-managed `reviewVotes`
 field that records each reviewer's vote on multi-reviewer approval tasks. Clients cannot set it, and a
 `PATCH` that changes it is rejected. Task free-text search (`q`) and `sortOrder` are also available on
@@ -121,10 +122,10 @@ When the task carries no snapshot of the current tags, only the tags listed to r
 ### Field Paths on Description and Tag Tasks Use One Format
 
 <Note>
-**Behavioral.** Affects clients that create description, tag or suggestion tasks with a field path.
+**Behavioral.** Affects clients that create description, tag, or suggestion tasks with a field path.
 </Note>
 
-OpenMetadata 2.1 accepts a single field path format: `<container>.<name>.<description|tags>`, for example
+OpenMetadata 2.1 accepts a single field path format: `<container>.<name>.<description|tags>`. An example is
 `columns.customer_id.description`. A name that contains a dot is quoted, as in a fully qualified name.
 A path in any other form, such as `columns::customer_id::description`, is rejected with a `400` (`Invalid field path ...`). The
 upgrade rewrites the paths on every stored task. A stored path that matches no field of its asset is
@@ -137,24 +138,25 @@ The following announcement changes apply in 2.1.
 ### Announcement Types and Colors
 
 <Info>
-**Additive.** Announcements gain a `type` (`Critical`, `Notice`, `Warning`, `Deprecation` or `Custom`),
-a `color` and a `customTypeName` (used when the type is `Custom`). Existing announcements read back as
+**Additive.** Announcements gain a `type` (`Critical`, `Notice`, `Warning`, `Deprecation`, or `Custom`),
+a `color`, and a `customTypeName` (used when the type is `Custom`). Existing announcements read back as
 `Notice`. `GET /v1/announcements` accepts `type` and `system` filters.
 </Info>
 
 ### Announcement Permissions Are Stricter
 
-<Warning>
+<Note>
 **Behavioral.** Affects non-admin users and bots that read or write announcements.
-</Warning>
+</Note>
 
-- **Reading** an announcement about an asset needs view access to that asset. Users who cannot see the
+The following rules apply:
+
+- Reading an announcement about an asset needs view access to that asset. Users who cannot see the
   asset no longer see its announcements.
-- **Writing a system announcement** (one with no entity link, shown to every user) is limited to admins
+- Writing a system announcement (one with no entity link, shown to every user) is limited to admins
   and bots.
-- **Editing the text.** Changing an announcement's `description` or `displayName` needs full edit
-  rights on the asset. In 2.0, the `EditDescription` right that every authenticated user holds was
-  enough.
+- Changing an announcement's `description` or `displayName` needs full edit rights on the asset. In
+  OpenMetadata 2.0, the `EditDescription` right that every authenticated user holds was enough.
 
 ### Announcement Status Is No Longer Stored
 
@@ -162,7 +164,7 @@ a `color` and a `customTypeName` (used when the type is `Custom`). Existing anno
 **Behavioral.** Affects anyone reading the `announcement_entity` table directly.
 </Note>
 
-The `status` (`Active`, `Scheduled` or `Expired`) is worked out from `startTime` and `endTime` each
+The `status` (`Active`, `Scheduled`, or `Expired`) is calculated from `startTime` and `endTime` each
 time an announcement is read. The upgrade drops the stored `status` column and value. The `status`
 filter on `GET /v1/announcements` still works.
 
@@ -170,27 +172,27 @@ filter on `GET /v1/announcements` still works.
 
 <Info>
 **Additive.** The activity stream keeps its endpoints and its 30-day default retention. OpenMetadata 2.1 adds replies
-on activity (`GET` and `POST /v1/activity/{id}/replies`) and `GET /v1/activity/mentions`. The feed
-endpoints also gain a `days` window and the `userId`, `domain` and `entityLink` filters.
+on activity (`GET` and `POST /v1/activity/{id}/replies`) and `GET /v1/activity/mentions`. The activity
+endpoints also gain a `days` window and the `userId`, `domain`, and `entityLink` filters.
 </Info>
 
 ## Alert and Notification Changes
 
-<Warning>
+<Note>
 **Behavioral.** Affects existing alerts, especially alerts that were created by an application or
 through the API.
-</Warning>
+</Note>
 
 | Change | Effect | What to do |
 | --- | --- | --- |
 | Alerts that applications created from their definition are disabled | After the upgrade, an alert that an application install created for itself is disabled and no longer tied to that application. Alerts that an application's own code creates are left alone | Review these alerts and enable the ones you want |
-| An alert names its consumer by an id, not a Java class | `className` on an alert is the id of a registered consumer, such as `alert`. The upgrade rewrites stored names, and the API still accepts a class name that was once used. Any other value is rejected with `No consumer is registered as ...` | Stop sending custom class names in `className`, or leave the field out |
-| Destination secrets are always masked | Webhook secrets and similar values are encrypted with the server's Fernet key, like every other stored secret, and masked in every response, including versions. A stored value that no configured key can decrypt is refused with `400 Bad Request` naming the field to enter again. A new alert that sends a mask or ciphertext as a secret is rejected. When you send an existing alert back unchanged, the mask keeps the stored value | Send the real secret only when you create an alert or change the secret |
+| An alert names its consumer by an ID, not a Java class | `className` on an alert is the ID of a registered consumer, such as `alert`. The upgrade rewrites stored names, and the API still accepts a class name that was once used. Any other value is rejected with `No consumer is registered as ...` | Stop sending custom class names in `className`, or leave the field out |
+| Destination secrets are always masked | Webhook secrets and similar values are encrypted with the server's Fernet key like every other stored secret. They are masked in every response, including versions. A stored value that no configured key can decrypt is refused with `400 Bad Request` naming the field to enter again. A new alert that sends a mask or ciphertext as a secret is rejected. When you send an existing alert back unchanged, the mask keeps the stored value | Send the real secret only when you create an alert or change the secret |
 | Destination limits | An alert holds at most 50 destinations, and the batch size is 1 to 1,000. An alert already stored above these limits keeps its values but cannot grow | Split very large alerts |
-| Destination ids are unique | Duplicate or missing destination ids are fixed by the upgrade | Do not rely on copying a destination id between alerts |
-| Events that could not be sent count as failed | When a destination cannot even attempt a send, such as email with no mail server configured or an asset with no owners to notify, the event is now recorded as failed with a reason that starts with `Not attempted:`. In 2.0 these events counted as sent | Check your alert delivery reports, and fix the mail server or ownership gap that the new failures point to |
-| Alert history endpoints cap `limit` at 1,000 | The endpoints that list processed events, failed events and diagnostic information for an alert return `400 Bad Request` when `limit` is above 1,000. 2.0 only checked the minimum | Page through the history with a `limit` of 1,000 or less |
-| Webhook destinations are checked again when sent | The host of a webhook, workflow sink or OAuth token URL is resolved and checked when you save it and again when the event is sent. Hosts that resolve to link-local or cloud metadata addresses are refused, even when written as a name, and a host that does not resolve from the server is rejected at send time. Private IP literals were already refused | Point destinations at hosts that resolve from the server and are not link-local |
+| Destination IDs are unique | Duplicate or missing destination IDs are fixed by the upgrade | Do not rely on copying a destination ID between alerts |
+| Events that could not be sent count as failed | When a destination cannot even attempt a send, such as email with no mail server configured or an asset with no owners to notify, the event is now recorded as failed with a reason that starts with `Not attempted:`. In OpenMetadata 2.0, these events counted as sent | Check your alert delivery reports and fix the mail server or ownership gap that the new failures point to |
+| Alert history endpoints cap `limit` at 1,000 | The endpoints that list processed events, failed events, and diagnostic information for an alert return `400 Bad Request` when `limit` is above 1,000. In OpenMetadata 2.0, only the minimum was checked | Retrieve the history in pages with a `limit` of 1,000 or less |
+| Webhook destinations are checked again when sent | The host of a webhook, workflow sink, or OAuth token URL is resolved and checked when you save it and again when the event is sent. Hosts that resolve to link-local or cloud metadata addresses are refused, even when written as a name. A host that does not resolve from the server is rejected at send time. Private IP literals were already refused | Point destinations at hosts that resolve from the server and are not link-local |
 | Custom alert consumers get batches only if they support them | A consumer set through `className` receives whole batches of events only if it implements `BatchConsumer`. Any other consumer receives one event at a time | If your consumer expects batches, implement `BatchConsumer` |
 | Alerts that could not send now send again | An alert that stopped because one destination could not be built resumes. Its backlog is skipped once, so it starts from the upgrade | None. The alert does not replay its backlog |
 | Unsupported notification templates are reset | A system template that uses constructs the template sandbox does not allow is reset to its packaged default. A custom template that does is kept, but alerts that chose it use the system template until you edit it | Edit custom templates that no longer render |
@@ -200,10 +202,10 @@ The per-source filter list `GET /v1/events/subscriptions/{alertType}/resources` 
 and returns a `Deprecation` header. Use `POST /v1/events/subscriptions/capabilities`, which answers for
 all chosen sources together.
 
-<Tip>
-After the upgrade, open each alert, test its destinations and check that the application
-alerts you rely on are still enabled.
-</Tip>
+<Note>
+After the upgrade, open each alert and test its destinations. Check that the application alerts you
+rely on are still enabled.
+</Note>
 
 ## Conversation Permissions
 
@@ -214,11 +216,11 @@ alerts you rely on are still enabled.
 Creating a conversation or reply needs the `Create` operation on the `conversation` resource. The
 upgrade adds `DataConsumerPolicy-CreateConversation-Rule` to `DataConsumerPolicy`.
 
-<Warning>
+<Note>
 Custom policies are not backfilled. If you replaced `DataConsumerPolicy` with your own definition, add
-a rule that allows `Create` on `conversation`, or non-admin users get `403` when they start a
+a rule that allows `Create` on `conversation`. Without it, non-admin users get `403` when they start a
 conversation or reply. For more information, see [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).
-</Warning>
+</Note>
 
 ## Database Table Changes
 
@@ -226,12 +228,12 @@ conversation or reply. For more information, see [Data Governance](/v2.1.x-SNAPS
 **Behavioral.** Affects anyone querying the OpenMetadata database directly.
 </Note>
 
-Conversations are stored in new `conversation_entity`, `conversation_reply`, `conversation_mention` and
+Conversations are stored in new `conversation_entity`, `conversation_reply`, `conversation_mention`, and
 `conversation_domain` tables. The upgrade copies existing conversations and their replies into them,
-keeping each conversation's ID. The old thread table is kept as `thread_entity_archived`. Update BI
-dashboards, retention jobs or scripts that read `thread_entity` or `thread_entity_legacy`.
+keeping each conversation's ID. The old thread table is kept as `thread_entity_archived`. Update business intelligence (BI)
+dashboards, retention jobs, or scripts that read `thread_entity` or `thread_entity_legacy`.
 
 ## Related Changes on Other Pages
 
-- Approval-gated edits, which hold changes until a reviewer approves them, are covered in
+- Approval-gated edits hold changes until a reviewer approves them. For more information, see
   [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).

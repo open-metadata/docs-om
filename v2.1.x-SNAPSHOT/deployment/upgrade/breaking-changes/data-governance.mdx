@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Data Governance | Official Documentation
-description: Policy changes, approval-gated edits, glossary and ontology, domains and data products, governance workflows and data retention in OpenMetadata 2.1.
+description: Policy changes, approval-gated edits, glossary and ontology, domains and data products, governance workflows, and data retention in OpenMetadata 2.1.
 sidebarTitle: Data Governance
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/data-governance"
@@ -8,33 +8,39 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 
 # Data Governance
 
-What changes for glossaries, classifications, policies, workflows, domains and access governance when you
-upgrade from 2.0 to 2.1.
+This page covers the following changes when you upgrade from OpenMetadata 2.0 to 2.1:
 
-Classifications and tags have no breaking changes in 2.1. Task and approval-task changes are covered in
-[Collaboration](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
+- Glossaries and ontologies
+- Policies and roles
+- Workflows
+- Domains and data products
+- Access governance
 
-## Policies & Roles
+Classifications and tags have no breaking changes in OpenMetadata 2.1. Task and approval-task changes are
+covered on the Collaboration page. For more information, see
+[Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
+
+## Policies and Roles
 
 OpenMetadata 2.1 changes the default policies and roles as follows.
 
 ### New Default Policy Rules
 
-<Warning>
-**Behavioral.** Affects who can run SPARQL Protocol and RDF Query Language (SPARQL) queries, create context memories and start conversations.
-</Warning>
+<Note>
+**Behavioral.** Affects who can run SPARQL Protocol and Resource Description Framework (RDF) Query Language (SPARQL) queries, create context memories, and start conversations.
+</Note>
 
 The upgrade adds rules to `DataConsumerPolicy`, the policy behind the **Data Consumer** role. Each rule is
 added only if you have not removed the permission it builds on:
 
 | Rule | What it allows | Added when |
 | --- | --- | --- |
-| `DataConsumerPolicy-ExecuteSparqlQuery-Rule` | Authenticated users and bots can run read-only SPARQL queries through the agent SPARQL endpoint and the MCP knowledge-graph tools | An allow rule in the policy still lists `ViewAll` |
+| `DataConsumerPolicy-ExecuteSparqlQuery-Rule` | Authenticated users and bots can run read-only SPARQL queries through the agent SPARQL endpoint and the Model Context Protocol (MCP) knowledge-graph tools | An allow rule in the policy still lists `ViewAll` |
 | `DataConsumerPolicy-CreateContextMemory-Rule` | Authenticated users can create context memories. The creator owns the memory | An allow rule in the policy still lists `EditDescription` |
 | `DataConsumerPolicy-CreateConversation-Rule` | Authenticated users can start conversations and reply | Always |
 
 <Warning>
-SPARQL results are **not** filtered by asset or domain policies. If you restrict who can view assets
+SPARQL results are not filtered by asset or domain policies. If you restrict who can view assets
 through custom policies, delete `DataConsumerPolicy-ExecuteSparqlQuery-Rule` after the upgrade.
 If you replaced `DataConsumerPolicy` with your own definition, none of these rules are added for you.
 Add them yourself if you want these capabilities for non-admin users.
@@ -42,25 +48,25 @@ Add them yourself if you want these capabilities for non-admin users.
 
 ### Domain-Only Access Is Restricted Further
 
-<Warning>
+<Note>
 **Behavioral.** Affects users who hold the domain-only access policy.
-</Warning>
+</Note>
 
 Two deny rules are added to the domain-only access policy:
 
-- `DomainAccessDenyAdministrationRule` stops domain-restricted users from creating, deleting, deploying or
-  editing policies, roles, bots and apps, whatever their domain.
-- `DomainAccessDenyTeamAndUserRule` stops them from creating, deleting or editing teams and users that
+- `DomainAccessDenyAdministrationRule` stops domain-restricted users from creating, deleting, deploying, or
+  editing policies, roles, bots, and applications, regardless of their domain.
+- `DomainAccessDenyTeamAndUserRule` stops them from creating, deleting, or editing teams and users that
   belong to no domain, and bot users.
 
-If domain owners in your organization manage roles, bots or apps, give them a separate role that is not
+If domain owners in your organization manage roles, bots, or applications, give them a separate role that is not
 covered by these rules.
 
 ### Bots Can No Longer Impersonate Other Bots
 
-<Warning>
+<Note>
 **Behavioral.** Affects bots that hold `BotNonAdminImpersonationPolicy`.
-</Warning>
+</Note>
 
 The upgrade adds a rule, `BotNonAdminImpersonationPolicy-DenyBotUsers`, to this policy. It denies the
 `Impersonate` operation when the target is a bot user. A bot that used this policy to impersonate another
@@ -69,8 +75,8 @@ bot is refused after the upgrade.
 ### Ontology Roles and Policy
 
 <Info>
-**Additive.** A new `OntologyAuthorPolicy` lets its holders create, edit, delete and view ontologies,
-concepts, properties, axioms and change sets. The upgrade also attaches `OntologyAuthorPolicy` and `OntologyReviewerPolicy` to the existing `DataSteward` role, so data stewards can author and review ontologies.
+**Additive.** A new `OntologyAuthorPolicy` lets its holders create, edit, delete, and view ontologies,
+concepts, properties, axioms, and change sets. The upgrade also attaches `OntologyAuthorPolicy` and `OntologyReviewerPolicy` to the existing `DataSteward` role, so data stewards can author and review ontologies.
 </Info>
 
 ## Approval-Gated Changes
@@ -81,44 +87,44 @@ now hold edits until a reviewer approves them. Nothing is held until you set **A
 **Enforce** on a workflow. For more information, see [Approval-Gated Changes](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
 </Info>
 
-<Warning>
-**Behavioral once you turn it on.** In an Enforce workflow, a human `PUT`, `PATCH`, CSV import or bulk
+<Note>
+**Behavioral once you turn it on.** In an Enforce workflow, a human `PUT`, `PATCH`, CSV import, or bulk
 asset change to a watched field is not written. OpenMetadata returns the asset with its approved value
 and creates a change request and review task. Bots are never held. Scripts that edit governed assets and
-expect the change to appear straight away must wait for approval, or run as a bot.
-</Warning>
+expect the change to appear immediately must wait for approval or run as a bot.
+</Note>
 
-What this adds for API users:
+This feature adds the following for API users:
 
 - Change requests are served from `/v1/changeRequests`: list by asset or requester, read, list
   revisions and decisions, and withdraw your own pending request.
-- The bulk add and remove asset calls on domains and data products go through the same gate, and honor
+- The bulk add and remove asset calls on domains and data products are checked by the same approval step and respect
   `dryRun`.
 - Resolving a review task takes `changeRequestRevision` and, optionally, per-change `changeDecisions`.
 
-## Glossary & Ontology
+## Glossary and Ontology
 
 The following glossary and ontology changes apply in 2.1.
 
 ### Terms Proposed by Automation Go to Review
 
-<Warning>
+<Note>
 **Behavioral.** Affects the stored `GlossaryTermApprovalWorkflow`.
-</Warning>
+</Note>
 
 The upgrade adds a branch right after the start of this workflow. A term that an automation proposed
 (provider `automation`, such as a term an AI agent suggests) now waits for a person to approve it, in
-approval steps of its own. When nobody else can decide, the task falls back to the admins. Every other
+approval steps of its own. When nobody else can decide, the task is assigned to admins. Every other
 term is reviewed as before. If you edited the workflow so that its start has more than one outgoing edge,
-the upgrade leaves it alone and an admin must wire the branch.
+the upgrade leaves it alone and an admin must connect the branch.
 
 ### Relation Type Usage Response Changed
 
-<Warning>
+<Note>
 **Breaking.** Affects clients of `GET /v1/glossaryTerms/relationTypes/usage`.
-</Warning>
+</Note>
 
-In 2.0 the response was a map of relation type name to count. In 2.1 it is a list of objects, each with a
+In OpenMetadata 2.0, the response was a map of relation type name to count. In OpenMetadata 2.1, it is a list of objects, each with a
 `relationshipType` (an entity reference) and a `count`.
 
 ```diff
@@ -133,13 +139,18 @@ Update any script or dashboard that reads this endpoint.
 
 ### In-Process RDF Reasoning Is Removed
 
-<Warning>
+<Note>
 **Breaking for SPARQL inference settings.** Affects anyone who relied on `inferenceEnabled` or reasoning levels on SPARQL queries.
-</Warning>
+</Note>
 
-OpenMetadata no longer runs reasoners in its own process. In the Resource Description Framework (RDF) configuration, `inferenceEnabled`,
-`defaultInferenceLevel`, `cacheInferredTriples` and `maxInMemoryInferenceTriples` are deprecated and
-ignored. SPARQL queries use no inference unless they ask for `custom`, which reads materialized
+OpenMetadata no longer runs reasoners in its own process. These settings in the RDF configuration are deprecated and ignored:
+
+- `inferenceEnabled`
+- `defaultInferenceLevel`
+- `cacheInferredTriples`
+- `maxInMemoryInferenceTriples`
+
+SPARQL queries use no inference unless they ask for `custom`, which reads materialized
 rule output. To keep inference, turn on `materializedInferenceEnabled`, which runs rule-based inference
 inside the RDF store.
 
@@ -164,17 +175,17 @@ Use the environment variable `RDF_AI_ENABLED` to turn on `aiEnabled`. The older
 
 ### The Bundled Fuseki RDF Store Image Changed
 
-<Warning>
+<Note>
 **Breaking for the bundled Fuseki.** Affects anyone who runs the RDF store from the OpenMetadata Docker
-Compose files or Kubernetes manifest.
-</Warning>
+Compose files or Kubernetes manifests.
+</Note>
 
 The bundled Fuseki setup no longer builds its own image. It uses the published image
-`openmetadata/fuseki:6.2.0-318ff87`. Compared with 2.0:
+`openmetadata/fuseki:6.2.0-318ff87`. It differs from OpenMetadata 2.0 in the following ways:
 
 - The admin password variable is `ADMIN_PASSWORD`. `FUSEKI_OPENMETADATA_PASSWORD` is removed.
 - New required settings are `FUSEKI_DATASETS=openmetadata,openmetadata_a,openmetadata_b`,
-  `FUSEKI_UNION_DEFAULT_GRAPH=true` and `OPENMETADATA_EXTENSION_ENABLED=true`.
+  `FUSEKI_UNION_DEFAULT_GRAPH=true`, and `OPENMETADATA_EXTENSION_ENABLED=true`.
 - Data is stored under `/fuseki` in the volume `fuseki-store`. The old layout used `/fuseki-data` in the
   volume `fuseki-tdb2-data`.
 
@@ -183,24 +194,31 @@ or rebuild the graph by running the RDF Index application after the upgrade.
 
 ### Only Approved Glossary Terms Can Be Applied Through the API
 
-<Warning>
+<Note>
 **Breaking for scripts and integrations.** Affects clients that tag assets with glossary terms that are
 Draft, In Review, Rejected, or Deprecated.
-</Warning>
+</Note>
 
-The UI only offers Approved glossary terms when you tag an asset, but 2.0 let the API apply a term in any
-status. In 2.1 the API rejects a glossary term that is newly applied to an asset or field unless it is
-Approved. This applies to create, update, patch and bulk requests, table data models, the columns API, a
-term's `assets/add` endpoint, and column bulk-update and CSV import previews. A term that the asset already
+The UI only offers Approved glossary terms when you tag an asset, but OpenMetadata 2.0 let the API apply a term in any
+status. In OpenMetadata 2.1, the API rejects a glossary term that is newly applied to an asset or field unless it is
+Approved. This applies to the following:
+
+- Create, update, patch, and bulk requests
+- Table data models
+- The columns API
+- The `assets/add` endpoint of a term
+- Column bulk-update and CSV import previews
+
+A term that the asset already
 holds stays, so a request that sends it back unchanged still succeeds. In a bulk request, a rejected item
 fails on its own and the others are saved.
 
 dbt ingestion follows the same rule. A term named in `meta.openmetadata.glossary` is skipped, with a warning
 in the log, unless it is Approved. The rest of the asset's metadata is still ingested.
 
-<Tip>
+<Note>
 Approve the terms your integrations apply, or stop applying terms that are not yet approved.
-</Tip>
+</Note>
 
 ### Moving Glossary Terms and Changing Assets in Bulk
 
@@ -208,11 +226,11 @@ Approve the terms your integrations apply, or stop applying terms that are not y
 **Behavioral.** Affects scripts that call the glossary term move and bulk asset endpoints.
 </Note>
 
-- **Moving a term needs a parent.** The move request must name the new parent with both `id` and `type`.
-  Without it the call returns `400 Bad Request` with `A move needs the parent the term moves under`. To move a
+- Moving a term needs a parent. Name the new parent with both `id` and `type` in the move request.
+  Without it, the call returns `400 Bad Request` with `A move needs the parent the term moves under`. To move a
   term to the top level, name the glossary itself as the parent.
-- **Bulk asset changes are checked one asset at a time.** Adding or removing assets on a glossary term, tag,
-  domain or data product no longer checks one permission for the whole request. Each asset is checked and
+- Bulk asset changes are checked one asset at a time. Adding or removing assets on a glossary term, tag,
+  domain, or data product no longer checks one permission for the whole request. Each asset is checked and
   saved like its own edit. Failures are reported per asset, and an asset held by an approval workflow comes
   back as pending.
 
@@ -222,28 +240,32 @@ Approve the terms your integrations apply, or stop applying terms that are not y
 **Additive.** None of the ontology APIs below exist in 2.0, so no existing client is affected.
 </Info>
 
-- **Ontologies.** Native ontologies, concepts, properties, axioms, change sets,
-  releases, packs and bulk jobs are new entities with their own APIs.
-- **Import and export.** `importRdf` also accepts JSON-LD, and `GET /v1/glossaries/{id}/exportOntology`
-  exports a glossary as Turtle, RDF/XML, N-Triples or JSON-LD, even when RDF storage is off.
-- **Terms.** Glossary terms accept `iri` and `conceptMappings` on create.
-- **Queries.** There is a read-only agent SPARQL endpoint, saved SPARQL queries, and an ontology summary
-  at `GET /v1/glossaryTerms/ontology/summary`.
-- **Lists.** The term list and search endpoints accept `provider` and `excludeProvider`. The glossary
-  list accepts `domain`.
+The following ontology features are new:
 
-## Domains & Data Products
+- Ontologies: native ontologies, concepts, properties, axioms, change sets, releases, packs, and bulk jobs
+  are new entities with their own APIs
+- Import and export: `importRdf` also accepts JSON-LD. `GET /v1/glossaries/{id}/exportOntology`
+  exports a glossary as Turtle, RDF/XML, N-Triples, or JSON-LD. It works even when RDF storage is off
+- Terms: glossary terms accept `iri` and `conceptMappings` on create
+- Queries: a read-only agent SPARQL endpoint, saved SPARQL queries, and an ontology summary
+  at `GET /v1/glossaryTerms/ontology/summary`
+- Lists: the term list and search endpoints accept `provider` and `excludeProvider`, and the glossary
+  list accepts `domain`
+
+## Domains and Data Products
 
 <Note>
 **Behavioral.** Affects clients that read domain and data product assets.
 </Note>
 
-- The asset list and asset count endpoints for domains (`/v1/domains/{id}/assets`, by name, and the
-  counts) now need `ViewBasic` on domains, and take the caller's own access into account.
+The following changes apply to domains:
+
+- The asset list and asset count endpoints for domains now need `ViewBasic` on domains. These endpoints are
+  `/v1/domains/{id}/assets`, its by-name variant, and the counts. They also take the caller's own access into account.
 - The task list for a domain is limited to tasks the caller can view.
 
 <Info>
-**Additive.** `GET /v1/domains` accepts `owners`, `domainType`, `tags` and `glossaryTerms` filters, and
+**Additive.** `GET /v1/domains` accepts `owners`, `domainType`, `tags`, and `glossaryTerms` filters.
 `GET /v1/domains/styles` returns the color and icon of every styled domain and data product.
 </Info>
 
@@ -258,15 +280,15 @@ working without changes.
 
 <Note>
 **Behavioral.** In an approval task, `expiryTimer.durationVariable` and `expiryTimer.dateVariable` must now
-start with a letter or underscore and contain only letters, digits and underscores. A custom workflow that
-uses a name with a dash, a dot or a leading digit fails validation.
+start with a letter or underscore and contain only letters, digits, and underscores. A custom workflow that
+uses a name with a dash, a dot, or a leading digit fails validation.
 </Note>
 
 ## Java SDK
 
-<Warning>
+<Note>
 **Breaking for Java SDK users.** The generated enum `org.openmetadata.schema.type.WorkflowTriggerFields` is removed. The list of trigger fields is now a server resource, not a schema type. Remove any import of it.
-</Warning>
+</Note>
 
 ## Data Retention
 
@@ -276,11 +298,11 @@ uses a name with a dash, a dot or a leading digit fails validation.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `workflowRetentionPeriod` | `30` days | Deletes the short-lived automation workflow records left by test connection, query runner and reverse ingestion runs. Use `0` to keep them forever |
+| `workflowRetentionPeriod` | `30` days | Deletes the short-lived automation workflow records left by test connection, query runner, and reverse ingestion runs. Use `0` to keep them forever |
 | `activityCommentsRetentionPeriod` | `0` (keep forever) | Retention for comments on activity events |
 
 <Warning>
-The Data Retention application deletes automation workflow records older than 30 days, and the deletion cannot
+The Data Retention application deletes automation workflow records older than 30 days. The deletion cannot
 be undone. To keep them longer, set `workflowRetentionPeriod` to a larger value, or `0`, before the first run
 after the upgrade.
 </Warning>

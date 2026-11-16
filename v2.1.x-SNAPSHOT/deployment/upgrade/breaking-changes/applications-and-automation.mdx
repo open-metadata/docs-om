@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Applications & Automation | Official Documentation
-description: Applications no longer create alerts from their definition, Search Indexing reset, Data Retention settings, the new RDF inference application and automation workflow cleanup in OpenMetadata 2.1.
+description: Applications no longer create alerts from their definition, Search Indexing reset, Data Retention settings, the new Resource Description Framework (RDF) Inference Materialization application, and automation workflow cleanup in OpenMetadata 2.1.
 sidebarTitle: Applications & Automation
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/applications-and-automation"
@@ -14,10 +14,10 @@ before you replay it.
 
 ## Applications No Longer Create Alerts From Their Definition
 
-<Warning>
+<Note>
 **Breaking for custom application definitions, behavioral for existing alerts.** Affects anyone who
 publishes their own application definition and admins who relied on the alerts an application installed.
-</Warning>
+</Note>
 
 The `eventSubscriptions` list is removed from the application marketplace definition and from the
 request that creates one. An application can still create the alerts it needs in its own code, but
@@ -25,30 +25,30 @@ alerts are no longer created from a list in the definition.
 
 What the upgrade does to existing alerts:
 
-- An alert that an application created from its definition is **disabled** and no longer tied to the
+- An alert that an application created from its definition is disabled and no longer tied to the
   application. It is kept so an admin can review it.
 - Alerts that an application creates in its own code are left as they are.
 - The stored list of alerts is removed from application records and their version history. The
   application's alerts are now read from its relationships.
 
-<Warning>
+<Note>
 If you rely on an alert that an application installed in 2.0, check **Settings** > **Notifications** after
 the upgrade. Re-enable the alert there if you still want it. Remove `eventSubscriptions` from any
-marketplace definition you create through the API: the create schema rejects unknown fields, so a
+marketplace definition you create through the API. The create schema rejects unknown fields, so a
 request that still sends it is refused.
-</Warning>
-
-## MCP Server Changes
-
-<Note>
-**Behavioral.** Affects Model Context Protocol (MCP) clients and operators who run the MCP server.
 </Note>
 
-- **Unsupported protocol versions get `400`.** A `POST` to `/mcp` whose `MCP-Protocol-Version` header names a
-  version the server does not implement now returns `400 Bad Request` with a JSON-RPC `Invalid Request` error that
+## Model Context Protocol (MCP) Server Changes
+
+<Note>
+**Behavioral.** Affects MCP clients and operators who run the MCP server.
+</Note>
+
+- Unsupported protocol versions get `400`. A `POST` to `/mcp` whose `MCP-Protocol-Version` header names a
+  version the server does not implement now returns `400 Bad Request` with a JSON Remote Procedure Call (JSON-RPC) `Invalid Request` error that
   lists the supported versions. Before, the server answered normally. `initialize` requests and requests without
   the header are not affected. A client that sent a version it never negotiated now fails.
-- **Disabling the MCP Server application stops MCP at once.** You no longer restart the server for it to take
+- Disabling the MCP Server application stops MCP at once. You no longer restart the server for it to take
   effect.
 
 <Info>
@@ -61,16 +61,16 @@ authorize again.
 
 ## Installing an Application With a Bot Needs an Admin
 
-<Warning>
+<Note>
 **Breaking.** Affects non-admin users and automation that create or update applications.
-</Warning>
+</Note>
 
-In 2.0, only setting `allowBotImpersonation` to `true` needed an admin. In 2.1, creating or updating an
-application also needs an admin whenever a `bot` is set. The call returns `403 Forbidden` for other users.
+Only setting `allowBotImpersonation` to `true` needed an admin in 2.0. Creating or updating an
+application now also needs an admin whenever a `bot` is set. The call returns `403 Forbidden` for other users.
 
-<Tip>
+<Note>
 Run application installs that set a bot from an admin account or an admin-level bot.
-</Tip>
+</Note>
 
 ## Search Indexing Configuration and Run History Are Reset
 
@@ -85,21 +85,23 @@ Run application installs that set a bot from an admin account or an admin-level 
   Applications page then shows that Search Indexing must be run once. The RDF status stays at
   rebuilding until an RDF Index run succeeds.
 
-<Tip>
+<Note>
 Run the Search Indexing application once after upgrading, then the RDF Index application if you use
 RDF. Reapply a narrower `entities` selection afterwards if you need one.
-</Tip>
+</Note>
 
 ## Data Retention Application Settings
 
-<Warning>
+<Note>
 **Behavioral, with one new required field.** Affects scripts that send the full retention configuration.
-</Warning>
+</Note>
+
+The following table lists the settings.
 
 | Setting | What changed |
 | --- | --- |
-| `activityCommentsRetentionPeriod` | New, in days. Comments on activity events can now be cleaned up. It is a **required** field of the configuration. The default is `0` (keep forever), and the upgrade adds it to your stored configuration. |
-| `workflowRetentionPeriod` | New, in days, default **`30`**. Deletes automation workflow records older than this: the short-lived records left by test connection, query runner and reverse ingestion runs. Use `0` to keep them forever. |
+| `activityCommentsRetentionPeriod` | New, in days. Comments on activity events can now be cleaned up. It is a required field of the configuration. The default is `0` (keep forever), and the upgrade adds it to your stored configuration. |
+| `workflowRetentionPeriod` | New, in days, default `30`. Deletes automation workflow records older than this. These are the short-lived records left by test connection, query runner, and reverse ingestion runs. Use `0` to keep them forever. |
 
 Because `activityCommentsRetentionPeriod` is required, a script that sends the whole configuration
 without it can fail validation. Add the field to your scripts.
@@ -109,17 +111,17 @@ After the upgrade, the Data Retention application deletes automation workflow re
 The deletion cannot be undone. Set `workflowRetentionPeriod` to `0` before the first run if you need to keep them.
 </Warning>
 
-## New RDF Inference Application
+## New RDF Inference Materialization Application
 
 <Info>
 **Additive.** Affects deployments that use RDF.
 </Info>
 
-A new application, **RDF Inference Materialization** (`RdfInferenceApp`), is added in 2.1, with a default schedule of every 5 minutes. It computes inferred RDF
+A new application named **RDF Inference Materialization** (`RdfInferenceApp`) is added in 2.1. Its default schedule is every 5 minutes. It computes inferred RDF
 conclusions on a schedule. It accepts two settings: `force`
 (recompute every rule even when nothing changed, default `false`) and `ruleName` (a rule that must
 exist). The run always computes every rule, because rules read each other's results. The RDF Index and
-RDF Inference configurations are added to the application configuration union, so generated models that
+RDF Inference Materialization configurations are added to the application configuration union, so generated models that
 key on branch position must be regenerated rather than patched by hand.
 
 ## Automation Workflow and Application Run Changes
@@ -134,10 +136,10 @@ key on branch position must be regenerated rather than patched by hand.
   in place of a warehouse service. When you use `fileIds`, the service name and credentials are not
   used.
 - The upgrade removes the deleted `sampleDataStorageConfig` key from stored test connection requests.
-  For more information, see [Data Quality](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality).
+  For more information, see [Data Quality & Observability](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality).
 
 ## Items From 2.0 Not Repeated Here
 
-Changes to the Data Insights `dataQuality` module, MCP tool contracts, CSV background jobs and the
+Changes to the Data Insights `dataQuality` module, MCP tool contracts, CSV background jobs, and the
 cache were introduced in 2.0 and are covered in the 2.0 breaking changes. This page lists only what
 changes between 2.0 and 2.1.

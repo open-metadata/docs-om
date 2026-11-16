@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Ingestion & Connectors | Official Documentation
-description: Delta Lake connector removal, Oracle and Elasticsearch driver changes, ingestion image changes and new connectors in OpenMetadata 2.1.
+description: Delta Lake connector removal, Oracle and Elasticsearch driver changes, ingestion image changes, and new connectors in OpenMetadata 2.1.
 sidebarTitle: Ingestion & Connectors
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/ingestion-and-connectors"
@@ -8,7 +8,7 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 
 # Ingestion & Connectors
 
-Several changes on this page are breaking, and the largest is that the **Delta Lake connector is removed**.
+Several changes on this page are breaking, and the largest is that the Delta Lake connector is removed.
 The rest of this page covers behavioral changes for people who build their own ingestion environment, and
 the connectors added in 2.1.
 
@@ -21,37 +21,35 @@ base as 2.0. There is no Python version change in this upgrade.
 
 <Warning>
 **Breaking.** Affects every `DeltaLake` database service, and anyone who installs the `deltalake`,
-`deltalake-storage` or `deltalake-spark` extras.
+`deltalake-storage`, or `deltalake-spark` extras.
 </Warning>
 
-The Delta Lake connector, its connection schema (`deltaLakeConnection.json`, with its metastore and
-storage sub-schemas) and its three pip extras are removed. `DeltaLake` is no longer a valid database
+The Delta Lake connector is removed. So are its connection schema (`deltaLakeConnection.json`) and its three pip extras. `DeltaLake` is no longer a valid database
 service type.
 
-The 2.1 upgrade handles existing services automatically. It runs first in the data migration and:
+The 2.1 upgrade handles existing services automatically. It runs first in the data migration. The upgrade does the following:
 
-- Changes each Delta Lake service, and its databases, schemas, tables and stored procedures, to the
-  **Custom Database** service type, so the catalog entries and their metadata are kept;
-- Replaces the service connection with an empty Custom Database connection, so the old metastore and
-  storage credentials are **not** carried over;
-- **Deletes the ingestion pipelines** of those services and removes their scheduled runs from the
+- It changes each Delta Lake service and its databases, schemas, tables, and stored procedures to the
+  **Custom Database** service type. The catalog entries and their metadata are kept.
+- It replaces the service connection with an empty Custom Database connection. The old metastore and
+  storage credentials are not carried over.
+- It **deletes the ingestion pipelines** of those services and removes their scheduled runs from the
   orchestrator. If the orchestrator cannot be reached during the upgrade, the schedule is left in
-  place and you must remove it yourself;
-- Removes the Delta Lake test-connection definition.
+  place and you must remove it yourself.
+- It removes the Delta Lake test-connection definition.
 
 <Warning>
 Deleted pipelines are only recoverable from a backup. Take a database backup first, and note which Delta Lake services you have.
-After the upgrade nothing refreshes that metadata, because no connector reads Delta Lake any more.
+After the upgrade, nothing refreshes that metadata, because no connector reads Delta Lake anymore.
 </Warning>
 
-Delta Lake **as a table format** is unchanged: tables that are stored as Delta files are still
-recognized by the Datalake, Trino and StarRocks connectors.
+Delta Lake as a table format is unchanged: tables that are stored as Delta files are still
+recognized by the Datalake, Trino, and StarRocks connectors.
 
-<Tip>
+<Note>
 Before upgrading, list your Delta Lake services and any ingestion YAML that uses `type: DeltaLake`.
-Move that metadata to another connector (for example Datalake, Databricks or Unity Catalog)
-if you still need it refreshed, and remove `deltalake` extras from your image build files.
-</Tip>
+Move that metadata to another connector if you still need it refreshed. Examples are Datalake, Databricks, and Unity Catalog. Also remove `deltalake` extras from your image build files.
+</Note>
 
 ## Oracle Uses `python-oracledb`
 
@@ -64,10 +62,10 @@ The `oracle` extra no longer installs `cx_Oracle`. It installs `oracledb>=3.4.2,
 `cx_Oracle` build steps are gone from the ingestion and operator images. Standard Oracle ingestion
 needs no change.
 
-<Tip>
+<Note>
 If you maintain custom code that does `import cx_Oracle`, or a requirements file that pins
 `cx_Oracle` or `oracledb~=1.2`, switch to `oracledb` and rebuild the image.
-</Tip>
+</Note>
 
 ## Tag and Classification Names Keep Their Source Casing
 
@@ -77,46 +75,46 @@ If you maintain custom code that does `import cx_Oracle`, or a requirements file
 
 Database ingestion now keeps the casing that the source uses for classification and tag names. Names
 that differ only by case, such as `MY_CLASS.internal` and `My_Class.internal`, stay as separate
-entries. Before, ingestion could merge two separate source tags into one, or attach a tag under the
+entries. Previously, ingestion could merge two separate source tags into one, or attach a tag under the
 wrong name. Built-in system tags keep their standard OpenMetadata names.
 
 If your source has tags that differ only by case, expect them to appear as separate tags after the next
-ingestion run. Review any tag-based policies, searches or reports that assumed one merged tag.
+ingestion run. Review any tag-based policies, searches, or reports that assumed one merged tag.
 
 ## Ingestion Pipelines Need a Source Configuration Type
 
-<Warning>
-**Breaking.** Affects scripts, Terraform and custom clients that create or update ingestion pipelines
+<Note>
+**Breaking.** Affects scripts, Terraform, and custom clients that create or update ingestion pipelines
 through the API.
-</Warning>
+</Note>
 
 Creating or updating an ingestion pipeline now fails with `400 Bad Request` and the message
 `sourceConfig.config.type is required` when `sourceConfig.config.type` is missing or blank. Examples
-of the value are `DatabaseMetadata`, `Profiler` and `DBT`. OpenMetadata 2.0 did not check it.
+of the value are `DatabaseMetadata`, `Profiler`, and `DBT`. OpenMetadata 2.0 did not check it.
 
 The upgrade fills in `type` on stored pipelines. A pipeline it cannot resolve is written to the server
 log and left as it is.
 
-<Tip>
+<Note>
 Add `sourceConfig.config.type` to every pipeline definition you send through the API. After the upgrade,
 check the server log for pipelines that could not be repaired and fix them by hand.
-</Tip>
+</Note>
 
 ## Microsoft Fabric Authentication Settings Moved
 
-<Warning>
-**Breaking.** Affects API, SDK and YAML configurations for Microsoft Fabric services.
-</Warning>
+<Note>
+**Breaking.** Affects API, software development kit (SDK), and YAML configurations for Microsoft Fabric services.
+</Note>
 
 The top-level `clientSecret` field is removed from the Microsoft Fabric connection. Authentication now
 goes in a new required `authType` setting, which is either Client Secret or Certificate. `hostPort`,
-`clientId`, `tenantId` and `authType` are required. The upgrade moves the settings of stored services
+`clientId`, `tenantId`, and `authType` are required. The upgrade moves the settings of stored services
 for you.
 
-<Tip>
-Update the Fabric service definitions and ingestion YAML files you keep outside OpenMetadata so the
+<Note>
+Update the Microsoft Fabric service definitions and ingestion YAML files you keep outside OpenMetadata so the
 client secret sits under `authType`.
-</Tip>
+</Note>
 
 ## Elasticsearch Client Packages
 
@@ -135,33 +133,33 @@ replace it before upgrading or the resolver may fail.
 `metadata` package. Standard connectors and YAML workflows are not affected.
 </Note>
 
-- **Tags use a registry.** Database sources no longer fill `context.get().tags`. The tag stages read and write
+- Tags use a registry. Database sources no longer fill `context.get().tags`. The tag stages read and write
   through `self.tags_registry`. `TagRegistry` is created as `TagRegistry(cache_size=1000, *, metadata=...)`.
   `attach` takes a `TagDefinition` in place of the separate classification and tag names and descriptions. Use
-  the new `define` method to declare a tag. `is_known`, `ensure_known` and `ScopeAlreadyClearedError` are removed.
+  the new `define` method to declare a tag. `is_known`, `ensure_known`, and `ScopeAlreadyClearedError` are removed.
   `drain` is now a generator, and `labels_for` drops tags that do not exist on the server. In
-  `DatabaseServiceSource`, `clear_schema_tag_scope` and `clear_database_tag_scope` now return an
+  `DatabaseServiceSource`, `clear_schema_tag_scope`, and `clear_database_tag_scope` now return an
   `Iterable[Either]`, so an override must `yield`. Tags whose names the server rejects are skipped and shown as
   warnings in the run status, not as failures.
-- **Source state belongs to each source.** Topology run state is kept per source instance. The class-level
+- Source state belongs to each source. Topology run state is kept per source instance. The class-level
   `context` and `queue` on a topology source, and the `*_source_state` sets on `DatabaseServiceSource`, are now
   per-instance wrappers (`PerSourceState`). Custom code that reads or writes these attributes on the class sees
   different behavior.
-- **`run_pipeline` returns a response object.** `OpenMetadata.run_pipeline` returns
+- `run_pipeline` returns a response object. `OpenMetadata.run_pipeline` returns
   `PipelineServiceClientResponse` instead of `IngestionPipeline`.
-- **Lineage edge cache is per client.** The module-level `search_cache` in the lineage mixin is removed. Each
+- The lineage edge cache is per client. The module-level `search_cache` in the lineage mixin is removed. Each
   client keeps its own cache, so remove any import of `search_cache`.
-- **Data quality validators.** `is_unbounded` is removed from `validations/utils.py`, and
+- Data quality validators: `is_unbounded` is removed from `validations/utils.py`, and
   `build_row_level_violations_sqa` is removed from the between-bounds checker. Custom test case validators that
   call them must use the new threshold helpers in the base validator.
-- **CLI.** The workflow commands accept a new optional `--status-file <path>` that writes the run result as JSON.
+- Command-line interface (CLI): the workflow commands accept a new optional `--status-file <path>` that writes the run result as JSON.
   The `run_*` functions in `metadata.cli` take a second argument, `status_file`, which defaults to `None`.
   Scripts that call them by position keep working.
 
-<Tip>
+<Note>
 Rebuild custom connectors against the 2.1 `openmetadata-ingestion` package and run them once against a test
 server before you roll them out.
-</Tip>
+</Note>
 
 ## Python Dependency Changes
 
@@ -178,12 +176,12 @@ server before you roll them out.
 | `collate-dbt-artifacts-parser` | any | `>=0.1.5` | dbt |
 | `sqlalchemy-vertica` | `>=0.0.5` | `>=0.0.5,<1.0` | Vertica (1.0 breaks the dialect patches) |
 
-New plugin extras: `clickzetta`, `databend`, `nats`, `neo4j`, `data360`, `data360pipeline` and
+The new plugin extras are `clickzetta`, `databend`, `nats`, `neo4j`, `data360`, `data360pipeline`, and
 `tableaupipeline`.
 
 `python-liquid` is now pinned to `~=2.3`, because version 3 removed an API that the Looker connector uses to
-render `sql_table_name`. The ingestion package also raises the minimum versions of `oauthlib` (`>=4.0.1`),
-`tornado` (`>=6.6.1`), `dnspython` (`>=2.9.2`) and `filelock` (`>=4.2.1`) to fix security advisories. The last
+render `sql_table_name`. The ingestion package also raises the minimum versions of the following packages to fix security advisories:
+`oauthlib` (`>=4.0.1`), `tornado` (`>=6.6.1`), `dnspython` (`>=2.9.2`), and `filelock` (`>=4.2.1`). The last
 three apply to Python 3.11 and later. If you mirror packages or pin these in a requirements file, update the pins.
 
 ## Ingestion Image Contents
@@ -192,11 +190,12 @@ three apply to Python 3.11 and later. If you mirror packages or pin these in a r
 **Behavioral.** Affects anyone who builds on top of `openmetadata/ingestion` or the operator image.
 </Note>
 
+The ingestion image changes in the following ways:
+
 - The ingestion image no longer ships the `freetds-bin` and `postgresql` / `postgresql-contrib`
   packages. If a custom image or script calls `psql` or `tsql` from inside the ingestion container,
   install them in your own image layer.
-- The Airflow Simple Mail Transfer Protocol (SMTP) provider is now kept in the image, alongside the Docker, Kubernetes, HTTP, FAB and
-  standard providers.
+- The Airflow Simple Mail Transfer Protocol (SMTP) provider is now kept in the image. So are the Docker, Kubernetes, HTTP, Flask AppBuilder (FAB), and standard providers.
 - The `redshift-connector` driver is removed from the image. The OpenMetadata Redshift connector does not
   use it. If your own DAGs or scripts import it, install it in your own image layer.
 - Build tools and development headers (`build-essential`, `gcc`, `libpq-dev`,
@@ -215,22 +214,24 @@ argument `AUTO_CLASSIFICATION_LANGUAGES` (for example `en,es`), or run the new
 **Additive.**
 </Info>
 
+The following connectors are new in 2.1.
+
 | Type | Connector |
 | --- | --- |
-| Database | ClickZetta, Databend, Neo4j, Data 360 |
+| Database | ClickZetta, Databend, Neo4j, and Data 360 |
 | Dashboard | Rill |
 | Pipeline | Data 360, Tableau Pipeline |
 | Messaging | NATS |
 
-Other connector additions: SFTP authentication options (basic and key) for the SFTP drive connector.
+Other connector additions include Secure File Transfer Protocol (SFTP) authentication options (basic and key) for the SFTP drive connector.
 Microsoft Fabric authentication also changes. For more information, see
 [Microsoft Fabric Authentication Settings Moved](#microsoft-fabric-authentication-settings-moved).
 
-<Tip>
+<Note>
 Rebuild and re-test custom connectors and custom images against the 2.1 ingestion package before
 upgrading production agents.
-</Tip>
+</Note>
 
 ## Related
 
-For the database migration that retires Delta Lake services, see [Platform & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security).
+The database migration also retires Delta Lake services. For more information, see [Platform, Configuration & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security).

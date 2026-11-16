@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Lineage | Official Documentation
-description: Lineage access checks, the pipeline rule for lineage edges, OpenLineage responses, batch hydration limits and the new lineage scene and MCP lineage arguments in OpenMetadata 2.1.
+description: Lineage access checks, the pipeline rule for lineage edges, OpenLineage responses, batch hydration limits, and the new lineage scene and Model Context Protocol (MCP) lineage arguments in OpenMetadata 2.1.
 sidebarTitle: Lineage
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/lineage"
@@ -9,36 +9,36 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 # Lineage
 
 No lineage endpoint is removed and no lineage field is renamed, so existing lineage ingestion and
-dashboards keep working. What changes in 2.1 is who may read and write lineage, what an edge may point
+dashboards keep working. OpenMetadata 2.1 changes who may read and write lineage, what an edge may point
 to, and how the OpenLineage endpoint reports results. Review the entries marked **Breaking** and
-**Behavioral** before you upgrade, especially if you use custom roles and policies, run your own
+**Behavioral** before you upgrade. This matters most if you use custom roles and policies, run your own
 lineage scripts, or post OpenLineage events.
 
 ## Lineage Edges Can Only Name a Pipeline or Stored Procedure
 
-<Warning>
-**Breaking.** Affects scripts, connectors and integrations that write lineage with a `pipeline` on the edge.
-</Warning>
+<Note>
+**Breaking.** Affects scripts, connectors, and integrations that write lineage with a `pipeline` on the edge.
+</Note>
 
-An edge can carry a `pipeline` value that records what moved the data. In 2.1 that value must be a
-**pipeline** or a **stored procedure**. Any other entity type, such as a database service, is refused
+An edge can carry a `pipeline` value that records what moved the data. In OpenMetadata 2.1, that value must be a
+pipeline or a stored procedure. Any other entity type, such as a database service, is refused
 with `400 Bad Request` and the message `Lineage pipeline must be a pipeline or a storedProcedure, not a <type>`.
-This applies to `PUT /v1/lineage`, the by-name `PUT` and the `PATCH` endpoints.
+This applies to `PUT /v1/lineage`, the by-name `PUT`, and the `PATCH` endpoints.
 
-Version 2.0 accepted any entity type. The named entity was copied into the search document of the downstream
+OpenMetadata 2.0 accepted any entity type. The named entity was copied into the search document of the downstream
 entity, which every user can read. That could expose, for example, a service connection.
 
-The 2.1 upgrade cleans existing data for you:
+The upgrade to OpenMetadata 2.1 cleans existing data:
 
 - A data migration clears the `pipeline` value from any existing edge that names something other than a
   pipeline or stored procedure. Each cleared value is written to the server log.
 - The copies already stored in the search index are removed when you run the reindex that the upgrade
   requires.
 
-<Tip>
+<Note>
 Search your lineage scripts for edges that set `pipeline` to a service or other entity, and send a pipeline
 or stored procedure instead.
-</Tip>
+</Note>
 
 <Warning>
 If the server log shows a cleared reference to a service, rotate that service's credentials, because the value
@@ -47,29 +47,29 @@ could have been readable before the upgrade.
 
 ## Lineage Reads Now Check Permissions
 
-<Warning>
-**Breaking for users with restricted roles.** Affects custom policies, API clients and the lineage graph.
-</Warning>
+<Note>
+**Breaking for users with restricted roles.** Affects custom policies, API clients, and the lineage graph.
+</Note>
 
-In 2.0, lineage reads did not check whether the caller could view the entities in the graph. In 2.1 they do.
+In OpenMetadata 2.0, lineage reads did not check whether the caller could view the entities in the graph. In OpenMetadata 2.1, they do.
 
 | Request | What changes in 2.1 |
 | --- | --- |
 | `GET /v1/lineage/{entity}/{id}` and `GET /v1/lineage/{entity}/name/{fqn}` | The caller needs `ViewBasic` on the entity, or the call returns `403`. Nodes the caller cannot view are then removed from the result. |
-| `GET /v1/lineage/getLineage`, `getLineage/{direction}`, `getLineageByEntityCount` | The caller needs `ViewBasic` on the starting entity (`fqn`), or the call returns `403`. Nodes the caller cannot view, and edges that touch them, are removed. A pipeline on an edge that the caller cannot view is dropped from the edge. Admins are not checked or filtered. |
-| `getPaginationInfo`, `getDataQualityLineage`, `export` and the async export requests | The caller needs `ViewBasic` on the starting entity (`fqn`), or the call returns `403`. The exports and the data quality lineage also drop nodes the caller cannot view. Pagination information is only checked on the starting entity. |
+| `GET /v1/lineage/getLineage`, `getLineage/{direction}`, and `getLineageByEntityCount` | The caller needs `ViewBasic` on the starting entity (`fqn`), or the call returns `403`. Nodes the caller cannot view, and edges that touch them, are removed. A pipeline on an edge that the caller cannot view is dropped from the edge. Admins are not checked or filtered. |
+| `getPaginationInfo`, `getDataQualityLineage`, `export`, and the async export requests | The caller needs `ViewBasic` on the starting entity (`fqn`), or the call returns `403`. The exports and the data quality lineage also drop nodes the caller cannot view. Pagination information is only checked on the starting entity. |
 | `GET /v1/lineage/getLineageEdge/...` (by ID and by name) | The caller needs `ViewBasic` on both ends of the edge, or the call returns `403`. |
-| `GET /v1/lineage/getPlatformLineage` | Admin only. Other users get `403` and should use the lineage scene (see below). |
+| `GET /v1/lineage/getPlatformLineage` | Admin only. Other users get `403` and should use `GET /v1/lineage/scene`. |
 | Deleting an edge by name, or all edges of one source by name | The entity lookup now includes soft-deleted entities, so edges to a deleted table can be removed. |
 
 The permission check covers the whole path. A node you cannot view is removed, and so is everything that is
 reachable only through it. Two users can therefore see different graphs for the same table.
 
-<Tip>
+<Note>
 If a role used to see lineage through an overly narrow policy and now gets an error or a smaller graph, grant
 `ViewBasic` on the affected entities. Anything that read the platform-wide lineage graph with a non-admin
 account must switch to an admin account, or to `GET /v1/lineage/scene`.
-</Tip>
+</Note>
 
 ### Writing an Edge With a Pipeline Needs View Access to That Pipeline
 
@@ -79,18 +79,18 @@ account must switch to an admin account, or to `GET /v1/lineage/scene`.
 
 Besides `EditLineage` on both ends of the edge, the caller now also needs `ViewBasic` on a pipeline or stored
 procedure that the request newly attaches to the edge, or the request fails with `403`. This applies to `PUT /v1/lineage`,
-the by-name `PUT` and the `PATCH` endpoints. A pipeline that the stored edge already carries is not checked again, so
+the by-name `PUT`, and the `PATCH` endpoints. A pipeline that the stored edge already carries is not checked again, so
 repeated ingestion runs are not affected.
 
-<Tip>
+<Note>
 Check that your ingestion bot's role includes view access to the pipelines it references.
-</Tip>
+</Note>
 
 ## Batch Hydration Is Limited to Data Assets
 
-<Warning>
+<Note>
 **Breaking for callers that hydrate non-asset types.**
-</Warning>
+</Note>
 
 `POST /v1/lineage/hydrate` now accepts only the entity types that lineage draws as nodes: `table`, `topic`,
 `dashboard`, `dashboardDataModel`, `chart`, `pipeline`, `mlmodel`, `container`, `searchIndex`, `storedProcedure`,
@@ -100,57 +100,57 @@ type, such as a service or a user, returns `400 Bad Request`.
 Each entity is also checked with the view permissions that a normal `GET` of the same fields needs. Entities the
 caller cannot view are left out of the response instead of failing the whole batch. The `400` applies to the whole request.
 
-<Tip>
-Fetch services, users and other non-asset types with their own `GET` endpoints.
-</Tip>
+<Note>
+Fetch services, users, and other non-asset types with their own `GET` endpoints.
+</Note>
 
 ## OpenLineage Endpoint Reports Unresolved Datasets
 
-<Warning>
+<Note>
 **Breaking for OpenLineage producers that treat every response as success.**
-</Warning>
+</Note>
 
 `POST /v1/openlineage/lineage` and `POST /v1/openlineage/lineage/batch` now report what they could not resolve.
 
 | Situation | 2.0 | 2.1 |
 | --- | --- | --- |
 | Some edges created, some datasets not found | `200`, status `success` | `200`, status `partial_success`, with the unmatched datasets in `unresolvedDatasets` |
-| Datasets not found and no edge created | `200`, "no lineage edges created" | **`400`**, status `failure`, with `unresolvedDatasets` |
-| Job has no matching pipeline | Not reported | Listed in `unresolvedJobs`; the edges carry no pipeline |
-| Batch where every event fails | `200` | **`400`** |
+| Datasets not found and no edge created | `200`, "no lineage edges created" | `400`, status `failure`, with `unresolvedDatasets` |
+| Job has no matching pipeline | Not reported | Listed in `unresolvedJobs`. The edges carry no pipeline |
+| Batch where every event fails | `200` | `400` |
 | Batch with some failures | `200` | `200`, status `partial_success`, with `failedEvents` and a `summary` that includes a `partial` count |
 
 Events that carry no lineage (nothing to resolve) still return `200`.
 
 Entity creation from events also changes:
 
-- Only a **Table** can be created from an event, together with its missing Database and Database Schema. This
+- Only a Table can be created from an event, together with its missing Database and Database Schema. This
   needs the dataset namespace to be listed in `namespaceToServiceMapping` and the event to carry the table's
   columns in its schema facet.
-- A **Pipeline is never created** from an event. The pipeline of a job is looked up, by the name
+- A Pipeline is never created from an event. The pipeline of a job is looked up, by the name
   `<namespace>-<job name>`, in the pipeline service you configured.
 - Creating anything from an event is now checked like a REST create by the same caller. The caller needs
   `Create` permission on the parent, and plan limits apply.
 - `namespaceToServiceMapping` is matched exactly first, then by the longest matching namespace prefix.
 
-<Tip>
+<Note>
 Check your producer's error handling for `400` and `partial_success`. Map each dataset namespace in
-`namespaceToServiceMapping`, create the pipelines you want edges to carry, and give the posting identity
-permission to create tables if you rely on automatic creation.
-</Tip>
+`namespaceToServiceMapping`, and create the pipelines you want edges to carry. If you rely on automatic
+creation, give the posting identity permission to create tables.
+</Note>
 
 ## Lineage Data Migrations
 
 <Info>
-**Behavioral.** These run automatically during the 2.1 upgrade.
+**Behavioral.** These run automatically during the upgrade to OpenMetadata 2.1.
 </Info>
 
-- Edges that name an unsupported entity as their pipeline are cleaned (see above). The step is safe to run
+- Edges that name an unsupported entity as their pipeline are cleaned. The step is safe to run
   again.
 - A new index speeds up lookups of edges by pipeline.
 - The audit log stores lineage events with a long combined name of two entities. That name column no longer has
   a length limit, so audit entries for deeply nested entities are no longer dropped.
-- The built-in RDF rule `transitive-lineage-closure` now ships **disabled**, because it stores every
+- The built-in Resource Description Framework (RDF) rule `transitive-lineage-closure` now ships disabled, because it stores every
   ancestor and descendant pair and grows quickly with lineage depth. The migration disables it where an earlier
   build had enabled it. Turn it on again from the RDF settings only if you need it.
 
@@ -159,7 +159,7 @@ No lineage table or column is dropped or renamed.
 ## Lineage Change Events
 
 <Info>
-**No change.** `entityLineageAdded`, `entityLineageDeleted` and `entityLineageUpdated` were already available in 2.0
+**No change.** `entityLineageAdded`, `entityLineageDeleted`, and `entityLineageUpdated` were already available in OpenMetadata 2.0
 and behave the same way.
 </Info>
 
@@ -168,10 +168,10 @@ and behave the same way.
 <Info>
 **No change in meaning.** The `startTime` and `endTime` window still prunes the graph during traversal, so one
 out-of-window edge hides everything reachable only through it. Edges with no timestamps still match any window.
-See the 2.0 notes if you rely on this.
+If you rely on this behavior, refer to the OpenMetadata 2.0 notes.
 </Info>
 
-The database walk behind `GET /v1/lineage/{entity}/{id}` now expands each entity once, at the shortest distance
+The database traversal behind `GET /v1/lineage/{entity}/{id}` now expands each entity once, at the shortest distance
 that reaches it. The nodes and edges returned within the requested depth do not change, but deep graphs with many
 cross links respond much faster and each edge is returned once.
 
@@ -180,6 +180,8 @@ cross links respond much faster and each edge is returned once.
 <Info>
 **Additive.** Powers the new lineage views in the UI. Nothing existing is replaced.
 </Info>
+
+Send a request like the following:
 
 ```http
 GET /v1/lineage/scene?focusFqn=<fqn>&entityType=<type>&lens=service&band=ASSET
@@ -190,23 +192,23 @@ GET /v1/lineage/scene?focusFqn=<fqn>&entityType=<type>&lens=service&band=ASSET
 | `lens` | `service`, `domain`, `dataProduct` | `service` |
 | `band` | `LAYER`, `ASSET`, `FIELD` | `ASSET` |
 | `upstreamDepth`, `downstreamDepth` | `0` to `3` | `1` |
-| `size` | `1` to `1000` scene nodes | `200` |
-| `query_filter`, `includeDeleted` | Optional filters | none |
+| `size` | 1 to 1,000 scene nodes | `200` |
+| `query_filter`, `includeDeleted` | Optional filters | None |
 
 `focusFqn` and `entityType` must be sent together or not at all. When you send them, the caller needs `ViewBasic`
 on the focus entity or the call returns `403`. The scene is built per caller, so it only contains what the caller may view. An unsupported `lens` or `band` returns `400`.
 
-## MCP Lineage Tool
+## Model Context Protocol (MCP) Lineage Tool
 
 <Info>
 **Additive.** Affects AI agents that call `get_entity_lineage`.
 </Info>
 
-The tool gains two optional arguments:
+The Model Context Protocol (MCP) tool gains two optional arguments:
 
-- `column`: the fully qualified name of one column. Only the edges and column mappings that carry that column
+- `column` is the fully qualified name of one column. Only the edges and column mappings that carry that column
   are returned, followed across renames.
-- `cursor`: pass the `nextCursor` of a response that has `hasMore` to get the next page of edges.
+- `cursor` takes the `nextCursor` of a response that has `hasMore` and returns the next page of edges.
 
 `upstreamDepth` and `downstreamDepth` also accept `0` to skip one direction. Responses can now include
 `hiddenNodes` (how many nodes were removed because the caller cannot view them) and `hiddenNodesUnchecked`.
@@ -215,10 +217,10 @@ A graph with `hiddenNodes` above `0` is a partial view.
 ## Connector Lineage
 
 <Info>
-**Additive.** Connector-level lineage changes are listed in
+**Additive.** For more information, see
 [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
 </Info>
 
-The lineage settings, the query-lineage pipeline schema and the `entityLineage` type have no field changes in 2.1
-beyond the schema dialect update described in
-[API & Schema](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema).
+The lineage settings, the query-lineage pipeline schema, and the `entityLineage` type have no field changes in OpenMetadata 2.1
+beyond the schema dialect update. For more information, see
+[API & Schema Contracts](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema).
