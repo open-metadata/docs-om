@@ -1,338 +1,234 @@
 ---
 title: Breaking Changes - Collaboration | Official Documentation
-description: The OpenMetadata 2.0 Task redesign, removal of the Suggestions API, standalone Announcements, the ephemeral Activity Stream and alert filter changes.
+description: The OpenMetadata 2.1 removal of the /v1/feed API, new Conversations API, task and alert event changes, announcement permissions and alert behaviour changes.
 sidebarTitle: Collaboration
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/collaboration"
 ---
 
-# Collaboration: Tasks, Suggestions, Announcements & Feed
+# Collaboration: Conversations, Tasks, Announcements, Activity & Alerts
 
-2.0 retires the thread-backed collaboration model. Tasks, suggestions, announcements and system
-activity each move out of `thread_entity` into purpose-built entities with their own tables, APIs and
-permissions. Human conversations remain on `/v1/feed`.
+2.1 finishes the move away from the old activity feed API. The `/v1/feed` API is removed, and each kind
+of collaboration now has its own API:
 
-| Concern | 1.13 storage | 2.0 storage |
+| Concern | 2.0 API | 2.1 API |
 | --- | --- | --- |
-| Conversations | `thread_entity` | `thread_entity` (unchanged) |
-| Tasks | `thread_entity` (`type=Task`) | **`task_entity`** |
-| Suggestions | `suggestions` table | **`task_entity`** (`type=Suggestion`) |
-| Announcements | `thread_entity` (`type=Announcement`) | **`announcement_entity`** |
-| System activity | `thread_entity` generated rows | **`activity_stream`** (partitioned, retention-bounded) |
+| Conversations | `/v1/feed` | **`/v1/conversations`** |
+| Tasks | `/v1/tasks` (plus task calls on `/v1/feed`) | `/v1/tasks` only |
+| Announcements | `/v1/announcements` | `/v1/announcements` (unchanged path) |
+| System activity | `/v1/activity` | `/v1/activity` (unchanged path) |
 
-<img src="/public/images/deployment/upgrade/breaking-changes/entity-activity-feeds-and-tasks.png" alt="OpenMetadata 2.0 entity page showing the redesigned header and the Activity Feeds and Tasks tab" />
+For the full endpoint list, see [Conversations](/v2.1.x-SNAPSHOT/api-reference/conversations).
 
-## The Task redesign
-
-<Warning>
-**Breaking.** Affects API clients, bots and workflow integrations reading `/v1/feed/tasks/*`.
-</Warning>
-
-Tasks are now a first-class entity backed by `task_entity`, with a full CRUD and versioning surface at
-`/v1/tasks` — 22 new endpoints:
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET` / `POST` / `PUT` `/v1/tasks` | List, create, upsert |
-| `GET /v1/tasks/{id}`, `GET /v1/tasks/name/{taskId}` | Fetch by UUID or human task id |
-| `PATCH /v1/tasks/{id}`, `DELETE /v1/tasks/{id}` | Update, delete |
-| `POST /v1/tasks/{id}/resolve`, `POST /v1/tasks/{id}/close` | Lifecycle transitions |
-| `PUT /v1/tasks/{id}/suggestion/apply` | Apply a suggestion payload |
-| `POST /v1/tasks/{id}/comments`, `PATCH` / `DELETE` `.../{commentId}` | Threaded comments |
-| `GET /v1/tasks/assigned`, `/created`, `/owned`, `/visible` | Scoped task lists |
-| `GET /v1/tasks/count`, `GET /v1/tasks/dataAccessRequests` | Counts and the data-access queue |
-| `POST /v1/tasks/bulk` | Bulk operations |
-| `GET /v1/tasks/{id}/versions[/{version}]` | Entity version history |
-
-### The Task shape
-
-```json
-{
-  "taskId": "TASK-1042",
-  "category": "Approval",
-  "type": "GlossaryApproval",
-  "status": "Open",
-  "priority": "Medium",
-  "about": { "type": "glossaryTerm", "id": "..." },
-  "assignees": [], "reviewers": [], "watchers": [],
-  "payload": { },
-  "resolution": { },
-  "dueDate": 1712345678000,
-  "workflowInstanceId": "...", "workflowStageId": "...",
-  "availableTransitions": [],
-  "taskFormSchemaId": "...", "taskFormSchemaVersion": 0.1,
-  "comments": [], "commentCount": 0,
-  "domains": [], "tags": [], "externalReference": { }
-}
-```
-
-Required fields: `id`, `name`, `category`, `type`, `status`, `createdBy`.
-
-| Enum | Values |
-| --- | --- |
-| `taskCategory` | `Approval`, `DataAccess`, `MetadataUpdate`, `Incident`, `Review`, `Custom` |
-| `taskType` | `GlossaryApproval`, `RequestApproval`, `DataAccessRequest`, `DescriptionUpdate`, `TagUpdate`, `OwnershipUpdate`, `TierUpdate`, `DomainUpdate`, `Suggestion`, `TestCaseResolution`, `IncidentResolution`, `PipelineReview`, `DataQualityReview`, `RecognizerFeedbackApproval`, `CustomTask` |
-| `taskStatus` | `Open`, `InProgress`, `Pending`, `Approved`, `Granted`, `ManualRevoke`, `Rejected`, `Completed`, `Cancelled`, `Failed`, `Revoked`, `Expired` |
-| `taskPriority` | `Critical`, `High`, `Medium`, `Low` |
-| `resolutionType` | `Approved`, `Rejected`, `Completed`, `Cancelled`, `TimedOut`, `AutoApproved`, `AutoRejected`, `Revoked`, `Expired` |
-
-Typed payload schemas ship for each task type: `glossaryApprovalPayload`, `descriptionUpdatePayload`,
-`tagUpdatePayload`, `ownershipUpdatePayload`, `tierUpdatePayload`, `domainUpdatePayload`,
-`suggestionPayload`, `reviewPayload`, `testCaseResolutionPayload`, `incidentResolutionPayload`,
-`dataAccessRequestPayload` and `genericTaskPayload`.
-
-### Migration
-
-The migration converts every `thread_entity` row with `type='Task'` into a Task, computing `about` and
-`aboutFqnHash` from the entity link. A `task_migration_mapping` table records
-`old_thread_id → new_task_id` for traceability and redirects.
-
-### `/v1/feed` task creation is now restricted
+## The `/v1/feed` API Is Removed
 
 <Warning>
-**Breaking.**
+**Breaking.** Affects scripts, bots, integrations and SDK users that call `/v1/feed`.
 </Warning>
 
-`/v1/feed` still exposes `GET /v1/feed/tasks/{id}`, `PUT /v1/feed/tasks/{id}/resolve` and
-`PUT /v1/feed/tasks/{id}/close`, but creating a task thread through `POST /v1/feed` now validates the
-task type and rejects anything outside the supported legacy set — description, tag, approval and
-test-case-failure-resolution tasks.
+In 2.0, `/v1/feed` still served conversations and a set of legacy task calls. In 2.1 the whole `/v1/feed`
+resource is gone, so every call to it fails.
 
-Additional validations on `POST /v1/feed`:
+| What you did on `/v1/feed` | What to do in 2.1 |
+| --- | --- |
+| List, create, read, update or delete a conversation | Use `/v1/conversations` |
+| Reply to a conversation or react to it | Use `/v1/conversations/{id}/replies` and the `reaction` endpoints |
+| Create a task with `POST /v1/feed` | `POST /v1/tasks` |
+| `GET /v1/feed/tasks/{id}` | `GET /v1/tasks/{id}` |
+| `PUT /v1/feed/tasks/{id}/resolve` | `POST /v1/tasks/{id}/resolve` |
+| `PUT /v1/feed/tasks/{id}/close` | `POST /v1/tasks/{id}/close` |
+| Read generated activity | `GET /v1/activity` |
+| Read announcements | `GET /v1/announcements` |
 
-- `about` is required and must be non-blank.
-- `taskDetails` is required for `Task` threads and **forbidden** on non-task threads.
-- `RequestApproval` tasks must target an entity, not a field or column.
-- Tag-task `oldValue` and `suggestion` must be valid tag-label JSON.
+Things to know when you switch:
+
+- **Task IDs are UUIDs.** The numeric task IDs that `/v1/feed/tasks/{id}` used no longer apply. The
+  migration keeps each old thread's UUID as the new task's UUID.
+- **Conversations have their own request and response shape.** Creating a conversation needs a
+  non-blank `message` and an `about` entity link. Update any code that built `CreateThread` requests.
+- **Threads no longer carry tasks.** The `Thread` type accepts `Conversation`, `Announcement` and
+  `Chatbot` only. The `Task` type, the thread `task` details and the feed `closeTask` and `resolveTask`
+  request types are removed.
+- **Python SDK.** Replace `resolve_feed_task` and `close_feed_task` with `resolve_task` and `close_task`. The
+  `OMetaFeedMixin` class is removed, and with it `list_threads`, `get_thread`, `get_task_thread`, `create_thread`,
+  `create_post` and `list_posts`. The `OpenMetadata` client now uses `OMetaConversationMixin`, which offers
+  `list_conversations`, `create_conversation`, `get_conversation`, `patch_conversation`, `delete_conversation`,
+  `add_conversation_reaction`, `create_conversation_reply` and `list_conversation_replies`.
+  The Java SDK feed service is also removed.
+
+<Warning>
+The 2.1 upgrade renames the old thread table `thread_entity_legacy` to `thread_entity_archived` and
+keeps it. Task threads that were created through the feed task API while you were running 2.0.x are
+not migrated and stay there, and so do Chatbot threads (the upgrade skips them and logs a warning).
+Resolve or close any task you still need before you upgrade, or recreate it with `POST /v1/tasks`
+afterwards.
+</Warning>
+
+## Task and Suggestion Events Are Removed From Alerts
+
+<Warning>
+**Breaking.** Affects alerts, webhooks and event consumers that filter on task or suggestion events.
+</Warning>
+
+These change event types no longer exist: `taskCreated`, `taskUpdated`, `taskResolved`, `taskClosed`,
+`suggestionCreated`, `suggestionUpdated`, `suggestionAccepted`, `suggestionRejected` and
+`suggestionDeleted`. Tasks and suggestions are now regular entities, so their lifecycle is reported
+as `entityCreated` and `entityUpdated` with `entityType` set to `task`.
 
 <Tip>
-Move task creation to `POST /v1/tasks`. If you must stay on `/v1/feed`, restrict yourself to the four
-supported legacy task types and supply well-formed `taskDetails`.
+Open every alert and webhook that listens for a task or suggestion event type and change it to match
+`entityCreated` or `entityUpdated` on the `task` entity type. An alert that still names a removed
+event type stops matching.
 </Tip>
 
-### New task permissions
+## Task Changes
+
+### Some Task Types Can Only Be Opened by OpenMetadata
 
 <Note>
-**Behavioural.** Affects non-admin users and application bots.
+**Behavioural.** Affects API clients that create or edit tasks.
 </Note>
 
-Five new policy operations exist in 2.0: `CreateTask`, `EditTask`, `ResolveTask`, `CloseTask` and
-`ReassignTask`. The migration backfills them so existing tenants keep working:
+Two new task types, `MemoryConflictReview` and `MetadataCompletion`, are opened and kept up to date by
+OpenMetadata itself (the first for AI context memories, the second by lifecycle workflows). `POST
+/v1/tasks`, `PATCH` and bulk edits reject them with a `400` that explains what to do instead.
 
-| Migration step | Effect |
-| --- | --- |
-| `addTaskAuthorPolicyToDataConsumerRole` | Seeds `TaskAuthorPolicy` and attaches it to the `DataConsumer` role |
-| `addCreateTaskRuleToDataConsumerPolicy` | Adds `DataConsumerPolicy-CreateTask-Rule` |
-| `addTaskRuleToDataConsumerPolicy` | Adds the per-entity `CreateTask`/`EditTask` grant |
-| `addCreateTaskOperationToApplicationBotPolicy` | Lets application bots file suggestions as tasks |
+### Reviewing a Change Request
 
-<Warning>
-Custom policies are **not** backfilled. Seed policies are create-if-not-exists, so if you replaced
-`DataConsumerPolicy` or `ApplicationBotPolicy` with your own definition, add the task operations
-yourself or non-admin users will get `403` when filing or patching tasks.
-</Warning>
+<Note>
+**Additive.** Affects clients that resolve review tasks.
+</Note>
 
-Task authorization is also **self-approval guarded** — a task's creator cannot approve their own task.
+`POST /v1/tasks/{id}/resolve` accepts `changeRequestRevision` and `changeDecisions` when the task
+reviews an [approval-gated change](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
+`changeRequestRevision` is required for those tasks. Tasks also gain a server-managed `reviewVotes`
+field that records each reviewer's vote on multi-reviewer approval tasks. Clients cannot set it, and a
+`PATCH` that changes it is rejected. Task free-text search (`q`) and `sortOrder` are also available on
+the task list endpoints.
 
-## Suggestions become Tasks
+### Resolving a Tag Task Removes the Tags It Leaves Out
 
-<Warning>
-**Breaking.** Affects AI and automation bots and SDK users.
-</Warning>
+<Note>
+**Behavioural.** Affects tag update tasks that are resolved with a new value.
+</Note>
 
-| 1.13 | 2.0 |
-| --- | --- |
-| `GET /v1/suggestions?entityFQN=…` | `GET /v1/tasks?…` filtered on `type=Suggestion` |
-| `POST /v1/suggestions` | `POST /v1/tasks` with `type: Suggestion` |
-| `PUT /v1/suggestions/{id}/accept` | `PUT /v1/tasks/{id}/suggestion/apply`, then resolve |
-| `PUT /v1/suggestions/{id}/reject` | `POST /v1/tasks/{id}/resolve` with a rejecting resolution |
-| `PUT /v1/suggestions/accept-all` / `reject-all` | `POST /v1/tasks/bulk` |
+Resolving a `TagUpdate` task now removes the tags the resolved value leaves out, including a tag from the same
+mutually exclusive classification as a tag it adds. Tags added to the asset after the task was filed are kept.
+When the task carries no snapshot of the current tags, only the tags listed to remove are taken off.
 
-Status mapping:
+### Field Paths on Description and Tag Tasks Use One Format
 
-| Task status | Suggestion status |
-| --- | --- |
-| `Open`, `InProgress`, `Pending` | `Open` |
-| `Completed`, `Approved` | `Accepted` |
-| `Rejected`, `Cancelled`, `Failed` | `Rejected` |
+<Note>
+**Behavioural.** Affects clients that create description, tag or suggestion tasks with a field path.
+</Note>
 
-The suggestion field path moves from an entity link to `payload.fieldPath` in dot notation
-(`columns.col_name.description`).
+2.1 accepts a single field path format: `<container>.<name>.<description|tags>`, for example
+`columns.customer_id.description`. A name that contains a dot is quoted, as in a fully qualified name.
+A path in any other form, such as `columns::customer_id::description`, is rejected with a `400` (`Invalid field path ...`). The
+upgrade rewrites the paths on every stored task. A stored path that matches no field of its asset is
+left as it is, and approving that task is refused.
 
-## Announcements are a standalone entity
+## Announcements
 
-<Warning>
-**Breaking.** Affects anything reading or writing announcements through the feed API.
-</Warning>
+### Announcement Types and Colours
 
-`/v1/feed` now rejects announcements outright with:
+<Info>
+**Additive.** Announcements gain a `type` (`Critical`, `Notice`, `Warning`, `Deprecation` or `Custom`),
+a `color` and a `customTypeName` (used when the type is `Custom`). Existing announcements read back as
+`Notice`. `GET /v1/announcements` accepts `type` and `system` filters.
+</Info>
 
-```
-Announcements are no longer served from /v1/feed. Use /v1/announcements instead.
-```
-
-The guard fires on list (`threadType=Announcement`), get-by-id, patch, create, delete, posts and
-reactions — any request touching an announcement thread returns `400`.
-
-```
-GET/POST/PUT   /v1/announcements
-GET            /v1/announcements/{id}
-GET            /v1/announcements/name/{fqn}
-PATCH          /v1/announcements/{id}
-DELETE         /v1/announcements/{id}
-PUT            /v1/announcements/restore
-GET            /v1/announcements/{id}/versions[/{version}]
-```
-
-### Migration shape
-
-| Thread field | Announcement field |
-| --- | --- |
-| `id` | `id` |
-| — | `name` / `fullyQualifiedName` = `announcement-<id>` |
-| `message` | `displayName` |
-| `announcement.description` ?? `message` | `description` |
-| `about` | `entityLink` |
-| `announcement.startTime` / `endTime` | `startTime` / `endTime` |
-| derived from times | `status` = `Active` \| `Scheduled` \| `Expired` |
-| `threadTs` | `createdAt` |
-| `reactions` | `reactions` |
-
-Announcements are full entities in 2.0 — versioned, soft-deletable and restorable — and the UI renders
-them in the entity header rather than only in the feed widget.
-
-## The Activity Stream replaces system-generated feed threads
+### Announcement Permissions Are Stricter
 
 <Warning>
-**Breaking.** Affects anything treating the feed as an audit trail.
+**Behavioural.** Affects non-admin users and bots that read or write announcements.
 </Warning>
 
-System-generated activity (field changes, entity created/updated) no longer lives in `thread_entity`.
-It moves to a purpose-built, time-partitioned, retention-bounded `activity_stream` table with its own
-API:
+- **Reading** an announcement about an asset needs view access to that asset. Users who cannot see the
+  asset no longer see its announcements.
+- **Writing a system announcement** (one with no entity link, shown to every user) is limited to admins
+  and bots.
+- **Editing the text.** Changing an announcement's `description` or `displayName` needs full edit
+  rights on the asset. In 2.0, the `EditDescription` right that every authenticated user holds was
+  enough.
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /v1/activity` | Global stream |
-| `GET /v1/activity/my-feed` | Current user's feed |
-| `GET /v1/activity/following` | Followed entities |
-| `GET /v1/activity/user/{userId}` | A user's activity |
-| `GET /v1/activity/entity/{entityType}/{entityId}` | Per entity |
-| `GET /v1/activity/entity/{entityType}/name/{fqn}` | Per entity by fully qualified name |
-| `GET /v1/activity/about` | By entity link |
-| `GET /v1/activity/count` | Count |
-| `PUT` / `DELETE` `/v1/activity/{id}/reaction/{reactionType}` | Reactions |
+### Announcement Status Is No Longer Stored
 
-### Activity is deleted after 30 days by default
+<Note>
+**Behavioural.** Affects anyone reading the `announcement_entity` table directly.
+</Note>
+
+The `status` (`Active`, `Scheduled` or `Expired`) is worked out from `startTime` and `endTime` each
+time an announcement is read. The upgrade drops the stored `status` column and value. The `status`
+filter on `GET /v1/announcements` still works.
+
+## Activity
+
+<Info>
+**Additive.** The activity stream keeps its endpoints and its 30-day default retention. 2.1 adds replies
+on activity (`GET` and `POST /v1/activity/{id}/replies`) and `GET /v1/activity/mentions`. The feed
+endpoints also gain a `days` window and the `userId`, `domain` and `entityLink` filters.
+</Info>
+
+## Alert and Notification Changes
 
 <Warning>
-**Behavioural — data loss on old activity.**
+**Behavioural.** Affects existing alerts, especially alerts that were created by an application or
+through the API.
 </Warning>
 
-`activityStreamConfig` is configurable globally or per domain:
-
-| Field | Default | Meaning |
+| Change | Effect | What to do |
 | --- | --- | --- |
-| `enabled` | `true` | Generate activity events for this scope |
-| `retentionDays` | **`30`** | Events older than this are deleted automatically |
-| `excludeEventTypes` | `[]` | Event types to skip |
-| `excludeEntityTypes` | `[]` | Entity types to skip |
-| `visibility` | — | Who can see events in this scope |
-| `scope` / `scopeReference` | — | Global or per domain |
+| Alerts that applications created from their definition are disabled | After the upgrade, an alert that an application install created for itself is disabled and no longer tied to that application. Alerts that an application's own code creates are left alone | Review these alerts and enable the ones you want |
+| An alert names its consumer by an id, not a Java class | `className` on an alert is the id of a registered consumer, such as `alert`. The upgrade rewrites stored names, and the API still accepts a class name that was once used. Any other value is rejected with `No consumer is registered as ...` | Stop sending custom class names in `className`, or leave the field out |
+| Destination secrets are always masked | Webhook secrets and similar values are encrypted with the server's Fernet key, like every other stored secret, and masked in every response, including versions. A stored value that no configured key can decrypt is refused with `400 Bad Request` naming the field to enter again. A new alert that sends a mask or ciphertext as a secret is rejected. When you send an existing alert back unchanged, the mask keeps the stored value | Send the real secret only when you create an alert or change the secret |
+| Destination limits | An alert holds at most 50 destinations, and the batch size is 1 to 1,000. An alert already stored above these limits keeps its values but cannot grow | Split very large alerts |
+| Destination ids are unique | Duplicate or missing destination ids are fixed by the upgrade | Do not rely on copying a destination id between alerts |
+| Events that could not be sent count as failed | When a destination cannot even attempt a send, such as email with no mail server configured or an asset with no owners to notify, the event is now recorded as failed with a reason that starts with `Not attempted:`. In 2.0 these events counted as sent | Check your alert delivery reports, and fix the mail server or ownership gap that the new failures point to |
+| Alert history endpoints cap `limit` at 1,000 | The endpoints that list processed events, failed events and diagnostic information for an alert return `400 Bad Request` when `limit` is above 1,000. 2.0 only checked the minimum | Page through the history with a `limit` of 1,000 or less |
+| Webhook destinations are checked again when sent | The host of a webhook, workflow sink or OAuth token URL is resolved and checked when you save it and again when the event is sent. Hosts that resolve to link-local or cloud metadata addresses are refused, even when written as a name, and a host that does not resolve from the server is rejected at send time. Private IP literals were already refused | Point destinations at hosts that resolve from the server and are not link-local |
+| Custom alert consumers get batches only if they support them | A consumer set through `className` receives whole batches of events only if it implements `BatchConsumer`. Any other consumer receives one event at a time | If your consumer expects batches, implement `BatchConsumer` |
+| Alerts that could not send now send again | An alert that stopped because one destination could not be built resumes. Its backlog is skipped once, so it starts from the upgrade | None. Expect no catch-up flood |
+| Unsupported notification templates are reset | A system template that uses constructs the template sandbox does not allow is reset to its packaged default. A custom template that does is kept, but alerts that chose it use the system template until you edit it | Edit custom templates that no longer render |
+| User change events are masked for non-admins | Events about users no longer expose email to callers who are neither admins nor bots | None |
 
-Events carry `domains` inherited from the source entity, enabling domain-scoped feed visibility.
-`oldValue` and `newValue` are explicitly documented as *"truncated for display, not for audit"*.
+The per-source filter list `GET /v1/events/subscriptions/{alertType}/resources` is deprecated. It still works
+and returns a `Deprecation` header. Use `POST /v1/events/subscriptions/capabilities`, which answers for
+all chosen sources together.
+
+<Tip>
+After the upgrade, open each alert, test its destinations and check that the application
+alerts you rely on are still enabled.
+</Tip>
+
+## Conversation Permissions
+
+<Note>
+**Behavioural.** Affects non-admin users and bots that start conversations.
+</Note>
+
+Creating a conversation or reply needs the `Create` operation on the `conversation` resource. The
+upgrade adds `DataConsumerPolicy-CreateConversation-Rule` to `DataConsumerPolicy`.
 
 <Warning>
-Do not use the activity stream as an audit trail. For compliance history use **entity version
-history** (`/v1/{entityType}/{id}/versions`) and the **audit log** (`/v1/audit/logs`, which gains a
-searchable `search_text` column and an export endpoint in 2.0). Activity events are ephemeral by
-design.
+Custom policies are not backfilled. If you replaced `DataConsumerPolicy` with your own definition, add
+a rule that allows `Create` on `conversation`, or non-admin users get `403` when they start a
+conversation or reply. See [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance)
+for the other policy changes.
 </Warning>
 
-## `thread_entity` is renamed
+## Database Table Changes
 
 <Note>
 **Behavioural.** Affects anyone querying the OpenMetadata database directly.
 </Note>
 
-```sql
--- 2.0.0 post-data migration
-RENAME TABLE thread_entity TO thread_entity_legacy;              -- MySQL
-ALTER TABLE IF EXISTS thread_entity RENAME TO thread_entity_legacy;  -- Postgres
-```
+Conversations are stored in new `conversation_entity`, `conversation_reply`, `conversation_mention` and
+`conversation_domain` tables. The upgrade copies existing conversations and their replies into them,
+keeping each conversation's ID. The old thread table is kept as `thread_entity_archived`. Update BI
+dashboards, retention jobs or scripts that read `thread_entity` or `thread_entity_legacy`.
 
-The feed repository resolves the legacy table dynamically, so migrated threads stay readable.
+## Related Changes on Other Pages
 
-<Tip>
-Update any BI dashboards, retention jobs or support scripts that query `thread_entity` directly.
-</Tip>
-
-## Task Form Schemas
-
-<Info>
-**Additive.**
-</Info>
-
-`/v1/taskFormSchemas` stores per-task-type form definitions, referenced from a Task via
-`taskFormSchemaId` and `taskFormSchemaVersion`. This is what lets governance workflows render custom
-task forms.
-
-## Change events for tasks and lineage
-
-<Info>
-**Additive.** Affects webhook and event-subscription consumers.
-</Info>
-
-`changeEventType` adds `taskCreated`, `taskUpdated`, `entityLineageAdded`, `entityLineageDeleted` and
-`entityLineageUpdated`. `changeEvent` adds a `recursive` flag marking cascade deletes — a single event
-is recorded for the deleted root, and cascaded descendants produce no individual events.
-
-<Tip>
-Consumers that previously counted per-child delete events must read `recursive` instead.
-</Tip>
-
-## Alert and notification behaviour changes
-
-<Warning>
-**Behavioural.** Affects existing alert subscriptions.
-</Warning>
-
-### Thread events are scoped by their parent entity
-
-In 1.13, the entity-FQN filter returned `true` unconditionally for thread change events — thread
-activity bypassed the filter entirely. In 2.0 a thread event is matched against the fully qualified
-name of the entity the thread is **about**.
-
-An alert scoped to `service.db.schema` that previously fired for *every* conversation and task in the
-system now fires only for threads about entities under that name. Alerts that looked noisy will go
-quiet; alerts you relied on for global thread coverage will stop firing.
-
-### Filter matching is literal, not regular-expression
-
-Alert filter functions now match fully qualified names **literally**. Descendant matching is handled
-explicitly. An alert whose filter used regular-expression metacharacters (`.`, `*`, `|`) to match a
-family of names no longer matches — enumerate the names or rely on descendant matching.
-
-### Other alert changes
-
-| Change | Effect |
-| --- | --- |
-| Observability status triggers no longer fire on thread events | Fewer spurious observability alerts |
-| Owner and user name filters match usernames containing a dot | Previously-missed recipients now match |
-| `testDestination` redacts destination config in the response | Secrets are no longer echoed back |
-| Filter expressions compiled once, combined condition validated at save | Invalid filters fail at save, not at fire time |
-| Recipients without contact info are skipped | Partial delivery instead of total batch failure |
-| Incident-task comment mentions and assignee alerts rewired | Mentions work again after the task migration |
-
-<Tip>
-Audit every alert with an entity name filter after upgrading, and test with
-`POST /v1/events/subscriptions/testDestination`.
-</Tip>
-
-## Server-side feed and task time filters
-
-<Info>
-**Additive.** Both the feed list and task list APIs accept `startTs` and `endTs` for server-side
-time-range filtering, replacing client-side windowing.
-</Info>
+- Approval-gated edits, which hold changes until a reviewer approves them, are covered in
+  [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).

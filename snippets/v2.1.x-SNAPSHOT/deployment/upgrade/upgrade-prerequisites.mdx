@@ -1,40 +1,22 @@
 import { BreakingChanges } from '/snippets/components/BreakingChanges/BreakingChanges.jsx'
 import { VersionMatrix } from '/snippets/components/VersionMatrix/VersionMatrix.jsx'
-import { VERSION_MATRIX_DATA_WITH_UPDATES } from '/snippets/components/VersionMatrix/versionMatrixData.mdx'
-
-## Patch Release Migrations
-
-When upgrading through the 2.0 maintenance releases, run the normal database migration for your deployment before starting the upgraded server. In addition to the 2.0.0 changes:
-
-- Release 2.0.2 cleans up invalid direct-user memberships on non-Group teams. Review affected users and assign them to appropriate Group teams. Parent teams display membership rolled up from their sub-groups.
-- Release 2.0.3 repairs the `CreateTask` rule on `DataConsumerPolicy` where it was dropped and widens `entity_extension.extension` to `VARCHAR(512)`. These repairs run through the upgrade migrations. Do not apply manual schema changes.
+import { VERSION_MATRIX_DATA } from '/snippets/components/VersionMatrix/versionMatrixData.mdx'
 
 <BreakingChanges>
-OpenMetadata 2.0 is a major release with breaking changes across the API, ingestion, configuration and
-UI. The highest-impact ones are listed below; the full, component-by-component breakdown lives in
-[Breaking Changes: 1.13 → 2.0](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/overview).
+OpenMetadata 2.1 changes the API, ingestion, configuration and sign-in behavior. The highest-impact changes
+are listed below. The full, component-by-component breakdown is in
+[Breaking Changes: 2.0 to 2.1](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/overview).
 
-- **Ingestion Framework:** all workflows have integrated `workflow.print_status()` inside the `workflow.execute()` call, to better handle logger lifecycles. If you drive workflows directly you can now remove the `print_status()` call — the only side effect is temporarily duplicated summary logs.
-
-  ```
-  workflow_config = yaml.safe_load(CONFIG)
-  workflow = MetadataWorkflow.create(workflow_config)
-  workflow.execute()
-  workflow.raise_from_status()
-  workflow.print_status()  # Not necessary anymore
-  workflow.stop()
-  ```
-
-- **Collaboration:** `/v1/suggestions` is removed and suggestions are now Tasks; announcements move from `/v1/feed` to `/v1/announcements`. See [Collaboration](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
-- **Ingestion:** `ingestionPipeline.pipelineStatuses` is now an **array**, and the Databricks Pipeline connection requires `authType` instead of a top-level `token`. See [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
-- **Great Expectations:** the validation action now requires **Great Expectations 1.3 or later**; the `great-expectations-1xx` extra no longer exists and test case results report row counts only. See [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
-- **Configuration:** embedding and natural-language-query provider settings move out of `elasticsearch.naturalLanguageSearch` into a new top-level `llmConfiguration` block, and concurrent sessions are capped at 5 per user by default. See [Platform, Config & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security).
-- **Explore:** the Explore page is redesigned. URL parameters change (`page`/`size` become `currentPage`/`pageSize`, plus a new `browsePath`), filters now stack with the browse location, and result ordering changes. See [Discovery & Search](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search).
-- **Entity status:** field changed from **status** to **entityStatus** for **glossaryTerm** and **dataContract**, as it is introduced for different data assets. For Data Contracts the value also changed from **Active** to **Approved**.
+- **Collaboration:** the `/v1/feed` API is removed. Use `/v1/conversations`, `/v1/tasks`, `/v1/activity` and `/v1/announcements`. Task and suggestion event types are removed from alerts. See [Collaboration](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
+- **Ingestion:** the Delta Lake connector is removed, and its services become Custom Database services. Ingestion pipelines created through the API must set `sourceConfig.config.type`. See [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+- **Sign-in:** OIDC sign-in hands the browser the provider's ID token, and email-based identity is available as an opt-in. User emails are lowercased on upgrade. See [Platform & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security).
+- **Permissions:** search, lineage and several other reads now check what the caller may view, and some endpoints are admin only. See [API & Schema](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema) and [Lineage](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/lineage).
+- **Applications:** applications no longer create alerts from their definition, and the Search Indexing history is reset. See [Applications & Automation](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation).
+- **Deployment:** the server image runs on a distroless Debian base as user `65532`, and the bundled Fuseki RDF store uses a new image and data volume. See [Platform & Security](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) and [Data Governance](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance).
 
 <Card title="Read the full breaking changes guide" icon="triangle-exclamation" href="/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/overview">
-  Component-by-component breakdown across API, Explore, collaboration, governance, data quality,
-  lineage, ingestion, applications, platform and UI — plus an upgrade checklist.
+  Component-by-component breakdown across API, search, collaboration, governance, data quality,
+  lineage, ingestion, applications, platform and UI.
 </Card>
 </BreakingChanges>
 
@@ -46,13 +28,13 @@ Everytime that you plan on upgrading OpenMetadata to a newer version, make sure 
 
 Before upgrading your OpenMetadata instance, verify that the versions of the external services used in your deployment meet the minimum supported requirements. Upgrading OpenMetadata without compatible versions of these services may cause migration failures or runtime issues.
 
-<VersionMatrix data={VERSION_MATRIX_DATA_WITH_UPDATES} />
+<VersionMatrix data={VERSION_MATRIX_DATA} />
 
 **Note:** 
 ---
 If your current deployment uses versions lower than the minimum supported versions listed above, upgrade the respective services before proceeding with the OpenMetadata upgrade process.
 
-### Backup your Metadata
+### Backup Your Metadata
 
 Before upgrading your OpenMetadata version we strongly recommend backing up the metadata.
 
@@ -158,7 +140,7 @@ ERROR: extension "pg_trgm" is not allow-listed for users in Azure Database for P
 
 **Resolution Steps:**
 
-1. **Allow the extension** - Go to **Azure Portal** → **PostgreSQL Flexible Server** → **Server Parameters** → Search for `azure.extensions` → Add `pg_trgm` (comma-separated if other extensions exist)
+1. **Allow the extension**: Go to **Azure Portal** > **PostgreSQL Flexible Server** > **Server Parameters**. Search for `azure.extensions` and add `pg_trgm`, separated by a comma if other extensions exist.
 2. **Restart the PostgreSQL server** for changes to take effect
 3. **Create the extension** by running:
    ```sql
@@ -345,7 +327,7 @@ The following changes can affect your upgrade.
 
 The 2.1.0 release includes the following changes.
 
-#### MySQL Database and Flowable Tables Convert to utf8mb4
+#### MySQL Database and Flowable Tables Convert to `utf8mb4`
 
 When you upgrade a MySQL deployment, the migration sets the OpenMetadata database character set to `utf8mb4` with the `utf8mb4_0900_ai_ci` collation. It also converts the Flowable workflow tables (the `ACT_*` tables) that use a different character set or collation. Tables that already match aren't changed. The migration temporarily turns off foreign key checks for its session while it converts tables, and then restores the original setting.
 
@@ -360,3 +342,11 @@ This applies to MySQL only. Postgres deployments aren't affected.
 #### Metadata That 2.0.x Ingestion Removed Is Restored
 
 If you upgrade from a release earlier than 2.0.5, the migration restores descriptions, display names, table constraints, retention periods, and tags (including Tier tags) that 2.0.x ingestion removed. Each restore creates a new version of the entity, so the version history of affected assets grows. The migration logs and skips any entity it can't restore, so a failure doesn't stop the upgrade.
+
+#### PostgreSQL Rebuilds the `isBot` Column
+
+On PostgreSQL, the migration drops and recreates the generated `isBot` column on `user_entity`. This rewrites the table and holds an exclusive lock, so sign-ins and user writes wait until it finishes. It is fast on most installations. Run the upgrade in a maintenance window if you have a very large user table. MySQL deployments aren't affected.
+
+#### Run Search Indexing After the Upgrade
+
+The migration marks the Search Indexing application to cover all entities and clears earlier success records for it and for the RDF index. After the upgrade, run **Search Indexing** so that the new indexes and mappings are built. If you use RDF, run the **RDF Index** application afterwards.

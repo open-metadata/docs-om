@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Data Quality | Official Documentation
-description: Incidents as Tasks, inlined incident status, incident auto-close, multi-status filters, batch DQ reporting and the removed Data Insights data quality module in OpenMetadata 2.0.
+description: Data quality dimensions as entities, stricter test case validation, new failure threshold options, failed row samples and pandas expression checks in OpenMetadata 2.1.
 sidebarTitle: Data Quality
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/data-quality"
@@ -8,230 +8,182 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 
 # Data Quality & Observability
 
-Test cases, incidents and the reporting surface all change shape in 2.0.
+Upgrading from 2.0 to 2.1 changes how test cases are validated and how data quality dimensions are
+stored. Most other changes are additive.
 
-## Incidents move onto the Task entity
-
-<Warning>
-**Breaking.** Affects incident automation and feed-based incident integrations.
-</Warning>
-
-| | 1.13 | 2.0 |
-| --- | --- | --- |
-| Storage | `thread_entity` (`type=Task`) | `task_entity` |
-| Task type | thread task type | `TestCaseResolution` / `IncidentResolution` |
-| Category | — | `Incident` |
-| Payload | untyped `taskDetails` | `testCaseResolutionPayload` / `incidentResolutionPayload` |
-| Resolve | `PUT /v1/feed/tasks/{id}/resolve` | `POST /v1/tasks/{id}/resolve` |
-
-The test case resolution status time series is unchanged — it still drives incident state. What
-changed is the **task** that hangs off it.
-
-<Note>
-`POST /v1/feed` still accepts test-case-failure-resolution task types, so existing integrations keep
-working. New work should target `/v1/tasks`.
-</Note>
-
-The migration also corrects the recognizer feedback task type and re-points mention alerts at the task
-resource so incident-task comment mentions and assignee alerts keep firing.
-
-## `incidentStatus` is inlined on TestCase
-
-<Info>
-**Additive.** Removes a lookup per test case.
-</Info>
-
-```json
-"incidentStatus": {
-  "description": "Latest incident resolution status for this test case. Inlined so clients can render
-   the current incident status without an additional lookup per test case.",
-  "$ref": "./testCaseResolutionStatus.json"
-}
-```
-
-<Tip>
-Drop the per-test-case incident-status round trip in list views. The field is populated on the test
-case itself.
-</Tip>
-
-## Incident auto-close on test pass
-
-<Info>
-**Additive and opt-in per test case.**
-</Info>
-
-```json
-"autoCloseIncident": {
-  "description": "Automatically resolve an open incident when a subsequent test result succeeds.",
-  "type": "boolean",
-  "default": false
-}
-```
-
-When enabled and a subsequent result succeeds, OpenMetadata finds the open `TestCaseResolution` task
-for the test case, rehydrates it so workflow transitions are available, and resolves it as `Completed`
-with reason **`AutoResolved`**, acting as the governance bot.
+## Data Quality Dimensions Are Now Managed Entities
 
 <Warning>
-The default is `false`, so behaviour is unchanged unless you opt in. In 1.13 an incident stayed open
-indefinitely after the underlying failure was fixed. 2.0 makes auto-close available but does not
-enable it retroactively.
+**Breaking for typed clients, behavioural for everyone else.** Affects code generated from the 2.0
+schemas, the Python and Java SDKs, and scripts that set a test definition's dimension.
 </Warning>
 
-## Multi-status test case filtering
-
-`GET /v1/dataQuality/testCases` binds `testCaseStatus` as a repeated parameter:
-
-```http
-GET /api/v1/dataQuality/testCases?testCaseStatus=Failed&testCaseStatus=Aborted
-```
-
-Values are validated against the status enum and an unknown value returns `400` listing the allowed
-values. Previously an invalid status was tolerated.
-
-In the UI, the Test Cases, Test Suites, Test Definitions, Incidents and Data Quality Dashboard pages
-all move to the shared filter-chip pattern, with multi-select on **Platform**, **Status** and **Tags**,
-searchable **Table**, **Tags**, **Service** and **Data Product** filters, and a date control for
-**Last Run**.
-
-## Batch data quality reporting
-
-<Info>
-**Additive.** Replaces N sequential report calls.
-</Info>
-
-```http
-POST /v1/dataQuality/testSuites/dataQualityReport/batch
-```
-
-```json
-{
-  "requests": [
-    { "key": "byStatus",    "index": "testCase", "aggregationQuery": "…", "q": "…", "domain": "…" },
-    { "key": "byDimension", "index": "testCase", "aggregationQuery": "…" }
-  ]
-}
-```
-
-Each request carries a client-supplied `key` used to correlate it with its result in the response.
-
-## Data Insights no longer computes data quality
-
-<Warning>
-**Breaking.** Affects `DataInsightsApplication` configuration and Data Insights dashboards built on
-the data quality module.
-</Warning>
+In 2.0 a dimension (Completeness, Accuracy and so on) was a fixed list of values. In 2.1 each dimension
+is its own record that you can add to, rename or recolor under **Settings** > **Preferences** > **Data
+Quality**. OpenMetadata ships seven system dimensions (Accuracy, Completeness, Consistency, Integrity,
+SQL, Uniqueness and Validity) that cannot be edited or deleted.
 
 ```diff
-- "dataQualityConfig": { "enabled": true },
-  "moduleConfiguration": {
--   "dataQuality": { "$ref": "#/definitions/dataQualityConfig" },
--   "required": ["dataAssets", "appAnalytics", "dataQuality", "costAnalysis"]
-+   "required": ["dataAssets", "appAnalytics", "costAnalysis"]
-  }
+  // testDefinition.dataQualityDimension
+- "$ref": "#/definitions/dataQualityDimensions"   // fixed list of values
++ "$ref": "basic.json#/definitions/entityName"    // the name of any dimension, system or custom
+
+  // testCase
++ "dataQualityDimension": { "$ref": "entityReference.json" }
 ```
 
-`moduleConfiguration` is `additionalProperties: false`, so **any persisted configuration still
-carrying the `dataQuality` key makes `DataInsightsApplication` fail to deserialise on startup**. The
-migration strips it from `installed_apps`, `apps_marketplace` and every application version row.
+What this means for you:
 
-What replaces it: test case results and resolution statuses are read **straight from their live search
-indexes**, which search indexing now owns. This also drops the previous **30-day cap** on incident
-data in Data Insights — incident history is no longer truncated.
-
-<Warning>
-Do not replay a 1.13 Data Insights application configuration into 2.0. Strip
-`moduleConfiguration.dataQuality` before pushing stored configuration through the API or your
-infrastructure-as-code.
-</Warning>
-
-Related Data Insights fixes in 2.0:
-
-- A chart metric with no function or formula returns `400`, not `500`.
-- Chart formulas are validated by the Data Insights formula evaluator, not the policy validator.
-- `entityStatus` is snapshotted so charts can filter by lifecycle status.
-- `classificationTags` and `glossaryTags` are projected into the snapshot.
-- Nested subfields are no longer advertised as chart fields.
-- Enricher step failures are isolated, with per-step entity statistics.
-
-## Custom SQL test definitions — documentation correction
-
-<Note>
-**Not a behaviour change — a corrected description.**
-</Note>
-
-The `sqlExpression` description was rewritten in 2.0:
-
-<Tabs>
-  <Tab title="1.13 description (incorrect)">
-    Supports substitution variables: `{table}` and `{column}` for runtime entity references, and
-    `{{paramName}}` for user-defined parameters.
-  </Tab>
-  <Tab title="2.0 description (accurate)">
-    The template is rendered with Jinja2, so every substitution variable must use double curly braces:
-    `{{ table_name }}` for the runtime table reference, `{{ column_name }}` for the runtime column
-    reference (column-level test definitions only), and `{{ paramName }}` for user-defined parameters.
-    Single-brace placeholders are not substituted and will produce invalid SQL.
-  </Tab>
-</Tabs>
-
-The renderer is identical in both releases — single-brace placeholders never worked. If you followed
-the 1.13 documentation and wrote `{table}`, your test was already producing invalid SQL.
+- `dataQualityDimension` on a test definition is now a plain name string, not an enum. Generated models
+  that expected the old enum type must be regenerated.
+- Test cases now carry their own `dataQualityDimension`. If you do not set one when you create a test
+  case, it takes the dimension of its test definition. `CreateTestCaseRequest` accepts the new field.
+- The upgrade first creates the system dimensions, then gives every existing test case that has no dimension the one its test definition names (marked as inherited, so reclassifying the definition later moves those test cases too). Test cases that already have a dimension are left alone. Test cases whose definition has no dimension or names an unknown one stay without a dimension, and appear under "No Dimension" in dashboards. If this step fails, the upgrade still finishes and the failure is only logged.
 
 <Tip>
-Audit custom SQL test definitions for single-brace placeholders and convert them to
-`{{ table_name }}` and `{{ column_name }}`.
+Regenerate any models or clients built from the 2.0 schemas. Code that compared a definition's
+dimension against the old list of values keeps working for the seven system names, but no longer sees
+an enum.
 </Tip>
 
-## Profiler & sampling
+## New Test Cases Are Checked Against Their Definition
 
 <Warning>
-**Cardinality distribution is no longer part of the Profiler agent defaults.** If you rely on distinct
-value distributions — in dashboards, in downstream analytics, or to feed an AI agent — add the metric
-back explicitly on the profiler agent.
+**Breaking for integrations that create test cases.** A request that used to be stored as sent can now
+be rejected.
 </Warning>
 
+When you create a test case, OpenMetadata now rejects it if:
+
+- a parameter that offers a fixed list of values (for example `thresholdUnit`, or the `strategy` of a
+  custom SQL test) is given a value that is not in that list. The comparison ignores letter case, and a
+  blank value counts as not set.
+- the test targets a column whose data type the test definition does not support. A definition with no
+  listed data types still supports every type.
+
+In 2.0 these test cases were stored and then failed or measured nothing when the test ran. The check runs when a test case is created with `POST /v1/dataQuality/testCases` (the UI, API clients and
+the MCP create tool). Updates are checked only for what they change, so test cases you already have
+stay editable.
+
 <Note>
-**The profiler workflow samples dynamically by default** rather than reading 100% of rows.
-`sampleConfigType` defaults to `DYNAMIC`, which sizes the sample from the table's row count. Set a
-static sample explicitly if you need full-table profiling. The sampling configuration *schemas* are
-unchanged between 1.13 and 2.0.
+In 2.1 the check is not applied to create-or-update calls (`PUT`) or to CSV import, so test cases sent
+that way are still stored as before and can still fail when the test runs.
 </Note>
 
-2.0 adds:
+<Tip>
+If an automation creates test cases and starts receiving `400` errors after the upgrade, compare the
+parameter values and the column type against the test definition. Test cases created from dbt or Great
+Expectations are not affected because they create their own definitions without these limits.
+</Tip>
 
-- Progress tracking for the profiler and auto-classification workflows.
-- The sample configuration is used for data quality sample data ingestion.
-- `tableCustomSQLQuery` honours `computePassedFailedRowCount`.
-- The sampler interface collapses to a single typed configuration object — relevant if you maintain a
-  custom sampler.
+## Set Parameters on "in set" and "not in set" Tests
 
-`columnProfile.cardinalityDistribution` moves from an inline object to a named schema definition. The
-wire shape is unchanged; regenerate specification-derived models.
+<Note>
+**Behavioural.** Affects `columnValuesToBeInSet` and `columnValuesToBeNotInSet`.
+</Note>
 
-## Test suite & test case search
+- Values written as a JSON list (for example `[false, true]`) are now accepted. In 2.0 a JSON list with
+  lowercase `true`, `false` or `null` aborted the test.
+- On a column of type BOOLEAN, the text values `"true"` and `"false"` (any letter case) are compared as
+  real booleans.
+- A value that is not a list, such as a bare string or number, now aborts the test with an error. Wrap
+  single values in a list.
+
+## Table Column Set Test Honours `ordered: "false"`
+
+<Note>
+**Behavioural.** Affects `tableColumnToMatchSet`.
+</Note>
+
+In 2.0, setting `ordered` to the text `"false"` was treated as `true`, so the test compared column order
+anyway. In 2.1 `"false"` means order is ignored. Tests that relied on the old behaviour and passed only
+because the order matched keep passing. Tests that were failing because of the order may now pass.
+
+## Failed Rows Sample Is Kept When a Test Passes Within Its Threshold
+
+<Note>
+**Behavioural.** Affects what you see on a passing test case.
+</Note>
+
+In 2.0 the failed rows sample was stored and shown only when a test result was `Failed`. In 2.1 it is
+also kept and shown when a test **passes** while still finding failed rows, which happens when a failure
+threshold tolerates them. Expect failed-row samples on test cases that previously showed none.
+
+## Unsafe Pandas Expressions Fail the Test
+
+<Warning>
+**Behavioural.** Affects data quality tests that run on data lake and file sources, where expressions
+are evaluated with pandas.
+</Warning>
+
+Expressions you write in a test (custom SQL query, partition expression, rule library expressions and
+the column name in the inserted-row-count test) are now checked before they run. An expression that
+calls functions or reads attributes is no longer executed. The test fails instead, and a custom metric
+with such an expression is skipped with a warning. Rewrite these expressions as plain comparisons.
+
+## Failure Thresholds and Dimension Roll-Up on Test Definitions
 
 <Info>
-**Additive.** Test suites and test cases are vectorised for hybrid search, `search_metadata` can search
-them, and orphan test cases no longer break search indexing.
+**Additive.** Defaults keep existing tests behaving as before.
 </Info>
 
-## Observability UI
+The built-in column and table tests (for example not-null, unique, in-set, between, regex, row count and
+column count) gain optional parameters:
 
-<Note>
-**Behavioural.** Affects forks and plugin authors.
-</Note>
+| Parameter | What it does | Default |
+| --- | --- | --- |
+| `threshold` | Number of failures tolerated before the test fails | `0` |
+| `thresholdUnit` | Read `threshold` as `ABSOLUTE` rows or a `PERCENTAGE` of evaluated rows | `ABSOLUTE` |
+| `dimensionFailurePolicy` | `OVERALL_ONLY`, or `ANY_DIMENSION` to fail the test as soon as one dimension fails | `OVERALL_ONLY` |
+| `minRowsPerDimension` | Under `ANY_DIMENSION` with a percentage threshold, groups with fewer rows are reported but cannot fail the test (only on tests that support it) | `0` |
 
-- `ObservabilityRouterClassBase` replaces the shared router utilities for data quality and
-  observability navigation paths, making them overridable by downstream distributions.
-- Test case and bundle-suite forms migrate from AntD `Form` to **react-hook-form** with reusable field
-  docs. `EditTestCaseModal`, `EditTestCaseModalV1`, `TestCaseForm`, `TestCaseFormV1` and
-  `BundleSuiteForm` are removed.
-- Incident test-case status and severity components move to the shared core components.
-- Data quality dashboard hooks and presentational components are extracted and shared.
+The upgrade adds these parameters to the definitions you already have. Other test definition updates:
 
-<Tip>
-Forks that imported `EditTestCaseModal`, `TestCaseForm` or `BundleSuiteForm` directly must move to the
-new hook-and-component split. See
-[UI, Personas & Customization](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ui-and-customization).
-</Tip>
+- `tableDiff` gains `parallelQueries` (default `1`) to run several comparison queries at once.
+- The numeric column tests now list `NUMERIC` as a supported data type, so they appear for Snowflake and
+  DB2 numeric columns.
+- The upgrade restores missing `columnName`, `rangeType` and `rangeInterval` parameters on
+  `tableRowInsertedCountToBeBetween` for deployments that lost them, and adds the `operator` and
+  `partitionExpression` parameters of the custom SQL test where they were missing.
+
+## Test Results, Incidents and Bulk Actions
+
+<Info>
+**Additive.**
+</Info>
+
+- Test case results gain `duration`, `errorDetails` (type, message and stack trace of an aborted run) and
+  a richer `evaluationScope` that says whether the run used a sample or a partition. Dimension results
+  gain `minBound`, `maxBound` and `excludedFromRollUp`.
+- Incidents gain a `failureSummary`, an incident summary table for faster listing, and a grouping
+  endpoint (`/testCaseIncidentStatus/incidentGroups`) that groups open incidents by table, test
+  definition or owner. The upgrade backfills the summary table from existing incident history.
+- A new request schema, `BundleSuiteBulkRemoveRequest`, describes removing several test cases from a
+  logical test suite in one call.
+- Data Insights data-asset charts now exclude test cases from totals, so the data-asset total and its
+  entity type breakdown keep reconciling. The upgrade updates the stored chart definitions.
+
+## Profiler and Sampling Settings
+
+<Warning>
+**Breaking for stored or scripted configuration.** Removed field: `sampleDataStorageConfig`.
+</Warning>
+
+External S3 storage for sample data was removed, and with it the `sampleDataStorageConfig` property from
+connection and profiler schemas. Because those schemas reject unknown fields, any configuration that
+still contains this key fails validation. The upgrade strips the key from stored services, database and
+schema profiler settings, version history and saved test connection requests. If you manage connections
+or profiler settings as code, remove the key from your files. See
+[Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+
+For Python code, the module `metadata.profiler.processor.sample_data_handler` is removed, including
+`upload_sample_data`, `upload_to_storage`, `validate_path_pattern` and `PathPatternException`. Remove any import
+of these names from custom profiler code.
+
+A profiler workflow must also name its database service. In 2.0, a profiler configuration without
+`source.serviceName` scanned every table available in the data source and looked each one up in OpenMetadata.
+That mode is removed, along with `metadata.profiler.source.metadata_ext`. Set `source.serviceName` in
+profiler YAML and Python configurations.
+
+The auto-classification `sampleDataCount` now has a maximum of `1000`. The upgrade lowers any saved
+pipeline above that to `1000`. Lower the value in your own configuration files so they still validate.
