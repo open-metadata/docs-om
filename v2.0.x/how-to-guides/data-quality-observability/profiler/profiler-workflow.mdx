@@ -74,7 +74,14 @@ With **Dynamic** sampling, **Smart Sampling** is enabled by default and scales t
 | More than 100 million, up to 1 billion | 1% |
 | More than 1 billion | 0.1% |
 
-If you turn off **Smart Sampling**, use **Thresholds** to define custom row-count thresholds and sample percentages. If you leave **Thresholds** empty, the profiler applies no sampling and scans all rows.
+If you turn off **Smart Sampling**, use **Thresholds** to define your own row-count tiers instead of the built-in ones. Add one or more thresholds, each with:
+
+- **Row Count Threshold**: The minimum number of rows a table needs for the tier to apply. The value must be at least `1`.
+- **Profile Sample**: The sample size for tables in this tier.
+- **Profile Sample Type**: Select **Percentage** or **Rows**.
+- **Sampling Method Type**: The SQL sampling strategy, **BERNOULLI** or **SYSTEM**. It applies to percentage samples on Snowflake and Timescale only. Other databases ignore it.
+
+The profiler compares the table's row count to the tiers from the highest threshold to the lowest and uses the first tier the table reaches. A table with exactly as many rows as a threshold uses that tier. Tables below the lowest threshold are profiled in full, with no sampling. This also applies to all tables if you leave **Thresholds** empty. Each tier uses its own sample type, so you can mix **Percentage** and **Rows** tiers. For example, a threshold of `5000` rows with a `Percentage` sample of `10` profiles a 5,000-row table at 10% and a 4,999-row table at 100%. When **Smart Sampling** is on, any thresholds are ignored.
 
 With **Dynamic** sampling, the profiler reads the table's row count once per run to choose the sample size. Most databases return it from system catalogs or table statistics instead of scanning the table, so the value can be an estimate. For example, PostgreSQL uses `pg_class.reltuples`. When no statistic is available, the profiler runs a `COUNT(*)`. It always runs a `COUNT(*)` for tables with a partition filter.
 
