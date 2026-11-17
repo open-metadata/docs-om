@@ -252,7 +252,6 @@ def main():
                             ("Pages with impressions down 50%+", gsc.get("impression_drops", 0))]
         run_url = os.environ.get("RUN_URL", "")
         actor = os.environ.get("GITHUB_ACTOR", "scheduled run")
-        ping = "<!here> " if os.environ.get("PING_CHANNEL") == "true" else ""
         status = "Success" if not errors else "Errors found"
 
         def cell(text, bold=False):
@@ -267,7 +266,7 @@ def main():
             "text": f"Docs health report: {status}",
             "blocks": [
                 {"type": "section", "text": {"type": "mrkdwn", "text": (
-                    f"{ping}Docs health report: *{status}*\n"
+                    f"Docs health report: *{status}*\n"
                     f" Please check the <{run_url}|Build URL> for the full report.\n\n"
                     f"Run by: `{actor}`")}},
                 {"type": "table", "column_settings": [{"align": "left"}, {"align": "right"}],
