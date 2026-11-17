@@ -141,6 +141,17 @@ Grant the ingestion principal `glue:GetTables` to list tables and `glue:GetTable
 
 Classifying Iceberg tables from Glue metadata does not require S3 write access. Other Athena workflows can still require the S3 permissions shown in the policy above.
 
+Partitioned Iceberg tables keep the `Iceberg` table type. OpenMetadata records their partition columns in the table's partition details instead of changing the table type to `Partitioned`.
+
+## Hive and Spark Views
+
+Athena can read the definitions of its own views and Data Catalog views with `SHOW CREATE VIEW`, but not views that AWS Glue stores in Hive form. Views created by Spark are stored this way too.
+
+- OpenMetadata still ingests these views, but without their SQL definition.
+- The ingestion run reports a warning for each affected view, identified by its fully qualified name. To make the definition available, recreate the view in Athena.
+- The run reports warnings for the first 100 affected views, then one summary warning for the rest.
+- Detecting a Hive view requires `glue:GetTable`. If Glue can't answer for a view, OpenMetadata reads its definition from Athena as usual.
+
 ## Metadata Ingestion
 
 To ingest metadata from Athena, you need to create a service connection. The service connects Athena with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
@@ -219,6 +230,9 @@ Find more information about the [Role Session Name](https://docs.aws.amazon.com/
 Find more information about [Source Identity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html#:~:text=Required%3A%20No-,SourceIdentity,-The%20source%20identity).
 - **S3 Staging Directory**: The S3 staging directory is an optional parameter. Enter a staging directory to override the default staging directory for AWS Athena.
 - **Athena Workgroup**: The Athena workgroup is an optional parameter. If you wish to have your Athena connection related to an existing AWS workgroup add your workgroup name here.
+    - When set, the usage and lineage workflows read the query history of that workgroup only, and OpenMetadata doesn't call `ListWorkGroups`.
+    - When empty, they read the query history of every enabled workgroup. If the workgroups can't be listed, they read the default workgroup.
+    - The **Result Limit** of the usage or lineage workflow is one budget for the whole run, shared across workgroups. It counts only successful queries within the query log window that OpenMetadata and dbt didn't run, and reading stops once the limit is reached.
 
 #### Advanced Configuration
 
