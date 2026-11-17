@@ -112,9 +112,13 @@ def run(a):
                 "dimensionFilterGroups": [{"filters": [{"dimension": "page", "operator": "contains", "expression": docs_host}]}],
             }
             r = s.post(base_url, json=body, timeout=60)
-        except Exception:
+        except Exception as e:
+            print(f"Search analytics request error: {e}", file=sys.stderr)
             return None
-        return r.json().get("rows", []) if r.status_code == 200 else None
+        if r.status_code != 200:
+            print(f"Search analytics HTTP {r.status_code}: {r.text[:300]}", file=sys.stderr)
+            return None
+        return r.json().get("rows", [])
 
     # Search data lags by about 3 days.
     end = dt.date.today() - dt.timedelta(days=3)
