@@ -43,6 +43,16 @@ Following entities are supported and will be mapped from OpenMetadata to the ent
 | Table                        | Table                        |
 | Columns                      | Columns                      |
 
+## How OpenMetadata Writes to Alation
+
+Alation processes schema, table, and column writes as background jobs. OpenMetadata handles them as follows:
+- Writes go out in batches of up to 1,000 schemas, tables, or columns.
+- Each batch waits for its Alation job to finish before the next write starts. A job that is still running after 10 minutes counts as a failure.
+- OpenMetadata writes parents before children, so a column write never runs before the job that creates its table.
+- OpenMetadata logs every error Alation returns, including per-object errors on jobs that Alation reports as successful. The run status shows up to the first five errors for each parent, plus a count of the rest.
+
+Because writes run one after another and wait for Alation, a run takes longer in proportion to the time Alation spends on each job.
+
 ## Metadata Ingestion
 
 To ingest metadata from AlationSink, you need to create a service connection. The service connects AlationSink with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.

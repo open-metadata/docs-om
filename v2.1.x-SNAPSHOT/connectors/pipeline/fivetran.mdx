@@ -29,7 +29,9 @@ To access Fivetran APIs, a Fivetran account on a Standard, Enterprise, or Busine
 
 Generate the API key and API secret from a Fivetran user with an account-level role that has read access to all destinations and connections, such as **Account Reviewer**. OpenMetadata needs to discover every destination and connector in the account. A destination-scoped role (for example, View Destination) is not enough, because it only covers destinations the user was explicitly invited to.
 
-For detailed, per-phase Pipeline Status (Extract/Process/Load), OpenMetadata also reads the `fivetran_metadata.log` table that Fivetran automatically publishes in each destination's warehouse, using the Database Service already connected to that warehouse in OpenMetadata. The database user in that connection needs `SELECT` access to the `fivetran_metadata` schema. If this table isn't reachable, OpenMetadata automatically falls back to Fivetran's REST sync-history API for pipeline status.
+For detailed, per-phase Pipeline Status (Extract/Process/Load), OpenMetadata also reads the `log` table that the Fivetran Platform Connector publishes in each destination's warehouse, using the Database Service already connected to that warehouse in OpenMetadata. The database user in that connection needs `SELECT` access to the `fivetran_metadata` schema. If this table isn't reachable, OpenMetadata automatically falls back to Fivetran's REST sync-history API for pipeline status.
+
+OpenMetadata reads the `log` table from the schema that each destination's Fivetran Platform Connector reports through the Fivetran API, so it works whatever schema name the account uses. If a destination has no Platform Connector, OpenMetadata reads the `fivetran_metadata` schema. To override this for the whole service, set **Fivetran Platform Connector Schema** (`logSchema`) in the connection details. A value you set applies to every destination of the service.
 
 ## Lineage
 
@@ -94,6 +96,7 @@ Enter the connection details for Fivetran. The right-hand panel in the UI displa
 - **API Secret**: Fivetran API Secret. Copy this from the same step where the API key is generated.
 - **Host and Port**: Host and port of the Fivetran instance. By default, OpenMetadata uses `https://api.fivetran.com` to connect to the Fivetran APIs.
 - **Limit**: Fivetran API limit for pagination. This is the maximum number of records returned in a single page of results when using Fivetran's API for pagination.
+- **Fivetran Platform Connector Schema** *(Optional)*: Destination schema that holds the Fivetran Platform Connector `log` table, used for per-phase run status. Leave it empty to read the schema name from the Fivetran API. Set it only when auto-detection can't see the Platform Connector, for example with a restricted API key or a Platform Connector outside the destination's group. A value you set applies to every destination of the service.
 
 #### Test Connection
 
