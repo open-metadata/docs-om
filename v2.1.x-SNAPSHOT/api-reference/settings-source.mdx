@@ -1,0 +1,98 @@
+---
+title: Settings Configuration Source
+description: Control whether the deployment configuration or the database owns each settings group in OpenMetadata, and read the source of each setting.
+sidebarTitle: Settings Source
+---
+
+# Settings Configuration Source
+
+Settings can come from the deployment configuration (`openmetadata.yaml` and its environment variables) and from the database, where the UI and the API save them. The `configSource` block in the server configuration decides which one wins for each settings group.
+
+## Settings Groups and Modes
+
+Set each group with its environment variable to `AUTO`, `ENV`, or `DB`.
+
+| Group | Environment variable | Default | Covers |
+|-------|----------------------|---------|--------|
+| `security` | `SECURITY_CONFIG_SOURCE` | `AUTO` | Authentication and authorizer configuration, which the single sign-on (SSO) page saves together |
+| `email` | `EMAIL_CONFIG_SOURCE` | `AUTO` | Email settings for the Simple Mail Transfer Protocol (SMTP) server |
+| `serverUrl` | `SERVER_URL_CONFIG_SOURCE` | `AUTO` | The base URL of the server |
+| `scim` | `SCIM_CONFIG_SOURCE` | `AUTO` | System for Cross-domain Identity Management (SCIM) settings |
+| `mcp` | `MCP_CONFIG_SOURCE` | `AUTO` | Model Context Protocol (MCP) settings |
+| `app` | `APP_CONFIG_SOURCE` | `DB` | Application configuration |
+
+**Modes**:
+
+- **`AUTO`**: A value that you change in the deployment configuration is applied on the next start, unless someone changed the same value through the API since then. In that case, OpenMetadata keeps the value from the API and logs a warning.
+- **`ENV`**: The deployment configuration is authoritative. On start, every field that it defines overwrites the stored value, and you can't change that field through the API. Fields that the file doesn't define stay editable.
+- **`DB`**: OpenMetadata keeps the stored values. The deployment configuration only fills fields that the stored configuration doesn't have.
+
+The `configSource` block also has these options:
+
+- **`SECURITY_CONFIG_SOURCE_CONFIRM_PROVIDER_CHANGE`**: Default `false`. Set it to `true` to let the first start in `ENV` mode replace the stored identity provider with a different one from the file.
+- **`CONFIG_SOURCE_WATCH_INTERVAL_SECONDS`**: Default `10`. How often each server checks the database for settings that another server, the command-line tool, or an administrator changed.
+
+## Managed by Environment Error
+
+When a group is in `ENV` mode and a request changes a field that the deployment configuration defines, OpenMetadata returns `409` with the error type `SETTINGS_MANAGED_BY_ENVIRONMENT`:
+
+```
+<settingType> is managed by the deployment configuration (<GROUP>_CONFIG_SOURCE=ENV), so <paths> cannot be changed here. Change the configuration file or environment and restart the server.
+```
+
+`<paths>` lists the changed fields. It reads `it` when the deployment configuration owns the whole setting.
+
+## Get the Source of Each Setting
+
+`GET /v1/system/settings/source` returns the source of every setting. Only administrators can call it.
+
+<ResponseField name="settings" type="array">
+  One entry for each setting.
+
+  <Expandable title="properties">
+    <ResponseField name="configType" type="string" required>
+      The setting.
+    </ResponseField>
+
+    <ResponseField name="source" type="string" required>
+      `AUTO`, `ENV`, or `DB`.
+    </ResponseField>
+
+    <ResponseField name="editable" type="boolean" required>
+      `false` when the deployment configuration owns every field of the setting.
+    </ResponseField>
+
+    <ResponseField name="managedPaths" type="array">
+      Fields that the deployment configuration owns.
+    </ResponseField>
+
+    <ResponseField name="overriddenFields" type="array">
+      Fields where the stored value overrides a deliberate deployment value. Each item has a `path` and, when known, an `envVariable`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample dropdown>
+```bash GET /v1/system/settings/source
+curl "{base_url}/api/v1/system/settings/source" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+## Adopt the Deployment Configuration
+
+`POST /v1/system/settings/source/{configType}/adopt` makes the deployment value win for fields where a stored value overrides it. Only administrators can call it.
+
+<ParamField body="paths" type="array">
+  Fields to adopt. If you leave it out, OpenMetadata adopts every overridden field.
+</ParamField>
+
+It returns the updated setting source. In `ENV` mode it returns `409` with `The deployment configuration already owns the setting`.
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | The caller is not an administrator |
+| `409` | `SETTINGS_MANAGED_BY_ENVIRONMENT` | The request changes a field that the deployment configuration owns |

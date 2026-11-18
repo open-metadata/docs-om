@@ -168,6 +168,41 @@ try {
 }
 ```
 
+## Bulk Create with Conflict Outcomes
+
+`TestCases` and `GlossaryTerms` in `org.openmetadata.sdk.fluent` can create several entities in one request and return a typed `BulkCreateResult` with an outcome for every input.
+
+```java
+import org.openmetadata.schema.type.BulkCreateConflictPolicy;
+import org.openmetadata.schema.type.BulkCreateResult;
+import org.openmetadata.sdk.fluent.GlossaryTerms;
+import org.openmetadata.sdk.fluent.TestCases;
+
+BulkCreateResult tests = TestCases.createMany(testCaseRequests).execute();
+
+BulkCreateResult terms = GlossaryTerms.createMany(glossaryTermRequests)
+    .onConflict(BulkCreateConflictPolicy.FAIL)
+    .execute();
+
+terms.getResults().forEach(item ->
+    System.out.printf("%d: %s (%s) %s%n",
+        item.getIndex(), item.getStatus(), item.getReason(), item.getMessage()));
+```
+
+**Conflict policies**:
+
+- `SKIP`: The default. Inputs whose fully qualified name already exists, or that repeat inside the request, are reported as skipped. All other valid inputs are created.
+- `FAIL`: Conflicting inputs are reported as failed. All other valid inputs are still created. This is not an all-or-nothing request.
+
+Existing and soft-deleted entities are never overwritten or restored.
+
+**Result**:
+
+- `getCreatedCount()`, `getSkippedCount()`, and `getFailedCount()`: Totals for the request.
+- `getResults()`: One outcome per input, in request order. Each has an index, a status, and the fully qualified name. Created entities also have an ID. Skipped and failed inputs have a reason (`ALREADY_EXISTS`, `DUPLICATE_IN_REQUEST`, or `VALIDATION_ERROR`) and a message.
+
+Request-level errors still throw `OpenMetadataException`. Bulk create requires a server that supports the `onConflict` parameter. The service overload `client.testCases().createMany(requests)` is unchanged and still returns the list of created entities.
+
 ## More examples
 
 Review the [OpenMetadata Java SDK examples](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-sdk/src/main/java/org/openmetadata/sdk/examples) for more usage patterns.

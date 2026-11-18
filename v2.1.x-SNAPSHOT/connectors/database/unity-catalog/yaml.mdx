@@ -81,6 +81,17 @@ For external table lineage (linking tables to their storage locations), the foll
 ```sql
 GRANT SELECT ON system.information_schema.tables TO `<user>`;
 ```
+
+### Cross Database Lineage
+
+The Unity Catalog system tables cover the whole metastore, so a table in this service can have upstream tables that another OpenMetadata service ingested. To resolve them, enable **Process Cross Database Lineage** and add the other services to **Cross Database Service Names** on the Lineage Agent. For more information, see [Cross Database Lineage](/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/cross-database-lineage).
+
+- OpenMetadata looks for each upstream table in this service first, then in each listed service in the order you list them. The first match wins.
+- Only upstream tables are looked up in other services. The target of an edge must belong to the service the Lineage Agent runs for. To get an edge from a table in service A to a table in service B, run the Lineage Agent of service B and list service A.
+- Only a table that isn't found moves the search to the next service. If a lookup fails, the search for that table stops, so a same-named table in a later service doesn't take its edge.
+- When the same `catalog.schema.table` is ingested under more than one searched service, the edge links to the first one in order.
+- The run status reports a warning, once per table name, for an upstream table that no searched service holds. It does the same for a table whose lookup failed.
+
 ### Tags
 These permissions enable OpenMetadata to extract Unity Catalog tags from catalogs, schemas, tables, and columns.
 ```sql
