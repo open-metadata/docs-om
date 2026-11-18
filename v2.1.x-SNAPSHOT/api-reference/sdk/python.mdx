@@ -41,6 +41,60 @@ Connect with `configure()`, then create, update, and delete a table:
 
 <PythonSdk2Quickstart />
 
+## Bulk Create with Conflict Outcomes
+
+`TestCases.create_many()` and `GlossaryTerms.create_many()` create several entities in one request and report an outcome for every input. Other entity classes do not provide this method.
+
+```python
+from metadata.generated.schema.api.data.createGlossaryTerm import CreateGlossaryTermRequest
+from metadata.generated.schema.type.bulkCreateResult import ConflictPolicy
+from metadata.sdk import GlossaryTerms
+
+result = GlossaryTerms.create_many(
+    [
+        CreateGlossaryTermRequest(
+            name="Revenue",
+            glossary="Finance",
+            description="Recognized revenue",
+        )
+    ],
+    on_conflict=ConflictPolicy.skip,
+)
+
+print(result.createdCount, result.skippedCount, result.failedCount)
+for item in result.results:
+    print(item.index, item.status.value, item.reason, item.message)
+```
+
+**Parameters**:
+
+- `requests`: A list of the generated create requests, for example `CreateGlossaryTermRequest`.
+- `on_conflict`: How to report inputs whose fully qualified name already exists, or that repeat inside the request. The default is `ConflictPolicy.skip`.
+
+**Conflict policies**:
+
+- `ConflictPolicy.skip`: Conflicting inputs are reported as `skipped`. All other valid inputs are created.
+- `ConflictPolicy.fail`: Conflicting inputs are reported as `failed`. All other valid inputs are still created. This is not an all-or-nothing request.
+
+Existing and soft-deleted entities are never overwritten or restored.
+
+**Result**:
+
+`create_many()` returns a `BulkCreateResult`:
+
+- `createdCount`, `skippedCount`, and `failedCount`: Totals for the request.
+- `results`: One entry per input, in request order.
+  - `index`: The zero-based position of the input in the request.
+  - `status`: `created`, `skipped`, or `failed`.
+  - `fullyQualifiedName`: The fully qualified name of the entity.
+  - `id`: The ID of the new entity. Only present when `status` is `created`.
+  - `reason`: `ALREADY_EXISTS`, `DUPLICATE_IN_REQUEST`, or `VALIDATION_ERROR`. Only present for skipped and failed inputs.
+  - `message`: A readable explanation for skipped and failed inputs.
+
+<Note>
+Request-level errors, such as missing permissions, still raise `APIError`. Bulk create requires a server that supports the `onConflict` parameter, so match the SDK version to your OpenMetadata server version.
+</Note>
+
 ## Introducing the Python API (Original Client)
 Let's suppose that we have our local OpenMetadata server running at `http:localhost:8585`. We can play with it with simple `cURL` or `httpie` commands, and if we just want to take a look at the Entity instances we have lying around, that might probably be enough.
 
