@@ -1,0 +1,43 @@
+---
+title: Workflow Instances
+description: Terminate a running governance workflow instance with the OpenMetadata REST API
+sidebarTitle: Workflow Instances
+api: POST /v1/governance/workflowInstances/{id}/terminate
+---
+
+# Terminate a Workflow Instance
+
+Stop a governance workflow instance and record it as `FAILURE`. Only administrators can call this endpoint.
+
+<ParamField path="id" type="string" required>
+  UUID of the workflow instance to terminate.
+</ParamField>
+
+<ParamField query="reason" type="string">
+  Why you are terminating the instance. Up to 1000 characters. OpenMetadata adds it to the audit text of the termination, for example `Terminated by <user>: <reason>`.
+</ParamField>
+
+The request has no body.
+
+<RequestExample dropdown>
+```bash POST /v1/governance/workflowInstances/{id}/terminate
+curl -X POST "{base_url}/api/v1/governance/workflowInstances/{id}/terminate?reason=Stuck%20batch" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+## Returns
+
+- **`200`**: The terminated workflow instance, recorded as `FAILURE`.
+- **`202`**: A job of the instance's periodic batch trigger is running on this server. OpenMetadata records a stop request and returns the instance that is still running. The batch sink stops before its next sub-batch and the trigger stops before its next batch. Then the instance is recorded as `FAILURE`.
+
+Terminating an instance deletes every running process of that instance, including a process that a server locked and then stopped in the middle of a job. A lock that another running server holds can't be told apart from that case, so that process is deleted too. For a workflow without a batch trigger, that job can keep applying side effects, such as entity updates, after the `200`.
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | The caller is not an administrator |
+| `404` | `ENTITY_NOT_FOUND` | No workflow instance exists for the given ID |
+| `409` | `WORKFLOW_INSTANCE_CONFLICT` | The instance already ended, or a job of its process is running and the process doesn't read a stop request. Retry after the job finishes. |
