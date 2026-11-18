@@ -176,6 +176,41 @@ curl -X POST "$OM_HOST/api/v1/ontologies/{id}/imports/preview" \
   -d "$(jq -n --rawfile data domain.ttl '{fileName: "domain.ttl", data: $data}')"
 ```
 
+## Delete a Glossary Term With an Impact Preview
+
+Deleting a glossary term can reassign or remove its child terms, typed relationships, and concept mappings. A two-step call shows you the effect first, then deletes only if you confirm it.
+
+1. `GET /api/v1/ontology/impacts/glossaryTerms/{id}/delete` returns a preview. It lists the immediate children, the relationships and concept mappings removed with the term, and a sample of the bound assets with their total count. It also returns an `impactToken` and its `expiresAt` time.
+2. `POST /api/v1/ontology/impacts/glossaryTerms/{id}/delete` deletes the term.
+
+The token expires 2 minutes after the preview. The delete is also refused if the token was issued to a different user, or if the term or its impact changed since the preview. In each case, run a new preview and use the new token.
+
+| Field | Required | Notes |
+|---|---|---|
+| `impactToken` | Yes | The token from the preview. |
+| `cascadeConfirmed` | Yes | Set to `true` to also delete the child terms. |
+| `hardDelete` | Yes | Set to `true` to remove the term permanently instead of soft deleting it. |
+| `reassignChildrenTo` | No | A glossary or glossary term that receives the immediate children before the deletion. It can't be the deleted term or one of its children. |
+
+If the term has children, set either `cascadeConfirmed` to `true` or `reassignChildrenTo`, but not both.
+
+The response returns the deleted `resource`, the number of `reassignedChildren`, and whether the delete `cascaded` or was a `hardDeleted`.
+
+### Permissions
+
+Administrators skip the checks on child terms. Everyone else needs the following permissions. The server checks them before it changes anything, so a refused request leaves the glossary as it was.
+
+- `Delete` on the term itself.
+- `EditAll` on the glossary or glossary term that receives the reassigned children, and on every term the reassignment affects.
+- `Delete` on every term a cascade removes, including soft-deleted descendants.
+
+```bash
+curl -X POST "$OM_HOST/api/v1/ontology/impacts/glossaryTerms/{id}/delete" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"impactToken": "<token from the preview>", "cascadeConfirmed": false, "hardDelete": false, "reassignChildrenTo": {"id": "<glossary id>", "type": "glossary"}}'
+```
+
 ## Change Sets
 
 Durable authoring sessions with typed operations. A change set is created and applied for you when you import a file. `/api/v1/ontologyChangeSets`
