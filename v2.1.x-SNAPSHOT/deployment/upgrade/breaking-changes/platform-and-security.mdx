@@ -215,6 +215,22 @@ The alert scheduler can now use up to 13 database connections per server at peak
 to five. If you run several servers against one database, check that the database connection limit still
 has room.
 
+### The Server URL Needs a Scheme
+
+<Note>
+**Behavioral.** Affects deployments that set `OPENMETADATA_SERVER_URL` without `http://` or `https://`.
+</Note>
+
+OpenMetadata validates `OPENMETADATA_SERVER_URL` on the first start. The value must be an absolute `http://` or `https://` URL that includes the host. A value without a scheme stops the server with `Operations configuration has an invalid 'openMetadataUrl'`. An empty value falls back to `http://localhost:8585`.
+
+### Operations Commands Ignore the Query Timeout
+
+<Note>
+**Behavioral.** Affects long-running `openmetadata-ops.sh` commands such as `migrate`.
+</Note>
+
+Operations commands no longer stop at `queryTimeoutSeconds`. That timeout now applies only to API requests, so a long migration statement is not cancelled part way.
+
 ### Docker Images Are Distroless
 
 <Note>
@@ -313,6 +329,8 @@ These migration steps need planning.
 | Dotted service names | This affects dashboards, charts, pipelines, topics, and machine learning (ML) models under a service whose name contains a dot. The stored fully qualified name is rewritten to quote the service name, for example from `my.service.child` to `"my.service".child`. This repairs rows created before 1.1.0. Update any saved link, script, or condition that holds the old name |
 | Tokens and grants of deleted users removed | Personal access tokens and MCP OAuth grants that belong to users that no longer exist are deleted, and deleting a user now ends its grants |
 | Placeholder table creation time removed | The placeholder `lifeCycle.created` value (year 0001) that earlier ingestion stored when the source gave no creation time is removed. Ingestion no longer writes it |
+| Backfills run in batches | The creation-audit and data quality dimension backfills run in batches of 500 entity IDs instead of one statement for each table, so the upgrade finishes on large installations |
+| MySQL guarded blocks run as one unit | On MySQL, a guarded block (`SET`, `PREPARE`, `EXECUTE`, and an optional `DEALLOCATE PREPARE`) runs on one connection and is recorded once, after its last statement. An interrupted migration can run again without cleanup. A migration file that cannot load stops `migrate`, `validate`, and server start with `Migration <version> cannot be loaded, so no migration was run` |
 
 ### New Tables and Indexes
 
