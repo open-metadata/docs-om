@@ -14,7 +14,7 @@ the connectors added in 2.1.
 
 <Info>
 The ingestion image is still built on Python 3.12 (`apache/airflow:3.3.2-python3.12`), the same
-base as 2.0. There is no Python version change in this upgrade.
+Python version as 2.0. There is no Python version change in this upgrade.
 </Info>
 
 ## Delta Lake Connector Removed
@@ -40,7 +40,7 @@ The 2.1 upgrade handles existing services automatically. It runs first in the da
 
 <Warning>
 Deleted pipelines are only recoverable from a backup. Take a database backup first, and note which Delta Lake services you have.
-After the upgrade, nothing refreshes that metadata, because no connector reads Delta Lake anymore.
+After the upgrade, nothing refreshes the migrated Delta Lake metadata, because no connector reads Delta Lake anymore.
 </Warning>
 
 Delta Lake as a table format is unchanged: tables that are stored as Delta files are still
@@ -133,14 +133,16 @@ replace it before upgrading or the resolver may fail.
 `metadata` package. Standard connectors and YAML workflows are not affected.
 </Note>
 
-- Tags use a registry. Database sources no longer fill `context.get().tags`. The tag stages read and write
-  through `self.tags_registry`. `TagRegistry` is created as `TagRegistry(cache_size=1000, *, metadata=...)`.
-  `attach` takes a `TagDefinition` in place of the separate classification and tag names and descriptions. Use
-  the new `define` method to declare a tag. `is_known`, `ensure_known`, and `ScopeAlreadyClearedError` are removed.
-  `drain` is now a generator, and `labels_for` drops tags that do not exist on the server. In
-  `DatabaseServiceSource`, `clear_schema_tag_scope`, and `clear_database_tag_scope` now return an
-  `Iterable[Either]`, so an override must `yield`. Tags whose names the server rejects are skipped and shown as
-  warnings in the run status, not as failures.
+- Tags use a registry:
+  - Database sources no longer fill `context.get().tags`. The tag stages read and write through `self.tags_registry`.
+  - `TagRegistry` is created as `TagRegistry(cache_size=1000, *, metadata=...)`.
+  - `attach` takes a `TagDefinition` in place of the separate classification and tag names and descriptions.
+  - Use the new `define` method to declare a tag.
+  - `is_known`, `ensure_known`, and `ScopeAlreadyClearedError` are removed.
+  - `drain` is now a generator.
+  - `labels_for` drops tags that do not exist on the server.
+  - In `DatabaseServiceSource`, `clear_schema_tag_scope` and `clear_database_tag_scope` now return an `Iterable[Either]`, so an override must `yield`.
+  - Tags whose names the server rejects are skipped and shown as warnings in the run status, not as failures.
 - Source state belongs to each source. Topology run state is kept per source instance. The class-level
   `context` and `queue` on a topology source, and the `*_source_state` sets on `DatabaseServiceSource`, are now
   per-instance wrappers (`PerSourceState`). Custom code that reads or writes these attributes on the class sees
