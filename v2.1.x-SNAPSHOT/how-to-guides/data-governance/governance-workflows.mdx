@@ -104,6 +104,30 @@ An event-based start node has an **Approval Mode** setting with two options. **D
 
 In an Enforce workflow, add a **User Approval** task. Approving the task publishes the held edit, and rejecting it discards the edit. For the requester and reviewer experience, see [Approval-Gated Changes](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
 
+## Approval Task Thresholds and Voting
+
+A **User Approval** task can require more than one approver. The **Approval Threshold** is the number of approvals the task needs, and the **Rejection Threshold** is the number of rejections that closes it as rejected.
+
+### Thresholds Are Capped at the Users Who Can Vote
+
+OpenMetadata never lets a threshold exceed the number of users who can vote on the task. When the task is created:
+
+- **Requester excluded**: The person who made the change cannot approve it, so OpenMetadata removes them from the assignees. If that leaves fewer assignees than the threshold, OpenMetadata lowers the threshold to the number of remaining assignees. For example, a threshold of 2 with an owner and a reviewer who is also the requester becomes 1.
+- **Both thresholds**: The cap applies to the **Approval Threshold** and the **Rejection Threshold**.
+- **Teams**: If the assignees include a team, OpenMetadata does not cap the threshold, because any member of the team can vote.
+- **Open tasks**: The cap applies when a task is created. A task that is already open keeps the threshold it started with.
+
+<Note>
+When the requester is one of two eligible approvers, a two-approval rule becomes one independent approval. To require two independent approvals, name enough approvers, for example a team or a third reviewer.
+</Note>
+
+### Who Can Approve and What the Task Shows
+
+- **Assignees only**: Only an assignee of the task, directly or through a team, can approve or reject it. A user who is not an assignee sees the message "You can't approve or reject this task because it isn't assigned to you". This applies to admins too.
+- **Counted votes**: A task with several approvers shows who has approved or rejected it, for example "Alex approved", for the current stage of the task.
+- **After you vote**: Once you vote, the **Approve** and **Reject** actions are hidden, and the task shows "Your vote is recorded. Waiting for the other approvers." until the threshold is reached. Other actions, such as reassigning the task, stay available.
+- **Where it applies**: These rules apply on the asset's task tab, in the review panel in the inbox and the glossary, and in the activity feed card.
+
 ## Naming Rules
 
 OpenMetadata uses some names you enter to build the variables that the workflow runs on, so they accept only letters, digits, and underscores (`_`):
