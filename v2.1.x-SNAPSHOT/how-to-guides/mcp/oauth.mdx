@@ -225,6 +225,38 @@ The MCP Server limits the size of each tool response. Tools return fewer items t
 
 The default is `100,000` characters, about 25,000 tokens, and the minimum is `25,000`. Lower the value for clients with small context windows, and raise it for clients with large ones. A saved change applies immediately on the server that handled the save. Other servers pick it up after a restart.
 
+## Restricting MCP Tools
+
+Administrators can limit which tools the MCP Server offers to MCP clients. Both options apply to every MCP client and every user, admins included. Each user's own permissions still apply to the tools that remain available.
+
+### Read-only Mode
+
+Read-only Mode exposes only the tools that do not change metadata, such as search, lineage, and entity details. Tools that create or edit metadata, such as `create_entity`, `patch_entity`, `create_lineage`, and `create_test_case`, are blocked. `describe_entity_type` is also blocked, because it only prepares a `create_entity` call.
+
+1. Navigate to **Settings** > **Applications**.
+2. Click the **MCP Server** application.
+3. In the **Configuration** tab, turn on **Read-only Mode**.
+4. Click **Save**.
+
+- **Turning it on**: Write tools are refused right away. They leave the tool list that clients see after the server restarts.
+- **Turning it off**: Write tools become available again after a restart.
+
+### Disabling Individual Tools
+
+**Disabled Tools** turns off single tools, whether they read or write metadata. Use it when you want to keep most tools available but hide a specific one. **Read-only Mode** still applies to the rest.
+
+1. Navigate to **Settings** > **Applications**.
+2. Click the **MCP Server** application.
+3. In the **Configuration** tab, select the tools to turn off under **Disabled Tools**. The list shows the tools registered on your server.
+4. Click **Save**.
+
+- **Disabling a tool**: Calls to it are refused right away. It leaves the tool list after the server restarts.
+- **Enabling it again**: The change applies after a restart.
+- **New tools**: A tool added by an upgrade is available until you disable it.
+- **Unknown names**: A name that matches no registered tool is ignored.
+
+Administrators can also read the registered tool names with `GET /api/v1/system/mcp/tools` (admin only), and save the `disabledTools` list through the `PUT /api/v1/system/mcp/config` API.
+
 ## Revoking Access
 
 MCP clients can revoke an access or refresh token directly using the OAuth 2.0 Token Revocation endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)), advertised as `revocation_endpoint` in the OAuth discovery document. Revoking a refresh token prevents future refreshes. Already-issued access tokens are signed JWTs validated statelessly, so they can remain valid until their 10-minute expiry. There is currently no separate admin-side option to revoke an MCP client's access. Revocation is a client-initiated action using its registered credentials.

@@ -9,15 +9,63 @@ canonical: "https://docs.open-metadata.org/v2.0.x/how-to-guides/data-quality-obs
 
 ## Incident Manager Page
 
-The **Incident Manager** page is the central place where all incidents are listed. Filter incidents by various criteria to manage and prioritize them effectively.
+The **Incident Manager** page is the central place to triage incidents. It lists open incidents in groups, so you can handle many failures at once, and it lists the individual incidents behind each group.
 
-At the top of the **Incident Manager** page, four cards summarize **Open Incidents**, **Resolved Incidents**, **Response Time**, and **Resolution Time**. Below them, the page lists incidents with the test case name, table, last updated time, status, severity, and assignee.
+### Summary Metrics
 
-### Filters Available:
-- **Test case**: Filter incidents associated with specific test cases.
-- **Assignee**: View incidents assigned to specific team members.
-- **Status**: Filter incidents based on their current status (for example, New, ACK, Assigned, or Resolved).
-- **Date Filter** and **Date Range**: Choose a date field, such as **Created at**, and a range of dates.
+Four cards at the top of the page show key incident statistics:
+
+- **Open Incidents**: Total number of currently active incidents.
+- **Resolved Incidents**: Total number of closed incidents.
+- **Response Time**: Average time from incident creation to first acknowledgement.
+- **Resolution Time**: Average time from incident creation to resolution.
+
+### Incident Groups
+
+The page groups open incidents. A resolved incident leaves its group. Use **Group By** to choose how OpenMetadata groups the incidents:
+
+- **Test case type**: One group for each test definition, such as Column Values To Be Not Null. This is the default.
+- **Table**: One group for each table that has open incidents.
+- **Test case owner**: One group for each owner of the failing test cases. Test cases that nobody owns appear in a **No Owner** group.
+
+Each group row shows the following:
+
+- **The group name**: The first column is named after the grouping, for example **Test case type**. A line under the name lists related tables, or check types when you group by **Table**.
+- **Tables**: The number of tables that the group's incidents cover, for example "2 tables". When you group by **Table** or **Test case owner**, this column is **Check type** and counts check types instead.
+- **Incidents**: The number of open incidents in the group.
+- **Severity**: The most critical severity among the open incidents in the group, or **No Severity** when none of them has one.
+- **Status**: The most actionable status in the group, ranked Assigned, then Ack, then New. A bar and counts, for example "2 ack", show how many incidents are in each status.
+- **Assignees**: The users and teams that the incidents are assigned to, or **None**.
+- **Last Seen**: When the group's incidents last changed, with the month and year of the first incident, for example "First Jul '26".
+- **Trend**: Whether new incidents in the group are **Rising**, **Falling**, or **Steady**.
+
+Above the table, a summary shows the number of groups and how many are recurring, for example "3 groups" and "0 recurring". A group is recurring when its **Trend** is **Rising**. OpenMetadata counts recurring groups only among the groups loaded on the current page.
+
+To sort the groups, click the **Incidents**, **Severity**, or **Last Seen** column header. By default, the groups with the most open incidents appear first. Use the pager below the table to move between pages, and the **Records** menu to change how many groups appear on a page. The default is 15.
+
+### Filters
+
+Use the filter row to narrow the groups. It sits on one row next to **Group By**, and the filters apply to the incidents inside each group:
+
+- **Test case**: Filter by a specific test case name.
+- **Assignee**: Filter by the user or team that the incident is assigned to.
+- **Status**: Filter by current status: **New**, **Ack**, or **Assigned**. Resolved incidents are not part of a group.
+- **Severity**: Filter by the severity of the incident.
+- **Date Filter**: Choose the date field to filter by: **Created at** or **Updated at**.
+- **Date Range**: Set a custom date range.
+
+Click **Clear all** to remove every filter. The filters stay in the page address, so a link or a page reload keeps them.
+
+### Open a Group
+
+- Click a group to open the **Incident group** panel. It shows when the group's incidents were first and last seen, and it lists the **Individual incidents** in the group.
+- Click the right arrow next to the test case type to open the full list of the group's incidents, and click **Back to groups** to return to the groups with your filters still applied. The list shows only the incidents that match the filters of the groups. Click **Clear Filters** to list every open incident in the group.
+- Each row in the incident list represents one incident and shows:
+    - **Test Case Name**: The test case that triggered the incident, with the data asset that it belongs to underneath.
+    - **Last Updated**: Date and time of the most recent activity.
+    - **Status**: Current stage of the incident (New, Ack, Assigned, Resolved). Click the value to change it.
+    - **Severity**: Severity level assigned to the incident. Click the value to change it.
+    - **Assignee**: The user or team responsible for resolution.
 
 ### Triage Incidents with the API
 
@@ -70,6 +118,25 @@ Incident status can be updated to reflect the current stage of the incident reso
 
     <img src="/public/images/v2.1.x-SNAPSHOT/how-to-guides/observability/incident-manager-3.png" alt="Incident Status Change" />
 5. Click **Save**.
+
+### Change Several Groups at Once
+
+To change the status or severity of all the open incidents in several groups at once, you need permission to edit incident status:
+
+1. Select the checkbox next to each group, or select the checkbox in the header row to select every group on the page. A bar shows how many groups you selected and how many incidents the change can affect.
+2. In the bar, click **Set status** and choose **Ack**, **Assigned**, or **Resolved**. Or click **Set severity** and choose **Severity 1** to **Severity 5**.
+3. Complete the action for the option that you selected:
+    - **Ack**: Click **Apply**.
+    - **Assigned**: Select an **Assignee**, which can be a user or a team, and click **Apply**.
+    - **Resolved**: The dialog is titled **Resolve**.
+        1. Select a **Reason**: **Duplicates**, **False positive**, **Missing data**, **Out of bounds**, or **Other**.
+        2. Enter a **Comment**.
+        3. Click **Apply**.
+    - **Severity**: The dialog is titled **Set severity** and shows the severity that you chose. It has no fields. Click **Apply**.
+
+OpenMetadata reports how many incidents it updated. If some incidents already had the change, or were past that stage, OpenMetadata skips them and reports how many. If some updates fail, a message shows how many incidents could not be updated, and **Incidents not updated** lists them. Click **Clear selection** to deselect the groups.
+
+To make the same changes from code, see [Update Many Incidents at Once](#update-many-incidents-at-once).
 
 ## Incident Resolution
 

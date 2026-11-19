@@ -62,6 +62,23 @@ The query from dbt will be parsed by the Lineage parser to extract source and ta
 
 The lineage may not be created if the lineage parser is not able to parse the query. Please check the logs for any errors in this case.
 
+## dbt Sources with a Different Table Identifier
+
+In dbt, a source has a logical `name`, which you use in `source()` calls, and an optional `identifier`, which is the name of the physical table in the warehouse. When a source sets an `identifier`, OpenMetadata uses it to find the table, so the source and the lineage that depends on it link to the right table. If the source has no `identifier`, OpenMetadata uses the source `name`.
+
+- **Literal match**: OpenMetadata matches the identifier as written. A `*` or `?` in the identifier is treated as part of the table name, not as a search pattern, so the source does not attach to another table by accident.
+- **Models**: Models keep using their alias or name, as before.
+
+```yaml
+sources:
+  - name: raw
+    tables:
+      - name: customers
+        identifier: raw_customers_v2
+```
+
+In this example, OpenMetadata looks for a table named `raw_customers_v2`.
+
 ## Map dbt Catalog Names to OpenMetadata Databases
 
 OpenMetadata matches each model in `manifest.json` to a table using the database name that dbt writes into the manifest. That name can differ from the name the connector ingested the table under. For example, `dbt-trino` writes the Trino catalog name (`bq_catalog`) for tables that the BigQuery connector ingests under the GCP project ID (`my-gcp-project`). Without a match, OpenMetadata can't link the dbt model to the table.
