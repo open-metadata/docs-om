@@ -20,7 +20,7 @@ Add the `objectStorage` block to `openmetadata.yaml`, or set the environment var
 | Setting | Environment variable | Default | Description |
 | --- | --- | --- | --- |
 | `objectStorage.enabled` | `ASSET_UPLOADER_ENABLE` | `false` | Turns object storage on. |
-| `objectStorage.provider` | `ASSET_UPLOADER_PROVIDER` | `s3` | `s3` for Amazon S3 or MinIO, `azure` for Azure Blob Storage, or `inmemory` for local testing. The `inmemory` option doesn't keep files. |
+| `objectStorage.provider` | `ASSET_UPLOADER_PROVIDER` | `s3` | `s3` for Amazon S3 or MinIO, `azure` for Azure Blob Storage, or `inmemory` for local testing. The `inmemory` option keeps files in server memory only, so they are lost when the server restarts and aren't shared between servers. |
 | `objectStorage.maxFileSize` | `ASSET_UPLOADER_MAX_FILE_SIZE` | `5242880` | The largest file OpenMetadata accepts, in bytes. The default is 5 MiB. A larger file is rejected. |
 
 ## Amazon S3
@@ -99,7 +99,8 @@ objectStorage:
 If the download still fails, check these items:
 
 - **Storage is off or the server wasn't restarted.** Confirm that `objectStorage.enabled` is `true` and that you restarted OpenMetadata.
-- **The upload failed on the storage side.** Read the server log from the moment of the upload, not the download. Look for storage errors, such as access denied.
+- **The provider is `inmemory`.** Files are lost when the server restarts, and a second server can't read files saved by the first. Use `s3` or `azure`.
+- **The upload failed on the storage side.** With `s3` or `azure`, a failed write makes the upload fail with an error, and OpenMetadata removes the new file entry. Read the server log from the moment of the upload for storage errors, such as access denied.
 - **The credentials can't write or read.** Check the permissions in [Amazon S3](#amazon-s3) or [Azure Blob Storage](#azure-blob-storage).
 - **The file is too large.** Raise `objectStorage.maxFileSize`.
 
