@@ -262,7 +262,7 @@ These functions report bot attribution. They do not verify that an impersonation
 
 ### Default Rules
 
-To see the four rules that come built in and apply to everyone in your organization, follow these steps:
+To see the three rules that come built in and apply to everyone in your organization, follow these steps:
 
 1. Click the **Profile** icon and go to **Settings** > **Access Control** > **Policies**.
 
@@ -404,10 +404,26 @@ Several endpoints that return part of an asset check the same permission the ass
 | Lineage graph, export, and scene | `ViewBasic` on the root entity |
 | Vote on an asset, follow an asset, or stop following it | `ViewBasic` on the asset |
 | Trigger, redeploy, suspend, or resume a governance workflow | `EditAll` on the workflow definition |
+| Add or remove users, or bulk add or remove assets, on a team | `EditUsers` on the team |
+| Read an announcement on an asset, or its versions | `ViewBasic` on the asset the announcement is linked to |
 
 Adding or removing a follower other than yourself requires an administrator.
 
 The automations workflow trigger for **Test connection** requires `EditAll` on the service in the request, or `Create` on ingestion pipelines. Without a service in the request, it requires `Create` on ingestion pipelines.
+
+## CSV Import and Export
+
+CSV import and export check permissions for each row, not only for the asset you start from. This applies to every entity that supports CSV, such as services, databases, schemas, tables, glossaries, teams, users, and test cases.
+
+- **Import**: OpenMetadata authorizes each row as the matching write that the importing user could make through the API. A row that updates an existing entity needs `EditAll` on that entity, even when the row changes nothing. A row that creates an entity needs `Create`, checked against the entity's parent. A row for a table's columns is checked as an update to the table.
+- **New parents in the same file**: A row can create an entity under a parent that an earlier row in the same file created. OpenMetadata checks it against that parent, and the parent counts only after its own row succeeds.
+- **Refused rows**: A refused row is reported as failed and the other rows continue, in a dry run as well as in a real import. An explicit deny on any operation the row needs refuses the row.
+- **Administrators**: Administrators skip these per-row checks.
+- **Export**: An export includes only the rows the caller can view (`ViewAll`). When a container is left out, its children are left out with it, for example the schemas and tables under a database. A restricted user can therefore get a shorter file than an administrator, and importing that file does not change the rows that were left out.
+
+<Info>
+A CSV dry run reports the rows that the import will refuse. Use it to check your permissions before you run the import.
+</Info>
 
 ## Filtered Lists and Responses
 
@@ -416,6 +432,8 @@ OpenMetadata filters these responses to what the caller can view:
 - **Asset lists**: The assets of a domain, data product, glossary term, tag, team, or user.
 - **Asset counts**: The counts of domains, data products, and teams. A user restricted to a domain sees counts for that domain and its sub-domains only.
 - **Mixed responses**: Activity feeds, lineage neighbors, column search and export, and the `semantic_search` MCP tool. Administrators skip this filtering in activity feeds and lineage.
+- **Announcements**: A list of announcements leaves out the announcements on assets that the caller cannot view, and the total counts only the announcements the caller can view. System announcements, which are not linked to an asset, are not affected. An announcement on an asset that has no link recorded can be read by administrators only.
+- **CSV exports**: An export includes only the rows the caller can view. See [CSV Import and Export](#csv-import-and-export).
 
 ## Administrator and Bot Endpoints
 

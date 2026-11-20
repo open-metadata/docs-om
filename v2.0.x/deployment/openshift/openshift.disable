@@ -2,6 +2,12 @@
 
 OpenMetadata can be deployed on Red Hat OpenShift, including ROSA (Red Hat OpenShift Service on AWS). The OpenShift setup uses the Kubernetes-native pipeline service client (`K8sPipelineClient`) instead of Airflow — no Airflow installation is required.
 
+<Warning>
+This draft requires OpenMetadata dependency chart 3.0.0 with MySQL 8.4.13. Do not use the image overrides with an older Bitnami chart. Wait for the [companion chart release](https://github.com/open-metadata/openmetadata-helm-charts/pull/559) before following these commands.
+
+For an existing MySQL 8.0 installation, back up both application databases and follow the chart's [backup-and-restore migration procedure](https://github.com/open-metadata/openmetadata-helm-charts/blob/fc174fd0b55202ea07108badd1a64b3846dea692/charts/deps/MYSQL-UPGRADE.md) using new storage. Do not attach the old Bitnami volume to the official MySQL image. Validate the MySQL pod against your OpenShift security context constraints and storage permissions before rollout.
+</Warning>
+
 ### Prerequisites
 
 Install the [OpenShift CLI (`oc`)](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) and ensure your `kubectl`/`helm` context points to your OpenShift cluster.
@@ -42,16 +48,16 @@ mysql:
   architecture: standalone
   image:
     registry: docker.io
-    repository: bitnamilegacy/mysql
-    tag: 8.0.37-debian-12-r2
+    repository: mysql
+    tag: "8.4.13"
     pullPolicy: "Always"
   auth:
     rootPassword: password         # change this
     database: openmetadata_db
     username: openmetadata_user
     password: openmetadata_password  # change this
-  # Override base chart initdbScripts with no-ops to prevent the airflow_db
-  # script from failing on restart with "Can't create database; database exists"
+  # auth.database/auth.username initialize the application database and user.
+  # Disable the parent scripts to avoid duplicate CREATE statements.
   initdbScripts:
     init_airflow_db_scripts.sql: "SELECT 1;"
     init_openmetadata_db_scripts.sql: "SELECT 1;"
@@ -100,6 +106,7 @@ Then install:
 
 ```bash
 helm upgrade --install openmetadata-dependencies open-metadata/openmetadata-dependencies \
+  --version 3.0.0 \
   --namespace openmetadata --create-namespace \
   --values values-openshift-deps.yaml
 ```
@@ -107,7 +114,7 @@ helm upgrade --install openmetadata-dependencies open-metadata/openmetadata-depe
 Wait for the pods to be ready:
 
 ```bash
-oc rollout status deployment/mysql -n openmetadata
+oc rollout status statefulset/mysql-84 -n openmetadata
 oc rollout status statefulset/opensearch -n openmetadata
 ```
 
@@ -142,7 +149,7 @@ openmetadata:
           enabled: true
 
     # Point at the MySQL installed above.
-    # Bitnami stores the user password in a Secret named "mysql" under key "mysql-password".
+    # The MySQL subchart stores the user password in a Secret named "mysql" under key "mysql-password".
     database:
       enabled: true
       host: mysql
