@@ -1,130 +1,89 @@
-<Update label="2.0.8 Release" description="13 November 2026">
+<Update label="2.0.9 Release" description="20 November 2026">
 
-For more information, see the [OpenMetadata 2.0.8 GitHub release](https://github.com/open-metadata/OpenMetadata/releases/tag/2.0.8-release).
+For more information, see the [OpenMetadata 2.0.9 GitHub release](https://github.com/open-metadata/OpenMetadata/releases/tag/2.0.9-release).
 
 ## Changelog
 
-OpenMetadata 2.0.8 is a maintenance release that expands connector coverage and improves lineage accuracy. It strengthens Data Quality and governance workflows. It also strengthens Model Context Protocol (MCP) authentication and access controls. The release improves search, Resource Description Framework (RDF) storage operations, and upgrades. It also improves user interface (UI) reliability. Security updates cover the server, ingestion, and Airflow. They also cover MCP and frontend dependencies.
+OpenMetadata 2.0.9 is a maintenance release that moves the server and Kubernetes operator images to Java 21.0.13.1, which fixes CVE-2026-114938. It also improves the MicroStrategy and Sigma connectors and makes profiling and sampling more reliable. The release fixes Data Quality, Data Insights, and governance workflow issues. It also improves search reindexing, alerts, upgrades, and user interface (UI) reliability.
 
 ### 🔌 Connectors and Ingestion
 
 This release includes the following connector and ingestion improvements:
 
-- **Deleting an ingestion pipeline could fail and leave its directed acyclic graph in Airflow** [#36267](https://github.com/open-metadata/OpenMetadata/pull/36267): Pipeline deletion now uses Airflow's supported cleanup path. It removes graph versions and cleans runs and task instances in dependency order.
-- **Glue Test Connection could fail on databases excluded by the pipeline filters** [#36574](https://github.com/open-metadata/OpenMetadata/pull/36574): Connection tests now probe only the databases and tables that ingestion is configured to read.
-- **Hex links were broken, and projects lacked detailed models and lineage** [#36420](https://github.com/open-metadata/OpenMetadata/pull/36420), [#36388](https://github.com/open-metadata/OpenMetadata/pull/36388), [#36856](https://github.com/open-metadata/OpenMetadata/pull/36856): Hex ingestion now builds working source links and creates data models with SQL-cell column lineage. It also ingests components, run history, and application views.
-- **Hex source tables linked to dashboards instead of their data models** [#37166](https://github.com/open-metadata/OpenMetadata/pull/37166): Table and column lineage now terminates at the Hex data model, including models created from query-history-only tables.
-- **Power BI retained stale dashboards and data models after a confirmed empty listing** [#36921](https://github.com/open-metadata/OpenMetadata/pull/36921): A complete, successful empty listing can now soft-delete entities that no longer exist while failed or incomplete listings remain protected.
-- **SSIS packages stored in Azure Blob Storage couldn't be configured** [#36917](https://github.com/open-metadata/OpenMetadata/pull/36917): SSIS connections now accept an Azure Data Lake Storage container in addition to Amazon S3 and local paths.
-- **BigQuery date-sharded tables appeared as separate physical assets** [#37002](https://github.com/open-metadata/OpenMetadata/pull/37002): An optional grouping mode now represents daily shards as one logical table while recording the physical table used for profiling and samples. Lineage and quality results also retain the physical execution source.
-- **Athena required a workgroup and rendered invalid table names in rule SQL** [#37038](https://github.com/open-metadata/OpenMetadata/pull/37038), [#37438](https://github.com/open-metadata/OpenMetadata/pull/37438): The workgroup is now optional, and rule-library expressions omit the placeholder database segment from Athena table names.
-- **dbt tests and sources could produce incorrect results** [#37199](https://github.com/open-metadata/OpenMetadata/pull/37199), [#37644](https://github.com/open-metadata/OpenMetadata/pull/37644): Warning results now ingest as failures. Source metadata and filtering use the physical `identifier` when it differs from the logical name. Tests and lineage use it as well.
-- **Recursive CSV imports could drop constraints, column properties, and foreign-key edges** [#37244](https://github.com/open-metadata/OpenMetadata/pull/37244): Imports at the service, database, or schema level now retain table constraints and custom properties. They also rebuild foreign-key relationships.
-- **Malformed quoted CSV values caused server errors** [#37214](https://github.com/open-metadata/OpenMetadata/pull/37214): Synchronous and asynchronous imports now return an aborted result with the affected line and corrective guidance.
-- **Sigma ingestion omitted workbook metadata, data models, and accurate lineage** [#37449](https://github.com/open-metadata/OpenMetadata/pull/37449): Nine connector improvements add data models, certification tags, and lifecycle dates. They also add workspace projects and version properties. Lineage, owner matching, and column matching are now more reliable.
-- **Usage ingestion could attach queries and daily counts to the wrong table identity** [#37492](https://github.com/open-metadata/OpenMetadata/pull/37492): Query lookup now uses the service hash and safely retries concurrent query creation.
-- **Snowflake stored-procedure scans could run without a lower bound or stop other ingestion work** [#37614](https://github.com/open-metadata/OpenMetadata/pull/37614): Procedure history is now bounded at both ends, canceled scans are split, and failures are isolated from other ingestion stages.
-- **MySQL-compatible connections didn't verify certificates supplied through `sslConfig`** [#37633](https://github.com/open-metadata/OpenMetadata/pull/37633): MySQL, Doris, and StarRocks now pass certificate files correctly to PyMySQL. Invalid SSL configurations are rejected before ingestion starts.
+- **MicroStrategy ingestion was unreliable and lineage was incomplete** [#37730](https://github.com/open-metadata/OpenMetadata/pull/37730), [#37855](https://github.com/open-metadata/OpenMetadata/pull/37855), [#37945](https://github.com/open-metadata/OpenMetadata/pull/37945), [#37980](https://github.com/open-metadata/OpenMetadata/pull/37980), [#38217](https://github.com/open-metadata/OpenMetadata/pull/38217): The connector now skips documents, parses cube SQL once, and routes lineage by project. It adds column-level lineage from cube SQL to data models and reads a report dataset's lineage from its source cube. Reports built on Live cubes now explain where their data comes from.
+- **Sigma lineage was missing for elements and formulas** [#37766](https://github.com/open-metadata/OpenMetadata/pull/37766): Sigma ingestion now walks element lineage, lists workbooks across the whole organization, and captures formula lineage.
+- **dbt meta could apply glossary terms that weren't approved** [#37719](https://github.com/open-metadata/OpenMetadata/pull/37719): Only glossary terms in **Approved** status are applied from dbt meta.
+- **Concurrent BigQuery datasets could share data definition language (DDL) cache entries** [#38234](https://github.com/open-metadata/OpenMetadata/pull/38234): The DDL cache is now keyed by fully qualified name.
+- **SQL Server and Azure SQL profiler SQL altered schema names** [#37789](https://github.com/open-metadata/OpenMetadata/pull/37789): Literal schema names are now preserved.
+- **Oracle percentage samples were inaccurate** [#37940](https://github.com/open-metadata/OpenMetadata/pull/37940): A new Oracle sampler keeps percentage samples per row.
+- **The datalake sampler dropped rows and flattened lists** [#38175](https://github.com/open-metadata/OpenMetadata/pull/38175): Rows with partial nulls are kept, and list cells are returned as lists.
+- **Google Cloud Storage (GCS) structured child container metrics were wrong** [#37968](https://github.com/open-metadata/OpenMetadata/pull/37968): Metrics for structured child containers are now computed correctly.
+- **Testing a connection from the service page used the wrong runner** [#38159](https://github.com/open-metadata/OpenMetadata/pull/38159): The service's configured runner is now sent.
+- **Ingestion could install an incompatible `python-liquid`** [#37871](https://github.com/open-metadata/OpenMetadata/pull/37871): `python-liquid` is now capped below version 3.
 
 ### 📊 Data Quality and Data Insights
 
 This release includes the following Data Quality and Data Insights fixes:
 
-- **Data Insights could omit earlier snapshot days after version history was exhausted** [#36273](https://github.com/open-metadata/OpenMetadata/pull/36273): Snapshot repair now fills eligible uncovered days from the oldest retained entity version and creation evidence.
-- **Incident menus offered invalid transitions, and listings could fail or ignore the latest-only filter** [#36538](https://github.com/open-metadata/OpenMetadata/pull/36538), [#36872](https://github.com/open-metadata/OpenMetadata/pull/36872): Menus now show only allowed workflow transitions. Time-series listings also preserve latest-only partitioning and correctly scope deleted test cases.
-- **Column tests couldn't be attached to nested fields** [#36874](https://github.com/open-metadata/OpenMetadata/pull/36874): Test cases, dimensions, and inherited tags now resolve dotted paths through nested column children.
-- **Data contract validation results erased owners and reviewers** [#37009](https://github.com/open-metadata/OpenMetadata/pull/37009): Result updates now reload and preserve the stored contract fields before recording the latest result.
-- **Restoring or recursively deleting test cases with incident history could fail or leave stale rows** [#37086](https://github.com/open-metadata/OpenMetadata/pull/37086), [#37003](https://github.com/open-metadata/OpenMetadata/pull/37003): Restore skips time-series children that use a separate repository, while hard deletion cleans incident history after the owning transaction succeeds.
-- **Datetime quality bounds could be rejected or scaled incorrectly** [#37427](https://github.com/open-metadata/OpenMetadata/pull/37427): Signed values, leading zeroes, and fractional seconds now parse consistently. ISO dates and timezone offsets also parse consistently while preserving microseconds.
-- **Profiler columns beginning with `__` or `_sa_` could be omitted** [#37295](https://github.com/open-metadata/OpenMetadata/pull/37295): The profiler now maps reserved-looking names to safe, unique Python attributes without changing the source column names.
+- **Data Quality table totals were inexact** [#37913](https://github.com/open-metadata/OpenMetadata/pull/37913): Exact table totals and related integration fixes are backported to 2.0.
+- **The Open incident card undercounted incidents** [#38222](https://github.com/open-metadata/OpenMetadata/pull/38222): The card now counts Acknowledged and Assigned incidents, and incident cards are described as daily activity.
+- **Metrics could show the wrong status, and the metrics worker could race** [#38009](https://github.com/open-metadata/OpenMetadata/pull/38009), [#37899](https://github.com/open-metadata/OpenMetadata/pull/37899), [#38130](https://github.com/open-metadata/OpenMetadata/pull/38130): The metrics list shows the real status, and the worker finishes in-flight items before summarizing or resetting for a new run.
+- **Data Insights charts drew axis categories they didn't count** [#37898](https://github.com/open-metadata/OpenMetadata/pull/37898): The categorical axis is now drawn only from the documents the chart counts. A new `DataInsightsExtension` hook is also available [#37815](https://github.com/open-metadata/OpenMetadata/pull/37815).
 
 ### 🛡️ Data Governance and Workflows
 
 This release includes the following governance and workflow fixes:
 
-- **Negated tag rules matched assets that had a different tag and excluded untagged assets** [#36263](https://github.com/open-metadata/OpenMetadata/pull/36263): **Is Not**, **Not In**, and **Is Not Set** now represent the intended whole-list condition. The editor also displays negated rules saved through the API.
-- **Tasks could fail on deeply nested assets or stop following assets after a rename** [#36262](https://github.com/open-metadata/OpenMetadata/pull/36262): Task and domain hashes now support deeper fully qualified names, and task references follow supported renames and moves.
-- **Approved tasks didn't consistently behave like direct edits** [#36694](https://github.com/open-metadata/OpenMetadata/pull/36694), [#36987](https://github.com/open-metadata/OpenMetadata/pull/36987): Applied changes now produce asset events for alerts and audit history. Resolutions also enforce the same entity and field permissions as direct changes. Tag and reassignment permissions are enforced as well.
-- **Task alerts configured for Owners missed the task creator and asset owners** [#36693](https://github.com/open-metadata/OpenMetadata/pull/36693): Owner recipients now include the human creator and the direct or inherited owners of the affected asset.
-- **Data product port selection and imports could target invalid assets or the wrong product** [#36984](https://github.com/open-metadata/OpenMetadata/pull/36984), [#37019](https://github.com/open-metadata/OpenMetadata/pull/37019): Port pickers exclude conflicting assets and show rejection reasons. Product-page imports now validate the YAML `productID` instead of the display name.
-- **Data product updates could leave orphaned or stale relationships** [#37107](https://github.com/open-metadata/OpenMetadata/pull/37107), [#37109](https://github.com/open-metadata/OpenMetadata/pull/37109): Asset writers lock data products before adding relationships. Validation now recognizes inherited domains, and the 2.0.8 migration repairs incorrect containment links.
-- **Approval workflows could open unnecessarily or remain open after all eligible votes** [#37068](https://github.com/open-metadata/OpenMetadata/pull/37068), [#37650](https://github.com/open-metadata/OpenMetadata/pull/37650): Triggers now ignore no-op updates, show the initiating change, and cap approval or rejection thresholds at the number of eligible user assignees.
-- **Non-approved glossary terms could be applied through the API** [#37689](https://github.com/open-metadata/OpenMetadata/pull/37689): New tag assignments now reject glossary terms that aren't in **Approved** status while preserving terms already attached to an asset.
-- **Fresh installations showed fictional AI Governance detections as real assets** [#37414](https://github.com/open-metadata/OpenMetadata/pull/37414): Demo applications, models, and services now load only through the optional sample-data recipe. Demo lineage uses the same opt-in path. Existing demo entities aren't removed automatically.
+- **Resolved tag updates left stale tags behind** [#37724](https://github.com/open-metadata/OpenMetadata/pull/37724): Tags that a resolved tag update leaves out are now removed.
+- **Tag recognizers could be saved without a supported language** [#37568](https://github.com/open-metadata/OpenMetadata/pull/37568): These recognizers are now rejected.
+- **Tag suggestion tasks were displayed as description tasks** [#38114](https://github.com/open-metadata/OpenMetadata/pull/38114): Tag suggestion tasks now display as tags.
+- **A hard delete removed the tags of entities that share its fully qualified name** [#38230](https://github.com/open-metadata/OpenMetadata/pull/38230): Tags on other entities with the same fully qualified name are now kept.
+- **Undone edits could hang workflows, and tag renames with backslashes left a stale cache** [#38225](https://github.com/open-metadata/OpenMetadata/pull/38225): Both issues are fixed.
+- **Workflow node factories were hard-coded** [#38141](https://github.com/open-metadata/OpenMetadata/pull/38141): Factories are now discovered from the classpath.
+- **Lifecycle-only updates changed the version author** [#37995](https://github.com/open-metadata/OpenMetadata/pull/37995): The original author is now kept.
+- **CSV imports dropped rows and versions** [#38192](https://github.com/open-metadata/OpenMetadata/pull/38192): Imported rows and their versions are now kept.
+- **Task-created notifications linked to the wrong place** [#38090](https://github.com/open-metadata/OpenMetadata/pull/38090): Notifications now link to the task page.
 
 ### 🔗 AI Context and MCP Server
 
-This release includes the following AI Context and MCP fixes:
+This release includes the following Model Context Protocol (MCP) fixes:
 
-- **AI Context could expose knowledge through incomplete principal checks** [#36378](https://github.com/open-metadata/OpenMetadata/pull/36378), [#36774](https://github.com/open-metadata/OpenMetadata/pull/36774): Results now authorize every knowledge item. Memory sharing also matches stored principal identifiers so a username can't inherit access from a same-named team or domain.
-- **Context search returned no knowledge on Elasticsearch** [#37041](https://github.com/open-metadata/OpenMetadata/pull/37041): Context tools now use the search-backend-neutral vector service for both Elasticsearch and OpenSearch.
-- **`prompts/get` rejected valid MCP tokens** [#36533](https://github.com/open-metadata/OpenMetadata/pull/36533): Prompt retrieval now reads the bearer token from the `Authorization` header.
-- **Revoked MCP access tokens remained usable** [#36778](https://github.com/open-metadata/OpenMetadata/pull/36778): Issued access tokens are now stored, bound to their client, and rejected after direct revocation or refresh-token revocation.
-- **MCP single sign-on callbacks could use stale credentials or accept a callback without state** [#36781](https://github.com/open-metadata/OpenMetadata/pull/36781), [#36782](https://github.com/open-metadata/OpenMetadata/pull/36782): Callbacks now use credentials from the validated request and require the state of a pending sign-in.
-- **MCP login kept using an outdated authenticator after security settings changed** [#36780](https://github.com/open-metadata/OpenMetadata/pull/36780), [#37206](https://github.com/open-metadata/OpenMetadata/pull/37206): Login and token validation now reload the current authentication provider without a server restart.
-- **Deleting users could deadlock MCP token cleanup on MySQL** [#37171](https://github.com/open-metadata/OpenMetadata/pull/37171): User deletion and token refresh now take locks in a consistent order.
-- **Large MCP requests and registration URLs had no explicit limits** [#37205](https://github.com/open-metadata/OpenMetadata/pull/37205): Registration bodies are capped at 64 KiB, MCP messages at 4 MiB after decompression, and redirect URIs at 2,048 characters.
-- **MCP SSO authorized registered clients without user confirmation** [#37674](https://github.com/open-metadata/OpenMetadata/pull/37674): Sign-in now presents a single-use consent page that identifies the client, account, and redirect host before issuing a code.
+- **Disabling the MCP Server application required a restart** [#37727](https://github.com/open-metadata/OpenMetadata/pull/37727): MCP now stops as soon as the application is disabled.
+- **`get_entity_details` calls without `entityType` or `fqn` failed unclearly** [#38160](https://github.com/open-metadata/OpenMetadata/pull/38160): These requests are now rejected with a 400 response.
 
 ### 🔍 Search and Discovery
 
-This release includes the following search and discovery fixes:
+This release includes the following search fix:
 
-- **Reindexing could fail with an open circuit while the search cluster remained healthy** [#36542](https://github.com/open-metadata/OpenMetadata/pull/36542): Bulk concurrency is now capped by the search connection pool, and an open circuit pauses pending batches instead of dropping them.
-- **Semantic search could miss topic fields or reuse stale embeddings** [#37642](https://github.com/open-metadata/OpenMetadata/pull/37642), [#37679](https://github.com/open-metadata/OpenMetadata/pull/37679): Vector chunks now include topic schema fields. Reindexing reuses a stored vector only when its text fingerprint still matches.
-
-### 🔀 Lineage
-
-This release includes the following lineage fixes:
-
-- **Updating a table could scramble multi-column foreign-key pairings** [#37154](https://github.com/open-metadata/OpenMetadata/pull/37154): Constraint updates now preserve the ordered relationship between local and referenced columns.
-- **Column lineage could disappear for case differences or nested structured fields** [#37159](https://github.com/open-metadata/OpenMetadata/pull/37159), [#37666](https://github.com/open-metadata/OpenMetadata/pull/37666): SQL lineage now preserves case-insensitive mappings and follows nested fields in `STRUCT` and `ARRAY<STRUCT>` columns.
-- **Lineage PNG exports were empty, page titles were generic, and saving preferences dropped unrelated settings** [#37168](https://github.com/open-metadata/OpenMetadata/pull/37168): Export now uses the active graph, titles include the entity name, and preference updates preserve the complete lineage configuration.
-
-### 🔐 Authentication and Access Control
-
-This release includes the following authentication and access-control fixes:
-
-- **Personal access tokens and bot tokens could be used to open an interactive UI session** [#36438](https://github.com/open-metadata/OpenMetadata/pull/36438): The UI now accepts only tokens from an interactive login flow and signs out API-only tokens.
-- **Impersonated requests could change security settings or create and restore users** [#36593](https://github.com/open-metadata/OpenMetadata/pull/36593): Security configuration, user import, and restore now reject impersonation. SCIM creation and creation of missing users reject it as well.
-- **Test Connection workflows could be created for services the caller couldn't edit** [#37016](https://github.com/open-metadata/OpenMetadata/pull/37016): Registered-service tests now require `EditAll` on the resolved service.
-- **User updates erased last-login and last-activity timestamps** [#36937](https://github.com/open-metadata/OpenMetadata/pull/36937): `PATCH`, `PUT`, and soft deletion now preserve both activity fields.
-- **Persona layouts silently fell back to defaults for users without Document access** [#36859](https://github.com/open-metadata/OpenMetadata/pull/36859): Assigned users can now read their persona's layout document without gaining access to other documents.
-- **SAML configuration checks couldn't validate identity providers that require signed requests** [#37437](https://github.com/open-metadata/OpenMetadata/pull/37437): Validation now signs the request when configured and surfaces the identity provider's rejection reason.
+- **The orphan sweep could fail a live reindex job** [#38120](https://github.com/open-metadata/OpenMetadata/pull/38120): The sweep no longer fails a reindex job while it initializes.
 
 ### 📣 Alerts and Events
 
-This release includes the following alert fixes:
+This release includes the following alert fix:
 
-- **Notify Downstream alerts didn't reach downstream owners for data-asset events** [#37290](https://github.com/open-metadata/OpenMetadata/pull/37290): Alerts now traverse lineage from the changed asset when it has no parent container.
+- **Opening an alert's page could load an unbounded number of pending events** [#38094](https://github.com/open-metadata/OpenMetadata/pull/38094): The pending count is now capped and shows "500+" when there are more.
 
 ### ⚙️ Platform and Operations
 
 This release includes the following platform and operations fixes:
 
-- **Ingestion pipeline patches could deploy against a different service than the stored relationship** [#36910](https://github.com/open-metadata/OpenMetadata/pull/36910): Pipeline updates now preserve the original service before redeployment.
-- **Kubernetes pipeline resources ignored configured labels and annotations** [#37047](https://github.com/open-metadata/OpenMetadata/pull/37047): Ingestion, application, and automation resources now receive `podLabels` and `podAnnotations` while protecting controller identity labels.
-- **RDF storage could grow until the Fuseki volume filled** [#36660](https://github.com/open-metadata/OpenMetadata/pull/36660), [#36661](https://github.com/open-metadata/OpenMetadata/pull/36661): Scheduled and low-space compaction now pause writes safely and expose storage status. They reserve configurable free space and return clear maintenance responses.
-- **A rolling upgrade from 1.12 could leave Quartz tables in a partially purged state** [#36818](https://github.com/open-metadata/OpenMetadata/pull/36818): The 1.13.0 migration now clears scheduler tables atomically and can repair a previously interrupted purge.
+- **The 2.0.8 audit log cleanup could run for hours on large installations** [#38153](https://github.com/open-metadata/OpenMetadata/pull/38153): The audit log entity-type index is now created before the cleanup runs.
+- **The bundled MySQL image used end-of-life MySQL 8.0** [#38172](https://github.com/open-metadata/OpenMetadata/pull/38172): The bundled image now ships MySQL 8.4.13, which is also used in testing. MySQL 8.0 is still supported as an ingestion source.
+- **Okta Security Assertion Markup Language (SAML) certificates whose common name is the organization name were rejected** [#33625](https://github.com/open-metadata/OpenMetadata/pull/33625): These certificates are now accepted.
+- **Signup and password-reset flows hid email delivery failures** [#38232](https://github.com/open-metadata/OpenMetadata/pull/38232): The `424 FAILED_SEND_EMAIL` response is now preserved.
 
 ### 🎛️ UI
 
 This release includes the following UI fixes:
 
-- **Block-editor suggestions could crash, and large table pages could block the main thread** [#37130](https://github.com/open-metadata/OpenMetadata/pull/37130): Suggestion updates now tolerate out-of-order callbacks, while description editors and height calculations avoid unnecessary work.
-- **Data Product asset cards could flicker continuously** [#37518](https://github.com/open-metadata/OpenMetadata/pull/37518): Breadcrumb auto-collapse no longer enters a resize loop in wrapping card headers.
+- **Composite unique constraints were indistinguishable** [#38178](https://github.com/open-metadata/OpenMetadata/pull/38178): Composite unique constraints are now shown distinctly.
+- **The My Tasks widget rendered every card at once** [#37944](https://github.com/open-metadata/OpenMetadata/pull/37944): Cards now mount only when scrolled into view.
+- **Context Center article tabs were narrow** [#38193](https://github.com/open-metadata/OpenMetadata/pull/38193): Article tabs are now full width, and AskCollate is dropped from the memories subtitle.
 
 ### 🔒 Security
 
-This release includes the following security updates:
+This release includes the following security update:
 
-- **Airflow and backend authorization paths needed additional hardening** [#36337](https://github.com/open-metadata/OpenMetadata/pull/36337), [#36656](https://github.com/open-metadata/OpenMetadata/pull/36656), [#37162](https://github.com/open-metadata/OpenMetadata/pull/37162): Airflow 3 plugin routes now authenticate and authorize every declared action. Backend updates strengthen identity-provider validation, credentials, and sessions. Policy changes, input limits, and deletion cleanup receive additional protections.
-- **External and learning-resource URLs could use unsafe schemes** [#36815](https://github.com/open-metadata/OpenMetadata/pull/36815), [#36934](https://github.com/open-metadata/OpenMetadata/pull/36934): Summary links, quick links, and Markdown output now accept only safe HTTP(S) destinations. Videos, stories, and articles apply the same restriction.
-- **Jackson libraries contained a critical deserialization vulnerability** [#36525](https://github.com/open-metadata/OpenMetadata/pull/36525): Jackson Databind moves to 2.18.12 and Tools Jackson to 3.1.8 for CVE-2026-110879.
-- **Frontend networking dependencies contained known vulnerabilities** [#36422](https://github.com/open-metadata/OpenMetadata/pull/36422), [#36637](https://github.com/open-metadata/OpenMetadata/pull/36637): `qs` moves to 6.16.2, and `follow-redirects` moves to 1.16.2.
-- **The SSO dependency tree included a vulnerable JSON parser** [#36953](https://github.com/open-metadata/OpenMetadata/pull/36953): `json-smart` moves to 2.6.1 for CVE-2026-113602.
-- **The block editor used a vulnerable Tiptap major version** [#37042](https://github.com/open-metadata/OpenMetadata/pull/37042): All Tiptap packages move to 3.32.2 to address GHSA-cp6q-959q-f8rh.
-- **MCP dependencies required security updates** [#36330](https://github.com/open-metadata/OpenMetadata/pull/36330): MCP Core moves to 1.1.5.
-- **Operator images included unused PostgreSQL server and XML packages** [#37615](https://github.com/open-metadata/OpenMetadata/pull/37615): The images now retain only the PostgreSQL client library needed by ingestion and remove the unused server, client tools, and `libxml2` dependency.
+- **The bundled JDK was affected by CVE-2026-114938 ("Java4Shell")** [#38125](https://github.com/open-metadata/OpenMetadata/pull/38125): The server, Kubernetes operator, and Resource Description Framework (RDF) store (Fuseki) images now use Amazon Corretto 21.0.13.1.2, which includes the fix. Only servers on x86-64 CPUs with AVX-512 VBMI running Java older than 21.0.13.1 were affected. ARM hosts were not. If you can't upgrade right away, set `OPENMETADATA_OPTS="-XX:-UseBASE64Intrinsics"` on the server and restart.
 
 </Update>
