@@ -44,6 +44,18 @@ CURRENT = next(
 # with a reason, relative to the repo root without extension).
 ALLOW_DUPLICATE = set()
 
+# Near-duplicate pairs that already existed before the 2.1 promotion. A promotion
+# renames or copies every page, so the lint sees them as added. Listed without the
+# version prefix; the pair applies to every version.
+ALLOW_NEAR_DUPLICATE = {
+    frozenset({"connectors/ingestion/workflows/lineage/filter-query-set",
+               "connectors/ingestion/workflows/usage/filter-query-set"}),
+    frozenset({"deployment/secrets-manager/supported-implementations/aws-secrets-manager",
+               "deployment/secrets-manager/supported-implementations/aws-ssm-parameter-store"}),
+    frozenset({"deployment/security/okta/auth-code-flow",
+               "deployment/security/okta/implicit-flow"}),
+}
+
 # Versions held to the frontmatter and duplicate-content rules: the current
 # version plus pre-release ones. Older versions are legacy and only get
 # redirect checks.
@@ -316,7 +328,9 @@ def check_near_duplicates(pages, redirects, base):
             if score < NEAR_DUPLICATE_THRESHOLD:
                 continue
             msg = f"{score:.0%} of text shared in {v}: {a} and {b}"
-            (errs if (a in new or b in new) else warns).append(msg)
+            unversioned = frozenset(r.split("/", 2)[2] for r in (a, b))
+            is_new = (a in new or b in new) and unversioned not in ALLOW_NEAR_DUPLICATE
+            (errs if is_new else warns).append(msg)
     return errs, warns
 
 
