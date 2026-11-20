@@ -1,0 +1,79 @@
+---
+title: Export Lineage API
+description: Export the lineage graph for an entity as CSV
+sidebarTitle: Export Lineage
+api: GET /v1/lineage/export
+---
+
+# Export Lineage
+
+Export the lineage graph for a given entity as a CSV file. Useful for auditing, reporting, and offline analysis of data lineage.
+
+## Query Parameters
+
+<ParamField query="fqn" type="string" required>
+  Fully qualified name of the entity to export lineage for, for example `sample_data.ecommerce_db.shopify.dim_customer`.
+</ParamField>
+
+<ParamField query="type" type="string" required>
+  Entity type. Options: `table`, `dashboard`, `pipeline`, `topic`, `mlmodel`, `container`, `searchIndex`, `storedProcedure`, `dashboardDataModel`, `apiEndpoint`.
+</ParamField>
+
+<ParamField query="upstreamDepth" type="integer" default="0">
+  Number of hops to traverse upstream. Set this explicitly to include upstream edges.
+</ParamField>
+
+<ParamField query="downstreamDepth" type="integer" default="0">
+  Number of hops to traverse downstream. Set this explicitly to include downstream edges.
+</ParamField>
+
+<RequestExample>
+```bash GET /v1/lineage/export
+# Export lineage as CSV
+curl "{base_url}/api/v1/lineage/export?fqn=sample_data.ecommerce_db.shopify.dim_customer&type=table&upstreamDepth=3&downstreamDepth=2" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+<ResponseExample>
+```csv Response
+fromId*,fromEntityType*,fromFullyQualifiedName*,toId*,toEntityType*,toFullyQualifiedName*,description,pipelineId,pipelineFullyQualifiedName,pipelineDisplayName,columnLineage,sqlQuery,source
+800caa0f-a149-48d2-a0ce-6ca84501767e,table,sample_data.ecommerce_db.shopify.raw_customer,455e3d9d-dbbf-455e-b3be-7191daa825f3,table,sample_data.ecommerce_db.shopify.dim_customer,,,,,,INSERT INTO dim_customer SELECT * FROM raw_customer,Manual
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns `200 OK` with CSV text and the `text/plain` content type. The export contains one row per returned lineage edge. The endpoint reads the search index, so recently added lineage may need time to appear in the export.
+
+## Response
+
+The CSV uses the following headers. The `*` suffix is part of each required header name:
+
+| Column | Description |
+|--------|-------------|
+| `fromId*` | UUID of the source entity |
+| `fromEntityType*` | Type of the source entity |
+| `fromFullyQualifiedName*` | Fully qualified name of the source entity |
+| `toId*` | UUID of the destination entity |
+| `toEntityType*` | Type of the destination entity |
+| `toFullyQualifiedName*` | Fully qualified name of the destination entity |
+| `description` | Description of the lineage edge |
+| `pipelineId` | UUID of the associated pipeline |
+| `pipelineFullyQualifiedName` | Fully qualified name of the associated pipeline |
+| `pipelineDisplayName` | Display name of the associated pipeline |
+| `columnLineage` | Column mappings in `fromColumn:toColumn` format, separated by semicolons |
+| `sqlQuery` | SQL query for the transformation |
+| `source` | Source of the lineage information |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Missing required parameters |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to export lineage |

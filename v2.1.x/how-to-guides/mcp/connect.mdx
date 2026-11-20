@@ -1,0 +1,209 @@
+---
+title: OpenMetadata MCP Server Connection Guide
+description: "Connect an MCP client to the OpenMetadata MCP Server over Streamable HTTP, authenticate with OAuth 2.0 or a JWT bearer token, and list tools and prompts."
+sidebarTitle: Overview
+---
+
+# MCP Server Connection Guide
+
+OpenMetadata provides a Model Context Protocol (MCP) server that allows AI assistants and other clients to interact with your metadata catalog. The MCP server exposes tools for searching metadata, managing glossaries, and working with lineage data. Please check out our guides for [Claude](/v2.1.x/how-to-guides/mcp/claude) and [Goose](/v2.1.x/how-to-guides/mcp/goose) if you are using them as AI assistants.
+
+## Server Information
+
+- **Server Name**: `openmetadata-mcp-stateless`
+- **Version**: `1.1.0`
+- **Endpoint**: `{OMURL}/mcp`. If OpenMetadata runs under a sub-path, the endpoint includes it, for example `https://your-host/openmetadata/mcp`.
+- **Protocol**: Streamable HTTP (MCP spec `2025-03-26`)
+- **Authentication**: OAuth 2.0 (interactive clients) or JWT Bearer Token (unattended agents)
+
+## Connection Setup
+
+### 1. Server URL
+Your MCP server is available at:
+```
+{OMURL}/mcp
+```
+
+Replace `{OMURL}` with your OpenMetadata instance URL (for example, `https://your-openmetadata.com`).
+
+#### Sub-path Deployments
+
+If OpenMetadata runs under a sub-path, the MCP endpoint and its OAuth routes are served under the base path, for example `https://your-host/openmetadata/mcp`. Set the **MCP base URL** in the MCP Server application settings to the external URL that includes the base path, for example `https://your-host/openmetadata`. A trailing slash is ignored. If the base URL is missing the base path, the server logs a warning at startup.
+
+The server answers `https://your-host/openmetadata/mcp/.well-known/oauth-authorization-server`, `https://your-host/openmetadata/mcp/.well-known/openid-configuration`, and `https://your-host/openmetadata/mcp/.well-known/oauth-protected-resource`. Clients that look only for `https://your-host/.well-known/...` at the host root need a reverse proxy route that forwards those requests to OpenMetadata. For more information about sub-path setup, see the [Docker](/v2.1.x/deployment/docker/subpath), [Kubernetes](/v2.1.x/deployment/kubernetes/subpath), and [bare metal](/v2.1.x/deployment/bare-metal/subpath) sub-path deployment pages.
+
+### 2. Authentication
+The MCP server supports two authentication methods:
+
+- **OAuth 2.0 (interactive clients)**: Sign in with your existing OpenMetadata login. With SSO or SAML, you click **Approve** on a consent page before the client is connected. Requires a browser and a signed-in user, so it isn't suitable for headless or unattended agents. See [OAuth 2.0 Authentication](/v2.1.x/how-to-guides/mcp/oauth) for setup instructions.
+- **Bot JWT token**: For unattended agents and environments where browser-based login isn't available. Generate a token from a [Bot](/v2.1.x/developers/bots) as described in [Bot Token](/v2.1.x/how-to-guides/mcp#bot-token), then include it in the Authorization header:
+```http
+Authorization: Bearer <your-token>
+```
+
+### 3. Required HTTP Headers
+All Streamable HTTP POST requests must include:
+```http
+Content-Type: application/json
+Accept: application/json, text/event-stream
+```
+
+## API Endpoints
+
+### Initialize Connection
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "your-client",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+**Sample Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {
+      "tools": true,
+      "prompts": true
+    },
+    "serverInfo": {
+      "name": "openmetadata-mcp-stateless",
+      "version": "1.1.0"
+    }
+  }
+}
+```
+
+### Complete Initialization
+
+After receiving the `initialize` response, send this notification before making normal requests:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
+### List Available Tools
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
+}
+```
+
+**Sample Response** (truncated, because the server exposes 21 tools). For the complete list, see the [MCP Tools Reference](/v2.1.x/how-to-guides/mcp/reference):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "search_metadata",
+        "description": "Find your data and business terms in OpenMetadata.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Keywords to use for searching."
+            },
+            "entityType": {
+              "type": "string",
+              "description": "Optional entity type to filter results."
+            },
+            "size": {
+              "type": "integer",
+              "description": "Maximum number of results to return. Default is 10."
+            }
+          }
+        }
+      },
+      {
+        "name": "get_entity_details",
+        "description": "Retrieve full details for a specific entity by FQN.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "entityType": {
+              "type": "string",
+              "description": "Type of entity"
+            },
+            "fqn": {
+              "type": "string",
+              "description": "Fully qualified name of the entity"
+            }
+          },
+          "required": ["entityType", "fqn"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### List Available Prompts
+**Endpoint**: `POST {OMURL}/mcp`
+
+**Sample Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "prompts/list"
+}
+```
+
+**Sample Response**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "prompts": [
+      {
+        "name": "search_metadata",
+        "description": "Creates a prompt for Searching metadata in OpenMetadata.",
+        "arguments": [
+          {
+            "name": "query",
+            "description": "Keywords to use for searching.",
+            "required": true
+          },
+          {
+            "name": "entity_type",
+            "description": "Entity Type to Filter Report."
+          },
+          {
+            "name": "limit",
+            "description": "Maximum number of results to return. Default is 10."
+          }
+        ]
+      }
+    ]
+  }
+}
+```

@@ -1,0 +1,422 @@
+---
+title: Breaking Changes - API & Schema | Official Documentation
+description: Removed REST endpoints, enum values, and schema files, plus changed request limits, changed defaults, and schema relocations in OpenMetadata 2.1.
+sidebarTitle: API & Schema
+collate: false
+---
+
+# API & Schema Contracts
+
+Compared with 2.0, the 2.1 JSON Schema specification adds 217 files, modifies 909, and removes six.
+Nearly all of the modified files change only one line, the schema dialect. For more information, see
+[Schema Files Declare a Newer JSON Schema Version](#schema-files-declare-a-newer-json-schema-version).
+On the REST side, the whole `/v1/feed` namespace (13 endpoints) is removed, and a large number of new
+endpoint groups are added.
+
+## Removed Endpoints
+
+The following endpoints are removed in 2.1.
+
+### The Feed API Is Removed
+
+<Note>
+**Breaking.** Affects API clients, SDKs, and bots. It also affects any script that creates, reads, or resolves feed threads or feed tasks.
+</Note>
+
+The entire `/v1/feed` namespace is removed. The following table lists the removed endpoints.
+
+| Removed in 2.1 |
+| --- |
+| `GET /v1/feed` |
+| `POST /v1/feed` |
+| `GET /v1/feed/count` |
+| `GET /v1/feed/{id}` |
+| `PATCH /v1/feed/{id}` |
+| `DELETE /v1/feed/{threadId}` |
+| `GET /v1/feed/{id}/posts` |
+| `POST /v1/feed/{id}/posts` |
+| `PATCH /v1/feed/{threadId}/posts/{postId}` |
+| `DELETE /v1/feed/{threadId}/posts/{postId}` |
+| `GET /v1/feed/tasks/{id}` |
+| `PUT /v1/feed/tasks/{id}/resolve` |
+| `PUT /v1/feed/tasks/{id}/close` |
+
+Use the following replacements.
+
+| If you used | Use instead |
+| --- | --- |
+| Conversation threads, replies, and reactions under `/v1/feed` | `/v1/conversations` (create, read, patch, delete, replies, and reactions) |
+| Announcements under `/v1/feed` | `/v1/announcements` |
+| Activity and mention feeds under `/v1/feed` | `/v1/activity` (`my-feed`, `following`, `mentions`, `user/{userId}`, `entity/...`) |
+| Feed tasks | `POST /v1/tasks`, `GET /v1/tasks/{id}`, `POST /v1/tasks/{id}/resolve`, `POST /v1/tasks/{id}/close` |
+
+Task identifiers change too. Feed tasks used numeric IDs. Tasks now use Universally Unique Identifiers (UUIDs). The migration keeps each old
+thread's UUID as the new task's UUID. In the Python SDK, replace `resolve_feed_task` and `close_feed_task` with
+`resolve_task` and `close_task`.
+
+<Warning>
+Tasks that were created through the feed task API while you were on 2.0.x are not migrated. They stay in the
+archived thread table. Resolve or close them before you upgrade.
+</Warning>
+
+<Note>
+For more information, see [Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.1.x/deployment/upgrade/breaking-changes/collaboration).
+</Note>
+
+## Removed Schema Files
+
+<Note>
+**Breaking.** Affects code generated from the specification and anything that loads these files by path.
+</Note>
+
+The following table lists the removed files.
+
+| Removed file | What happens to it |
+| --- | --- |
+| `api/feed/closeTask.json`, `api/feed/resolveTask.json` | Removed with the feed task API. Use the task schemas under `/v1/tasks`. |
+| `entity/services/connections/database/deltaLakeConnection.json`, `deltalake/metastoreConfig.json`, `deltalake/storageConfig.json` | The Delta Lake connector is removed. For more information, see [Ingestion & Connectors](/v2.1.x/deployment/upgrade/breaking-changes/ingestion-and-connectors). |
+| `type/workflowTriggerFields.json` | No longer part of the public specification. Read the list from the new `GET /v1/types/fields/workflowTriggerFields` endpoint. |
+
+The `createTaskDetails` definition is also removed from `api/feed/createThread.json`.
+
+## Removed Enum Values
+
+<Note>
+**Breaking.** Affects clients that send, store, or switch on these values.
+</Note>
+
+The following table lists the removed values.
+
+| Schema | Enum | Removed values |
+| --- | --- | --- |
+| `entity/feed/thread.json` | `threadType` | `Task` |
+| `type/changeEventType.json` | event types | `taskCreated`, `taskUpdated`, `taskResolved`, `taskClosed`, `suggestionCreated`, `suggestionUpdated`, `suggestionAccepted`, `suggestionRejected`, `suggestionDeleted` |
+| `entity/services/databaseService.json` | `databaseServiceType` | `DeltaLake` |
+
+Task activity now uses the ordinary events. A task being created or updated is delivered as `entityCreated` or
+`entityUpdated` with `entityType` set to `task`. Historic change events that carry the removed values are skipped
+by readers that tolerate them.
+
+<Note>
+Update event subscriptions, alerts, and webhook consumers that filter on `taskCreated`, `taskUpdated`,
+`taskResolved`, or `taskClosed`. Filter on `entityCreated` and `entityUpdated` for the `task` entity instead. Delta
+Lake services become Custom Database services during the upgrade, so check your service filters.
+</Note>
+
+## Changed Request Contracts
+
+These requests change shape or validation in 2.1.
+
+### SPARQL Query Size and Timeout Limits
+
+<Note>
+**Breaking.** Affects clients that call the SPARQL Protocol and RDF Query Language (SPARQL) query API, which queries Resource Description Framework (RDF) data.
+</Note>
+
+In `api/rdf/sparqlQuery.json`:
+
+```diff
+- "timeout": { "minimum": 0, "maximum": 300000 }
++ "timeout": { "minimum": 1, "maximum": 30000 }
++ "query":   { "maxLength": 100000 }
+```
+
+A timeout above 30,000 ms (30 seconds), a timeout of `0`, or a query longer than 100,000 characters is now
+invalid. Lower the timeout or split the query.
+
+### Replies Must Have Text
+
+<Note>
+**Behavioral.** Affects clients that post replies.
+</Note>
+
+The `message` of a reply (`api/feed/createPost.json`) must now contain at least one non-blank character.
+An empty or whitespace-only reply is rejected.
+
+### Lineage Request and Response Changes
+
+<Note>
+**Behavioral.** Several lineage endpoints now check permissions, refuse some inputs, and return new response
+details.
+</Note>
+
+For more information, see [Lineage](/v2.1.x/deployment/upgrade/breaking-changes/lineage).
+
+## Authorization Changes on Existing Endpoints
+
+<Note>
+**Behavioral.** Affects non-admin users and integrations that read data they do not own.
+</Note>
+
+The 2.1 release adds permission checks to endpoints that used to answer without the per-entity check that the entity itself gets.
+A caller who lacks the permission now gets `403 Forbidden`. Where the endpoint returns a list, the entries the caller
+cannot view are left out instead. The following sections group the changes.
+
+### Reads and Lists
+
+The following changes apply to reads and to endpoints that return lists.
+
+- Sub-resource reads need a view permission on the parent entity. Table system profiles need `ViewDataProfile` on
+  the table. A table's entity relationship graph needs `ViewBasic` on the table. Pipeline run statuses need `ViewBasic`
+  on the pipeline, and ingestion pipeline statuses need `ViewAll` on the ingestion pipeline. Key performance indicator (KPI) results need
+  `ViewBasic` on the KPI. Reading an intake form needs `ViewBasic` on the form.
+- Validating a contract definition (`POST /v1/dataContracts/validate`, `/validate/yaml`,
+  and `/odcs/validate/yaml`) needs `ViewBasic` on the entity the contract targets.
+- The assets of a data product need `ViewBasic` on the data product.
+- Reference lists on an entity only include entities the caller can view with `ViewBasic`. This covers the following lists.
+  - A team's `owns`, `children`, and `parents` lists are filtered.
+  - A user's `owns` and `follows` lists are filtered.
+  - The schemas of a database are filtered.
+  - The tables of a schema are filtered.
+  - The pipelines of a service are filtered.
+  - The team hierarchy is filtered.
+- Activity feeds only include events about entities the caller can view (admins see everything). The activity
+  endpoints for one entity return `403` when the caller cannot view it.
+- When a caller's policies depend on conditions that differ by row, such as owner or tag, a list endpoint drops
+  the rows the caller cannot read. To fill a page it reads at most five
+  pages or 1,000 rows, so it can return fewer rows than `limit`. The total still counts every row. When a Fernet key
+  is configured, paging cursors are sealed tokens that start with `s.`, so do not parse them.
+- Following, unfollowing, and voting need `ViewBasic` on the entity.
+- For more information about lineage permissions, see [Lineage](/v2.1.x/deployment/upgrade/breaking-changes/lineage).
+
+### Admin-Only and Restricted Endpoints
+
+The following endpoints and actions are now limited to admins, bots, or users with a specific permission.
+
+- Email template reset (`POST /v1/docStore/resetEmailTemplate`) and reindex failures (`GET /v1/search/reindex/failures`) are
+  admin only. System counts (`/v1/system/entities/count` and `/v1/system/services/count`) and system status
+  (`/v1/system/status`) are admin or bot. Raw web analytics data (`GET /v1/analytics/web/events/collect`) and
+  reading a search document by ID (`GET /v1/search/get/{index}/doc/{id}`) are also admin or bot.
+- Only admins can add roles or policies to a team, and adding a parent team needs `EditAll` on that
+  parent. This applies to create, update, patch, and CSV import. Before, a user who could edit the team could do this.
+- Exporting users as CSV needs access to user emails, which only admins and bots have.
+  The audit log also hides user emails from callers who are neither admins nor bots.
+- A request made while impersonating a user cannot change a
+  user's roles, admin flag, or tokens. It also cannot change a team's roles and policies. This affects applications that run with
+  `allowBotImpersonation`.
+
+### Workflows, Queries, and Connections
+
+The following changes apply to automation workflows, saved queries, and service connections.
+
+- A reverse ingestion workflow needs `EditAll` on the service it writes to. A query runner workflow can only be triggered again by the user who
+  requested it or by an admin or bot. A workflow whose request cannot be matched to its type is refused.
+- A workflow that stores the SQL a user ran is only listed
+  and read by that user, an admin, or a bot. Other users get `403` on the ID, name, and version reads. The
+  workflow listing and history leave those runs out. Updating, patching, or deleting another user's run is also
+  refused. A user can still delete their own run.
+- Creating, updating, or patching a query needs `EditQueries` on every entity in `queryUsedIn`.
+- As in 2.0, only bots receive a service's connection details in full.
+  Users who can edit the service receive them with secrets masked. Other users receive no connection details. What is new is that a patch cannot copy or move a
+  value out of the connection, and a user who cannot read stored secrets must enter them again if they point the
+  connection somewhere else (`400 Bad Request`).
+
+<Note>
+If an integration used a normal user account to read these endpoints, move it to a bot or admin account, or grant the
+view permission it needs. For more information, see
+[Platform, Configuration & Security](/v2.1.x/deployment/upgrade/breaking-changes/platform-and-security).
+</Note>
+
+## Schema Files Declare a Newer JSON Schema Version
+
+<Note>
+**Behavioral.** Affects code generated from the specification and JSON Schema validators.
+</Note>
+
+Almost every schema file changes its `$schema` line from draft-07 to the 2020-12 dialect:
+
+```diff
+- "$schema": "http://json-schema.org/draft-07/schema#",
++ "$schema": "https://json-schema.org/draft/2020-12/schema",
+```
+
+This is why 909 files show as modified. The wire format of requests and responses does not change. Only 24 files
+still declare draft-07.
+
+<Note>
+If you validate payloads against these files with a draft-07-only validator, switch to one that supports 2020-12 or
+override the dialect. Regenerate client models from the new specification.
+</Note>
+
+## Validation and Field-Handling Changes
+
+These changes affect how 2.1 validates input and handles fields.
+
+### Fields Now Treated as Secrets
+
+<Note>
+**Behavioral.** Affects clients that read these values back.
+</Note>
+
+These fields are now marked `format: password`, so OpenMetadata handles them as secret values:
+
+| Schema | Fields |
+| --- | --- |
+| `email/smtpSettings.json` | `password` |
+| `configuration/ldapConfiguration.json` | `dnAdminPassword` |
+| `configuration/ldapTrustStoreConfig/customTrustManagerConfig.json` | `trustStoreFilePassword` |
+| `entity/services/connections/pipeline/fivetranConnection.json` | `apiKey` |
+| `entity/services/connections/llm/customLLMConnection.json` | every value in `headers` |
+| Kafka and Redpanda connections | every value in `consumerConfig` and `schemaRegistryConfig` |
+| `security/credentials/awsCredentials.json` | `awsSessionToken` |
+| `metadataIngestion/dbtconfig/dbtHttpConfig.json` | every value in `dbtHttpHeaders` |
+
+If you used the API to read these values and reuse them, supply the secret from your own store.
+
+### Open Data Contract Standard Payloads Changed Shape
+
+<Note>
+**Breaking for Open Data Contract Standard (ODCS) files.** Affects imports and exports through `/v1/dataContracts/odcs`.
+</Note>
+
+The ODCS schema in `entity/datacontract/odcs/odcsDataContract.json` changes several field types:
+
+- `team` is an object instead of an array.
+- `customProperties` is an array instead of an object. This applies to schema elements, quality rules, roles, and servers.
+- `firstLevelApprovers` and `secondLevelApprovers` on a role are strings instead of arrays.
+- `value` and `valueExt` on a service level agreement (SLA) property, and `value` on a custom property, no longer have a fixed string type.
+- `contractCreatedTs` no longer requires the `date-time` format.
+
+Check ODCS files that you import or generate against the new shapes.
+
+### Knowledge Page and Lifecycle Defaults
+
+<Note>
+**Behavioral.** Affects creation requests that leave `entityStatus` out.
+</Note>
+
+The following table compares the defaults.
+
+| Entity | 2.0 | 2.1 |
+| --- | --- | --- |
+| Knowledge Page (`createPage`) | `Approved` | `Draft` |
+| Data contract, test case | Schema default of `Draft` / `Approved` | No schema default. The server assigns the initial stage of the entity type. |
+| `type/status.json` | Schema default `Unprocessed` | No schema default |
+| Metric | No seeded metric workflow | A metric with reviewers starts as `Draft` and goes through the new seeded `MetricApprovalWorkflow` (runs when a metric is created or updated). A metric without reviewers starts as `Approved`. |
+
+<Note>
+If you rely on new Knowledge Pages being published at once, send `entityStatus` explicitly.
+</Note>
+
+### Test Definition `dataQualityDimension` Is Now a Free Name
+
+<Note>
+**Behavioral.** Affects clients generated from the specification.
+</Note>
+
+On `createTestDefinition`, `dataQualityDimension` changed from a fixed list of values to an entity name, because
+dimensions are now separate entities that can be added and renamed. Test cases also gain
+a `dataQualityDimension` reference. For more information, see
+[Data Quality & Observability](/v2.1.x/deployment/upgrade/breaking-changes/data-quality).
+
+### Connector Default Filter Patterns
+
+<Note>
+**Behavioral.** Applies to new and existing ingestion runs that do not set these patterns.
+</Note>
+
+Many database connectors now declare default `databaseFilterPattern` and `schemaFilterPattern` excludes for their
+system databases and schemas. The following list shows examples.
+
+- Trino and Presto exclude `system` and `information_schema`.
+- Azure SQL and Synapse exclude `msdb`, `model`, `tempdb`, the `db_*` roles, `guest`, `information_schema`, and `sys`.
+- MariaDB and SingleStore exclude `information_schema` and `performance_schema`.
+- Cassandra excludes the `system*` keyspaces.
+
+Other defaults change as well. The Oracle `scheme` default moves from `oracle+cx_oracle` to `oracle+oracledb`
+(`oracle+cx_oracle` is still accepted). The Hugging Face `baseURL` default moves to
+`https://router.huggingface.co/v1`.
+
+<Note>
+If you deliberately ingest a system schema, set the filter pattern explicitly. For more information, see
+[Ingestion & Connectors](/v2.1.x/deployment/upgrade/breaking-changes/ingestion-and-connectors).
+</Note>
+
+## Schema Reference Relocations
+
+<Note>
+**Behavioral.** Affects code generated from the specification and JSON Schema validators that follow `$ref` pointers.
+</Note>
+
+The following table lists the moved definitions.
+
+| Moved | From | To |
+| --- | --- | --- |
+| Glossary term concept mapping | `entity/data/glossaryTerm.json#/definitions/conceptMapping` | `type/conceptMapping.json` |
+| SSH File Transfer Protocol (SFTP) authentication options | Inline definitions in `sftpConnection.json` | `sftp/basicAuth.json`, `sftp/keyAuth.json` |
+| Glossary term relation type | Plain string with a default of `relatedTo` | `type/termRelation.json#/definitions/relationType`. Relations also gain an ID, provenance, and status. |
+
+The wire shape of these objects is unchanged except where a new field is listed. Update hand-written `$ref` paths.
+
+## Deprecations to Plan For
+
+<Note>
+**Deprecated.** These still work in 2.1 and are no longer required.
+</Note>
+
+The following table lists the deprecated items and their replacements.
+
+| Item | Replacement |
+| --- | --- |
+| `authenticationConfiguration.jwtPrincipalClaims` and `jwtPrincipalClaimsMapping` (no longer required) | `emailClaim` and `displayNameClaim` |
+| `authorizerConfiguration.adminPrincipals` (no longer required) | `adminEmails` |
+| `authorizerConfiguration.principalDomain`, `enforcePrincipalDomain`, and `allowedDomains` (no longer required) | `allowedEmailDomains` and `botDomain` for bots |
+| `authorizerConfiguration.botPrincipals` | `botDomain` |
+| `authorizerConfiguration.enableSecureSocketConnection` | Has no effect. Socket connections are always authenticated. |
+
+For more information, see [Platform, Configuration & Security](/v2.1.x/deployment/upgrade/breaking-changes/platform-and-security).
+
+## Added Enum Values
+
+<Info>
+**Additive.** Clients that run an exhaustive `switch` or pattern match on these enums need new branches.
+</Info>
+
+The following table lists the added values.
+
+| Schema | Enum | Added values |
+| --- | --- | --- |
+| `type/changeEventType.json` | event types | `ontologyImported`, `ontologyRelationshipTypeUpdated`, `ontologyChangeSetApplied` |
+| `type/entityRelationship.json` | `relationshipType` | `mappedTo`, `derivedFrom` |
+| `settings/settings.json` | `settingType` | `glossarySettings`, `sparqlQuerySettings`, `startupChecksums` |
+| `entity/policies/accessControl/resourceDescriptor.json` | `operation` | `ExecuteSparqlQuery` |
+| `jobs/backgroundJob.json` | `jobType` | `ONTOLOGY_BULK`, `ONTOLOGY_PACK_INSTALL`, `CONTEXT_MEMORY_EXTRACTION`, `MEMORY_GLOSSARY_DERIVATION`, and five `ADMIN_OPS_*` types |
+| `governance/workflows/workflowInstance.json` | `workflowStatus` | `CANCELLED` |
+| `governance/workflows/elements/nodeSubType.json` | node subtypes | `collectMetadataTask` |
+| `governance/workflows/.../userApprovalTask.json` | `emptyAssigneeStrategy` | `wait` |
+| `entity/tasks/task.json` | `taskType` | `MemoryConflictReview`, `MetadataCompletion` |
+| `governance/intakeForm.json` | `targetEntityType` | `glossary`, `metric` |
+| `entity/services/ingestionPipelines/ingestionPipeline.json` | `pipelineType` | `reverseMetadata` |
+| `entity/data/table.json` | `tableType` | `DeltaLake` |
+| `entity/data/dashboardDataModel.json` | `dataModelType` | `RillModel`, `RillMetricsView` |
+| `entity/services/databaseService.json` | `databaseServiceType` | `Clickzetta`, `Databend`, `Data360`, `Neo4j` |
+| `entity/services/dashboardService.json` | `dashboardServiceType` | `Rill` |
+| `entity/services/messagingService.json` | `messagingServiceType` | `Nats` |
+| `entity/services/pipelineService.json` | `pipelineServiceType` | `Data360Pipeline`, `TableauPipeline` |
+| `dataInsight/custom/dataAssetType.json` | asset types | `apiEndpoint`, `testCase` |
+| `entity/context/contextMemory.json` | `memoryType`, `sourceType`, `shareVisibility` | `Learning`, `ConversationExtraction`, `Public` |
+| `entity/learning/learningResource.json` | `resourceType` | `Link`, `PDF` |
+| `configuration/elasticSearchConfiguration.json` | `searchIndexMappingLanguage` | `KO` |
+| `system/testLoginResult.json` | `status` | `pending` |
+| `entity/datacontract/odcs/odcsDataContract.json` | `odcsApiVersion` | `v3.2.0` |
+
+## Notable New Endpoint Groups
+
+<Info>
+**Additive.** These do not break anything.
+</Info>
+
+The following table lists the new endpoint groups.
+
+| Namespace | Purpose |
+| --- | --- |
+| `/v1/conversations/**`, `/v1/announcements/**`, `/v1/activity/**`, `/v1/tasks/**` | Replace `/v1/feed`. For more information, see [The Feed API Is Removed](#the-feed-api-is-removed). |
+| `/v1/ontologies/**`, `/v1/ontologyConcepts/**`, `/v1/ontologyProperties/**`, `/v1/ontologyAxioms/**`, `/v1/ontologyChangeSets/**`, `/v1/ontologyEditLocks/**`, `/v1/relationshipTypes/**` | Ontology authoring and relationship types |
+| `/v1/rdf/**` (rules, validation, insights, saved queries, and ontology extensions) | Additional RDF and SPARQL operations |
+| `/v1/metricGroups/**`, `PUT /v1/metrics/{name}/assets/add\|remove` | Metric groups and metric-to-asset links |
+| `/v1/dataQuality/dimensions/**`, `PUT /v1/dataQuality/testCases/testCaseIncidentStatus/bulk` | Data quality dimensions and bulk incident status |
+| `GET /v1/lineage/scene` | Lineage scene. For more information, see [Lineage](/v2.1.x/deployment/upgrade/breaking-changes/lineage). |
+| `POST /v1/services/ingestionPipelines/run` | Run an ingestion pipeline on demand |
+| `POST /v1/system/settings/source/{configType}/adopt`, `POST /v1/system/security/test-login/*` | Settings source adoption and test sign-in |
+| `GET /v1/types/fields/workflowTriggerFields` | Fields that a workflow trigger can watch |
+| `/v1/contextCenter/memories/**` | Context memory outcomes and extraction approval |

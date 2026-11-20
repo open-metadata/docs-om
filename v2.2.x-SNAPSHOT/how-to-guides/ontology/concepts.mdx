@@ -1,0 +1,221 @@
+---
+title: Ontology Core Concepts | OpenMetadata
+description: Ontologies, concepts, properties, relationship types, constraints, mappings, IRIs, releases, and layers, how OpenMetadata models semantics.
+sidebarTitle: Core Concepts
+canonical: "https://docs.open-metadata.org/v2.1.x/how-to-guides/ontology/concepts"
+---
+
+# Core Concepts
+
+OpenMetadata models an ontology with entities you already know. Nothing here requires a triple store: ontologies, concepts, properties, relationship types, and constraints are stored in the relational database as first-class OpenMetadata entities, with versions, owners, and change events.
+
+## The Mapping to Standards
+
+The following table maps OpenMetadata entities to the standards they implement.
+
+| OpenMetadata | RDF / OWL / SKOS | Notes |
+|---|---|---|
+| **Ontology** | `owl:Ontology` | An independently governed model with its own IRI, namespace, layer, owners, and reviewers |
+| **Concept** | `owl:Class`, `skos:Concept`, or both | A class or term owned by an ontology |
+| **Property** | `owl:ObjectProperty`, `owl:DatatypeProperty`, `owl:AnnotationProperty` | Object, data, or annotation property |
+| **Relationship Type** | `owl:ObjectProperty` | A governed type of edge. It carries the predicate IRI, characteristics, and cardinality |
+| **Constraint** | `rdfs:subClassOf`, `owl:equivalentClass`, `owl:disjointWith`, class and property assertions | Stored as an axiom. Authored with a class-expression editor |
+| **Concept Mapping** | `skos:exactMatch`, `closeMatch`, `broadMatch`, `narrowMatch`, `relatedMatch`, `owl:sameAs` | Crosswalks to external standards |
+| **Release** | A frozen snapshot of an ontology | What Query, Export, and the knowledge graph read |
+| **Catalog entities** | `om:Table`, `om:Column`, `om:Dashboard`, `dcat:Dataset`, and more | The instance layer, projected into the knowledge graph |
+
+OpenMetadata models your metadata against the canonical OpenMetadata OWL ontology, which uses the namespace:
+
+```
+om: https://open-metadata.org/ontology/
+```
+
+It reuses established vocabularies rather than inventing everything: **DCAT** (datasets, distributions, catalogs), **PROV-O** (derivation and provenance), **SKOS** (concept schemes), **Dublin Core Terms**, **DQV** (data quality), **FOAF**, **ODRL**, and **CSVW**. `om:DataAsset` is declared `owl:equivalentClass dcat:Dataset`, so a DCAT-aware consumer understands your catalog without a custom adapter.
+
+## Ontologies
+
+An **ontology** is an independently governed model. Its concepts, properties, and constraints are stored as separate entities that the ontology owns. Glossaries don't own them, and existing glossaries aren't converted into ontologies.
+
+| Field | Purpose |
+|---|---|
+| **Name** and **Display Name** | The catalog name and the label shown in the UI. |
+| **Ontology IRI** | The stable semantic identity of the ontology. It stays the same if you rename the ontology. |
+| **Namespace** | The absolute namespace used to mint IRIs for the ontology's definitions. |
+| **Layer** | `L1`, `L2`, or `L3`. For more information, see [Ontology Layers](#ontology-layers). |
+| **Owners** and **Reviewers** | Who maintains the ontology and who approves its releases. |
+| **Prefixes** | A prefix registry for display, authoring, import, and export. Prefixes and namespaces must be unique. |
+| **Installed packs** | The library packs installed into the ontology. The server records this when a pack is installed, and you can't edit it directly. |
+
+## Concepts
+
+A **concept** is a class, a SKOS concept, or both. Beyond name, description, and hierarchy, a concept carries:
+
+- **A concept type**: `OWL_CLASS`, `SKOS_CONCEPT`, or `BOTH`. It preserves the vocabulary a source ontology used, so imported ontologies keep their original typing.
+- **An IRI**: a stable, globally unique identifier. Renaming the concept keeps it.
+- **Synonyms** and **concept mappings**: alternative labels and alignments to external standards.
+- **Superclasses and subclasses**: derived from the `SUBCLASS_OF` constraints of the ontology, so you change the hierarchy by editing constraints or drawing **Subclass Of** relationships.
+- **Abstract**: marks a class with no direct instances. Data is classified by its subclasses.
+- **Definition source**: the IRI of the document or standard the definition comes from.
+- **Deprecated** and **Replaced by**: a deprecated concept stays resolvable for existing references, and **Replaced by** names the concept in the same ontology that replaces it.
+- **Data assets**: the tables and columns bound to the concept. This is the join between the semantic model and the physical catalog.
+
+## Properties
+
+A **property** is a formal object, data, or annotation property owned by an ontology.
+
+| Kind | Purpose |
+|---|---|
+| **OBJECT** | Links two concepts. |
+| **DATA** | Holds a value such as text or a number. This is the OWL datatype-property side of the model. |
+| **ANNOTATION** | A label or note. |
+
+| Field | Purpose |
+|---|---|
+| `domain` and `range` | The concepts a property applies to, and the concepts or data types it points to. |
+| `enumValues` | Allowed values for a `DATA` property. Empty means no restriction. |
+| `unit` | A unit IRI or display symbol, kept as a note. OpenMetadata doesn't convert values. |
+| `isIdentifier` | Marks the property as identifying instances. It doesn't assert uniqueness in your data. |
+| `inverse` | The IRI of the property that runs the opposite way. |
+| `characteristics` | `SYMMETRIC`, `TRANSITIVE`, `FUNCTIONAL`, `INVERSE_FUNCTIONAL`, `REFLEXIVE`, `IRREFLEXIVE`, `ASYMMETRIC`. |
+| `propertyChain` | An ordered chain of object properties whose composition implies this one. |
+| `disjointWith` | Properties that can never both hold between the same pair. |
+| `deprecated` and `replacedBy` | Same as for concepts. |
+
+Properties are inherited down the concept hierarchy. A property declared on Account shows as inherited on every subtype, with the ancestor that declares it, so it is obvious where it came from.
+
+## Relationship Types
+
+A relationship type is an **admin-governed definition of one kind of edge**. It is what makes a relation typed rather than a generic "related" link, and it is what an agent or a reasoner consults to decide what can be inferred.
+
+Manage them at **Settings** > **Governance** > **Glossary Term Relations** (admin only). The relationship picker in Edit mode lists these types.
+
+### Properties of a Relationship Type
+
+A relationship type has the following fields.
+
+| Field | Purpose |
+|---|---|
+| **Name** | Immutable API key. |
+| **Display name** | The label drawn on graph edges and badges. |
+| **Category** | `Core`, `OWL / SKOS`, or `Custom · Admin-defined`. |
+| **RDF predicate** | The predicate emitted for authored edges, for example `http://www.w3.org/2004/02/skos/core#broader`. OpenMetadata warns if another type already claims it. |
+| **IRI** | The IRI identifying the OWL object property itself. |
+| **Characteristics** | `SYMMETRIC`, `TRANSITIVE`, `FUNCTIONAL`, `INVERSE_FUNCTIONAL`, `REFLEXIVE`, `IRREFLEXIVE`, `ASYMMETRIC`. |
+| **Inverse** | The type that represents this one in reverse. Symmetric types reference themselves. |
+| **Domain / range** | Which concepts can appear on each end. |
+| **Cardinality** | One-to-one, one-to-many, many-to-one, many-to-many, or explicit source and target maxima. |
+| **Property chain** | An ordered chain whose composition implies this relationship. |
+| **Disjoint with** | Types this one can never co-occur with on the same pair. |
+| **Cross-glossary allowed** | Whether the edge can span two glossaries. |
+| **Palette key** | Edge and badge color. |
+| **System-defined** | System types can be updated but never deleted. |
+| **Replaced by** | Successor type when this one is deprecated. |
+
+### Types Shipped by Default
+
+The following types ship with OpenMetadata.
+
+| Name | Category | Predicate | Characteristics |
+|---|---|---|---|
+| `relatedTo` | Core | `om:relatedTo` | Symmetric |
+| `antonym` | Core | `om:antonym` | Symmetric |
+| `partOf` | Core | `om:partOf` | None |
+| `hasPart` | Core | `om:hasPart` | None |
+| `calculatedFrom` | Core | `om:calculatedFrom` | None |
+| `usedToCalculate` | Core | `om:usedToCalculate` | None |
+| `synonym` | OWL / SKOS | `skos:exactMatch` | Symmetric |
+| `broader` | OWL / SKOS | `skos:broader` | Transitive |
+| `narrower` | OWL / SKOS | `skos:narrower` | Transitive |
+| `seeAlso` | OWL / SKOS | `rdfs:seeAlso` | Symmetric |
+| `subClassOf` | OWL / SKOS | `rdfs:subClassOf` | Transitive |
+| `superClassOf` | OWL / SKOS | `om:superClassOf` | Transitive |
+
+<Tip>
+
+Characteristics aren't decoration. `TRANSITIVE` on `broader` is what lets the transitive-closure inference rule answer "every ancestor of this concept" in one hop. `SYMMETRIC` on `relatedTo` is what stops the graph from storing both directions. Set them deliberately.
+
+</Tip>
+
+For more information, see [Relation Types](/v2.2.x-SNAPSHOT/how-to-guides/data-governance/ontology/relationship-types).
+
+## Constraints
+
+A **constraint** is a governed OWL statement about your concepts. The technical name is an axiom. Constraints are stored relationally, so they remain authoritative and editable when RDF is switched off.
+
+| API value | Label | Meaning |
+|---|---|---|
+| `SUBCLASS_OF` | **Child Of** | Every instance of A is an instance of B. |
+| `EQUIVALENT_CLASS` | **Exact Match** | A and B have exactly the same instances. |
+| `DISJOINT_WITH` | **Conflict Resolution** | Nothing can be both an A and a B. |
+| `CLASS_ASSERTION` | **Classification** | This individual is an instance of A. |
+| `OBJECT_PROPERTY_ASSERTION` | **Relationship** | This individual relates to that individual via P. |
+| `DATA_PROPERTY_ASSERTION` | **Custom Property** | This individual has literal value V for P. |
+
+Class expressions are authored with a structured editor rather than free text, so what you build is always well-formed:
+
+| Expression kind | Example |
+|---|---|
+| `NAMED_CLASS` | Customer |
+| `INTERSECTION` | Customer **and** Active Account Holder |
+| `UNION` | Retail Customer **or** Corporate Customer |
+| `ONE_OF` | One of a fixed set of named individuals |
+| `RESTRICTION` | `hasAccount SOME Account`, `hasOwner EXACT 1`, `region VALUE "EU"` |
+
+Restriction operators: `SOME`, `ONLY`, `VALUE`, `MIN`, `MAX`, `EXACT`.
+
+<Info>
+
+**OWL profile guardrail.** With `RDF_STRICT_OWL_PROFILE=true` (the default), OpenMetadata rejects authored axioms that fall outside the supported OWL 2 DL profile. That keeps the model decidable, which is exactly what bounds the work a reasoner has to do.
+
+</Info>
+
+Your glossary is also projected to OWL, and that projection stays inside the OWL 2 DL profile so that a reasoner can classify it. Terms that use reserved vocabulary keep their standard meaning. A `subClassOf` relationship becomes a subclass axiom between declared classes, and `seeAlso` becomes an annotation. A chain or disjointness rule that names a reserved predicate is left out of the projection, and the server logs a warning.
+
+## Concept Mappings
+
+A **concept mapping** aligns one of your concepts with a concept in an external vocabulary: FIBO, FHIR, schema.org, an internal legacy dictionary, anything with an IRI.
+
+| Field | Purpose |
+|---|---|
+| `conceptIri` | The external concept's IRI. |
+| `mappingType` | `EXACT_MATCH`, `CLOSE_MATCH`, `BROAD_MATCH`, `NARROW_MATCH`, `RELATED_MATCH`, or `SAME_AS`. |
+| `schemeIri` | The external concept scheme, when the source declares one. |
+| `source` | A source label or catalog name for display. |
+
+Mappings are exported as the corresponding `skos:*Match` and `owl:sameAs` triples, which is what makes your ontology interoperable rather than merely internally consistent.
+
+## IRIs and Namespaces
+
+Every concept, property, and constraint gets a stable IRI, minted from the ontology **Namespace** when you leave the IRI empty.
+
+- An ontology created in Collate's Ontology Studio gets the IRI `<base URI>/onto/<prefix>` and the namespace `<base URI>/onto/<prefix>#`. The base URI is the server's `RDF_BASE_URI` setting, which defaults to `https://open-metadata.org/`.
+- An ontology created by installing a library pack or importing a file into a new ontology gets a generated identifier of the form `urn:openmetadata:ontology:<id>`.
+- An IRI is preserved when you rename the definition, so references from other tools stay valid.
+
+<Warning>
+
+Changing an ontology's namespace after concepts exist changes how new IRIs are minted. Decide the namespace before you start authoring at scale, the same way you would decide a package name.
+
+</Warning>
+
+## Releases
+
+Edits to an ontology collect as unpublished changes on its working draft. **Publishing** captures them as a numbered, immutable **release**. If the ontology has reviewers, a release is reviewed through the approval workflow before it goes live. Otherwise, an author or owner publishes it directly. Only one release is **Active** at a time. Users without edit permission, the knowledge graph, and Export of a published release read the active release. Users with edit permission can also read the working draft.
+
+## Ontology Layers
+
+Every ontology declares a layer: `L1`, `L2`, or `L3`. Layers label the governance level of the model. The API creates ontologies on `L3` by default. You can change the layer when you update the ontology.
+
+| Layer | Typical use |
+|---|---|
+| **L1** | Foundational ontologies, such as upper and industry standards. Installed standards packs belong here. Rarely edited. |
+| **L2** | Your enterprise-wide model: Customer, Account, and Product as the organization defines them. |
+| **L3** | Domain or project models that reuse the enterprise concepts for a specific purpose. |
+
+## Provenance
+
+Relations, constraints, and imported concepts carry provenance, so "who asserted this and how" survives:
+
+- Relations record who created them and when, plus a provenance marker that distinguishes manually authored edges from imported, suggested, or inferred ones.
+- Library installs record the pack, its version, and the modules they came from on the ontology.
+- Inferred triples in the knowledge graph are written into separate named graphs and marked, for example `om:inferred` and `om:inferredTagSource`, so a derived tag is never mistaken for a curated one.

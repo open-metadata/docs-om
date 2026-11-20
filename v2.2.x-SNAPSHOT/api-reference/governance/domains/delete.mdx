@@ -1,0 +1,115 @@
+---
+title: Delete a Domain
+description: Delete a domain by ID or name, permanently
+sidebarTitle: Delete a Domain
+api: DELETE /v1/domains/{id}
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/governance/domains/delete"
+---
+
+# Delete a Domain
+
+Delete a domain by ID or fully qualified name. Deleting a domain is permanent. A deleted domain can't be restored.
+
+## Delete by ID
+
+<ParamField path="id" type="string" required>
+  UUID of the domain to delete.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child domains.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Not needed. A deleted domain is always permanently deleted, with or without this option.
+</ParamField>
+
+## Delete by Name
+
+Use `DELETE /v1/domains/name/{fqn}` to delete by fully qualified name.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name of the domain, for example `TestDomain`.
+</ParamField>
+
+<ParamField query="recursive" type="boolean" default="false">
+  Recursively delete child domains.
+</ParamField>
+
+<ParamField query="hardDelete" type="boolean" default="false">
+  Not needed. A deleted domain is always permanently deleted, with or without this option.
+</ParamField>
+
+<RequestExample dropdown>
+```python DELETE /v1/domains/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Domains
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# Delete by ID
+Domains.delete("a0729e98-e946-4e25-acde-10e8a2294ba1")
+
+# Delete by ID with options
+Domains.delete(
+    "a0729e98-e946-4e25-acde-10e8a2294ba1",
+    hard_delete=True
+)
+
+# Delete by name
+Domains.delete(Domains.retrieve_by_name("TestDomain").id)
+
+# Delete by name with options
+Domains.delete(
+    Domains.retrieve_by_name("TestDomain").id,
+    hard_delete=True
+)
+```
+
+```java DELETE /v1/domains/{id}
+import java.util.Map;
+
+// client is an initialized OpenMetadataClient.
+var id = "a0729e98-e946-4e25-acde-10e8a2294ba1";
+
+// Delete (permanent)
+client.domains().delete(id);
+
+// Delete by name: look up the ID first
+var domain = client.domains().getByName("TestDomain");
+client.domains().delete(domain.getId().toString());
+```
+
+```bash DELETE /v1/domains/{id}
+# Delete by ID
+curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete with options
+curl -X DELETE "{base_url}/api/v1/domains/a0729e98-e946-4e25-acde-10e8a2294ba1?hardDelete=true" \
+  -H "Authorization: Bearer {access_token}"
+
+# Delete by name
+curl -X DELETE "{base_url}/api/v1/domains/name/TestDomain" \
+  -H "Authorization: Bearer {access_token}"
+```
+</RequestExample>
+
+---
+
+## Returns
+
+Returns `200` with no content. The domain is permanently deleted and can't be restored.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to delete this domain |
+| `404` | `NOT_FOUND` | Domain with given ID or FQN does not exist |

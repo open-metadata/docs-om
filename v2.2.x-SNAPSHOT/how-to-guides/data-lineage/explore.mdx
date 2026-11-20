@@ -1,0 +1,254 @@
+---
+title: Explore the Lineage View | Official Documentation
+description: Explore lineage diagrams interactively to understand how data flows between sources, transformations, and dashboards.
+sidebarTitle: Explore the Lineage View
+canonical: "https://docs.open-metadata.org/v2.1.x/how-to-guides/data-lineage/explore"
+---
+
+# Explore the Lineage View
+
+OpenMetadata's Lineage view shows end-to-end data flow at both the table and column level, for Database, Dashboard, and Pipeline assets.
+
+Search for a data asset and expand the graph to see its lineage:
+- Each node expands to show its upstream and downstream edges.
+- Each edge carries details such as the SQL query, pipeline information, and column-level lineage.
+
+## Source, Target, and Edges
+
+In the example below:
+- The table on the left is the parent, or **Source** node.
+- The table on the right is the **Target** node — identifiable by the arrow pointing into it.
+- The arrow connecting them is the **Edge**.
+
+Click an edge to see its details: the Source, Target, Description, and SQL Query. For a view, the SQL query shows how the target was generated from the source.
+
+<img src="/public/images/how-to-guides/lineage/edge.png" alt="Edge Information: Source and Target" />
+
+<Tip>
+Metadata ingestion also brings in view lineage, if the database has views (data assets of the type View).
+</Tip>
+
+## Lineage Config
+
+Control how many upstream and downstream nodes appear in the graph, and whether temporary tables are drawn. **Upstream Depth**, **Downstream Depth**, and **Nodes Per Layer** only change your current view and reset to the platform defaults the next time you open a lineage graph. **Show temporary tables** is remembered for your user in this browser.
+
+To configure the lineage graph, follow the steps below:
+1. Click the **Setting** icon.
+
+    <img src="/public/images/how-to-guides/lineage/lineage-setting.png" alt="Lineage Setting" />
+
+2. Set the following fields:
+    - **Upstream Depth**: Number of upstream hops shown by default when opening a lineage graph, to identify parent-level sources.
+    - **Downstream Depth**: Number of downstream hops shown by default when opening a lineage graph, to identify child-level targets.
+    - **Nodes Per Layer**: Maximum number of nodes shown per layer. There's no fixed maximum here. If a layer has more nodes than this, the rest are paginated instead of all being rendered at once.
+    - **Show temporary tables**: On by default. Turn it off to draw the direct edge between two tables instead of the temporary tables a query wrote through.
+
+    <img src="/public/images/how-to-guides/lineage/lineage-config-dialog.png" alt="Lineage Config dialog with Upstream Depth, Downstream Depth, Nodes Per Layer, and the Show temporary tables switch" />
+
+3. Click **Ok**. Click **Cancel** to close the dialog without applying changes.
+
+**Show temporary tables** is available on an asset's **Lineage** tab only, not on **Impact Analysis** or the platform **Lineage** page. Turning it off redraws the graph without reloading it.
+
+To change the default that applies for every session, see [Lineage](/v2.2.x-SNAPSHOT/how-to-guides/admin-guide/preferences/lineage).
+
+## Filtering Lineage by Time
+
+Open the asset from **Explore**, select the **Lineage** tab, then **Impact Analysis**. In the toolbar, use the calendar control (labeled **All time** by default) to limit the table to rows connected by lineage edges observed within a specific time range. Use it to review an asset's dependencies as of a past date or narrow the results to recent activity.
+
+Choose one of the following:
+- **All time**: No time restriction (the default).
+- **Last 7 days / Last 14 days / Last 28 days**: Only rows connected by edges observed in that rolling window.
+- **Custom Range**: A specific start and end date you choose.
+- **Point in time**: Dependencies as of a specific date, with no start date.
+
+The time window removes edges while OpenMetadata walks the lineage graph. It doesn't filter the results afterward. If an edge falls outside the selected window, the results exclude every asset reachable only through that edge, even if later edges fall inside the window. An asset appears in the table only if every edge on the path from your starting asset to it falls inside the window.
+
+Edges with no timestamp always match any window for backward compatibility with legacy lineage data. A window over a mix of legacy and timestamped edges returns all legacy edges plus whichever timestamped ones fall inside the window, not a clean point-in-time snapshot.
+
+## Impact Analysis View
+
+The Lineage page has two tabs at the top: **Lineage** (the graph you've seen so far) and **Impact Analysis** — a table that lists the same upstream and downstream assets as rows instead of nodes on a graph, which is easier to scan, search, and sort when an asset has a large number of dependencies.
+
+<img src="/public/images/how-to-guides/lineage/impact-analysis.png" alt="Impact Analysis table view" />
+
+- **Upstream / Downstream**: Switch direction. Each option shows a count of how many assets lie in that direction.
+- **Impact On**: Choose whether the table lists **Asset Level** impact (one row per table, pipeline, dashboard, and so on) or **Column Level** impact (one row per source-to-target column mapping).
+- **Customize**: Choose which columns to show. Name (or Source/Impacted Column, in Column Level mode) always stays visible. Every other column can be toggled off.
+- Search narrows the rows by asset name (Asset Level) or column name (Column Level).
+
+**Asset Level** columns: Name, Node Depth (number of hops from the asset you're viewing), Description, Domains, Owners, Tier, Tags, and Glossary Terms.
+
+**Column Level** columns: Source, Source Column, Impacted (the downstream or upstream asset), Impacted Column, plus the same Node Depth, Description, Domains, Owners, Tier, Tags, and Glossary Terms columns.
+
+### Filtering by Service and Asset Type
+
+Use the filters above the Impact Analysis table to narrow a large result. The filters include **Service**, **Service Type**, **Domains**, **Data Products**, **Owners**, **Tag**, **Tier**, **Database**, **Schema**, and **Column**. At Column Level, **Glossary Term** is also available.
+
+- **Inclusion only**: Each filter keeps the values you select. Filters don't support excluding a value. To hide a service, select every service you want to keep.
+- **Services map to one asset type**: A service holds one kind of asset. For example, a Snowflake or Glue service holds tables, and an Airflow service holds pipelines. To list only pipelines, filter by the pipeline services. To list only tables, filter by the database services.
+- **Filters combine**: When you select values in more than one filter, OpenMetadata keeps only the assets that match all of them.
+
+## Data Asset Details
+
+Click a data asset to view its details:
+- **Source, Name, Description, Owner** (team/user), **Tier**, and **Usage** information.
+- Additional details based on the **type of data asset** (Table, Topic, Dashboard, Pipeline, ML Model, Container) — for example, a table's type, number of queries, and columns.
+- **Data quality and profiler metrics**, including tests passed, aborted, and failed.
+- **Tags** associated with the data asset.
+- **Schema** details: column names, column types, and column descriptions.
+
+<img src="/public/images/how-to-guides/lineage/lineage2.png" alt="Quick Glance at the Data Asset from Lineage View" />
+
+## Column-Level Lineage
+
+Click a table to expand its list of columns and see column-level lineage.
+
+<img src="/public/images/how-to-guides/lineage/lineage1.png" alt="Column-Level Data Lineage in OpenMetadata" />
+
+## Pipeline and Dashboard Lineage
+
+For **Pipelines**:
+- Lineage first comes from the metadata ingested from the databases.
+- Setting up pipeline ingestion with a database service name links the pipeline to the database tables it reads from and writes to.
+- If a pipeline creates the lineage, that shows up in the edge information too.
+
+<img src="/public/images/how-to-guides/lineage/pipeline.png" alt="Database and Pipeline Lineage" />
+
+**Dashboards** work the same way:
+- Lineage first comes from the metadata ingested from the databases.
+- Dashboard ingestion then adds the data models and charts, linking them back to the database tables they're built on.
+
+## Lineage Layers
+
+Use the **Layers** menu to choose how the lineage graph groups your assets and which overlays it shows. The menu differs between an asset's **Lineage** tab and the platform **Lineage** page.
+
+### Layers on an Asset
+
+On an asset's **Lineage** tab, open **Layers** and select from the **Lineage Layer** section. The button reads **Data Asset Level** when nothing is selected. The options are:
+
+- **Column**: Overlay column-level lineage on the graph. For more information, see [Column-Level Lineage](/v2.2.x-SNAPSHOT/how-to-guides/data-lineage/column).
+- **Observability**: Overlay data quality and monitoring insights.
+- **Service**: Show the lineage between services. Not available for service assets.
+- **Domain**: Show the lineage between domains. Available when the asset has a domain.
+- **Data Product**: Show the lineage between data products. Available when the asset has data products.
+
+<img src="/public/images/how-to-guides/lineage/lineage-asset-layers-menu.png" alt="Layers menu on an asset's Lineage tab with the Lineage Layer options" />
+
+**Service**, **Domain**, and **Data Product** replace the graph with that grouping, one at a time. **Column** and **Observability** are overlays on the current graph, and you can turn both on at once. The **Layers** button lists the overlays you selected, for example **Column, Observability**.
+
+### Service Level View
+
+Group assets by service to see how data moves across platforms such as Hive, Redshift, Power BI, and Tableau. This view connects ingestion, transformation, and consumption points, and gives you a system-level view of the end-to-end data journey.
+
+When a table-level edge has a pipeline, the view shows the path as source service > pipeline service > target service. It doesn't also draw a direct edge from the source service to the target service. Service pairs connected by edges without a pipeline still show a direct edge.
+
+On an asset, select **Service** under **Layers**. On the platform **Lineage** page, select **Service Level View**.
+
+<img src="/public/images/how-to-guides/lineage/lineage-map-overview.png" alt="Lineage map grouped by service" />
+
+### Domain View
+
+Group assets by business domain, such as "Ecommerce" or "Customer Data." This view connects technical assets to the business functions they support, and helps align lineage with governance.
+
+<img src="/public/images/how-to-guides/lineage/lineage-layer-domain.png" alt="Lineage map grouped by domain with the Domain layer selected" />
+
+### Data Product View
+
+Group assets by data product, such as *Customer Registry* or *Superstore*. This view shows how curated, consumption-ready outputs relate to each other and where they come from.
+
+<img src="/public/images/how-to-guides/lineage/lineage-layer-data-product.png" alt="Lineage map grouped by data product with the Data Product layer selected" />
+
+### Column Layer
+
+Select **Column** under **Layers** to trace individual columns, such as `customer_id` or `first_name`, across tables and pipelines. For more information, see [Column-Level Lineage](/v2.2.x-SNAPSHOT/how-to-guides/data-lineage/column).
+
+## Graph Controls
+
+The control bar on the graph works the same way on an asset's **Lineage** tab and on the platform **Lineage** page.
+
+- **Mind Map**: Toggle the overview map of the graph.
+- **Zoom In** and **Zoom Out**: Change the zoom. The current zoom percentage appears between them.
+- **Fit to screen**: Fit the whole graph in the view.
+
+<img src="/public/images/how-to-guides/lineage/lineage-asset-graph.png" alt="Lineage graph with the Layers button, Mind Map toggle, zoom percentage, and Fit to screen controls" />
+
+## Edit Lineage
+
+Edit lineage from an asset's **Lineage** tab. Use the **Lineage options** menu on a node or column to add upstream or downstream assets, and the **Actions** menu in the edge details to edit or delete an edge. For the full steps, see [Edit Lineage](/v2.2.x-SNAPSHOT/how-to-guides/data-lineage/manual).
+
+## Platform Lineage Map
+
+The platform **Lineage** page shows your lineage as a hierarchical map you can zoom into. Instead of one large graph of every table, you start with an overview and drill down one level at a time. An asset's **Lineage** tab uses the standard graph described above.
+
+To open the page, click **Lineage** in the left sidebar.
+
+<img src="/public/images/how-to-guides/lineage/lineage-map-overview.png" alt="Hierarchical lineage map at the Service Level" />
+
+The first time you open the page, a short dialog called "Lineage, reimagined" introduces the map. Select **Explore** to start.
+
+### Choose a Layer
+
+Select how to group assets on the platform **Lineage** page.
+
+1. Open the platform **Lineage** page from the left sidebar.
+2. Select the **Layers** button. It shows the current level, for example **Service Level**.
+3. Under **Lineage Layer**, select how to group assets:
+    - **Service Level View**: Across systems and connectors.
+    - **Domain**: Across business domains.
+    - **Data Product**: Across data products.
+
+The level label, such as **Service Level**, **Table Level**, or **Field Level**, changes as you zoom into the map. It is not a setting you choose.
+
+<img src="/public/images/how-to-guides/lineage/lineage-platform-layers-menu.png" alt="Platform Lineage page with the Layers menu showing Service Level View, Domain, and Data Product" />
+
+### Read the Map
+
+The map shows the following elements:
+
+- **Nodes**: Each node is a group or an asset, depending on the current level. Group nodes show their type and how many assets they hold.
+- **Rollup edges**: At the grouped level, a single line can stand for many asset-level connections. The line summarizes all the lineage between the two groups.
+- **Level label**: The level you are viewing, such as **Service Level** or **Table Level**, is shown on the map. It changes as you zoom.
+- **Highlight**: Hover over a node to highlight the connected paths. Hover over a column at field level to highlight where it flows.
+- **Recenter**: Use **Recenter on base asset** to return to the asset you started from.
+
+### Navigate the Map
+
+Use these controls to move around the map:
+
+- **Zoom**: Scroll to zoom in or out. Zooming also changes the level of detail. When you zoom in, the map opens the next level for the node under the pointer only, not for every node on screen. When you zoom out far enough, it returns to the level above.
+- **Pan**: Drag the canvas to move around.
+- **Drill in**: Select a group or asset to open the next level of detail. For example, select a service to see its tables, then select a table to see its columns.
+- **Zoom controls**: Use **Mind Map**, **Zoom In**, **Zoom Out**, and **Fit to screen** in the control bar. The zoom percentage appears between **Zoom In** and **Zoom Out**.
+
+### Field Level View
+
+Zoom in to the column level to see individual columns on the map.
+
+- **Table cards**: Each table shows its name, its location, and the number of columns it has.
+- **Column list**: Expand a table to list its columns. Use **Search Columns** to find one.
+- **Column lines**: A line connects a column to the columns it feeds. In the example below, `customer_id`, `first_name`, and `last_name` from `customers` feed the same columns in `customer360`.
+- **Filter**: Select the filter icon on a table card to narrow the columns shown.
+- **Level label**: The label next to the zoom control reads **Field Level**.
+
+<img src="/public/images/how-to-guides/lineage/lineage-map-field-level.png" alt="Hierarchical lineage map at the Field Level" />
+
+### Use the Breadcrumb
+
+The breadcrumb above the graph shows the path you took, for example `All Services > Snowflake > sales > orders`.
+
+- Select any step to jump back to that level.
+- The first step, with the home icon, returns you to the top of the current layer.
+- Long paths collapse automatically.
+
+### Large Graphs
+
+If a level has more nodes than the map can show at once, it shows a sample and tells you:
+
+- A **+N More** badge shows how many nodes are hidden.
+- A warning reads "Showing N of M assets" when the view is sampled.
+
+Drill into a group, or narrow the view with the breadcrumb, to see the hidden assets.
+
+<Card title="How Column-Level Lineage Works" href="/v2.2.x-SNAPSHOT/how-to-guides/data-lineage/column" >
+    Explore and edit the rich column-level lineage.
+  </Card>

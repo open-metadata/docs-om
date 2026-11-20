@@ -1,0 +1,169 @@
+---
+title: Databricks Pipeline | OpenMetadata Integration Guide
+description: Configure metadata ingestion from Databricks pipelines for job flows, dependencies, and structured datasets.
+sidebarTitle: Overview
+canonical: "https://docs.open-metadata.org/v2.1.x/connectors/pipeline/databricks-pipeline"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import MetadataAgentPipeline from '/snippets/connectors/metadata-agent/pipeline.mdx'
+import Related from '/snippets/v2.2.x-SNAPSHOT/connectors/database/related.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/databrick.webp'
+name="Databricks"
+stage="PROD"
+availableFeatures={["Pipelines", "Pipeline Status", "Usage", "Lineage"]}
+unavailableFeatures={["Owners", "Tags"]} />
+In this section, we provide guides and references to use the Databricks Pipeline connector.
+
+<Info>
+**Supported Authentication Types:**
+- **Personal Access Token**: Token-based workspace authentication generated from User Settings in Databricks
+- **Databricks OAuth**: OAuth2 Machine-to-Machine authentication using Service Principal credentials
+- **Azure AD Setup**: Azure Active Directory authentication using Azure Service Principal (for Azure Databricks workspaces)
+</Info>
+
+Configure and schedule Databricks Pipeline metadata workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Troubleshooting](/v2.2.x-SNAPSHOT/connectors/pipeline/databricks-pipeline/troubleshooting)
+
+## Requirements
+
+OpenMetadata reads jobs and pipelines through the Databricks REST API, and reads lineage from the Unity Catalog lineage system tables through a SQL warehouse. Grant the following to the user or service principal OpenMetadata connects with.
+
+### Pipeline Metadata Permissions
+
+- **Can View** on the jobs you want to ingest, to list jobs and their runs.
+- **Can View** on the Lakeflow Declarative Pipelines (DLT) you want to ingest.
+- **Can Read** on the notebooks and workspace files those pipelines use. OpenMetadata parses pipeline source code to build Kafka and S3 lineage.
+
+### Lineage Permissions
+
+OpenMetadata builds table and column lineage from the `system.access.table_lineage` and `system.access.column_lineage` system tables. To read them:
+
+1. Make sure the `system.access` schema is enabled in your Unity Catalog metastore. If it is not, ask a Databricks account admin to enable it.
+2. Enter an **HTTP Path** in the connection details. OpenMetadata runs the lineage queries on that compute, so lineage cannot be fetched without it.
+3. Grant **Can Use** on the SQL warehouse that the HTTP Path points to.
+4. Grant access to the lineage system tables:
+
+```sql
+GRANT USE CATALOG ON CATALOG system TO `<user>`;
+GRANT USE SCHEMA ON SCHEMA system.access TO `<user>`;
+GRANT SELECT ON TABLE system.access.table_lineage TO `<user>`;
+GRANT SELECT ON TABLE system.access.column_lineage TO `<user>`;
+```
+
+<Tip>
+Lineage is optional. If these permissions are missing, the **GetLineage** test step fails, but you can still save the service and OpenMetadata ingests pipelines without lineage.
+</Tip>
+
+## Metadata Ingestion
+
+To ingest metadata from Databricks Pipeline, you need to create a service connection. The service connects Databricks Pipeline with OpenMetadata. Once you create a service, OpenMetadata automatically starts ingesting metadata.
+
+### Step 1: Add New Service
+
+In the left navigation bar, select **Connections** and then click **Add New Service**.
+
+<img src="/public/images/v2.2.x-SNAPSHOT/connectors/metadata-ingestion/add-new-service.png" alt="Connections page with Add New Service button highlighted" />
+
+### Step 2: Select a Service and Connector
+
+From the service type dropdown, select **Pipeline Services**, then click the **Databricks Pipeline** connector tile.
+
+![Select Service](/public/images/connector2.0/metadata-ingestion/Pipeline/select-service/databricks-pipeline.png)
+
+### Step 3: Add Service Name and Description
+
+- Enter a unique, descriptive **Service Name**. OpenMetadata identifies services by their service name. Enter a name that distinguishes this deployment from other Databricks Pipeline services you are ingesting metadata from.
+- Optional: Enter a **Description** for the service.
+
+![Add New Service Name](/public/images/connector2.0/metadata-ingestion/Pipeline/service-name/databricks-pipeline.png)
+
+<Note>
+**Note**: The service name cannot be changed after it is set.
+</Note>
+
+### Step 4: Configure Connection Options
+
+Specify your source credentials and verify the connection.
+
+#### Enter Connection Details
+
+Enter the connection details for Databricks Pipeline. The right-hand panel in the UI displays inline help for each field.
+
+![Configure Service Connection](/public/images/connector2.0/metadata-ingestion/Pipeline/connection-details/databricks-pipeline.png)
+
+- **Host and Port**: Enter the fully qualified hostname and port number for your Databricks Pipeline deployment in the Host and Port field.
+- **Authentication Type**: Choose how to authenticate with Databricks.
+  - **Personal Access Token**:
+    - **Token**: A Personal Access Token generated from **User Settings** > **Developer** > **Access Tokens** in your Databricks workspace.
+  - **Databricks OAuth**:
+    - **Client ID**: The Service Principal Application ID created in your Databricks Account Console.
+    - **Client Secret**: The OAuth secret generated for that Service Principal.
+  - **Azure AD Setup**:
+    - **Azure Client ID**: The Azure Service Principal Application (client) ID registered in Azure Active Directory.
+    - **Azure Client Secret**: The client secret created in Azure AD for that Service Principal.
+    - **Azure Tenant ID**: The Azure Active Directory tenant ID where the Service Principal is registered.
+- **HTTP Path**: The HTTP path of the SQL warehouse OpenMetadata uses to query lineage system tables. Find it in Databricks under **SQL Warehouses** > your warehouse > **Connection details**. Required for lineage.
+
+**Advanced Config** *(driver-level options; most connections don't need these)*
+- **Connection Arguments** *(Optional)*: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to Databricks during the connection. These details must be added as Key-Value pairs.
+  - In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+#### Test Connection
+
+Once the credentials have been added, click on **Test Connection** and **Save** the changes.
+
+<img src="/public/images/connectors/test-connection.png" alt="Test Connection" />
+
+### Step 5: Configure Ingestion Options
+
+In the **What to Ingest** step, use filter patterns to control which assets OpenMetadata ingests from your Databricks Pipeline service. Filter patterns use regular expressions applied to pipeline names.
+
+#### How Filter Patterns Work
+
+- **Include**: Add one or more comma-separated regular expressions. OpenMetadata ingests only assets whose names match at least one expression. Leave blank to include all assets.
+- **Exclude**: Add one or more comma-separated regular expressions. OpenMetadata skips any asset whose name matches an expression. Leave blank to exclude nothing.
+
+Rules match asset names using one of five expressions:
+
+- **contains**: matches any name containing the value. For example, `sales` matches `my_sales_data` and `sales_2024`.
+- **starts with**: matches names beginning with the value. For example, `prod_` matches `prod_db` and `prod_schema`.
+- **ends with**: matches names ending with the value. For example, `_raw` matches `events_raw` and `logs_raw`.
+- **is exactly**: matches the exact name only. For example, `analytics` matches only `analytics`.
+- **matches regex**: matches names using a regular expression. For example, `^prod_.*_v\d+$` matches `prod_events_v1`.
+
+When both Include and Exclude are set, Exclude takes priority.
+
+<Tip>
+Leave the filter pattern empty to ingest all pipelines available in the source.
+</Tip>
+
+#### Filter Options
+
+The Pipeline section includes the following filter options:
+
+- **Pipeline**: Controls which pipelines OpenMetadata ingests from Databricks Pipeline.
+
+Each section provides the following controls:
+
+- **Scan Mode**: Choose between the following scan modes:
+    - **Scan all**: Ingests every asset of that type the connector can access. This is the default.
+    - **Only specific**: Enables include rules so only assets matching at least one rule are ingested.
+- **Always exclude**: Add permanent exclusion rules (shown in red). Assets matching these rules are never ingested, regardless of include rules.
+- **Preview**: Shows a real-time summary of what will be in scope based on your current rules.
+- **Include rules** *(available only in **Only specific** mode)*: Click **+ Add** to define a rule. Added rules appear as chips; an asset is included if it matches any rule.
+
+### Step 6: Create & Deploy
+
+Click **Create & Deploy** to deploy the agent and start the first metadata ingestion run. OpenMetadata saves the service configuration and immediately begins pulling metadata from the source.
+
+To monitor ingestion progress or view the service you just added, go to **Connections** and select your service.
+
+## Configure Metadata Agent and Schedule Ingestion
+
+<MetadataAgentPipeline />
+
+<Related />

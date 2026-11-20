@@ -1,0 +1,235 @@
+---
+title: Add Lineage
+description: Create a lineage edge between two entities
+sidebarTitle: Add Lineage
+api: PUT /v1/lineage
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/lineage/add"
+---
+
+# Add Lineage
+
+Create a lineage edge between two entities. Supports column-level lineage mappings, pipeline references, and SQL query annotations.
+
+## Request Body
+
+<ParamField body="edge" type="object" required>
+  The lineage edge to create.
+
+  <Expandable title="properties">
+    <ParamField body="fromEntity" type="object" required>
+      Entity reference for the lineage source.
+
+      <Expandable title="properties">
+        <ParamField body="id" type="string" required>
+          UUID of the source entity.
+        </ParamField>
+
+        <ParamField body="type" type="string" required>
+          Entity type (e.g., `table`, `dashboard`, `pipeline`, `topic`).
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="toEntity" type="object" required>
+      Entity reference for the lineage destination.
+
+      <Expandable title="properties">
+        <ParamField body="id" type="string" required>
+          UUID of the destination entity.
+        </ParamField>
+
+        <ParamField body="type" type="string" required>
+          Entity type (e.g., `table`, `dashboard`, `pipeline`, `topic`).
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="description" type="string">
+      Description of the lineage relationship.
+    </ParamField>
+
+    <ParamField body="lineageDetails" type="object">
+      Optional details for the lineage edge.
+
+      <Expandable title="properties">
+        <ParamField body="sqlQuery" type="string">
+          SQL query driving the transformation.
+        </ParamField>
+
+        <ParamField body="columnsLineage" type="array">
+          Column-level lineage mappings.
+
+          <Expandable title="properties">
+            <ParamField body="fromColumns" type="array">
+              List of source column fully qualified names.
+            </ParamField>
+
+            <ParamField body="toColumn" type="string">
+              Destination column fully qualified name.
+            </ParamField>
+          </Expandable>
+        </ParamField>
+
+        <ParamField body="pipeline" type="object">
+          Entity reference for the pipeline powering the transformation.
+
+          <Expandable title="properties">
+            <ParamField body="id" type="string" required>
+              UUID of the pipeline entity.
+            </ParamField>
+
+            <ParamField body="type" type="string" required>
+              Must be `pipeline`.
+            </ParamField>
+          </Expandable>
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/lineage
+from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.type.entityReference import EntityReference
+from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
+from metadata.generated.schema.type.entityLineage import (
+    ColumnLineage,
+    EntitiesEdge,
+    LineageDetails,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(
+        jwtToken="<YOUR-JWT-TOKEN>"
+    ),
+)
+metadata = OpenMetadata(server_config)
+
+# Simple lineage between two tables
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        description="ETL transformation",
+        fromEntity=EntityReference(id=source_table.id, type="table"),
+        toEntity=EntityReference(id=target_table.id, type="table"),
+    ),
+)
+created_lineage = metadata.add_lineage(data=add_lineage_request)
+
+# With column-level lineage and SQL query
+column_lineage = ColumnLineage(
+    fromColumns=["service.db.schema.source_table.customer_id"],
+    toColumn="service.db.schema.target_table.cust_id",
+)
+
+lineage_details = LineageDetails(
+    sqlQuery="INSERT INTO target_table SELECT customer_id FROM source_table",
+    columnsLineage=[column_lineage],
+    pipeline=EntityReference(id=pipeline_entity.id, type="pipeline"),
+)
+
+add_lineage_request = AddLineageRequest(
+    edge=EntitiesEdge(
+        fromEntity=EntityReference(id=source_table.id, type="table"),
+        toEntity=EntityReference(id=target_table.id, type="table"),
+        lineageDetails=lineage_details,
+    ),
+)
+created_lineage = metadata.add_lineage(data=add_lineage_request)
+
+# Automated SQL lineage (parses SQL to extract lineage)
+from metadata.generated.schema.entity.services.databaseService import DatabaseService
+
+database_service = metadata.get_by_name(entity=DatabaseService, fqn="my_service")
+metadata.add_lineage_by_query(
+    database_service=database_service,
+    sql="INSERT INTO target_table(id) SELECT id FROM source_table",
+    timeout=200,
+)
+```
+
+```java PUT /v1/lineage
+import org.openmetadata.sdk.api.Lineage;
+
+// Simple lineage between two entities
+Lineage.LineageEdge edge = Lineage.connect()
+    .from("table", sourceTableId)
+    .to("dashboard", dashboardId)
+    .withDescription("Dashboard uses data from this table")
+    .execute();
+
+// With column-level lineage, pipeline, and SQL query
+Lineage.LineageEdge edge = Lineage.connect()
+    .from("table", sourceTableId)
+    .fromColumns("customer_id", "order_date")
+    .to("table", targetTableId)
+    .toColumns("cust_id", "date")
+    .withPipeline("pipeline", pipelineId)
+    .withDescription("ETL transformation")
+    .withSqlQuery("SELECT customer_id, order_date FROM source")
+    .execute();
+```
+
+```bash PUT /v1/lineage
+# Simple lineage between two tables
+curl -X PUT "{base_url}/api/v1/lineage" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edge": {
+      "fromEntity": {"id": "source-table-uuid", "type": "table"},
+      "toEntity": {"id": "target-table-uuid", "type": "table"},
+      "description": "ETL transformation"
+    }
+  }'
+
+# With column-level lineage and SQL query
+curl -X PUT "{base_url}/api/v1/lineage" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edge": {
+      "fromEntity": {"id": "source-table-uuid", "type": "table"},
+      "toEntity": {"id": "target-table-uuid", "type": "table"},
+      "lineageDetails": {
+        "sqlQuery": "INSERT INTO target SELECT id, name FROM source",
+        "columnsLineage": [
+          {
+            "fromColumns": ["service.db.schema.source.id"],
+            "toColumn": "service.db.schema.target.id"
+          }
+        ],
+        "pipeline": {"id": "pipeline-uuid", "type": "pipeline"}
+      }
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```http
+HTTP/1.1 200 OK
+```
+</ResponseExample>
+
+## Returns
+
+Returns `200 OK` with no response body after the edge is saved. To retrieve the resulting graph, use [Get Lineage](/v2.2.x-SNAPSHOT/api-reference/lineage/get).
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create lineage |
+| `404` | `NOT_FOUND` | One of the referenced entities does not exist |

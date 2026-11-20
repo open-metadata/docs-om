@@ -1,0 +1,126 @@
+---
+title: Data Contracts
+description: Define schema, quality, and governance guarantees for data assets
+sidebarTitle: Overview
+---
+
+# Data Contracts
+
+Data contracts define the schema, quality expectations, SLA guarantees, and governance rules for data assets. Contracts can be attached directly to entities or inherited from data products.
+
+## Supported Entity Types
+
+Data contracts can be attached to the following entity types. Every type supports semantics, SLA, security, and terms of use. Only the types marked below support a schema or quality expectations. A contract that sets an unsupported section is rejected with `400`.
+
+| Entity Type | `entity.type` | Schema | Quality Expectations |
+|-------------|---------------|:-:|:-:|
+| Table | `table` | ✓ | ✓ |
+| Topic | `topic` | ✓ | — |
+| API Endpoint | `apiEndpoint` | ✓ | — |
+| Dashboard Data Model | `dashboardDataModel` | ✓ | — |
+| Stored Procedure | `storedProcedure` | — | — |
+| Database | `database` | — | — |
+| Database Schema | `databaseSchema` | — | — |
+| Dashboard | `dashboard` | — | — |
+| Chart | `chart` | — | — |
+| Pipeline | `pipeline` | — | — |
+| Search Index | `searchIndex` | — | — |
+| API Collection | `apiCollection` | — | — |
+| API | `api` | — | — |
+| API Service | `apiService` | — | — |
+| Metric | `metric` | — | — |
+| ML Model | `mlmodel` | — | — |
+| Container | `container` | — | — |
+| Directory | `directory` | — | — |
+| File | `file` | — | — |
+| Spreadsheet | `spreadsheet` | — | — |
+| Worksheet | `worksheet` | — | — |
+| Data Product | `dataProduct` | — | — |
+
+An entity can have one contract of its own. Creating a second one returns `400`.
+
+## Contract Sections
+
+A data contract consists of several optional sections:
+
+| Section | Description | Checked by a validation run |
+|---------|-------------|:-:|
+| **Schema** | Expected columns or fields: names, types, constraints | ✓ |
+| **Semantics** | JSON Logic rules on the entity's metadata, such as owners, description, domain, and tags | ✓ |
+| **Quality Expectations** | References to test cases that must pass | ✓ |
+| **SLA** | Refresh frequency, max latency, availability time, retention | — |
+| **Terms of Use** | Allowed and disallowed uses, compliance requirements | — |
+| **Security** | Data classification, access policies, identities, row filters | — |
+
+For every field and how each check works, see [Data Contract Specification](/v2.1.x/how-to-guides/data-contracts/spec).
+
+## Contract Status
+
+`entityStatus` holds the contract's review status. It's separate from the result of each validation run.
+
+| Status | Description |
+|--------|-------------|
+| `Draft` | Contract is being defined. The default for API requests. |
+| `In Review` | Awaiting review. When the contract has reviewers, only a reviewer can move it to `Approved` or `Rejected`. |
+| `Approved` | Contract is agreed. Only an `Approved` data product contract is inherited by the data product's assets. |
+| `Rejected` | Reviewers rejected the contract. |
+| `Deprecated` | Contract is deprecated and will be retired. |
+| `Archived` | Contract is retired. |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/dataContracts` | List data contracts |
+| `POST` | `/v1/dataContracts` | Create a data contract |
+| `GET` | `/v1/dataContracts/{id}` | Get by ID |
+| `GET` | `/v1/dataContracts/name/{fqn}` | Get by FQN |
+| `GET` | `/v1/dataContracts/entity` | Get effective contract for an entity |
+| `PATCH` | `/v1/dataContracts/{id}` | Update a data contract |
+| `PUT` | `/v1/dataContracts` | Create or update |
+| `DELETE` | `/v1/dataContracts/{id}` | Delete by ID |
+| `DELETE` | `/v1/dataContracts/name/{fqn}` | Delete by FQN |
+| `PUT` | `/v1/dataContracts/restore` | Restore soft-deleted |
+| `GET` | `/v1/dataContracts/{id}/versions` | List versions |
+| `GET` | `/v1/dataContracts/{id}/versions/{version}` | Get specific version |
+| `POST` | `/v1/dataContracts/{id}/validate` | Validate contract |
+| `POST` | `/v1/dataContracts/entity/validate` | Validate an entity's effective contract |
+| `POST` | `/v1/dataContracts/validate` | Check a contract request without creating it |
+| `GET` | `/v1/dataContracts/{id}/results` | List execution results |
+| `GET` | `/v1/dataContracts/{id}/results/latest` | Get latest result |
+| `PUT` | `/v1/dataContracts/{id}/results` | Add execution result |
+| `GET` | `/v1/dataContracts/{id}/odcs` | Export to ODCS JSON |
+| `GET` | `/v1/dataContracts/{id}/odcs/yaml` | Export to ODCS YAML |
+| `POST` | `/v1/dataContracts/odcs` | Import from ODCS JSON |
+| `POST` | `/v1/dataContracts/odcs/yaml` | Import from ODCS YAML |
+| `POST` | `/v1/dataContracts/odcs/validate/yaml` | Preview an ODCS YAML import |
+
+## Inheritance
+
+When an entity belongs to exactly one **Data Product** whose contract is `Approved`, the entity inherits the contract's semantics, SLA, terms of use, and security. Schema and quality expectations are never inherited. An entity in several data products inherits nothing.
+
+The entity can also have its own contract. Its terms of use, security, and SLA take precedence, and the data product's value fills in only where the entity's contract leaves one empty. The data product's semantics rules are added to the entity's rules, except rules with the same name. `GET /v1/dataContracts/entity` returns the merged, effective contract.
+
+<CardGroup cols={2}>
+
+<Card title="Create Contract" icon="plus" href="/v2.1.x/api-reference/data-contracts/create">
+  Create a new data contract for an entity.
+</Card>
+
+<Card title="List Contracts" icon="list" href="/v2.1.x/api-reference/data-contracts/list">
+  List and filter data contracts.
+</Card>
+
+<Card title="Retrieve Contract" icon="eye" href="/v2.1.x/api-reference/data-contracts/retrieve">
+  Get a contract by ID, FQN, or entity.
+</Card>
+
+<Card title="Validate" icon="check" href="/v2.1.x/api-reference/data-contracts/validate">
+  Validate contracts and view execution results.
+</Card>
+
+<Card title="Import & Export" icon="arrows-rotate" href="/v2.1.x/api-reference/data-contracts/odcs">
+  Import and export contracts using the Open Data Contract Standard (ODCS) format.
+</Card>
+
+</CardGroup>

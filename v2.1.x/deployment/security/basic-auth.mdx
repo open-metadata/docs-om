@@ -1,0 +1,135 @@
+---
+title: Basic Authentication | OpenMetadata Security Setup
+description: Configure Basic Auth to secure service access with username and password authentication for lightweight, internal use cases.
+sidebarTitle: Basic Auth
+collate: false
+---
+
+import SmtpEmail from '/snippets/deployment/smtp-email.mdx'
+import ConfigureIngestion from '/snippets/v2.1.x/deployment/configure-ingestion.mdx'
+
+# UserName/Password Login
+
+Out of the box, OpenMetadata comes with a Username & Password Login Mechanism.
+
+The default Username and Password for Login are:
+
+```commandline
+Username - admin@open-metadata.org
+Password - admin
+```
+When using a custom domain, configure the principal domain as follows:
+
+```yaml
+config:
+    authorizer:
+      adminPrincipals: [admin]
+      principalDomain: "yourdomain.com"
+```
+
+With this setup, the default Username will be `admin@yourdomain.com`.
+
+<Warning>
+
+Security requirements for your **production** environment:
+- **DELETE** the admin default account shipped by OM.
+- **UPDATE** the Private / Public keys used for the [JWT Tokens](/v2.1.x/deployment/security/enable-jwt-tokens) in case it is enabled.
+
+</Warning>
+
+## Setting up Basic Auth Manually
+
+Below are the required steps to set up the Basic Login:
+
+## Set up Configurations in openmetadata.yaml
+
+### Authentication Configuration
+
+The following configuration controls the auth mechanism for OpenMetadata. Update the mentioned fields as required.
+
+```yaml
+authenticationConfiguration:
+  provider: ${AUTHENTICATION_PROVIDER:-basic}
+  publicKeyUrls: ${AUTHENTICATION_PUBLIC_KEYS:-[`{your domain}`/api/v1/system/config/jwks]} # Update with your Domain and Make sure this "/api/v1/system/config/jwks" is always configured to enable JWT tokens
+  authority: ${AUTHENTICATION_AUTHORITY:-https://accounts.google.com}
+  enableSelfSignup : ${AUTHENTICATION_ENABLE_SELF_SIGNUP:-true}
+```
+
+For the Basic auth we need to set:
+
+-  `provider`: basic
+-  `publicKeyUrls`: `{http|https}`://`{your_domain}`:`{port}`/api/v1/system/config/jwks
+-  `authority`: `{your_domain}`
+-  `enableSelfSignup`: This flag indicates if users can come and signup by themselves on the OM
+
+### Authorizer Configuration
+
+This configuration controls the authorizer for OpenMetadata:
+
+```yaml
+authorizerConfiguration:
+  adminPrincipals: ${AUTHORIZER_ADMIN_PRINCIPALS:-[admin]}
+  allowedEmailRegistrationDomains: ${AUTHORIZER_ALLOWED_REGISTRATION_DOMAIN:-["all"]}
+  principalDomain: ${AUTHORIZER_PRINCIPAL_DOMAIN:-"open-metadata.org"}
+```
+
+For the Basic auth we need to set:
+
+- `adminPrincipals`: admin usernames to bootstrap the server with, comma-separated values.
+- `allowedEmailRegistrationDomains`: This controls what all domain are allowed for email registration can be your {principalDomain} as well, for example gmail.com, outlook.comm etc.
+- `principalDomain`: This controls what all domain are allowed for email registration, for example gmail.com, outlook.comm etc. When `AUTHORIZER_ENFORCE_PRINCIPAL_DOMAIN` is set to `true`, only users with email addresses from the `AUTHORIZER_PRINCIPAL_DOMAIN` can log in.
+
+Starting in 2.1, `adminPrincipals` and `principalDomain` are deprecated but still work. Use `adminEmails` to list admins by email address, `allowedEmailDomains` to restrict sign-in domains, and `botDomain` for bot email addresses. For more information, see [Email-First User Identity](/v2.1.x/deployment/security/configuration-parameters#email-first-user-identity).
+
+<Tip>
+
+Please note the following are the formats to bootstrap admins on server startup: `[admin1,admin2,admin3]`
+
+This works for SMTP-enabled servers, Login Password for these are generated randomly and sent to the mail `adminName`@`principalDomain`.
+
+If SMTP is not enabled for OpenMetadata, please use the method below to create admin users: `[admin1, admin2, admin3]`. The default password for all admin users will be admin.
+
+After logging into the OpenMetadata UI, admin users can change their default password by navigating to `Settings > Members > Admins`.
+
+</Tip>
+
+## Metadata Ingestion
+
+For ingesting metadata when Basic Auth is enabled, it is mandatory to configure the `ingestion-bot` account with the JWT
+configuration. To know how to enable it, you can follow the documentation of [Enable JWT Tokens](/v2.1.x/deployment/security/enable-jwt-tokens).
+
+<SmtpEmail />
+
+<ConfigureIngestion />
+
+## Recover Access During an SSO Outage
+
+OpenMetadata cannot use Basic Auth and single sign-on (SSO) at the same time. During an SSO outage, an operator with access to the OpenMetadata deployment can temporarily switch the server to Basic Auth.
+
+<Warning>
+
+Prepare and test a Basic Auth administrator account before an outage. Switching providers does not create a usable password for an existing SSO-only account. Changing the provider also invalidates sessions created by the previous provider. Restarting or rolling out the OpenMetadata server can briefly interrupt access.
+
+</Warning>
+
+To recover access:
+
+1. Confirm that you have deployment access and a tested Basic Auth administrator credential.
+2. Record the current SSO provider and configuration so you can restore them. Open **Settings** > **SSO** and save the current values, or back up the `authenticationConfiguration` and `authorizerConfiguration` entries in the `openmetadata_settings` table.
+3. Set `authenticationConfiguration.provider` to `basic` in your server configuration. If the configuration uses environment variables, set `AUTHENTICATION_PROVIDER=basic`.
+4. From a deployment that can reach the OpenMetadata database, remove the stored security configuration:
+
+   ```bash
+   ./bootstrap/openmetadata-ops.sh remove-security-config --force
+   ```
+
+   OpenMetadata keeps the SSO configuration in its database and uses it over your server configuration at startup. Without this step, the server keeps using the unavailable SSO provider. This command removes both the authentication and the authorizer configuration.
+5. Restart the OpenMetadata server or roll out all OpenMetadata server pods so every instance uses the same provider and reads the configuration from your server settings.
+6. Open a private browser session and sign in with the Basic Auth administrator account.
+7. Restore service or correct the SSO configuration.
+8. Set `authenticationConfiguration.provider` back to the original SSO provider. Update any related environment variables in your server configuration as well.
+9. Run `./bootstrap/openmetadata-ops.sh remove-security-config --force` again so the server reads the restored SSO values on the next start. Alternatively, re-enter the values you recorded in step 2 under **Settings** > **SSO**.
+10. Restart or roll out every OpenMetadata server instance.
+11. Verify SSO sign-in.
+
+After you restore SSO, users must sign in again because sessions issued by Basic Auth are no longer valid.

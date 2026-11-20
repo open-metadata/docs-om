@@ -1,0 +1,107 @@
+---
+title: Configure Object Storage | OpenMetadata Deployment Guide
+description: Set up object storage on Amazon S3, MinIO, or Azure Blob Storage so that files uploaded to Context Center Documents are saved and can be downloaded.
+sidebarTitle: Configure Object Storage
+canonical: "https://docs.open-metadata.org/v2.1.x/deployment/object-storage"
+---
+
+# Configure Object Storage
+
+OpenMetadata saves the files that people upload, such as the files in **Context Center** > **Documents**, in object storage. Object storage is turned off by default. Turn it on before you let people upload files.
+
+<Warning>
+If object storage is off, an upload to **Documents** looks successful and the file appears in the list, but OpenMetadata doesn't save the file contents. Downloading the file then fails with `No current content found for this file`. Files uploaded while storage was off can't be recovered. Turn storage on, then upload them again.
+</Warning>
+
+## Settings
+
+Add the `objectStorage` block to `openmetadata.yaml`, or set the environment variables shown for each setting. Restart OpenMetadata after you change them.
+
+| Setting | Environment variable | Default | Description |
+| --- | --- | --- | --- |
+| `objectStorage.enabled` | `ASSET_UPLOADER_ENABLE` | `false` | Turns object storage on. |
+| `objectStorage.provider` | `ASSET_UPLOADER_PROVIDER` | `s3` | `s3` for Amazon S3 or MinIO, `azure` for Azure Blob Storage, or `inmemory` for local testing. The `inmemory` option keeps files in server memory only, so they are lost when the server restarts and aren't shared between servers. |
+| `objectStorage.maxFileSize` | `ASSET_UPLOADER_MAX_FILE_SIZE` | `5242880` | The largest file OpenMetadata accepts, in bytes. The default is 5 MiB. A larger file is rejected. |
+
+## Amazon S3
+
+| Setting | Environment variable | Description |
+| --- | --- | --- |
+| `s3.bucketName` | `ASSET_UPLOADER_S3_BUCKET_NAME` | The bucket that holds the files. |
+| `s3.region` | `ASSET_UPLOADER_S3_REGION` | The AWS Region of the bucket. |
+| `s3.prefixPath` | `ASSET_UPLOADER_S3_PREFIX_PATH` | A folder path inside the bucket. OpenMetadata saves each file under this path. |
+| `s3.accessKey` | `ASSET_UPLOADER_S3_ACCESS_KEY` | The access key. Used only when OpenMetadata can't find AWS credentials by itself, or when you set `s3.endpoint`. |
+| `s3.secretKey` | `ASSET_UPLOADER_S3_SECRET_KEY` | The secret key that goes with the access key. |
+| `s3.sseAlgorithm` | `ASSET_UPLOADER_S3_SSE_ALGORITHM` | Optional. Server-side encryption: `AES256` or `aws:kms`. |
+| `s3.kmsKeyId` | `ASSET_UPLOADER_S3_KMS_KEY_ID` | The KMS key to use when `s3.sseAlgorithm` is `aws:kms`. |
+
+OpenMetadata finds credentials in this order:
+
+1. If you set `s3.endpoint`, it uses `s3.accessKey` and `s3.secretKey`.
+2. Otherwise, it uses the standard AWS credential chain, such as an IAM role on the server or pod, or the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
+3. If the chain finds nothing, it uses `s3.accessKey` and `s3.secretKey`.
+
+The credentials need `s3:PutObject`, `s3:GetObject`, and `s3:DeleteObject` on the bucket and prefix.
+
+```yaml
+objectStorage:
+  enabled: true
+  provider: s3
+  maxFileSize: 52428800
+  s3:
+    bucketName: my-openmetadata-files
+    region: us-east-1
+    prefixPath: documents
+```
+
+### MinIO and Other S3-Compatible Storage
+
+Use provider `s3` and set `s3.endpoint` (`ASSET_UPLOADER_S3_ENDPOINT`) to the address of your storage server. OpenMetadata then uses the access key and secret key you configure.
+
+```yaml
+objectStorage:
+  enabled: true
+  provider: s3
+  s3:
+    endpoint: http://minio:9000
+    bucketName: openmetadata
+    region: us-east-1
+    accessKey: <access-key>
+    secretKey: <secret-key>
+```
+
+## Azure Blob Storage
+
+| Setting | Environment variable | Description |
+| --- | --- | --- |
+| `azure.blobEndpoint` | `ASSET_UPLOADER_AZURE_BLOB_ENDPOINT` | Required. The blob endpoint of your storage account, for example `https://<account>.blob.core.windows.net`. |
+| `azure.containerName` | `ASSET_UPLOADER_AZURE_CONTAINER_NAME` | The container that holds the files. OpenMetadata creates it if it doesn't exist. |
+| `azure.prefixPath` | `ASSET_UPLOADER_AZURE_PREFIX_PATH` | A folder path inside the container. |
+
+OpenMetadata signs in with the default Azure credentials of the server or pod, such as a managed identity or the `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_CLIENT_SECRET` environment variables. That identity needs permission to read, write, and delete blobs in the container.
+
+```yaml
+objectStorage:
+  enabled: true
+  provider: azure
+  azure:
+    blobEndpoint: https://<account>.blob.core.windows.net
+    containerName: openmetadata-files
+    prefixPath: documents
+```
+
+## Check That It Works
+
+1. Upload a small file in **Context Center** > **Documents**.
+2. Download the same file. It should open normally.
+3. Check that a new object appears in your bucket or container, under the prefix you set.
+
+If the download still fails, check these items:
+
+- **Storage is off or the server wasn't restarted.** Confirm that `objectStorage.enabled` is `true` and that you restarted OpenMetadata.
+- **The provider is `inmemory`.** Files are lost when the server restarts, and a second server can't read files saved by the first. Use `s3` or `azure`.
+- **The upload failed on the storage side.** With `s3` or `azure`, a failed write makes the upload fail with an error, and OpenMetadata removes the new file entry. Read the server log from the moment of the upload for storage errors, such as access denied.
+- **The credentials can't write or read.** Check the permissions in [Amazon S3](#amazon-s3) or [Azure Blob Storage](#azure-blob-storage).
+- **The file is too large.** Raise `objectStorage.maxFileSize`.
+
+For more information about Documents, see [Documents and Archive](/v2.2.x-SNAPSHOT/how-to-guides/context-center/documents).

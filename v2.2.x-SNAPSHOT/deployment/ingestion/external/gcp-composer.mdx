@@ -1,0 +1,176 @@
+---
+title: Run the ingestion from GCP Composer  | Official Documentation
+description: Deploy external ingestion using GCP Composer to automate metadata and quality pipelines on Google Cloud environments.
+sidebarTitle: Gcp composer
+collate: false
+canonical: "https://docs.open-metadata.org/v2.1.x/deployment/ingestion/external/gcp-composer"
+---
+
+import ExternalIngestion from '/snippets/deployment/external-ingestion.mdx'
+import RunConnectorsClass from '/snippets/deployment/run-connectors-class.mdx'
+
+<ExternalIngestion />
+
+# Run the ingestion from GCP Composer
+
+## Requirements
+
+OpenMetadata 2.1.0 ingestion requires Python 3.10 or later and SQLAlchemy 2.x. Use `openmetadata-ingestion==2.1.0.1` with an OpenMetadata 2.1.0 server.
+
+For Composer environments whose managed dependencies conflict with these requirements, use the [Kubernetes Pod Operator](#using-the-kubernetes-pod-operator) to run the ingestion image separately. The earlier Composer 2.5.4 / Airflow 2.6.3 example is not a verified compatibility combination for OpenMetadata 2.1.0.
+
+## Using the Python Operator
+
+Use `PythonOperator` only when the Composer environment supports the ingestion package’s Python and dependency requirements. This approach installs the package directly into the managed environment. If Composer requires SQLAlchemy 1.x, use the Kubernetes Pod Operator approach instead.
+
+### Install the Requirements
+
+In your environment, install `openmetadata-ingestion[<plugins>]==x.y.z`.
+
+Let the ingestion package resolve its SQLAlchemy dependency (`>=2.0.0,<2.1`). Do not pin SQLAlchemy to `1.4.27`. That conflicts with OpenMetadata 2.1.0. Check the complete dependency set against your Composer environment before installing it.
+
+Replace `x.y.z` with the ingestion package version that matches your server. For an OpenMetadata 2.1.0 server, install ingestion package version 2.1.0.0.
+
+The plugin parameter lists the sources to ingest. For example, use `openmetadata-ingestion[mysql,snowflake,s3]==2.1.0.1`.
+
+### Prepare the DAG!
+
+Note that this DAG is a usual connector DAG, just using the Airflow service with the `Backend` connection.
+
+As an example of a DAG pushing data to OpenMetadata under Google SSO, we could have:
+
+```python
+from datetime import timedelta
+
+import yaml
+from airflow import DAG
+
+try:
+    from airflow.operators.python import PythonOperator
+except ModuleNotFoundError:
+    from airflow.operators.python_operator import PythonOperator
+
+from airflow.utils.dates import days_ago
+
+from metadata.workflow.metadata import MetadataWorkflow
+
+
+
+default_args = {
+    "owner": "user_name",
+    "email": ["username@org.com"],
+    "email_on_failure": False,
+    "retries": 3,
+    "retry_delay": timedelta(minutes=5),
+    "execution_timeout": timedelta(minutes=60),
+}
+
+CONFIG = """
+...
+"""
+
+
+def metadata_ingestion_workflow():
+    workflow_config = yaml.safe_load(CONFIG)
+    workflow = MetadataWorkflow.create(workflow_config)
+    workflow.execute()
+    workflow.raise_from_status()
+    workflow.print_status()
+    workflow.stop()
+
+
+with DAG(
+    "airflow_metadata_extraction",
+    default_args=default_args,
+    description="An example DAG which pushes Airflow data to OM",
+    start_date=days_ago(1),
+    is_paused_upon_creation=True,
+    schedule_interval="*/5 * * * *",
+    catchup=False,
+) as dag:
+    ingest_task = PythonOperator(
+        task_id="ingest_using_recipe",
+        python_callable=metadata_ingestion_workflow,
+    )
+```
+
+<RunConnectorsClass />
+
+## Using the Kubernetes Pod Operator
+
+In this second approach we won't need to install absolutely anything to the GCP Composer environment. Instead,
+we will rely on the `KubernetesPodOperator` to use the underlying k8s cluster of Composer.
+
+Then, the code won't directly run using the hosts' environment, but rather inside a container that we created
+with only the `openmetadata-ingestion` package.
+
+**Note:** This approach only has the `openmetadata/ingestion-base` ready from version 0.12.1 or higher!
+
+### Prepare the DAG!
+
+```python
+from datetime import datetime
+
+from airflow import models
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+
+
+CONFIG = """
+...
+"""
+
+
+with models.DAG(
+    "ingestion-k8s-operator",
+    schedule_interval="@once",
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["OpenMetadata"],
+) as dag:
+    KubernetesPodOperator(
+        task_id="ingest",
+        name="ingest",
+        cmds=["python", "main.py"],
+        image="openmetadata/ingestion-base:2.1.0",
+        namespace='default',
+        env_vars={"config": CONFIG, "pipelineType": "metadata"},
+        dag=dag,
+    )
+```
+
+Some remarks on this example code:
+
+#### Kubernetes Pod Operator
+
+You can name the task as you want (`task_id` and `name`). The important points here are the `cmds`, this should not
+be changed, and the `env_vars`. The `main.py` script that gets shipped within the image will load the env vars
+as they are shown, so only modify the content of the config YAML, but not this dictionary.
+
+Note that the example uses the image `openmetadata/ingestion-base:2.1.0`. The image version should be aligned with
+your OpenMetadata server version to avoid incompatibilities.
+
+```python
+KubernetesPodOperator(
+    task_id="ingest",
+    name="ingest",
+    cmds=["python", "main.py"],
+    image="openmetadata/ingestion-base:2.1.0",
+    namespace='default',
+    env_vars={"config": config, "pipelineType": "metadata"},
+    dag=dag,
+)
+```
+
+You can find more information about the `KubernetesPodOperator` and how to tune its configurations
+[here](https://cloud.google.com/composer/docs/how-to/using/using-kubernetes-pod-operator).
+
+Note that depending on the kind of workflow you will be deploying, the YAML configuration will need to updated following
+the official OpenMetadata docs, and the value of the `pipelineType` configuration will need to hold one of the following values:
+
+- `metadata`
+- `usage`
+- `lineage`
+- `profiler`
+- `TestSuite`
+
+Which are based on the `PipelineType` [JSON Schema definitions](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/ingestionPipelines/ingestionPipeline.json#L14)

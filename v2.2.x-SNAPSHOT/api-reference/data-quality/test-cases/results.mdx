@@ -1,0 +1,198 @@
+---
+title: Test Case Results
+description: Get and add test case execution results
+sidebarTitle: Test Case Results
+api: GET /v1/dataQuality/testCases/testCaseResults/{fqn}
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/data-quality/test-cases/results"
+---
+
+# Test Case Results
+
+Retrieve test case execution results or add new results programmatically. Each result includes a status, timestamp, and detailed result values.
+
+## Get Test Case Results
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name (FQN) returned when creating the test case. URL-encode it when necessary.
+</ParamField>
+
+<ParamField query="startTs" type="integer">
+  Start timestamp (epoch milliseconds) to filter results.
+</ParamField>
+
+<ParamField query="endTs" type="integer">
+  End timestamp (epoch milliseconds) to filter results.
+</ParamField>
+
+## Add a Test Case Result
+
+Use `POST /v1/dataQuality/testCases/testCaseResults/{fqn}` to add a new test result.
+
+<ParamField path="fqn" type="string" required>
+  Fully qualified name (FQN) returned when creating the test case. URL-encode it when necessary.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="timestamp" type="integer" required>
+  Epoch timestamp (milliseconds) of the test execution.
+</ParamField>
+
+<ParamField body="testCaseStatus" type="string" required>
+  Status of the test execution: `Success`, `Failed`, or `Aborted`.
+</ParamField>
+
+<ParamField body="result" type="string">
+  Human-readable summary of the test result.
+</ParamField>
+
+<ParamField body="testResultValue" type="array" required>
+  Array of detailed result values produced by the test.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Name of the result metric.
+    </ParamField>
+
+    <ParamField body="value" type="string" required>
+      Value of the result metric.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```bash GET /v1/dataQuality/testCases/testCaseResults/{fqn}
+# Get test results
+curl "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between" \
+  -H "Authorization: Bearer {access_token}"
+
+# Get results with time range
+curl "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between?startTs=1769900000000&endTs=1769990000000" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a test result
+curl -X POST "{base_url}/api/v1/dataQuality/testCases/testCaseResults/sample_data.ecommerce_db.shopify.dim_address.shop_id.column_value_max_to_be_between" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": 1769982800000,
+    "testCaseStatus": "Success",
+    "result": "Max value 42 is between 1 and 100",
+    "testResultValue": [
+      {"name": "maxValue", "value": "42"}
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Get Results)
+{
+  "data": [
+    {
+      "timestamp": 1769982800000,
+      "testCaseStatus": "Success",
+      "result": "Max value 42 is between 1 and 100",
+      "testResultValue": [
+        {
+          "name": "maxValue",
+          "value": "42"
+        }
+      ]
+    },
+    {
+      "timestamp": 1769896400000,
+      "testCaseStatus": "Failed",
+      "result": "Max value 150 is not between 1 and 100",
+      "testResultValue": [
+        {
+          "name": "maxValue",
+          "value": "150"
+        }
+      ]
+    }
+  ],
+  "paging": {
+    "total": 2
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+**Get results** returns a list of test case result objects for the requested FQN and time range.
+
+**Add result** returns the test case result object that was created.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of test case result objects.
+
+  <Expandable title="properties">
+    <ResponseField name="timestamp" type="integer">
+      Epoch timestamp (milliseconds) of the test execution.
+    </ResponseField>
+
+    <ResponseField name="testCaseStatus" type="string">
+      Status of the test: `Success`, `Failed`, or `Aborted`.
+    </ResponseField>
+
+    <ResponseField name="result" type="string">
+      Human-readable summary of the test result.
+    </ResponseField>
+
+    <ResponseField name="testResultValue" type="array">
+      Detailed result values.
+
+      <Expandable title="properties">
+        <ResponseField name="name" type="string">
+          Name of the result metric.
+        </ResponseField>
+
+        <ResponseField name="value" type="string">
+          Value of the result metric.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="paging" type="object">
+  Pagination information.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="integer">
+      Total count of results.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Delete a Test Case Result
+
+Use `DELETE /api/v1/dataQuality/testCases/testCaseResults/{fqn}/{timestamp}` to delete a single test case result. `fqn` is the test case's fully qualified name and `timestamp` is the result's timestamp in milliseconds. The request returns the updated test case.
+
+The caller needs `Delete` on either the table the test case belongs to or the test case itself. Callers with neither permission receive `403`.
+
+## Test Case Status Values
+
+| Status | Description |
+|--------|-------------|
+| `Success` | The test passed all assertions |
+| `Failed` | The test failed one or more assertions |
+| `Aborted` | The test was aborted due to an error or timeout |
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to view or add test results |
+| `404` | `NOT_FOUND` | Test case with given FQN does not exist |

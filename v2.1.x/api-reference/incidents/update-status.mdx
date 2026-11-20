@@ -1,0 +1,224 @@
+---
+title: Change Incident Status
+description: Acknowledge, assign, reassign, and resolve a data quality incident through the OpenMetadata REST API and Python SDK using task transitions.
+sidebarTitle: Change Status
+api: POST /v1/tasks/{id}/resolve
+---
+
+# Change Incident Status
+
+Change an incident's status by applying a **transition** to its task. The incident ID is the task ID.
+
+`POST /v1/tasks/{id}/resolve`
+
+<ParamField path="id" type="string" required>
+  UUID of the incident task.
+</ParamField>
+
+## Body Parameters
+
+The request body accepts these fields:
+
+<ParamField body="transitionId" type="string">
+  The transition to apply: `ack`, `assign`, `reassign`, `new`, or `resolve`. Read the incident's `availableTransitions` to see which are valid right now.
+</ParamField>
+
+<ParamField body="resolutionType" type="string">
+  Required when you resolve. Use `Completed`.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  Comment to add. Required for `resolve`.
+</ParamField>
+
+<ParamField body="payload" type="object">
+  Data the transition needs. See the examples that follow.
+</ParamField>
+
+You must send at least `transitionId` or `resolutionType`. OpenMetadata rejects an empty body.
+
+## Acknowledge an Incident
+
+To acknowledge an incident, send the `ack` transition.
+
+<RequestExample dropdown>
+```bash POST /v1/tasks/{id}/resolve
+curl -X POST "https://your-company.open-metadata.org/api/v1/tasks/$INCIDENT_ID/resolve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "transitionId": "ack" }'
+```
+
+```python POST /v1/tasks/{id}/resolve
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.task_models import ResolveTaskRequest
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+incident_id = "<incident task id>"
+
+metadata.resolve_task(incident_id, ResolveTaskRequest(transitionId="ack"))
+```
+</RequestExample>
+
+## Assign or Reassign an Incident
+
+Use `assign` when the incident isn't yet assigned, and `reassign` when its stage is already `assigned`. Pass the new assignees in `payload.assignees` as entity references.
+
+```json
+{
+  "transitionId": "assign",
+  "payload": {
+    "assignees": [
+      {
+        "id": "2b8d6f1a-0000-4000-8000-000000000020",
+        "type": "user",
+        "name": "jdoe",
+        "fullyQualifiedName": "jdoe",
+        "displayName": "Jane Doe"
+      }
+    ]
+  }
+}
+```
+
+```python
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.task_models import ResolveTaskRequest
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+incident_id = "<incident task id>"
+user_id = "<user id>"
+
+metadata.resolve_task(
+    incident_id,
+    ResolveTaskRequest(
+        transitionId="assign",
+        payload={
+            "assignees": [
+                {"id": user_id, "type": "user", "name": "jdoe", "fullyQualifiedName": "jdoe"}
+            ]
+        },
+    ),
+)
+```
+
+## Resolve an Incident
+
+Resolving requires a comment and a failure reason in `payload.testCaseFailureReason`: `FalsePositive`, `MissingData`, `Duplicates`, `OutOfBounds`, or `Other`.
+
+```json
+{
+  "transitionId": "resolve",
+  "resolutionType": "Completed",
+  "comment": "Upstream load was delayed. Re-ran successfully.",
+  "payload": { "testCaseFailureReason": "MissingData" }
+}
+```
+
+```python
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.task_models import ResolveTaskRequest, TaskResolutionType
+
+server_config = OpenMetadataConnection(
+    hostPort="https://your-company.open-metadata.org/api",
+    authProvider="openmetadata",
+    securityConfig=OpenMetadataJWTClientConfig(jwtToken="<YOUR-JWT-TOKEN>"),
+)
+metadata = OpenMetadata(server_config)
+incident_id = "<incident task id>"
+
+metadata.resolve_task(
+    incident_id,
+    ResolveTaskRequest(
+        transitionId="resolve",
+        resolutionType=TaskResolutionType.Completed,
+        comment="Upstream load was delayed. Re-ran successfully.",
+        payload={"testCaseFailureReason": "MissingData"},
+    ),
+)
+```
+
+## Reopen an Incident
+
+A resolved incident has no available transitions. To reopen it, post an `Ack` or `Assigned` status to the test case incident status endpoint. OpenMetadata reopens the same incident task.
+
+`POST /v1/dataQuality/testCases/testCaseIncidentStatus`
+
+```json
+{
+  "testCaseReference": "svc.db.schema.orders.row_count_between",
+  "testCaseResolutionStatusType": "Ack"
+}
+```
+
+To start a fresh incident in the `new` stage instead, as the Incident Manager does, create a task for the test case with `POST /v1/tasks`:
+
+```json
+{
+  "name": "Incident: row_count_between",
+  "category": "Incident",
+  "type": "TestCaseResolution",
+  "about": "<#E::testCase::svc.db.schema.orders.row_count_between>"
+}
+```
+
+## Add Comments, Change Severity, and Close an Incident
+
+- **Comments**: `POST /v1/tasks/{id}/comments` adds a comment to the incident.
+- **Severity**: `PATCH /v1/dataQuality/testCases/testCaseIncidentStatus/{id}` updates `severity` (`Severity1` to `Severity5`) on a status record. OpenMetadata accepts patches only to `severity`, `updatedAt`, and `updatedBy`.
+- **Close without resolving**: `POST /v1/tasks/{id}/close` cancels the task. Only the creator or an assignee can close it. For incidents, use `resolve` instead.
+
+## Change Status With the Legacy Endpoint
+
+Status changes through `POST /v1/dataQuality/testCases/testCaseIncidentStatus` still work. OpenMetadata applies each write to the incident task, so existing clients keep working. `Ack` maps to the `ack` transition, `Assigned` to `assign` or `reassign`, and `Resolved` to `resolve`.
+
+```json
+{
+  "testCaseReference": "svc.db.schema.orders.row_count_between",
+  "testCaseResolutionStatusType": "Resolved",
+  "testCaseResolutionStatusDetails": {
+    "testCaseFailureReason": "FalsePositive",
+    "testCaseFailureComment": "Threshold was too strict."
+  }
+}
+```
+
+The Python SDK supports this form through `create_test_case_resolution`. For new code, prefer the task transitions.
+
+## Errors
+
+The endpoint can return these errors:
+
+| Status | Cause |
+|---|---|
+| `400` | The body is empty, or the request doesn't meet the transition's requirements, such as a missing comment or failure reason. |
+| `403` | The caller can't edit the test case. |
+| `404` | No task exists with that ID. |

@@ -1,0 +1,62 @@
+---
+title: Search and Pagination | Python SDK Ingestion
+description: Page through search results with the Python client, including data products and Context Center articles, and handle SearchCursorStalledError.
+sidebarTitle: Search and Pagination
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/sdk/python/ingestion/search-pagination"
+---
+
+# Search and Pagination
+
+The Python client can page through search results and load the full entity for each hit with `paginate_es()`.
+
+## Supported Entities
+
+Besides the existing entity types, the client supports:
+
+- **DataProduct**: Data products, searched in `data_product_search_index`.
+- **Page**: Context Center articles, searched in `knowledge_page_search_index`.
+
+## Paginate Search Results
+
+Pass the entity class to `paginate_es()` to iterate over every matching entity. The following example prints the fully qualified name of each data product.
+
+```python
+from metadata.generated.schema.entity.domains.dataProduct import DataProduct
+from metadata.sdk.client import OpenMetadata
+
+metadata = OpenMetadata.get_default_client()
+
+for data_product in metadata.paginate_es(entity=DataProduct, size=100):
+    print(data_product.fullyQualifiedName.root)
+```
+
+**Parameters**:
+
+- `entity`: The entity class to page through, for example `DataProduct` or `Page`.
+- `size`: The number of hits per page. The default is `100`.
+- `query_filter`: An optional search filter in JSON format.
+- `search_query`: An optional query string to filter results.
+- `fields`: An optional list of fields to load for each entity.
+- `sort_field` and `sort_order`: The sort used to page. The defaults are `fullyQualifiedName` and `desc`.
+
+Each entity is returned once.
+
+## SearchCursorStalledError
+
+`paginate_es()` raises `SearchCursorStalledError` when the search index cannot sort on the `id` field that the server uses to move between pages. The error names the index and says `Reindex it`. It is raised before any page is returned, so a run never processes the same entity twice.
+
+```python
+from metadata.generated.schema.entity.data.page import Page
+from metadata.ingestion.ometa.mixins.es_mixin import SearchCursorStalledError
+from metadata.sdk.client import OpenMetadata
+
+metadata = OpenMetadata.get_default_client()
+
+try:
+    for article in metadata.paginate_es(entity=Page):
+        print(article.fullyQualifiedName.root)
+except SearchCursorStalledError as error:
+    print(error)
+```
+
+To resolve the error, reindex the search index named in the message, then run again.

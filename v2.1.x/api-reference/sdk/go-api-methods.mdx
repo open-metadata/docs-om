@@ -1,0 +1,157 @@
+---
+title: Go SDK - API Methods
+description: "Go SDK service methods for the OpenMetadata API: List with automatic paging, GetByID, GetByName, Create, CreateOrUpdate, Patch, Delete, and DeleteByName."
+sidebarTitle: API Methods
+---
+
+# Go SDK - API Methods
+
+Once you have created a `Client`, call the following methods on any of its services to perform operations against the OpenMetadata API. Examples of services are `client.Tables`, `client.Databases`, and `client.Users`. The examples below use `client.Tables`. They assume `ctx` is a `context.Background()` and that you created `client` as shown in [Go SDK](/v2.1.x/api-reference/sdk/go).
+
+### `List` Method
+**Method signature**
+```go
+func (s *TableService) List(
+	ctx context.Context,
+	params *ListTablesParams,
+) iter.Seq2[Table, error]
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    for table, err := range client.Tables.List(ctx, nil) {
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Println(table.Name)
+    }
+}
+```
+
+`List` fetches the next page of results for you as you loop, so you don't need to handle paging yourself.
+
+### `GetByID` and `GetByName` Methods
+**Method signature**
+```go
+func (s *TableService) GetByID(ctx context.Context, id string, params *GetTableByIDParams) (*Table, error)
+func (s *TableService) GetByName(ctx context.Context, fqn string, params *GetTableByFQNParams) (*Table, error)
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    table, err := client.Tables.GetByName(ctx, "sample_data.ecommerce_db.shopify.dim_customer", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(table.Id)
+}
+```
+
+### `Create` Method
+**Method signature**
+```go
+func (s *TableService) Create(ctx context.Context, body *CreateTable) (*Table, error)
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    table, err := client.Tables.Create(ctx, &ometa.CreateTable{
+        Name:           "goClientTestTable",
+        DatabaseSchema: "sample_data.ecommerce_db.shopify",
+        Columns: []ometa.Column{
+            {Name: "columnOne", DataType: ometa.ColumnDataTypeNUMBER},
+            {Name: "columnTwo", DataType: ometa.ColumnDataTypeNUMBER},
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(table.Id)
+}
+```
+
+### `CreateOrUpdate` Method
+**Method signature**
+```go
+func (s *TableService) CreateOrUpdate(ctx context.Context, body *CreateTable) (*Table, error)
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    table, err := client.Tables.CreateOrUpdate(ctx, &ometa.CreateTable{
+        Name:           "goClientTestTable",
+        DatabaseSchema: "sample_data.ecommerce_db.shopify",
+        Columns: []ometa.Column{
+            {Name: "columnOne", DataType: ometa.ColumnDataTypeNUMBER},
+            {Name: "columnTwo", DataType: ometa.ColumnDataTypeNUMBER},
+            {Name: "columnThree", DataType: ometa.ColumnDataTypeNUMBER},
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(table.Id)
+}
+```
+
+### `Patch` Method
+**Method signature**
+```go
+func (s *TableService) Patch(ctx context.Context, id string, ops []JSONPatchOp) (*Table, error)
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    id := table.Id.String()
+    updated, err := client.Tables.Patch(ctx, id, []ometa.JSONPatchOp{
+        {Op: "add", Path: "/description", Value: "This is a test table"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(*updated.Description)
+}
+```
+
+### `Delete` and `DeleteByName` Methods
+**Method signature**
+```go
+func (s *TableService) Delete(ctx context.Context, id string, params *DeleteTableParams) error
+func (s *TableService) DeleteByName(ctx context.Context, fqn string, params *DeleteTable1Params) error
+```
+
+**Example**
+```go
+// main.go
+...
+func main() {
+    ...
+    err := client.Tables.Delete(ctx, table.Id.String(), &ometa.DeleteTableParams{
+        HardDelete: ometa.Bool(true),
+        Recursive:  ometa.Bool(true),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
