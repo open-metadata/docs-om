@@ -6,40 +6,59 @@ export const ReleaseCarousel = () => {
 
     const SLIDES = [
         {
-            header: 'OpenMetadata 2.0',
-            image: '/public/images/release-2.0/modules/overview.png',
-            alt: 'OpenMetadata 2.0 overview summary',
+            header: 'OpenMetadata 2.1: AI Mode',
+            image: '/public/images/release-2.1/modules/ai-mode.png',
+            alt: 'AI mode Explore page with the new left navigation',
             text: (
-                <>OpenMetadata 2.0 is a major release: a redesigned Explore page with <strong>Browse Estate</strong>, <strong>Context Center</strong> for reference content, first-class <strong>Tasks</strong> replacing suggestions and threads, <strong>Custom Intake Forms</strong> for governance workflows, a 3D <strong>Knowledge Graph</strong> for glossary exploration, <strong>Dynamic Sampling</strong> in the Profiler, and a cleaner landing page.</>
+                <>AI mode takes center stage in 2.1, and Classic mode is deprecated. The release adds richer <strong>Data Quality</strong> and <strong>governance</strong>, including failure thresholds and <strong>change requests</strong>, a larger <strong>Context Center</strong>, a complete <strong>Metrics</strong> entity, <strong>hierarchical lineage maps</strong>, and <strong>Ontology Explorer</strong> with a knowledge graph. It also brings seven new connectors and many improvements to existing ones.</>
             ),
-            link: '/v2.1.x-SNAPSHOT/releases/2.0-release',
+            link: '/v2.1.x-SNAPSHOT/releases',
+            linkText: "See what's new →",
         },
         {
-            header: 'Explore Page',
-            image: '/public/images/release-2.0/modules/explore-page.png',
-            alt: 'Redesigned Explore page showing the Browse Estate panel, the query bar, and result cards',
+            header: 'New Profile Menu',
+            image: '/public/images/release-2.1/modules/profile-menu.png',
+            alt: 'Profile menu showing domain scope, active persona, Settings, Appearance and AI mode',
             text: (
-                <>The Explore page's left panel is now <strong>Browse Estate</strong>. Browsing a location no longer overwrites your filters, it stacks with them, with every active filter and browse level shown as a removable chip and no more <strong>Update</strong> button to click.</>
+                <>One menu for your account: set your <strong>Domain scope</strong>, <strong>Switch Persona</strong>, open <strong>My Data &amp; Following</strong>, change <strong>Language</strong> and <strong>Appearance</strong>, or jump to <strong>Settings</strong>.</>
             ),
-            link: '/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search',
+            link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/profile#profile-menu',
         },
         {
-            header: 'Context Center',
-            image: '/public/images/release-2.0/modules/context-center.png',
-            alt: 'Context Center dashboard showing articles, documents, and memories',
+            header: 'Default Persona',
+            image: '/public/images/release-2.1/modules/default-persona.png',
+            alt: 'Persona page with the Set as Default button in the header',
             text: (
-                <><strong>Knowledge Center</strong> is now <strong>Context Center</strong>, the single home for reference content in your catalog. Existing pages migrate automatically as <strong>Articles</strong>, and new <strong>Documents</strong> and a dashboard view make discovering and managing content across your org easier.</>
+                <>Admins can make any persona the organization default with <strong>Set as Default</strong>, right from the persona page header. Only one persona can be the default at a time.</>
             ),
-            link: '/v2.1.x-SNAPSHOT/releases/2.0-release#context-center',
+            link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/persona-landing-page-customization/defining-persona',
         },
         {
-            header: 'Home Page Experience',
-            image: '/public/images/release-2.0/modules/landing-page.png',
-            alt: 'Redesigned OpenMetadata 2.0 landing page',
+            header: 'New Settings Page',
+            image: '/public/images/release-2.1/modules/settings-page.png',
+            alt: 'Redesigned Settings page with Account, Administration, Features and Workspace sections',
             text: (
-                <>The homepage has been redesigned with a cleaner navigation structure and more direct entry points into discovery, lineage, governance, and data quality, cutting the clicks needed to reach your most-used workflows.</>
+                <>Settings now opens as one window with a left menu grouped into <strong>Account</strong>, <strong>Administration</strong>, <strong>Features</strong> and <strong>Workspace</strong>. Manage your profile, access control, bots, personas and custom properties without leaving it.</>
             ),
-            link: '/v2.1.x-SNAPSHOT/releases/2.0-release#landing-page',
+            link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/profile#settings-modal',
+        },
+        {
+            header: 'Personal Preferences',
+            image: '/public/images/release-2.1/modules/appearance.png',
+            alt: 'Preferences page with the Light, Dark and System theme switch',
+            text: (
+                <>Pick <strong>Light</strong>, <strong>Dark</strong> or <strong>System</strong> under <strong>Preferences</strong> &gt; <strong>Theme</strong>, and turn on a <strong>Compact Sidebar</strong> if you want more room.</>
+            ),
+            link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/profile#your-preferences',
+        },
+        {
+            header: 'Hierarchical Lineage Maps',
+            image: '/public/images/how-to-guides/lineage/lineage-map-overview.png',
+            alt: 'Hierarchical lineage map at the Service Level',
+            text: (
+                <>The <strong>Lineage</strong> page now opens as a map you can zoom into. Start with an overview of your services and drill down one level at a time, all the way to individual fields, instead of reading one large graph of every table.</>
+            ),
+            link: '/v2.1.x-SNAPSHOT/how-to-guides/data-lineage/explore',
         },
     ]
 
@@ -175,10 +194,10 @@ export const ReleaseCarousel = () => {
                     <div>
                         <div className="release-carousel-title-row">
                             <h2>{slide.header}</h2>
-                            <span className="release-carousel-eyebrow">New Release</span>
+                            <span className="release-carousel-eyebrow">Release 2.1</span>
                         </div>
                         <p>{slide.text}</p>
-                        <a href={slide.link}>See what's new →</a>
+                        <a href={slide.link}>{slide.linkText || 'Learn more →'}</a>
                     </div>
                 </div>
             </div>
