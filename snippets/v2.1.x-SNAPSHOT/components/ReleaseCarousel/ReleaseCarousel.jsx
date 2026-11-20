@@ -10,7 +10,7 @@ export const ReleaseCarousel = () => {
             image: '/public/images/release-2.1/modules/ai-mode.png',
             alt: 'AI mode Explore page with the new left navigation',
             text: (
-                <>AI mode takes center stage in 2.1, and Classic mode is deprecated. The release adds richer <strong>Data Quality</strong> and <strong>governance</strong>, including failure thresholds and <strong>change requests</strong>, a larger <strong>Context Center</strong>, a complete <strong>Metrics</strong> entity, <strong>hierarchical lineage maps</strong>, and <strong>Ontology Explorer</strong> with a knowledge graph. It also brings seven new connectors and many improvements to existing ones.</>
+                <>AI mode is the primary experience in OpenMetadata 2.1, and Classic mode is deprecated. The release adds richer <strong>Data Quality</strong> and <strong>governance</strong>, including failure thresholds and <strong>change requests</strong>, a larger <strong>Context Center</strong>, a complete <strong>Metrics</strong> entity, <strong>hierarchical lineage maps</strong>, and <strong>Ontology Explorer</strong> with a knowledge graph. It also brings seven new connectors and many improvements to existing ones.</>
             ),
             link: '/v2.1.x-SNAPSHOT/releases',
             linkText: "See what's new →",
@@ -18,7 +18,7 @@ export const ReleaseCarousel = () => {
         {
             header: 'New Profile Menu',
             image: '/public/images/release-2.1/modules/profile-menu.png',
-            alt: 'Profile menu showing domain scope, active persona, Settings, Appearance and AI mode',
+            alt: 'Profile menu showing domain scope, active persona, Settings, Appearance, and AI mode',
             text: (
                 <>One menu for your account: set your <strong>Domain scope</strong>, <strong>Switch Persona</strong>, open <strong>My Data &amp; Following</strong>, change <strong>Language</strong> and <strong>Appearance</strong>, or jump to <strong>Settings</strong>.</>
             ),
@@ -36,18 +36,18 @@ export const ReleaseCarousel = () => {
         {
             header: 'New Settings Page',
             image: '/public/images/release-2.1/modules/settings-page.png',
-            alt: 'Redesigned Settings page with Account, Administration, Features and Workspace sections',
+            alt: 'Redesigned Settings page with Account, Administration, Features, and Workspace sections',
             text: (
-                <>Settings now opens as one window with a left menu grouped into <strong>Account</strong>, <strong>Administration</strong>, <strong>Features</strong> and <strong>Workspace</strong>. Manage your profile, access control, bots, personas and custom properties without leaving it.</>
+                <>Settings now opens as one window with a left menu grouped into <strong>Account</strong>, <strong>Administration</strong>, <strong>Features</strong>, and <strong>Workspace</strong>. Manage your profile, access control, bots, personas, and custom properties without leaving it.</>
             ),
             link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/profile#settings-modal',
         },
         {
             header: 'Personal Preferences',
             image: '/public/images/release-2.1/modules/appearance.png',
-            alt: 'Preferences page with the Light, Dark and System theme switch',
+            alt: 'Preferences page with the Light, Dark, and System theme switch',
             text: (
-                <>Pick <strong>Light</strong>, <strong>Dark</strong> or <strong>System</strong> under <strong>Preferences</strong> &gt; <strong>Theme</strong>, and turn on a <strong>Compact Sidebar</strong> if you want more room.</>
+                <>Pick <strong>Light</strong>, <strong>Dark</strong>, or <strong>System</strong> under <strong>Preferences</strong> &gt; <strong>Theme</strong>, and turn on a <strong>Compact Sidebar</strong> if you want more room.</>
             ),
             link: '/v2.1.x-SNAPSHOT/how-to-guides/admin-guide/profile#your-preferences',
         },
