@@ -1,0 +1,89 @@
+---
+title: Entity Columns and Fields
+description: List inline fields by parent entity and update a field by fully qualified name
+sidebarTitle: Columns and Fields
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/data-assets/columns"
+---
+
+# Entity Columns and Fields
+
+OpenMetadata 2.1 adds paginated endpoints for inline child fields that previously required retrieving the complete parent entity.
+
+## List Fields for an Entity
+
+All seven endpoints use `GET` and identify the parent by fully qualified name:
+
+| Parent entity | Endpoint | Returned children |
+|---|---|---|
+| Application programming interface (API) endpoint | `/v1/apiEndpoints/name/{fqn}/columns` | Request-schema fields, followed by response-schema fields |
+| Worksheet | `/v1/worksheets/name/{fqn}/columns` | Worksheet columns |
+| Machine learning (ML) model | `/v1/mlmodels/name/{fqn}/columns` | ML features |
+| Pipeline | `/v1/pipelines/name/{fqn}/columns` | Pipeline tasks |
+| Search index | `/v1/searchIndexes/name/{fqn}/columns` | Search-index fields |
+| Container | `/v1/containers/name/{fqn}/columns` | Data-model columns |
+| Topic | `/v1/topics/name/{fqn}/columns` | Message-schema fields |
+
+Each endpoint accepts the same query parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | integer | `50` | Page size from `1` through `1,000`. |
+| `offset` | integer | `0` | Zero-based field offset. |
+| `fields` | string | None | Optional comma-separated child fields to include. Currently supports `tags`. |
+| `include` | string | `non-deleted` | Include `all`, `deleted`, or `non-deleted` children. |
+| `sortBy` | string | `name` | Sort by `name` or `ordinalPosition`. |
+| `sortOrder` | string | `asc` | Sort using `asc` or `desc`. |
+
+```bash
+curl "{base_url}/api/v1/topics/name/kafka.orders/columns?limit=50&offset=0&fields=tags&sortBy=ordinalPosition" \
+  -H "Authorization: Bearer {access_token}"
+```
+
+The response is a `ResultList`: `data` contains the requested children and `paging.total` contains the total matching count.
+
+## Update a Field
+
+Use `PUT /v1/columns/name/{fqn}` to update an inline child of a supported parent:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entityType` | string | Required | Parent type: `table`, `dashboardDataModel`, `topic`, `container`, `mlmodel`, `pipeline`, `searchIndex`, `apiEndpoint`, or `worksheet`. |
+| `changeSource` | string | None | Change provenance: `Manual`, `Propagated`, `Automated`, `Derived`, `Ingested`, or `Suggested`. |
+
+```bash
+curl -X PUT "{base_url}/api/v1/columns/name/kafka.orders.order_id?entityType=topic&changeSource=Automated" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Identifier assigned by the producer"}'
+```
+
+Descriptions and tags apply to every supported type. `displayName` applies to every type except ML-model features. Constraints are specific to table columns, and custom-property extensions are supported for table and dashboard-data-model columns.
+
+## Column Grid
+
+Use `GET /v1/columns/grid` to list unique columns across entities, with occurrences that share a name grouped by their metadata. It uses cursor-based pagination.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `size` | integer | `1000` | Columns per batch, up to `10000`. |
+| `cursor` | string | None | Cursor from the previous response. |
+| `columnNamePattern` | string | None | Wildcard search on the column name. |
+| `entityTypes` | string | None | Comma-separated entity types, for example `table,dashboardDataModel`. |
+| `serviceName` | string | None | Filter by service name. |
+| `serviceTypes` | string | None | Comma-separated service types, for example `BigQuery,Mysql`. |
+| `databaseName`, `schemaName` | string | None | Filter by database or schema name. |
+| `domainId` | string | None | Filter by domain ID. |
+| `tags` | string | None | Comma-separated classification tag fully qualified names (FQNs) on the column. |
+| `glossaryTerms` | string | None | Comma-separated glossary term FQNs on the column. |
+| `metadataStatus` | string | None | Filter by aggregate status: `MISSING`, `INCOMPLETE`, `COMPLETE`, or `INCONSISTENT`. |
+| `hasConflicts` | boolean | `false` | Return only columns whose occurrences have conflicting metadata. |
+| `hasMissingMetadata` | boolean | `false` | Return only columns with missing metadata. |
+
+`metadataStatus` is the status of the column across all of its occurrences:
+
+- **`MISSING`**: No description and no tags.
+- **`INCOMPLETE`**: A description or tags, but not both.
+- **`COMPLETE`**: Both a description and tags.
+- **`INCONSISTENT`**: The occurrences disagree on description or tags.
+
+The status, `hasConflicts`, and `hasMissingMetadata` filters run on the grouped rows before pagination. A status filter returns only rows with that status, and the page size and totals match the filtered result.

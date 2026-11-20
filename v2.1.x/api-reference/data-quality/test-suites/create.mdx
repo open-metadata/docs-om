@@ -1,0 +1,221 @@
+---
+title: Create a Test Suite
+description: Create a logical test suite or a basic test suite for a table
+sidebarTitle: Create a Test Suite
+api: POST /v1/dataQuality/testSuites
+---
+
+# Create a Test Suite
+
+`POST /v1/dataQuality/testSuites` creates a **logical** test suite that groups test cases across tables. To create a **basic** test suite linked to one table, use `POST /v1/dataQuality/testSuites/basic` as shown below.
+
+The endpoint determines the suite type. Omit `executable` and `basic` from the request body. `basic` is a response field set by the server. `executable` is deprecated.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the test suite. Must be unique. For a basic suite, the examples use `<tableFQN>.testSuite`, matching the server's automatic naming convention.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the test suite.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the test suite in Markdown format.
+</ParamField>
+
+<ParamField body="basicEntityReference" type="string">
+  The fully qualified name (FQN) of an existing table. Required when creating a basic suite through `/v1/dataQuality/testSuites/basic`. Omit this field for logical suites.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Owner entity type, such as `user` or `team`.
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<RequestExample dropdown>
+```python POST /v1/dataQuality/testSuites
+from metadata.sdk import configure
+from metadata.sdk.entities import TestSuites
+from metadata.generated.schema.api.tests.createTestSuite import CreateTestSuiteRequest
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# Create a logical test suite
+request = CreateTestSuiteRequest(
+    name="critical_data_quality_checks",
+    displayName="Critical Data Quality Checks",
+    description="Groups all critical data quality test cases across production tables"
+)
+
+test_suite = TestSuites.create(request)
+print(f"Created: {test_suite.name.root}")
+```
+
+```java POST /v1/dataQuality/testSuites
+import org.openmetadata.sdk.fluent.builders.TestSuiteBuilder;
+
+// client is an initialized OpenMetadataClient.
+
+// Create a logical test suite
+// Use an initialized OpenMetadataClient named client.
+var testSuite = new TestSuiteBuilder(client)
+    .name("critical_data_quality_checks")
+    .displayName("Critical Data Quality Checks")
+    .description("Groups all critical data quality test cases across production tables")
+    .create();
+```
+
+```bash POST /v1/dataQuality/testSuites
+# Create a logical test suite
+curl -X POST "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "critical_data_quality_checks",
+    "displayName": "Critical Data Quality Checks",
+    "description": "Groups all critical data quality test cases across production tables"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "e86a9a11-852f-4bac-b5a7-993b2bbbb572",
+  "name": "critical_data_quality_checks",
+  "displayName": "Critical Data Quality Checks",
+  "fullyQualifiedName": "critical_data_quality_checks",
+  "description": "Groups all critical data quality test cases across production tables",
+  "version": 0.1,
+  "updatedAt": 1769982757893,
+  "updatedBy": "admin",
+  "deleted": false,
+  "owners": [],
+  "basic": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the created test suite object with all specified properties and system-generated fields.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the test suite (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Test suite name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the test suite.
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the test suite.
+</ResponseField>
+
+<ResponseField name="basic" type="boolean">
+  Whether this is a basic (`true`) or logical (`false`) test suite. Set by the server.
+</ResponseField>
+
+<ResponseField name="basicEntityReference" type="object" optional>
+  Reference to the table linked to a basic suite. Includes `id`, `type` (`table`), `name`, and `fullyQualifiedName`. Not set for logical suites.
+</ResponseField>
+
+<ResponseField name="owners" type="array" optional>
+  List of owners assigned to the test suite.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      UUID of the owner entity.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Owner entity type, such as `user` or `team`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Name of the owner entity.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Version number for the entity (starts at 0.1).
+</ResponseField>
+
+---
+
+## Create a Basic Test Suite
+
+The table must already exist in OpenMetadata. Use its FQN for `basicEntityReference` and `<tableFQN>.testSuite` for the suite name. If the table already has a basic suite, reuse it. Creating a test case automatically creates the table's basic suite when one doesn't exist.
+
+```bash
+curl -X POST "{base_url}/api/v1/dataQuality/testSuites/basic" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sample_data.ecommerce_db.shopify.dim_address.testSuite",
+    "displayName": "Data Quality - dim_address",
+    "description": "Basic test suite for dim_address",
+    "basicEntityReference": "sample_data.ecommerce_db.shopify.dim_address"
+  }'
+```
+
+The response has `basic: true` and a `basicEntityReference` object identifying the table.
+
+## Create or Update (PUT)
+
+Use `PUT /v1/dataQuality/testSuites` for a logical suite, or `PUT /v1/dataQuality/testSuites/basic` for a basic suite, to perform an upsert. If a test suite with the same name already exists, the server updates it. Otherwise, the server creates a new test suite. The request body is the same as `POST`.
+
+```bash
+curl -X PUT "{base_url}/api/v1/dataQuality/testSuites" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "critical_data_quality_checks",
+    "displayName": "Critical Data Quality Checks",
+    "description": "Groups all critical data quality test cases across production tables"
+  }'
+```
+
+`PUT` updates an existing entity instead of returning a `409` conflict error.
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid request body or missing required fields |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to create test suites |
+| `409` | `ENTITY_ALREADY_EXISTS` | Test suite with same name already exists (POST only) |

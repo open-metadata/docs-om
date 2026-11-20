@@ -1,0 +1,84 @@
+---
+title: Ingest Exposures from dbt | OpenMetadata Downstream Lineage Guide
+description: Ingest dbt exposures to extend lineage from your dbt models to the dashboards, ML models, and API endpoints that consume them.
+slug: /connectors/database/dbt/ingest-dbt-exposures
+sidebarTitle: Ingest dbt Exposures
+---
+
+# Ingest Exposures from dbt
+
+Ingest dbt [exposures](https://docs.getdbt.com/docs/build/exposures) from the `manifest.json` file to extend lineage from your dbt models to the dashboards, ML models, and API endpoints that consume them.
+
+## Requirements
+
+<Tip>
+The downstream entity referenced by an exposure must already exist in OpenMetadata before the dbt ingestion runs. OpenMetadata matches it by Fully Qualified Name (FQN). If OpenMetadata can't find a match, it logs a warning and skips the exposure.
+</Tip>
+
+### Supported Exposure Types
+
+OpenMetadata maps a dbt exposure to an OpenMetadata entity based on its `type` field:
+
+| dbt Exposure `type` | OpenMetadata Entity |
+| :------------------- | :--------------- |
+| `dashboard`           | Dashboard        |
+| `ml`                  | ML Model         |
+| `application`         | API Endpoint     |
+
+Any other `type` value is skipped during ingestion.
+
+## Ingesting dbt Exposures
+
+Follow these steps to link a dbt exposure to an existing OpenMetadata entity.
+
+1. **Add exposure information in your dbt project**
+
+    Define the exposure in your dbt project (for example in `models/exposures.yml`), and set `meta.open_metadata_fqn` to the Fully Qualified Name of the corresponding entity already ingested in OpenMetadata.
+
+    For more information, see [Add Exposures to your DAG](https://docs.getdbt.com/docs/build/exposures).
+
+    ```yaml
+    exposures:
+      - name: orders_dashboard
+        label: orders
+        type: dashboard
+        maturity: high
+        url: http://localhost:8080/looker/dashboard/8/
+        description: >
+          Orders dashboard built on top of the orders model.
+        depends_on:
+          - ref('fact_sales')
+        meta:
+          open_metadata_fqn: sample_looker.orders  # OpenMetadata entity Fully Qualified Name
+    ```
+
+    After adding the exposure, run your dbt workflow (`dbt compile` or `dbt run`). The generated `manifest.json` will include the exposure under the `exposures` key, with upstream models listed under `depends_on->nodes`.
+
+    ```json
+    "exposure.jaffle_shop.orders_dashboard": {
+      "name": "orders_dashboard",
+      "resource_type": "exposure",
+      "type": "dashboard",
+      "meta": {
+        "open_metadata_fqn": "sample_looker.orders"
+      },
+      "depends_on": {
+        "nodes": [
+          "model.jaffle_shop.fact_sales"
+        ]
+      }
+    }
+    ```
+
+2. **Viewing the exposure lineage**
+
+    Once ingested, the linked dashboard, ML model, or API endpoint appears as a downstream node in the **Lineage** tab of the upstream dbt table(s) listed under `depends_on`.
+
+## Validation and Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Exposure `type` not one of `dashboard`, `ml`, `application` | Warning logged, exposure skipped |
+| `meta.open_metadata_fqn` missing from exposure spec | Warning logged, exposure skipped |
+| Entity referenced by `open_metadata_fqn` not found in OpenMetadata | Warning logged, exposure skipped |
+| Upstream model not yet ingested as an OpenMetadata table | Upstream node excluded from lineage edge |

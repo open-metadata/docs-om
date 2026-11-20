@@ -1,0 +1,189 @@
+---
+title: "Topic Followers & Votes"
+description: Manage followers and votes for topics
+sidebarTitle: Followers & Votes
+api: PUT /v1/topics/{id}/followers
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/data-assets/topics/followers-votes"
+---
+
+# Followers & Votes
+
+Manage followers and votes for topic entities.
+
+## Followers
+
+### Add Follower
+
+`PUT /v1/topics/{id}/followers`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  UUID of the user to add as a follower (sent as request body string).
+</ParamField>
+
+### Remove Follower
+
+`DELETE /v1/topics/{id}/followers/{userId}`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  UUID of the user to remove.
+</ParamField>
+
+## Votes
+
+### Add or Update Vote
+
+`PUT /v1/topics/{id}/vote`
+
+<ParamField path="id" type="string" required>
+  UUID of the topic.
+</ParamField>
+
+<ParamField body="updatedVoteType" type="string" required>
+  Vote type: `votedUp`, `votedDown`, or `unVoted`.
+</ParamField>
+
+<RequestExample dropdown>
+```python PUT /v1/topics/{id}/followers
+from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
+    AuthProvider,
+    OpenMetadataConnection,
+)
+from metadata.generated.schema.security.client.openMetadataJWTClientConfig import (
+    OpenMetadataJWTClientConfig,
+)
+from metadata.ingestion.ometa.ometa_api import OpenMetadata
+from metadata.generated.schema.entity.data.topic import Topic
+
+metadata = OpenMetadata(
+    OpenMetadataConnection(
+        hostPort="https://your-company.open-metadata.org/api",
+        authProvider=AuthProvider.openmetadata,
+        securityConfig=OpenMetadataJWTClientConfig(jwtToken="your-jwt-token"),
+    )
+)
+
+topic_id = "0a021819-982e-4ee4-a5a2-4af30eaa3016"
+user_id = "user-uuid-here"
+
+# Add a follower
+metadata.client.put(f"/topics/{topic_id}/followers", json=user_id)
+topic = metadata.get_by_id(entity=Topic, entity_id=topic_id, fields=["followers"])
+print(f"Followers: {len(topic.followers.root)}")
+
+# Remove a follower
+metadata.client.delete(f"/topics/{topic_id}/followers/{user_id}")
+
+# Add a vote
+metadata.client.put(f"/topics/{topic_id}/vote", json={"updatedVoteType": "votedUp"})
+
+# Remove a vote
+metadata.client.put(f"/topics/{topic_id}/vote", json={"updatedVoteType": "unVoted"})
+```
+
+```java PUT /v1/topics/{id}/followers
+import java.util.Map;
+import java.util.UUID;
+import org.openmetadata.sdk.network.HttpClient;
+import org.openmetadata.sdk.network.HttpMethod;
+
+// client is an initialized OpenMetadataClient.
+
+HttpClient http = client.getHttpClient();
+
+String topicId = "0a021819-982e-4ee4-a5a2-4af30eaa3016";
+UUID userId = UUID.fromString("b6f7a1e2-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
+
+// Add a follower
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/followers", userId);
+
+// Remove a follower
+http.executeForString(HttpMethod.DELETE, "/v1/topics/" + topicId + "/followers/" + userId, null);
+
+// Add a vote
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/vote", Map.of("updatedVoteType", "votedUp"));
+
+// Remove a vote
+http.executeForString(HttpMethod.PUT, "/v1/topics/" + topicId + "/vote", Map.of("updatedVoteType", "unVoted"));
+```
+
+```bash PUT /v1/topics/{id}/followers
+# Add a follower
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/followers" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '"user-uuid-here"'
+
+# Remove a follower
+curl -X DELETE "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/followers/user-uuid-here" \
+  -H "Authorization: Bearer {access_token}"
+
+# Add a vote
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "votedUp"}'
+
+# Remove a vote
+curl -X PUT "{base_url}/api/v1/topics/0a021819-982e-4ee4-a5a2-4af30eaa3016/vote" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"updatedVoteType": "unVoted"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response (Add Follower)
+{
+  "id": "0a021819-982e-4ee4-a5a2-4af30eaa3016",
+  "name": "address_book",
+  "fullyQualifiedName": "sample_kafka.address_book",
+  "description": "All Protobuf record related events gets captured in this topic",
+  "version": 0.1,
+  "updatedAt": 1769982663546,
+  "updatedBy": "admin",
+  "service": {
+    "id": "469ef25e-9bdf-4d5f-8553-eb0ce8581f30",
+    "type": "messagingService",
+    "name": "sample_kafka",
+    "fullyQualifiedName": "sample_kafka"
+  },
+  "serviceType": "Kafka",
+  "messageSchema": {
+    "schemaText": "syntax = \"proto2\";\npackage tutorial;\nmessage Person { ... }",
+    "schemaType": "Protobuf"
+  },
+  "partitions": 1,
+  "cleanupPolicies": ["delete"],
+  "replicationFactor": 1,
+  "deleted": false,
+  "followers": [
+    {
+      "id": "user-uuid-here",
+      "type": "user",
+      "name": "john.doe"
+    }
+  ],
+  "owners": [],
+  "tags": [],
+  "domains": []
+}
+```
+</ResponseExample>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission |
+| `404` | `NOT_FOUND` | Topic or user does not exist |

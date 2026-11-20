@@ -1,0 +1,222 @@
+---
+title: "Use Cases: Roles and Policies"
+description: Review real-world role-based access use cases for securing metadata access across teams, departments, and personas.
+sidebarTitle: "Use Cases: Roles and Policies"
+---
+
+# Use Cases: Roles and Policies
+
+OpenMetadata includes two default configurations out of the box – the Organization Policy and the Data Consumer role – both designed to encourage open data collaboration across your team.
+
+Keep the Organization Policy in place for open data collaboration. It lets everyone view assets and claim ownership when no owner is assigned, which keeps your catalog healthy and well-maintained.
+
+If you need per-team or per-tenant isolation, the Organization Policy's `OrganizationPolicy-ViewAll-Rule` lets every user see every asset, including in search. For more information, see [How Search Combines Your Policies](/v2.1.x/how-to-guides/admin-guide/roles-policies/authorization#how-search-combines-your-policies).
+
+For individual teams, tailor your policies to match what each team actually needs. The use cases below show how to handle the most common access control scenarios – from simple service creation to sensitive personally identifiable information (PII) protection.
+
+## Use Cases
+
+### Use Case 1: Let Teams Create Services and Extract Metadata
+
+**Goal**: Allow specific users to set up database connections and run ingestion pipelines without needing an admin every time.
+
+Create a policy with **Database Service**, **Ingestion Pipeline**, and **Workflow** resources, with all operations set to `Allow`.
+
+<img src="/public/images/how-to-guides/roles-policies/policy1.png" alt="Policy configuration for service creation with DatabaseService, Ingestion Pipeline, and Workflow resources" />
+
+Create a `ServiceOwner` role and assign this policy to it. Users with this role can create services and extract metadata on their own – no admin involvement needed.
+
+### Use Case 2: Set Up a Data Steward Role
+
+**Goal**: Give data stewards the access they need to manage governance – creating glossaries, applying tags, and editing metadata across all assets.
+
+Build a policy with two rules:
+
+1. **Allow glossary operations** – allows all operations on Glossary and Glossary Term resources, so the steward can create and manage business definitions.
+2. **Edit rule** – grants `EditDescription` and `EditTags` on all entities, so the steward can enrich and label data assets across the catalog.
+
+<img src="/public/images/how-to-guides/roles-policies/policy2.png" alt="Data Steward policy showing the two rules for glossary operations and editing" />
+
+Adjust these permissions to match your organization's governance requirements.
+
+### Use Case 3: Restrict Access to Assets Owned by a Specific Team
+
+**Goal**: Make sure only the team that owns a data asset can access it – block everyone else.
+
+Create a rule that denies all operations when the user isn't the owner of the asset and their team isn't the owner either.
+
+<img src="/public/images/how-to-guides/roles-policies/policy3.png" alt="Team-only policy showing the deny rule based on ownership" />
+
+This rule uses the `isOwner()` and `matchTeam()` conditions together. If neither condition is true for the user, access is denied.
+
+<Note>
+Roles Based Access Controls (RBAC) Search ignores `matchTeam()`, so this rule might not hide the asset from Explore results. To control what appears in search, use `isOwner()`, which RBAC Search also applies to the user's teams. For more information, see [Condition](/v2.1.x/how-to-guides/admin-guide/roles-policies/authorization#condition).
+</Note>
+
+### Use Case 4: Protect PII-Tagged Assets and Allow Only Owners to Access Them
+
+**Goal**: Lock down any asset tagged with `PII.Sensitive` so only its owner or owning team can access it.
+
+Create a rule that denies all operations on a Table when it carries the `PII.Sensitive` tag and the user isn't the owner – and their team isn't the owner either.
+
+<img src="/public/images/how-to-guides/roles-policies/policy4.png" alt="PII Sensitive policy showing the deny rule combining tag and ownership conditions" />
+
+This rule combines `matchAllTags('PII.Sensitive')` with `isOwner()` and `matchTeam()` conditions. All three are evaluated together – if the asset is tagged PII and the user has no ownership claim, access is denied.
+
+<Note>
+RBAC Search ignores `matchTeam()`, so this rule might not hide the asset from Explore results. To control what appears in search, use `isOwner()`, which RBAC Search also applies to the user's teams.
+</Note>
+
+### Use Case 5: Set Up a Read-Only Viewer Role
+
+**Goal**: Give business stakeholders access to browse the catalog and understand what data exists, without exposing raw data or query history.
+
+Create a policy with the following rules:
+
+| Resource | Operations |
+|---|---|
+| Table, Database, Database Schema | `ViewBasic`, `ViewAll` |
+| Dashboard, Chart | `ViewBasic`, `ViewAll` |
+| Glossary, Glossary Term, Tag | `ViewBasic` |
+| Domain, Data Product | `ViewBasic` |
+| Page | `ViewBasic`, `ViewAll` |
+
+Create a `Read-Only Viewer` role and assign this policy to it.
+
+<Note>
+**Note**: Leave out `ViewSampleData`, `ViewUsage`, and `ViewQueries`. A viewer needs to
+understand what exists – not access raw data or behavioral analytics.
+</Note>
+
+### Use Case 6: Set Up a Data Analyst Role
+
+**Goal**: Give analysts full metadata visibility, query context, and the ability to enrich assets with descriptions and tags.
+
+Create a policy with the following rules:
+
+| Resource | Operations |
+|---|---|
+| Table, Database Schema | `ViewAll`, `ViewUsage`, `ViewDataProfile`, `ViewQueries`, `ViewTests` |
+| Dashboard, Dashboard Data Model | `ViewAll`, `EditDescription` |
+| Glossary Term, Tag | `ViewAll`, `EditGlossaryTerms`, `EditTags` |
+| Query, Saved Query | `ViewAll`, `Create` |
+| Test Case Result | `ViewTests` |
+
+Create a `Data Analyst` role and assign this policy to it.
+
+<Note>
+**Note**: The `Query, Saved Query` rule is what makes the Queries tab visible to non-admin users when RBAC Search is on. Don't add an `isOwner()` condition to it.
+</Note>
+
+<Note>
+**Note**: `ViewSampleData` is not included by default. If analysts need to preview row-level data, create a separate `Analyst – Sample Data` role and require manager approval before assigning it.
+</Note>
+
+### Use Case 7: Set Up a Data Engineer Role
+
+**Goal**: Give engineers full control over pipelines, ingestion, and data asset structure.
+
+Create a policy with the following rules:
+
+| Resource | Operations |
+|---|---|
+| Table, Database Schema, Database | `ViewAll`, `Create`, `EditLineage`, `EditEntityRelationship` |
+| Pipeline, Pipeline Service, Ingestion Pipeline | `ViewAll`, `Create`, `EditAll`, `Deploy`, `Trigger`, `Kill` |
+| Ingestion Runner | `ViewAll`, `Create`, `Trigger` |
+| Storage Service, Database Service | `ViewAll`, `Create` |
+| Test Suite, Test Case, Test Definition | `ViewAll`, `Create`, `EditTests`, `CreateTests` |
+| Query, Saved Query | `ViewAll`, `Create` |
+| Workflow, Workflow Definition | `ViewAll`, `Create`, `EditAll`, `Deploy` |
+
+Create a `Data Engineer` role and assign this policy to it.
+
+<Note>
+**Note**: The `Query, Saved Query` rule is what makes the Queries tab visible to non-admin users when RBAC Search is on. Don't add an `isOwner()` condition to it.
+</Note>
+
+<Note>
+**Note**: Don't include `EditPolicy`, `EditRole`, or `Delete` on User and Team resources. Infrastructure access doesn't require access control modification.
+</Note>
+
+### Use Case 8: Scope a Role to a Specific Domain
+
+**Goal**: Give a user analyst-level access within one domain – for example, Finance – without giving them access to assets in other domains.
+
+Create a `Data Analyst – Finance` role. In the policy, set the resource to `Table` with a condition using `matchAnyDomain('Finance')`. Assign `ViewAll`, `ViewUsage`, and `ViewQueries` to this scoped policy.
+
+Repeat this pattern for other domains as needed – for example, a `Data Steward – Marketing` role that can only edit tags and glossary terms within the Marketing domain.
+
+This keeps permissions tight and limits the impact if a role is misconfigured.
+
+### Use Case 9: Set Up Temporary Elevated Access
+
+**Goal**: Give a user short-term access to sensitive permissions – for example, during an incident or audit – without permanently changing their role.
+
+1. Create a `Break-Glass` role that includes `ViewSampleData` and `ViewTestCaseFailedRowsSample`.
+2. Assign this role to the user temporarily with a defined end date.
+3. After the session, review Audit Logs to confirm what actions were taken.
+4. Remove the role assignment once the task is complete.
+
+<Tip>
+**Tip**: Always review Audit Logs after any break-glass access event. Go to **Settings > Audit Logs** to see a full record of every action taken during the session.
+</Tip>
+
+### Use Case 10: Show Each Team Only the Assets It Owns
+
+**Goal**: Make Explore show users only the assets that they or their team own.
+
+1. Go to **Settings** > **Preferences** > **Search** and turn on RBAC Search.
+2. Go to **Settings** > **Policies** > **Organization Policy** and delete `OrganizationPolicy-ViewAll-Rule`.
+3. Open every other policy that applies to the team, such as the policy of the Data Consumer role and the Read-Only Viewer policy from Use Case 5. In each rule that has no condition, remove `ViewBasic`, `ViewAll`, and `All`, or add a condition such as `isOwner()`.
+4. Sign in as a member of the team and search in Explore. Repeat with a member who has each of the other roles that apply to the team. Confirm that only assets owned by that user or team appear.
+
+`OrganizationPolicy-Owner-Rule` keeps access to owned assets in place.
+
+### Use Case 11: Set Up a Data Owner Role That Hides Observability
+
+**Goal**: Let people own and manage assets, without letting them see profiler results, test results, sample data, or usage.
+
+Because a `Deny` rule wins over every `Allow` rule in every policy, you can take these views away from a role even though owners get broad access from `OrganizationPolicy-Owner-Rule`.
+
+1. Go to **Settings** > **Access Control** > **Policies** and click **Add Policy**. Name it `DataOwnerNoObservability`.
+2. Add a rule with these settings:
+
+   | Setting | Value |
+   |---|---|
+   | **Effect** | Deny |
+   | **Resources** | `Table` |
+   | **Operations** | `ViewDataProfile`, `ViewTests`, `ViewSampleData`, `ViewUsage` |
+
+3. Create a role named `DataOwnerLimited` and add this policy and the policies the role needs for its other work.
+4. Assign the role to the users or teams.
+5. Use the [Permission Debugger](/v2.1.x/how-to-guides/admin-guide/permission-debugger) to evaluate each of the four operations on the `Table` resource for one of these users, and confirm that each one is denied.
+
+<Note>
+Deny rules apply to every user that has the role, including when they own the table. Don't assign this role to people who need to see observability data on tables they own.
+</Note>
+
+### Use Case 12: Stop Owners From Changing Certification
+
+**Goal**: Let owners edit their assets, but only let data stewards set the certification.
+
+Add a rule to a policy that applies to owners:
+
+| Setting | Value |
+|---|---|
+| **Effect** | Deny |
+| **Resources** | `All` |
+| **Operations** | `EditCertification` |
+| **Condition** | `isOwner()` |
+
+`OrganizationPolicy-Owner-Rule` allows owners to edit everything, but the `Deny` rule wins. Add an `Allow` rule for `EditCertification` to the role that your data stewards have, without the `isOwner()` condition. A steward who doesn't own an asset can still set its certification. A steward who also owns the asset is blocked by the `Deny` rule.
+
+### Use Case 13: Control Who Can Move Assets Between Domains
+
+**Goal**: Let a team move assets only into domains it belongs to, or stop a role from changing domains.
+
+To limit moves to a team's own domains, give the role `EditDomains` (or `EditAll`) with a `hasDomain()` condition. The team can then move assets only into domains it holds. To stop a role from changing domains, add a Deny rule with `EditDomains`.
+
+## Related Pages
+
+- [Building Blocks of Authorization – Rules, Policies, and Roles](/v2.1.x/how-to-guides/admin-guide/roles-policies/authorization) – how rules, policies, and roles work
+- [Resource Scope and Operations Reference](/v2.1.x/how-to-guides/admin-guide/roles-policies/resource-scope) – reference guide for resources and operations

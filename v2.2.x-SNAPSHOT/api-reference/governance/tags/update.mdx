@@ -1,0 +1,196 @@
+---
+title: Update a Tag
+description: Create or update a tag with a full request body
+sidebarTitle: Update a Tag
+api: PUT /v1/tags
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/governance/tags/update"
+---
+
+# Update a Tag
+
+Create a tag or update it if it already exists, using `PUT /v1/tags` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the tag. Must be unique within the parent classification or parent tag.
+</ParamField>
+
+<ParamField body="classification" type="string" required>
+  Fully qualified name of the parent classification, for example `Certification`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the tag.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Description of the tag in Markdown format.
+</ParamField>
+
+<ParamField body="parent" type="string">
+  Fully qualified name of the parent tag for creating nested tags, for example `PII.Sensitive`.
+</ParamField>
+
+<ParamField body="style" type="object">
+  Visual styling for the tag.
+
+  <Expandable title="properties">
+    <ParamField body="color" type="string">
+      Hex color code, for example `#C08320`.
+    </ParamField>
+
+    <ParamField body="iconURL" type="string">
+      URL to a custom icon for the tag.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the tag.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity, for example `user`, `team`.
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="provider" type="string">
+  Provider of the tag: `user` (custom) or `system` (built-in).
+</ParamField>
+
+<RequestExample dropdown>
+```bash PUT /v1/tags
+curl -X PUT "{base_url}/api/v1/tags" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Bronze",
+    "classification": "Certification",
+    "description": "Bronze certified Data Asset.",
+    "style": {"color": "#C08320"},
+    "owners": []
+  }'
+```
+
+```python PATCH /v1/tags/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Tags
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+tag = Tags.retrieve("68ec158c-5f5e-4277-8a19-5e9e0cd5294f")
+tag.description = "Updated: Bronze level certification for data assets"
+tag.style = {"color": "#D4A017"}
+updated = Tags.update(tag)
+
+print(f"Updated to version {updated.version.root}")
+```
+
+```java PATCH /v1/tags/{id}
+// client is an initialized OpenMetadataClient.
+var tagId = "68ec158c-5f5e-4277-8a19-5e9e0cd5294f";
+var tag = client.tags().get(tagId);
+tag.setDescription("Updated: Bronze level certification for data assets");
+
+var updated = client.tags().update(tagId, tag);
+```
+
+```bash PATCH /v1/tags/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/tags/68ec158c-5f5e-4277-8a19-5e9e0cd5294f" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: Bronze level certification for data assets"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/tags/name/Certification.Bronze" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: Bronze level certification for data assets"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "68ec158c-5f5e-4277-8a19-5e9e0cd5294f",
+  "name": "Bronze",
+  "fullyQualifiedName": "Certification.Bronze",
+  "description": "Updated: Bronze level certification for data assets",
+  "style": {
+    "color": "#D4A017"
+  },
+  "version": 0.2,
+  "updatedAt": 1769982619666,
+  "updatedBy": "admin",
+  "classification": {
+    "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+    "type": "classification",
+    "name": "Certification",
+    "fullyQualifiedName": "Certification",
+    "deleted": false
+  },
+  "deleted": false,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": false
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated tag object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the tag (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Tag name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the tag.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this tag |
+| `409` | `CONFLICT` | Concurrent modification detected |

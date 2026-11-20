@@ -1,0 +1,172 @@
+---
+title: Run the Druid Connector Externally
+description: "Run the Apache Druid connector externally with a YAML workflow for metadata, profiling, data quality, lineage, dbt, and auto-classification in OpenMetadata."
+sidebarTitle: Run Externally
+mode: "wide"
+canonical: "https://docs.open-metadata.org/v2.1.x/connectors/database/druid/yaml"
+---
+import { ConnectorDetailsHeader } from '/snippets/components/ConnectorDetailsHeader/ConnectorDetailsHeader.jsx'
+import { CodePreview, ContentPanel, ContentSection, CodePanel } from '/snippets/components/CodePreview.jsx'
+import AutoClassification from '/snippets/connectors/yaml/auto-classification.mdx'
+import DataProfiler from '/snippets/v2.2.x-SNAPSHOT/connectors/yaml/data-profiler.mdx'
+import Lineage from '/snippets/connectors/yaml/lineage.mdx'
+import IngestionSinkDef from '/snippets/connectors/yaml/ingestion-sink-def.mdx'
+import WorkflowConfigDef from '/snippets/connectors/yaml/workflow-config-def.mdx'
+import IngestionCli from '/snippets/connectors/yaml/ingestion-cli.mdx'
+import PythonRequirements from '/snippets/v2.2.x-SNAPSHOT/connectors/python-requirements.mdx'
+import ExternalIngestionDeployment from '/snippets/v2.2.x-SNAPSHOT/connectors/external-ingestion-deployment.mdx'
+import IngestionSink from '/snippets/connectors/yaml/ingestion-sink.mdx'
+import WorkflowConfig from '/snippets/connectors/yaml/workflow-config.mdx'
+import SourceConfigDef from '/snippets/connectors/yaml/database/source-config-def.mdx'
+import SourceConfig from '/snippets/connectors/yaml/database/source-config.mdx'
+import DataQuality from '/snippets/connectors/yaml/data-quality.mdx'
+
+<ConnectorDetailsHeader
+icon='/public/images/connectors/druid.webp'
+name="Druid"
+stage="PROD"
+availableFeatures={["Metadata", "Data Profiler", "Data Quality", "View Lineage", "View Column-level Lineage", "dbt", "Sample Data", "Auto-Classification"]}
+unavailableFeatures={["Query Usage", "Owners", "Tags", "Stored Procedures"]} />
+In this section, we provide guides and references to use the Druid connector.
+Configure and schedule Druid metadata and profiler workflows from the OpenMetadata UI:
+- [Requirements](#requirements)
+- [Metadata Ingestion](#metadata-ingestion)
+- [Data Profiler](#data-profiler)
+- [Lineage](#lineage)
+- [Data Quality](#data-quality)
+- [dbt Integration](#dbt-integration)
+<ExternalIngestionDeployment />
+## Requirements
+### Python Requirements
+<PythonRequirements />
+To run the Druid ingestion, you will need to install:
+```bash
+pip3 install "openmetadata-ingestion[druid]"
+```
+## Metadata Ingestion
+All connectors are defined as JSON Schemas.
+[Here](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/services/connections/database/druidConnection.json)
+you can find the structure to create a connection to Druid.
+In order to create and run a Metadata Ingestion workflow, we will follow
+the steps to create a YAML configuration able to connect to the source,
+process the Entities if needed, and reach the OpenMetadata server.
+The workflow is modeled around the following
+[JSON Schema](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/metadataIngestion/workflow.json)
+### 1. Define the YAML Config
+
+<CodePreview>
+
+<ContentPanel>
+
+<ContentSection id={1} title="Source Configuration" lines="1-3">
+
+Configure the source type and service name for your Druid connector.
+
+</ContentSection>
+
+<ContentSection id={2} title="Username" lines="7">
+
+**username**: Specify the User to connect to Druid. It should have enough privileges to read all the metadata.
+
+</ContentSection>
+
+<ContentSection id={3} title="Password" lines="8">
+
+**password**: Password to connect to Druid.
+
+</ContentSection>
+
+<ContentSection id={4} title="Host Port" lines="9">
+
+**hostPort**: Enter the fully qualified hostname and port number for your Druid deployment in the Host and Port field.
+
+</ContentSection>
+
+<ContentSection id={5} title="Database Name" lines="10">
+
+**Database Name**: Optional name to give to the database in OpenMetadata. If left blank, we will use default as the database name.
+
+</ContentSection>
+
+<ContentSection id={6} title="Connection Scheme" lines="11">
+
+**scheme**: SQLAlchemy driver scheme used to connect to Druid. One of `druid` (default, plaintext broker), `druid+http` (plaintext transport, stated explicitly), or `druid+https` (HTTPS broker). With `druid+https` against a self-signed or private-CA certificate, add `ssl_verify_cert` under `connectionArguments`: the path of a CA bundle to validate against, or `false` to skip verification.
+
+</ContentSection>
+
+<ContentSection id={7} title="Connection Options" lines="12">
+
+**Connection Options (Optional)**: Enter the details for any additional connection options that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+</ContentSection>
+
+<ContentSection id={8} title="Connection Arguments" lines="14">
+
+**Connection Arguments (Optional)**: Enter the details for any additional connection arguments such as security or protocol configs that can be sent to database during the connection. These details must be added as Key-Value pairs.
+
+- In case you are using Single-Sign-On (SSO) for authentication, add the `authenticator` details in the Connection Arguments as a Key-Value pair as follows: `"authenticator" : "sso_login_url"`
+
+</ContentSection>
+
+<ContentSection id={9} title="Source Config" lines="17-60">
+
+<SourceConfigDef />
+
+</ContentSection>
+
+<ContentSection id={10} title="Sink Configuration" lines="61-63">
+
+<IngestionSinkDef />
+
+</ContentSection>
+
+<ContentSection id={11} title="Workflow Configuration" lines="64-80">
+
+<WorkflowConfigDef />
+
+</ContentSection>
+
+</ContentPanel>
+
+<CodePanel fileName="druid_config.yaml">
+
+```yaml
+source:
+  type: druid
+  serviceName: "<service name>"
+  serviceConnection:
+    config:
+      type: Druid
+      username: <username>  # REQUIRED
+      password: <password>  # REQUIRED
+      hostPort: <hostPort>  # REQUIRED - format: host:port
+      databaseName: default
+      # scheme: druid  # OPTIONAL - druid (default) | druid+http | druid+https
+      # connectionOptions:
+      #   key: value
+      # connectionArguments:
+      #   key: value
+      #   ssl_verify_cert: /path/to/ca-bundle.pem  # with scheme: druid+https and a self-signed/private-CA cert; or false to skip verification
+```
+
+<SourceConfig />
+
+<IngestionSink />
+
+<WorkflowConfig />
+
+</CodePanel>
+
+</CodePreview>
+
+<IngestionCli />
+<Lineage connector="druid" />
+<DataProfiler connector="druid" />
+<AutoClassification connector="druid" />
+<DataQuality />
+## dbt Integration
+<Columns cols={2}>
+<Card title="dbt Integration" href="/v2.2.x-SNAPSHOT/connectors/database/dbt">
+  Learn more about how to ingest dbt models
+</Card>
+</Columns>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v1.13.x, v2.0.x, v2.1.x-SNAPSHOT). The default/current version is **v2.0.x** — unversioned URLs redirect there via `docs.json` redirects (~line 7147).
+OpenMetadata documentation site built with [Mintlify](https://mintlify.com/docs). Multi-version docs for OpenMetadata (v2.0.x, v2.1.x, v2.2.x-SNAPSHOT). The default/current version is **v2.1.x** — unversioned URLs redirect there via `docs.json` redirects (~line 7147).
 
 The sibling directory `../OpenMetadata` contains the main OpenMetadata repo (JSON schemas in `openmetadata-spec/` and ingestion source in `ingestion/`). The `/connector-doc-review` skill uses it to validate connector docs against ground truth.
 
@@ -57,10 +57,10 @@ Reusable content lives in `snippets/` and is imported via absolute paths:
 
 ```jsx
 import TestConnection from '/snippets/connectors/test-connection.mdx'
-import DataProfiler from '/snippets/v1.13.x/connectors/yaml/data-profiler.mdx'
+import DataProfiler from '/snippets/v2.1.x/connectors/yaml/data-profiler.mdx'
 ```
 
-There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v1.13.x/`, `/snippets/v2.0.x/`, `/snippets/v2.1.x-SNAPSHOT/`). Version-specific snippets typically contain `connectors-list.mdx` (connector catalog per service type), `related.mdx`, `data-profiler.mdx`, and deployment snippets that differ between versions. Always import the snippet matching the page's version.
+There are **shared snippets** (`/snippets/connectors/`) and **version-specific snippets** (`/snippets/v2.0.x/`, `/snippets/v2.1.x/`, `/snippets/v2.2.x-SNAPSHOT/`). Version-specific snippets typically contain `connectors-list.mdx` (connector catalog per service type), `related.mdx`, `data-profiler.mdx`, and deployment snippets that differ between versions. Always import the snippet matching the page's version.
 
 ### Connector Docs Pattern
 
@@ -104,7 +104,7 @@ When editing `docs.json`, use targeted line-range reads rather than loading the 
 Each version is a self-contained directory with identical structure:
 
 ```
-v2.0.x/
+v2.1.x/
   index.mdx              # Homepage
   quick-start/            # Getting started
   deployment/             # Docker, Kubernetes, Bare Metal

@@ -2,7 +2,7 @@
 name: connector-doc-create
 description: Create full documentation for a new OpenMetadata connector from scratch — generates main page, yaml.mdx, troubleshooting page, and registers in docs.json navigation. Derives features, permissions, and YAML config from JSON schema and source code.
 user-invocable: true
-argument-hint: "<connector-name> [--display-name='Display Name'] [--service-type=database|pipeline|dashboard|messaging|storage|search|ml-model] [--stage=PROD|BETA] [--version=v1.13.x|v2.0.x|v2.1.x-SNAPSHOT|all] [--icon=/path/to/icon.svg] [--dry-run]"
+argument-hint: "<connector-name> [--display-name='Display Name'] [--service-type=database|pipeline|dashboard|messaging|storage|search|ml-model] [--stage=PROD|BETA] [--version=v2.0.x|v2.1.x|v2.2.x-SNAPSHOT|all] [--icon=/path/to/icon.svg] [--dry-run]"
 allowed-tools:
   - Bash
   - Read
@@ -25,7 +25,7 @@ When a user asks to create, generate, scaffold, or add documentation for a **new
 - **--display-name** (optional): Human-readable name shown in docs (e.g., `"Amazon Redshift"`, `"Google BigQuery"`). Defaults to title-cased connector-name.
 - **--service-type** (optional): One of `database`, `pipeline`, `dashboard`, `messaging`, `storage`, `search`, `ml-model`. Note: use `ml-model` (with hyphen) — this matches the actual directory name. Other types (`api`, `drive`, `metadata`) exist in the repo but are rare; treat them like `pipeline` if encountered. Default: auto-detect from connector name and schema.
 - **--stage** (optional): `PROD` or `BETA`. Default: `BETA` for new connectors.
-- **--version** (optional): Which version(s) to create docs for. Default: `all` (creates in v1.13.x, v2.0.x).
+- **--version** (optional): Which version(s) to create docs for. Default: `all` (creates in v2.0.x, v2.1.x).
 - **--icon** (optional): Path to icon file under `/public/images/connectors/`. If not given, uses `/public/images/connectors/{connector-name}.svg` as a placeholder.
 - **--dry-run** (optional): Only show the plan and generated content — don't write any files.
 
@@ -216,7 +216,7 @@ If files exist, **stop and warn the user** — use the `connector-doc-review` sk
 
 ### Phase 3: Generate Documentation Files
 
-For each target version (v1.13.x, v2.0.x):
+For each target version (v2.0.x, v2.1.x):
 
 #### Step 3.1: Generate the Main Page (`{connector_name}.mdx`)
 
@@ -636,9 +636,9 @@ Present a final summary:
 ## Documentation Created: {DisplayName}
 
 ### Files Written
-- ✓ v1.13.x/connectors/{service_type}/{connector_name}.mdx
-- ✓ v1.13.x/connectors/{service_type}/{connector_name}/yaml.mdx
-- ✓ v1.13.x/connectors/{service_type}/{connector_name}/troubleshooting.mdx
+- ✓ v2.1.x/connectors/{service_type}/{connector_name}.mdx
+- ✓ v2.1.x/connectors/{service_type}/{connector_name}/yaml.mdx
+- ✓ v2.1.x/connectors/{service_type}/{connector_name}/troubleshooting.mdx
 - ✓ v2.0.x/connectors/{service_type}/{connector_name}.mdx
 - ✓ v2.0.x/connectors/{service_type}/{connector_name}/yaml.mdx
 - ✓ v2.0.x/connectors/{service_type}/{connector_name}/troubleshooting.mdx

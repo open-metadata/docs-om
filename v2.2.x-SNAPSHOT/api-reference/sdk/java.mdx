@@ -1,0 +1,209 @@
+---
+title: Java SDK | OpenMetadata Java SDK Documentation
+description: Learn to integrate OpenMetadata'sJava SDK into your applications. Complete documentation, code examples, and API reference for seamless metadata management.
+sidebarTitle: Overview
+canonical: "https://docs.open-metadata.org/v2.1.x/api-reference/sdk/java"
+---
+
+# Java SDK
+
+We now present a high-level Java API as a type-safe and gentle wrapper for the OpenMetadata backend.
+
+The open-source OpenMetadata SDK for Java simplifies provisioning, managing, and using OpenMetadata resources from the Java application code. \
+The OpenMetadata SDK for Java libraries build on top of the underlying OpenMetadata REST API, allows you to use those APIs through familiar Java paradigms. However, you can always use the REST API directly from Java code, if you prefer to do so.
+
+You can find the source code for the OpenMetadata libraries in the [GitHub repository](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-sdk). As an open-source project, contributions are always welcome!
+
+You can add the below Maven Dependency for the OpenMetadata Java SDK.
+
+```xml
+<dependency>
+  <groupId>org.open-metadata</groupId>
+  <artifactId>openmetadata-sdk</artifactId>
+  <version>2.1.0</version>
+</dependency>
+```
+
+
+## Connect to the OpenMetadata Server
+
+To connect to your OpenMetadata server, you need:
+
+* Server URL: The URL where your OpenMetadata instance is running, ending in `/api`. For example, `http://localhost:8585/api`.
+* Access token: A JSON Web Token (JWT) for a user or bot. See [Authentication](/v2.2.x-SNAPSHOT/api-reference/authentication) to learn how to get one.
+
+```java
+import org.openmetadata.sdk.client.OpenMetadataClient;
+import org.openmetadata.sdk.config.OpenMetadataConfig;
+
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("{jwt_token}")
+    .build();
+
+OpenMetadataClient client = new OpenMetadataClient(config);
+```
+
+Tune the connection with these options. Timeouts are in milliseconds, and `header` adds a custom header to every request:
+
+```java
+OpenMetadataConfig config = OpenMetadataConfig.builder()
+    .serverUrl("http://localhost:8585/api")
+    .accessToken("{jwt_token}")
+    .connectTimeout(10000)
+    .readTimeout(30000)
+    .header("X-Request-Source", "my-app")
+    .build();
+```
+
+## Authenticate with a JWT Token
+
+The Java SDK authenticates with a JWT access token that you pass to `accessToken(...)`. This is the same for every sign-in method on your OpenMetadata server, including Google, Okta, Auth0, Azure, and custom OpenID Connect (OIDC). Generate a bot token or a personal access token in OpenMetadata and use it here.
+
+If your server doesn't require authentication, leave out `accessToken(...)`.
+
+## Use the Fluent API
+
+The fluent classes, such as `Tables`, `Users`, and `Teams`, work with a default client. Register your client once with `OM.init`, and the fluent classes use it:
+
+```java
+import org.openmetadata.sdk.OM;
+import org.openmetadata.sdk.fluent.Tables;
+
+OM.init(client);
+
+// Find a table by its fully qualified name
+var table = Tables.findByName("mysql-prod.employees.public.employees")
+    .includeOwners()
+    .includeTags()
+    .fetch()
+    .get();
+
+// Update its description
+Tables.findByName("mysql-prod.employees.public.employees")
+    .fetch()
+    .withDescription("Updated description")
+    .save();
+```
+
+## Use the Service Clients
+
+Every entity type has a service on the client, such as `client.tables()`, `client.users()`, and `client.dashboards()`. These services offer methods such as `create`, `get`, `getByName`, `list`, `update`, `delete`, and `restore`. Below are some examples:
+
+```java
+import org.openmetadata.sdk.models.ListParams;
+
+// Tables
+var tables = client.tables().list(new ListParams().setLimit(10));
+for (var table : tables.getData()) {
+    System.out.println(table.getFullyQualifiedName());
+}
+
+// Users
+var users = client.users().list(new ListParams().setLimit(10));
+
+// Dashboards
+var dashboards = client.dashboards().list(new ListParams().setLimit(10));
+```
+
+The following examples show how to call an API:
+
+* Create a table
+
+```java
+import java.util.List;
+import org.openmetadata.schema.api.data.CreateTable;
+import org.openmetadata.schema.type.Column;
+import org.openmetadata.schema.type.ColumnDataType;
+
+CreateTable request = new CreateTable()
+    .withName("orders")
+    .withDatabaseSchema("mysql-prod.employees.public")
+    .withDescription("Orders placed by customers")
+    .withColumns(List.of(
+        new Column()
+            .withName("order_id")
+            .withDataType(ColumnDataType.BIGINT)
+            .withDescription("Primary key"),
+        new Column()
+            .withName("status")
+            .withDataType(ColumnDataType.VARCHAR)
+            .withDataLength(50)));
+
+var table = client.tables().create(request);
+```
+
+* Get a table by fully qualified name
+
+```java
+var table = client.tables().getByName("mysql-prod.employees.public.employees", "columns,owners");
+```
+
+* Search
+
+```java
+String response = client.search()
+    .query("customer")
+    .index("table_search_index")
+    .size(10)
+    .execute();
+```
+
+The search call returns the raw JSON response from the server as a string.
+
+## Handle Errors
+
+When the server returns an error, the SDK throws an `OpenMetadataException`. Use `getStatusCode()` to see which error it was:
+
+```java
+import org.openmetadata.sdk.exceptions.OpenMetadataException;
+
+try {
+    var table = client.tables().getByName("mysql-prod.employees.public.missing");
+} catch (OpenMetadataException e) {
+    if (e.getStatusCode() == 404) {
+        System.out.println("Table not found");
+    } else {
+        System.out.println("Request failed: " + e.getMessage());
+    }
+}
+```
+
+## Bulk Create with Conflict Outcomes
+
+`TestCases` and `GlossaryTerms` in `org.openmetadata.sdk.fluent` can create several entities in one request and return a typed `BulkCreateResult` with an outcome for every input.
+
+```java
+import org.openmetadata.schema.type.BulkCreateConflictPolicy;
+import org.openmetadata.schema.type.BulkCreateResult;
+import org.openmetadata.sdk.fluent.GlossaryTerms;
+import org.openmetadata.sdk.fluent.TestCases;
+
+BulkCreateResult tests = TestCases.createMany(testCaseRequests).execute();
+
+BulkCreateResult terms = GlossaryTerms.createMany(glossaryTermRequests)
+    .onConflict(BulkCreateConflictPolicy.FAIL)
+    .execute();
+
+terms.getResults().forEach(item ->
+    System.out.printf("%d: %s (%s) %s%n",
+        item.getIndex(), item.getStatus(), item.getReason(), item.getMessage()));
+```
+
+**Conflict policies**:
+
+- `SKIP`: The default. Inputs whose fully qualified name already exists, or that repeat inside the request, are reported as skipped. All other valid inputs are created.
+- `FAIL`: Conflicting inputs are reported as failed. All other valid inputs are still created. This is not an all-or-nothing request.
+
+Existing and soft-deleted entities are never overwritten or restored.
+
+**Result**:
+
+- `getCreatedCount()`, `getSkippedCount()`, and `getFailedCount()`: Totals for the request.
+- `getResults()`: One outcome per input, in request order. Each has an index, a status, and the fully qualified name. Created entities also have an ID. Skipped and failed inputs have a reason (`ALREADY_EXISTS`, `DUPLICATE_IN_REQUEST`, or `VALIDATION_ERROR`) and a message.
+
+Request-level errors still throw `OpenMetadataException`. Bulk create requires a server that supports the `onConflict` parameter. The service overload `client.testCases().createMany(requests)` is unchanged and still returns the list of created entities.
+
+## More examples
+
+Review the [OpenMetadata Java SDK examples](https://github.com/open-metadata/OpenMetadata/tree/main/openmetadata-sdk/src/main/java/org/openmetadata/sdk/examples) for more usage patterns.
