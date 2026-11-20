@@ -1,6 +1,6 @@
 ---
 title: Breaking Changes - Data Governance | Official Documentation
-description: Policies and new task operations, glossary and ontology, classification, governance workflows, Data Access Requests and the Policy Agent in OpenMetadata 2.0.
+description: Policy changes, approval-gated edits, glossary and ontology, domains and data products, governance workflows, and data retention in OpenMetadata 2.1.
 sidebarTitle: Data Governance
 collate: false
 canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-changes/data-governance"
@@ -8,337 +8,310 @@ canonical: "https://docs.open-metadata.org/v2.0.x/deployment/upgrade/breaking-ch
 
 # Data Governance
 
-What changes for glossaries, classifications, policies, workflows and access governance.
+This page covers the following changes when you upgrade from OpenMetadata 2.0 to 2.1:
 
-## Policies & roles
+- Glossaries and ontologies
+- Policies and roles
+- Workflows
+- Domains and data products
+- Access governance
 
-### Five new task operations
+Classifications and tags have no governance-model changes in OpenMetadata 2.1. For tag name casing during ingestion,
+see [Ingestion & Connectors](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors). Task and
+approval-task changes are covered on the Collaboration page. For more information, see
+[Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.1.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
 
-<Note>
-**Behavioural.** Affects custom policies, non-admin users and bots.
-</Note>
+## Policies and Roles
 
-`resourceDescriptor` gains `CreateTask`, `EditTask`, `ResolveTask`, `CloseTask` and `ReassignTask`.
-With the Task redesign, task actions are policy-governed rather than implicit.
+OpenMetadata 2.1 changes the default policies and roles as follows.
 
-The migration seeds a new `TaskAuthorPolicy`, attaches it to the `DataConsumer` role, and adds task
-rules to `DataConsumerPolicy` and `ApplicationBotPolicy`.
-
-<Warning>
-Custom policies are not backfilled. Seed policies are create-if-not-exists, so if you replaced
-`DataConsumerPolicy` or `ApplicationBotPolicy` with your own definition your non-admin users will
-receive `403` when creating or editing tasks. Add the operations yourself:
-
-```json
-{
-  "name": "DataConsumerPolicy-CreateTask-Rule",
-  "resources": ["task"],
-  "operations": ["Create"],
-  "effect": "allow"
-}
-```
-</Warning>
-
-### Self-approval guard
+### New Default Policy Rules
 
 <Note>
-**Behavioural.** Task authorization refuses to let a task's creator approve their own task, even
-where policy would otherwise allow it. Approval automation that submitted and approved with the same
-service account must be split across two principals, or use `emptyAssigneeStrategy: assignAdmins`.
+**Behavioral.** Affects who can run SPARQL Protocol and Resource Description Framework (RDF) Query Language (SPARQL) queries, create context memories, and start conversations.
 </Note>
 
-### Other policy changes
+The upgrade adds rules to `DataConsumerPolicy`, the policy behind the **Data Consumer** role. The first two rules are
+added only if you have not removed the permission they build on. The conversation rule is always added.
 
-| Change | Class | Detail |
+| Rule | What it allows | Added when |
 | --- | --- | --- |
-| `AutoClassificationBotPolicy` gains a Topic rule | Additive | `EditAll`, `ViewAll` on `Topic`, so the bot can tag messaging assets |
-| Reviewer authorization shortcut removed on create | Behavioural | Flows that relied on being a reviewer to create an entity now need an explicit `Create` grant |
+| `DataConsumerPolicy-ExecuteSparqlQuery-Rule` | Authenticated users and bots can run read-only SPARQL queries through the agent SPARQL endpoint and the Model Context Protocol (MCP) knowledge-graph tools | An allow rule in the policy still lists `ViewAll` |
+| `DataConsumerPolicy-CreateContextMemory-Rule` | Authenticated users can create context memories. The creator owns the memory | An allow rule in the policy still lists `EditDescription` |
+| `DataConsumerPolicy-CreateConversation-Rule` | Authenticated users can start conversations and reply | Always |
 
-## Glossary & ontology
+<Warning>
+SPARQL results are not filtered by asset or domain policies. If you restrict who can view assets
+through custom policies, delete `DataConsumerPolicy-ExecuteSparqlQuery-Rule` after the upgrade.
+If you replaced `DataConsumerPolicy` with your own definition, none of these rules are added for you.
+Add them yourself if you want these capabilities for non-admin users.
+</Warning>
 
-### Native OWL/RDF ontology import
-
-<Info>
-**New capability.**
-</Info>
-
-```
-PUT /v1/glossaries/name/{name}/importRdf
-```
-
-Imports an OWL/RDF ontology into a glossary, preserving identity for round-trips. Two new fields
-support this:
-
-| Entity | Field | Purpose |
-| --- | --- | --- |
-| `glossaryTerm` | `iri` | Canonical IRI of the term in its source ontology; used as the RDF subject when present |
-| `glossary` | `namespaces[]` | Prefix to namespace IRI mappings, so CURIEs render and re-export preserves identity |
+### Domain-Only Access Is Restricted Further
 
 <Note>
-A glossary term created in the UI has no `iri`. Terms imported from an ontology carry one, and export
-re-emits it. Do not rewrite `iri` on update or you will break round-trip identity.
+**Behavioral.** Affects users who hold the domain-only access policy.
 </Note>
 
-### Glossary term relation semantics
+Two deny rules are added to the domain-only access policy:
 
-<Info>
-**Additive.**
-</Info>
+- `DomainAccessDenyAdministrationRule` stops domain-restricted users from creating, deleting, deploying, or
+  editing policies, roles, bots, and applications, regardless of their domain.
+- `DomainAccessDenyTeamAndUserRule` stops them from creating, deleting, or editing teams and users that
+  belong to no domain, and bot users.
 
-Relation types gain OWL property characteristics used for RDF round-trip and optional validation —
-**not enforced by default**:
+If domain owners in your organization manage roles, bots, or applications, give them a separate role that is not
+covered by these rules.
 
-| Field | Meaning |
-| --- | --- |
-| `domain[]` | Term names or class IRIs a **source** term must be typed as. Empty means unconstrained |
-| `range[]` | Term names or class IRIs a **target** term must be typed as. Empty means unconstrained |
-| `isFunctional` | A source term has at most one target |
-| `isInverseFunctional` | A target term has at most one source |
-| `isReflexive` / `isIrreflexive` | Every / no term relates to itself |
-| `isAsymmetric` | A relates B implies B does not relate A |
-
-Other 2.0 changes in this area:
-
-- Glossary term relation types are readable by **any authenticated user**.
-- Glossary term relation settings are **paginated**.
-- All relation types between the same term pair are preserved.
-- Glossary rename cascades to child terms in the search index, and approval workflows stay valid
-  across term move and rename.
-- CSV import and export preserve `domains`, and `entityStatus` is parsed case-insensitively.
-
-## Classification, tags & auto-classification
-
-### Auto-classification extends to topics and containers
-
-<Info>
-**Additive.** Affects classification coverage and bot permissions.
-</Info>
-
-Two new pipeline schemas ship — `messagingServiceAutoClassificationPipeline` and
-`storageServiceAutoClassificationPipeline`. Together with the `AutoClassificationBotPolicy` Topic
-rule, **topics and storage containers are now auto-classified** where previously only database tables
-were.
-
-<Warning>
-New tags will appear on messaging and storage assets. If you have policies or alerts keyed on PII
-tags, expect coverage to widen after the upgrade.
-</Warning>
-
-### PII recognizer accuracy changes
-
-<Warning>
-**Behavioural.** Existing tags may be wrong; new runs will differ.
-</Warning>
-
-The CVV recognizer regular expression is anchored by the migration:
-
-```
-from  \b\d{3,4}\b   to   \A\d{3,4}\Z
-```
-
-The unanchored pattern matched the `125` inside values like `SCN-125`, so any column whose name
-carried a CVV context word (`code`, `card`, `cvv`) and whose values contained a 3–4 digit run was
-tagged `PII.Sensitive` — for example `scenario_code` and `error_code`. Because the context boost sets
-the score straight to the maximum, a low-confidence pattern became a certain match.
-
-Related fixes in 2.0:
-
-- Overly broad context keywords removed from PII recognizers.
-- Plain code columns are no longer tagged as PII.
-- Sibling-tag score ties are broken by column-name match.
-- Temporal table period columns are excluded from auto-classification sampling.
-- Recognizer inclusion is resolved correctly by language, including any-language recognizers.
-- The content and column-name split was removed from classification scoring.
-
-<Tip>
-Review existing `PII.Sensitive` tags on columns named `*_code`. The migration fixes the recognizer; it
-does **not** retract tags already applied.
-</Tip>
-
-### Other classification changes
-
-| Change | Class | Effect |
-| --- | --- | --- |
-| `tag_usage.metadata` JSON column added | Additive | Tag usage rows can carry metadata |
-| `autoClassificationConfig` preserved on Classification `PUT` | Fix | Previously wiped by a full update |
-| Tag recognizer config preserved on ingestion `PUT` | Fix | Previously wiped by connector updates |
-| The `disabled` flag inherited from a Classification is no longer persisted on its tags | Behavioural | Tag `disabled` now reflects the tag's own state |
-| Entities matching a classification tag among others are retained | Fix | Filtering no longer drops multi-tag matches |
-
-## Governance workflows
-
-### `userApprovalTask` gains task-lifecycle configuration
-
-<Info>
-**Additive** and backwards compatible with existing workflow definitions.
-</Info>
-
-```json
-{
-  "emptyAssigneeStrategy": "none | assignAdmins",
-  "stageId": "…",
-  "stageDisplayName": "…",
-  "taskStatus": "Open | InProgress | …",
-  "assigneeStrategy": "…",
-  "transitionMetadata": [ { "id": "approve", "label": "Approve" } ]
-}
-```
-
-`emptyAssigneeStrategy` (default `none`) controls what happens when no reviewers, owners or candidates
-resolve to an assignee:
-
-| Value | Behaviour |
-| --- | --- |
-| `none` (default, matches 1.13) | The gateway auto-approves event-driven approvals and leaves workflow-managed tasks unassigned |
-| `assignAdmins` | Falls back to all platform admins, **excluding the requester**, so self-approval can never happen |
-
-The `stageId`, `stageDisplayName`, `taskStatus` and `transitionMetadata` fields are written onto the
-Task while the user task is active — this is what surfaces workflow stage and available transitions in
-the Tasks UI.
-
-<Tip>
-Set `emptyAssigneeStrategy: assignAdmins` on approval nodes where unassigned tasks were silently
-auto-approving.
-</Tip>
-
-### New workflow node subtypes
-
-| Node subtype | Purpose |
-| --- | --- |
-| `policyAgentTask` | Grant or revoke database access through the Policy Agent |
-| `createAndRunAIAutomationTask` | Trigger an AI automation from a workflow |
-
-`workflowTriggerFields` adds `entityStatus`; `inputPorts`, `outputPorts` and `glossaryTerms` also
-become trigger fields.
-
-### Workflows fire far sooner
-
-<Warning>
-**Behavioural.** Affects every governance workflow, and raises steady-state database polling.
-</Warning>
-
-The migration lowers three intervals on **existing** deployments:
-
-| Setting | 1.13 | 2.0 |
-| --- | --- | --- |
-| `WorkflowEventConsumer.pollInterval` | 10 s | **1 s** |
-| `asyncJobAcquisitionInterval` | 10 000 ms | **1 000 ms** |
-| `timerJobAcquisitionInterval` | 60 000 ms | **5 000 ms** |
-
-Approval tasks now appear near-instantly after the triggering change instead of up to 10 s — or, under
-load, minutes — later. On very large clusters, monitor database load after the upgrade and raise the
-intervals if needed.
+### Bots Can No Longer Impersonate Other Bots
 
 <Note>
-Workflow migrations run inside a guard: a workflow-handler failure logs and continues rather than
-aborting the rest of the data migration. If you see *"Failed to initialize WorkflowHandler … in v200"*
-in the upgrade logs, restart the server to complete workflow wiring.
+**Behavioral.** Affects bots that hold `BotNonAdminImpersonationPolicy`.
 </Note>
 
-## Data Access Requests & the Policy Agent
+The upgrade adds a rule, `BotNonAdminImpersonationPolicy-DenyBotUsers`, to this policy. It denies the
+`Impersonate` operation when the target is a bot user. A bot that used this policy to impersonate another
+bot is refused after the upgrade.
+
+### Ontology Roles and Policy
 
 <Info>
-**New capability.**
+**Additive.** A new `OntologyAuthorPolicy` lets its holders create, edit, delete, and view ontologies,
+concepts, properties, axioms, and change sets. The upgrade also attaches `OntologyAuthorPolicy` and `OntologyReviewerPolicy` to the existing `DataSteward` role, so data stewards can author and review ontologies.
 </Info>
 
-2.0 introduces self-service data access requests backed by a Policy Agent that executes grants and
-revokes against the source system.
+## Approval-Gated Changes
 
-| Piece | Where |
-| --- | --- |
-| Task type | `DataAccessRequest` (`category: DataAccess`) |
-| Payload | `type/dataAccessRequestPayload.json` |
-| Queue API | `GET /v1/tasks/dataAccessRequests` |
-| Workflow node | `policyAgentTask` |
-| Ingestion pipeline type | `policyAgent` |
-| Per-connector config | `metadataIngestion/policyagentconfig/databasePolicyConfig.json` |
+<Info>
+**Additive, and only for workflows you change.** A governance workflow with an event-based trigger can
+now hold edits until a reviewer approves them. Nothing is held until you set **Approval Mode** to
+**Enforce** on a workflow. For more information, see [Approval-Gated Changes](/v2.1.x-SNAPSHOT/how-to-guides/data-governance/approval-gated-changes).
+</Info>
 
-```json
-{
-  "principalType": "USER | ROLE",
-  "principal": "analyst@example.com",
-  "databaseName": "…", "schemaName": "…", "tableName": "…",
-  "accessType": "FullAccess | ColumnLevel | Masked | Revoke",
-  "requestedAccess": "Read | Write | Admin"
-}
+<Note>
+**Behavioral once you turn it on.** In an Enforce workflow, a human `PUT`, `PATCH`, CSV import, or bulk
+asset change to a watched field is not written. OpenMetadata returns the asset with its approved value
+and creates a change request and review task. Bots are never held. Scripts that edit governed assets and
+expect the change to appear immediately must wait for approval or run as a bot.
+</Note>
+
+This feature adds the following for API users:
+
+- Change requests are served from `/v1/changeRequests`: list by asset or requester, read, list
+  revisions and decisions, and withdraw your own pending request.
+- The bulk add and remove asset calls on domains and data products are checked by the same approval step and respect
+  `dryRun`.
+- Resolving a review task takes `changeRequestRevision` and, optionally, per-change `changeDecisions`.
+
+## Glossary and Ontology
+
+The following glossary and ontology changes apply in 2.1.
+
+### Terms Proposed by Automation Go to Review
+
+<Note>
+**Behavioral.** Affects the stored `GlossaryTermApprovalWorkflow`.
+</Note>
+
+The upgrade adds a branch right after the start of this workflow. A term that an automation proposed
+(provider `automation`, such as a term an AI agent suggests) now waits for a person to approve it, in
+approval steps of its own. When nobody else can decide, the task is assigned to admins. Every other
+term is reviewed as before. If you edited the workflow so that its start has more than one outgoing edge,
+the upgrade leaves it alone and an admin must connect the branch.
+
+### Relation Type Usage Response Changed
+
+<Note>
+**Breaking.** Affects clients of `GET /v1/glossaryTerms/relationTypes/usage`.
+</Note>
+
+In OpenMetadata 2.0, the response was a map of relation type name to count. In OpenMetadata 2.1, it is a list of objects, each with a
+`relationshipType` (an entity reference) and a `count`.
+
+```diff
+- { "relatedTo": 12, "synonym": 4 }
++ [
++   { "relationshipType": { "name": "relatedTo", "...": "..." }, "count": 12 },
++   { "relationshipType": { "name": "synonym", "...": "..." }, "count": 4 }
++ ]
 ```
 
-`Revoke` tears down whatever the principal currently holds at the scope — it is not a level-specific
-revoke.
+Update any script or dashboard that reads this endpoint.
 
-### `policyAgentConfig` defaults are backfilled onto existing services
+### In-Process RDF Reasoning Is Removed
 
-<Warning>
-**Behavioural.** Affects existing Snowflake, Databricks and Unity Catalog services.
-</Warning>
+<Note>
+**Breaking for SPARQL inference settings.** Affects anyone who relied on `inferenceEnabled` or reasoning levels on SPARQL queries.
+</Note>
 
-Schema-level defaults only apply at create-time deserialisation, so the migration rewrites stored
-rows. Operator-set `true` values are preserved; only `false` or missing values are changed.
+OpenMetadata no longer runs reasoners in its own process. These settings in the RDF configuration are deprecated and ignored:
 
-| Service type | `enabled` | `supportsFullAccess` | `supportsMaskedAccess` | `supportsColumnAccess` |
-| --- | --- | --- | --- | --- |
-| Snowflake | `true` | `true` | `true` | `false` |
-| Databricks | `true` | `true` | `false` | `false` |
-| Unity Catalog | `true` | `true` | `false` | `false` |
-| Postgres | `policyAgentConfig` is **removed** from the schema and stripped from stored rows | | | |
+- `inferenceEnabled`
+- `defaultInferenceLevel`
+- `cacheInferredTriples`
+- `maxInMemoryInferenceTriples`
 
-<Warning>
-Data Access Requests are restricted by the connector's `policyAgentConfig`. After the upgrade the
-Request Access affordance appears on Snowflake, Databricks and Unity Catalog assets, and disappears
-from Postgres. Set `enabled: false` explicitly on services where you do not want it.
-</Warning>
+SPARQL queries use no inference unless they ask for `custom`, which reads materialized
+rule output. To keep inference, turn on `materializedInferenceEnabled`, which runs rule-based inference
+inside the RDF store.
 
-`supportsPolicyAgent` is declared on **all** database connectors so the UI can show or hide the Policy
-Agent option in the Add Agent dropdown.
-
-## Domains & data products
+### New RDF Settings
 
 <Info>
-**Additive** — no breaking changes in this area for 1.13 → 2.0.
+**Additive.** These settings are new in 2.1 and do not change behavior until you change them.
 </Info>
 
-| Change |
-| --- |
-| ODPS data product schema (`entity/domains/odps/odpsDataProduct.json`) |
-| Data product support in the Observability UI and backend |
-| Certification quick filter on the Data Products listing |
-| Request-access button for data products |
-| `assignedTo` relationship type |
-| Domain-scoped activity-feed visibility (task domains backfilled by the migration) |
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `graphReplaceChunkBytes` | `16777216` | Largest request, in bytes, used to replace a whole named graph, such as an active ontology release. A larger graph is uploaded in chunks. Keep it at or below the Fuseki upload limit |
+| `materializedInferenceEnabled` | `false` | Materializes inference rules into per-rule named graphs inside the RDF store, so SPARQL queries can request `custom` inference. Requires Fuseki storage |
+| `shaclValidationMode` | `REPORT` | Sets the Shapes Constraint Language (SHACL) validation mode. The shipped configuration file uses `REPORT` |
+| `dereferenceableIris` | `false` | Exposes authenticated, content-negotiated redirects for the Internationalized Resource Identifiers (IRIs) that OpenMetadata creates |
+| `strictOwlProfile` | `true` | Rejects authored axioms that break the supported Web Ontology Language (OWL) 2 DL profile |
+| `aiEnabled` | `false` | Turns on the optional AI-assisted ontology flows. Manual authoring stays available when it is off |
+| `federation.enabled` | `false` | Allows federated SPARQL queries. When it is off, every `SERVICE` clause is rejected. `allowedEndpoints` (empty by default) lists the external endpoints that may appear in a `SERVICE` clause |
 
-## Intake forms
+Use the environment variable `RDF_AI_ENABLED` to turn on `aiEnabled`. The older
+`RDF_ASK_COLLATE_ENABLED` still works as a fallback but is deprecated.
+
+### The Bundled Fuseki RDF Store Image Changed
+
+<Note>
+**Breaking for the bundled Fuseki.** Affects anyone who runs the RDF store from the OpenMetadata Docker
+Compose files or Kubernetes manifests.
+</Note>
+
+The bundled Fuseki setup no longer builds its own image. It uses the published image
+`openmetadata/fuseki:6.2.0-318ff87`. It differs from OpenMetadata 2.0 in the following ways:
+
+- The admin password variable is `ADMIN_PASSWORD`. `FUSEKI_OPENMETADATA_PASSWORD` is removed.
+- New required settings are `FUSEKI_DATASETS=openmetadata,openmetadata_a,openmetadata_b`,
+  `FUSEKI_UNION_DEFAULT_GRAPH=true`, and `OPENMETADATA_EXTENSION_ENABLED=true`.
+- Data is stored under `/fuseki` in the volume `fuseki-store`. The old layout used `/fuseki-data` in the
+  volume `fuseki-tdb2-data`.
+
+If you keep the old volume, the new store starts empty. Move the old data into `/fuseki/databases` first,
+or rebuild the graph by running the RDF Index application after the upgrade.
+
+### Only Approved Glossary Terms Can Be Applied Through the API
+
+<Note>
+**Breaking for scripts and integrations.** Affects clients that tag assets with glossary terms that are
+Draft, In Review, Rejected, or Deprecated.
+</Note>
+
+The UI only offers Approved glossary terms when you tag an asset, but OpenMetadata 2.0 let the API apply a term in any
+status. In OpenMetadata 2.1, the API rejects a glossary term that is newly applied to an asset or field unless it is
+Approved. This applies to the following:
+
+- Create, update, patch, and bulk requests
+- Table data models
+- The columns API
+- The `assets/add` endpoint of a term
+- Column bulk-update and CSV import previews
+
+A term that the asset already
+holds stays, so a request that sends it back unchanged still succeeds. In a bulk request, a rejected item
+fails on its own and the others are saved.
+
+dbt ingestion follows the same rule. A term named in `meta.openmetadata.glossary` is skipped, with a warning
+in the log, unless it is Approved. The rest of the asset's metadata is still ingested.
+
+<Note>
+Approve the terms your integrations apply, or stop applying terms that are not yet approved.
+</Note>
+
+### Moving Glossary Terms and Changing Assets in Bulk
+
+<Note>
+**Behavioral.** Affects scripts that call the glossary term move and bulk asset endpoints.
+</Note>
+
+- Moving a term needs a parent. Name the new parent with both `id` and `type` in the move request.
+  Without it, the call returns `400 Bad Request` with `A move needs the parent the term moves under`. To move a
+  term to the top level, name the glossary itself as the parent.
+- Bulk asset changes are checked one asset at a time. Adding or removing assets on a glossary term, tag,
+  domain, or data product no longer checks one permission for the whole request. Each asset is checked and
+  saved like its own edit. Failures are reported per asset, and an asset held by an approval workflow comes
+  back as pending.
+
+### Ontology Support
 
 <Info>
-**New capability.** `governance/intakeForm.json` and `POST /v1/governance/intakeForms` add structured
-intake forms, used with `taskFormSchema` to drive request and approval workflows with typed inputs.
+**Additive.** The ontology entities and APIs below are new in 2.1, except the two items marked as extensions of 2.0 features. No existing client is affected.
 </Info>
 
-## AI Governance Studio
+The following ontology features are new:
+
+- Ontologies: native ontologies, concepts, properties, axioms, change sets, releases, packs, and bulk jobs
+  are new entities with their own APIs
+- Import and export (extends a 2.0 feature): `importRdf` also accepts JSON-LD. `GET /v1/glossaries/{id}/exportOntology`
+  exports a glossary as Turtle, RDF/XML, N-Triples, or JSON-LD. It works even when RDF storage is off
+- Terms (extends a 2.0 feature): glossary terms accept `iri` and `conceptMappings` on create
+- Queries: a read-only agent SPARQL endpoint, saved SPARQL queries, and an ontology summary
+  at `GET /v1/glossaryTerms/ontology/summary`
+- Lists: the term list and search endpoints accept `provider` and `excludeProvider`, and the glossary
+  list accepts `domain`
+
+## Domains and Data Products
+
+<Note>
+**Behavioral.** Affects clients that read domain and data product assets.
+</Note>
+
+The following changes apply to domains:
+
+- The asset list and asset count endpoints for domains now need `ViewBasic` on domains. These endpoints are
+  `/v1/domains/{id}/assets`, its by-name variant, and the counts. They also take the caller's own access into account.
+- The task list for a domain is limited to tasks the caller can view.
 
 <Info>
-**New namespace** (Collate distribution).
+**Additive.** `GET /v1/domains` accepts `owners`, `domainType`, `tags`, and `glossaryTerms` filters.
+`GET /v1/domains/styles` returns the color and icon of every styled domain and data product.
 </Info>
 
-| Entity / API | Purpose |
-| --- | --- |
-| `aiGovernanceFramework` + `/v1/aiGovernanceFrameworks` | Control frameworks, forkable per tenant |
-| `aiFrameworkControl` + `/v1/aiFrameworkControls` | Individual controls with evidence requirements |
-| `auditReport` + `/v1/auditReports` | Generated audit reports |
-| `/v1/aiGovernance/dashboard`, `/activity` | Governance dashboard and activity |
-| `/v1/aiGovernance/{entityType}/{id}/submitForReview\|approve\|reject` | Approval lifecycle for AI assets |
-| `/v1/aiGovernance/{entityType}/{id}/policyStatus`, `/policies/{policyId}/violations` | Policy status and violations |
-| `/v1/aiGovernance/intakeChecks/{entityType}/name/{fqn}` | Pre-registration checks |
-| `/v1/aiGovernance/shadow/bulkTriage` | Bulk triage of shadow AI |
+## Governance Workflows
 
-### Collate AI agents removed
+<Info>
+**Additive.** Workflow definitions accept a `lifecycle` configuration and two new automated tasks,
+`dataCompletenessTask` and `collectMetadataTask`. For more information, see
+[Lifecycle Stages](/v2.1.x-SNAPSHOT/api-reference/lifecycle-stages). Existing workflow definitions keep
+working without changes.
+</Info>
+
+<Note>
+**Behavioral.** In an approval task, `expiryTimer.durationVariable` and `expiryTimer.dateVariable` must now
+start with a letter or underscore and contain only letters, digits, and underscores. A custom workflow that
+uses a name with a dash, a dot, or a leading digit fails validation.
+</Note>
+
+### Bot Users Can't Trigger Workflows
+
+<Note>
+**Behavioral.** Affects integrations that rely on a bot's changes to start a governance workflow.
+</Note>
+
+Bot users can't trigger workflows. A change that a bot makes to an asset doesn't start an event-based workflow. If a script or integration used a bot to start a workflow, make the change as a user instead.
+
+## Java SDK
+
+<Note>
+**Breaking for Java SDK users.** The generated enum `org.openmetadata.schema.type.WorkflowTriggerFields` is removed. The list of trigger fields is now a server resource, not a schema type. Remove any import of it.
+</Note>
+
+## Data Retention
+
+<Note>
+**Behavioral.** Affects the Data Retention application.
+</Note>
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `workflowRetentionPeriod` | `30` days | Deletes the short-lived automation workflow records left by test connection, query runner, and reverse ingestion runs. Use `0` to keep them forever |
+| `activityCommentsRetentionPeriod` | `0` (keep forever) | Retention for comments on activity events |
 
 <Warning>
-**Breaking.** The `agentType` enum drops `CollateAI`, `CollateAITierAgent` and
-`CollateAIQualityAgent` — only `Metadata` remains — and their configuration schemas are deleted.
+The Data Retention application deletes automation workflow records older than 30 days. The deletion cannot
+be undone. To keep them longer, set `workflowRetentionPeriod` to a larger value, or `0`, before the first run
+after the upgrade.
 </Warning>
-
-<Tip>
-Remove references to these agent types from application configuration and any automation that filters
-ingestion pipelines by `agentType`. Use the new `agentType` filter values `metadata` and `application`
-on `GET /v1/services/ingestionPipelines` instead.
-</Tip>
