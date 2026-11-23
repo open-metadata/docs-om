@@ -1,0 +1,91 @@
+---
+title: Tags
+description: Create and manage tags within classifications
+sidebarTitle: Overview
+---
+
+# Tags
+
+A **Tag** is a label within a classification that can be applied to data assets for categorization and governance. Tags can be hierarchically nested within a classification.
+
+<Info>
+Entity schema follows the [OpenMetadata Standard](https://openmetadatastandards.org/governance/tag/).
+</Info>
+
+## Entity Hierarchy
+
+Tags belong to a Classification and can be nested:
+
+<CodeGroup>
+```txt Tag
+Classification
+├── Tag (top-level)
+│   ├── Tag (child)
+│   └── Tag (child)
+└── Tag (top-level)
+```
+</CodeGroup>
+
+## Fully Qualified Name
+
+The FQN format for a tag is:
+
+```
+classification.tagName
+```
+
+For nested tags:
+
+```
+classification.parent.child
+```
+
+For example: `Certification.Bronze` or `PII.Sensitive.SSN`
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `PUT` | `/v1/tags` | [Create or update a tag](/v2.1.x/api-reference/governance/tags/create) |
+| `POST` | `/v1/tags` | [Create a tag (POST variant)](/v2.1.x/api-reference/governance/tags/create) |
+| `GET` | `/v1/tags` | [List tags](/v2.1.x/api-reference/governance/tags/list) |
+| `GET` | `/v1/tags/{id}` | [Get by ID](/v2.1.x/api-reference/governance/tags/retrieve) |
+| `GET` | `/v1/tags/name/{fqn}` | [Get by FQN](/v2.1.x/api-reference/governance/tags/retrieve) |
+| `PATCH` | `/v1/tags/{id}` | [Update by ID](/v2.1.x/api-reference/governance/tags/update) |
+| `PATCH` | `/v1/tags/name/{fqn}` | [Update by name](/v2.1.x/api-reference/governance/tags/update) |
+| `DELETE` | `/v1/tags/{id}` | [Delete by ID](/v2.1.x/api-reference/governance/tags/delete) |
+| `DELETE` | `/v1/tags/name/{fqn}` | [Delete by name](/v2.1.x/api-reference/governance/tags/delete) |
+| `PUT` | `/v1/tags/restore` | [Restore soft-deleted tag](/v2.1.x/api-reference/governance/tags/delete) |
+| `GET` | `/v1/tags/{id}/versions` | [List versions](/v2.1.x/api-reference/governance/tags/versions) |
+| `GET` | `/v1/tags/{id}/versions/{version}` | [Get specific version](/v2.1.x/api-reference/governance/tags/versions) |
+
+---
+
+## Bulk Add and Remove Tags on Assets
+
+Use these endpoints to apply or remove the tag on many assets in one request:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `PUT` | `/v1/tags/{id}/assets/add` | Add the tag to the assets in the request |
+| `PUT` | `/v1/tags/{id}/assets/remove` | Remove the tag from the assets in the request |
+
+The request body takes an `assets` array of entity references (`id` and `type`) and an optional `dryRun` flag.
+
+### Reading the Result
+
+Each asset is authorized and saved on its own. An asset the caller cannot edit does not fail the whole request with `403`. It is reported as a failed row with the reason, and the other assets are still updated.
+
+- **Response**: The request starts a background job and returns a `jobId` and a started message. The result for all assets is delivered when the job completes.
+- **`status`**: `success` when every asset was updated, `partialSuccess` when some were and some were not, and `failure` when none were.
+- **`numberOfRowsProcessed`, `numberOfRowsPassed`, `numberOfRowsFailed`**: Counts of assets in the request, updated, and not updated.
+- **`successRequest`**: One entry per updated asset.
+- **`failedRequest`**: One entry per asset that was not updated. Each has the `request` (the asset reference) and a `message` with the reason, for example that the caller lacks permission to edit it.
+
+Clients must read `status` and `failedRequest` from the job result, not only the HTTP status code. A response of `200` does not mean every asset was updated.
+
+<Note>
+The domain and data product `assets/add` and `assets/remove` endpoints are different: they still return `403` when the caller lacks permission.
+</Note>

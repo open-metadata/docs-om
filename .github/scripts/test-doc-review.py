@@ -276,7 +276,7 @@ class ReviewTests(unittest.TestCase):
         # collapse to 20 after compaction: under the limit, so the review runs.
         dup = "".join(patch(f"{v}/p{i:02d}.mdx", "x " * 5)
                       for i in range(20)
-                      for v in ("v1.13.x", "v2.0.x", "v2.1.x-SNAPSHOT"))
+                      for v in ("v2.0.x", "v2.1.x", "v2.2.x-SNAPSHOT"))
         report, prompts = self._run_runner(dup, {"REVIEW_MAX_FILES": "50"})
         self.assertNotIn("SKIPPED", report)
         self.assertGreater(prompts, 0)

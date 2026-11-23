@@ -1,0 +1,374 @@
+---
+title: Breaking Changes - Platform, Config & Security | Official Documentation
+description: Email-first sign-in, sign-in behavior changes, new configuration defaults, and the 2.1.0 database migration.
+sidebarTitle: Platform & Security
+collate: false
+---
+
+# Platform, Configuration & Security
+
+Almost nothing in this section stops a 2.0 `openmetadata.yaml` from loading. The exception is an `OPENMETADATA_SERVER_URL` without a scheme. The other changes that matter are
+behavioral. Users are now identified by email address at sign-in. This is opt-in for OpenID Connect (OIDC),
+Security Assertion Markup Language (SAML), and JSON Web Token (JWT) sign-in. It is always on for Lightweight
+Directory Access Protocol (LDAP) sign-in. A few defaults also changed, and a database migration needs planning.
+
+## Email-First User Identity
+
+<Note>
+**Behavioral (opt-in) for OIDC, SAML, and JWT sign-in. Behavioral for LDAP, which uses the new flow
+on upgrade.**
+</Note>
+
+OpenMetadata can now identify users by their email address instead of guessing a user name from
+several token claims. For more information, see
+[Configuration Reference Parameters](/v2.1.x/deployment/security/configuration-parameters).
+
+### New Settings
+
+The email-first settings are:
+
+| Setting | Purpose |
+| --- | --- |
+| `authenticationConfiguration.emailClaim` | Token claim that holds the user's email address |
+| `authenticationConfiguration.displayNameClaim` | Token claim that holds the display name |
+| `authorizerConfiguration.adminEmails` | Admins, listed by email address |
+| `authorizerConfiguration.allowedEmailDomains` | Email domains allowed to sign in (empty means all) |
+| `authorizerConfiguration.botDomain` | Email domain used for system-created bots |
+
+### Deprecated Settings
+
+These settings are deprecated in favor of the email-first settings.
+
+| Deprecated | Use instead |
+| --- | --- |
+| `jwtPrincipalClaims` | `emailClaim` |
+| `jwtPrincipalClaimsMapping` | `emailClaim` and `displayNameClaim` |
+| `adminPrincipals` | `adminEmails` |
+| `principalDomain` | `botDomain` for bots, `allowedEmailDomains` for user restrictions |
+| `allowedDomains`, `enforcePrincipalDomain` | `allowedEmailDomains` |
+
+The deprecated settings still work. `jwtPrincipalClaims`, `adminPrincipals`, `principalDomain`, and
+`enforcePrincipalDomain` are no longer required fields.
+
+### When It Turns On
+
+Email-first sign-in is used for OIDC, SAML, and JWT only when `emailClaim` is set and
+`jwtPrincipalClaimsMapping` is empty. If you change nothing, 2.0 behavior is kept. Setting
+`jwtPrincipalClaimsMapping` keeps you on the older flow, and the server logs a warning saying so.
+
+<Warning>
+**Before you set `emailClaim`**, find users whose stored email address was made up by OpenMetadata
+because the identity provider never supplied one. From the server host, run:
+
+```bash
+./bootstrap/openmetadata-ops.sh list-synthesized-emails
+```
+
+Then repair each one with `change-email`. Add `--clear-identity-binding` if the address now belongs to
+a different person than the original account holder. Skipping this can leave a user unable to sign
+in to their existing account, or create a second account.
+</Warning>
+
+After you turn on email-first sign-in, the following applies:
+
+- OIDC sign-ins bind the provider's `sub` to the account. If the same email later arrives with a
+  different `sub`, the sign-in is refused until an admin clears the binding. This stops a re-used
+  address from taking over a former employee's account.
+- A display name sent by the provider overwrites the display name stored in OpenMetadata at each
+  sign-in. If the provider sends none, the stored name is left alone.
+- New users get a user name generated from their email. If it is already taken, a suffix is added.
+
+### What Changes for LDAP on Upgrade
+
+LDAP sign-in uses the email-first flow with no opt-in. The following table lists what changes.
+
+| Change | Detail |
+| --- | --- |
+| Deactivated users | A deactivated (soft-deleted) account is refused with "Your account has been deactivated" and is not re-activated by signing in |
+| Self-signup domains | `allowedEmailRegistrationDomains` is now enforced when an LDAP user is created at first sign-in |
+| Email domain checks | `allowedEmailDomains` (or the deprecated `principalDomain` with `enforcePrincipalDomain`) rejects users outside those domains |
+| Name collisions | A new user whose generated name already exists gets a suffix instead of failing |
+| Display name | Synced from the directory (`displayName`, or the attribute named in `displayNameClaim`) at each sign-in |
+| Admin and roles | `adminEmails` and `adminPrincipals` are re-checked at each sign-in |
+
+<Note>
+If an LDAP directory entry has no `mail` value, the user cannot be matched. Check that your directory
+returns an email for everyone who signs in.
+</Note>
+
+### `POST /v1/users` With Non-Basic Providers
+
+When the server uses any provider other than basic authentication, creating a user whose name is already taken now renames
+the new user on collision instead of returning a conflict. Scripts that relied on the conflict error to
+detect an existing user should look the user up by email first.
+
+### Email Handling Changes in the Database Migration
+
+The 2.1.0 migration does the following:
+
+- It lowercases every stored user email.
+- On PostgreSQL, it adds indexes on `LOWER(email)` and `LOWER(name)` so sign-in lookups stay fast.
+- On MySQL, it changes the database default collation to `utf8mb4_0900_ai_ci`, which makes comparisons
+  accent-insensitive for tables created from 2.1 on. It also converts the workflow engine's `ACT_*`
+  tables to that collation.
+
+## OIDC Sign-In Changes
+
+<Note>
+**Behavioral.** Affects deployments using OIDC with a confidential client.
+</Note>
+
+The following table compares the OIDC settings between 2.0 and 2.1.
+
+| Setting | 2.0 | 2.1 |
+| --- | --- | --- |
+| `oidcConfiguration.prompt` | `consent` | Empty. Users are no longer asked for consent at every sign-in. Set it back explicitly if you need it |
+| `oidcConfiguration.maxAge` | `0` | Empty (`0` is treated as unset), so the provider can reuse its own session |
+| `oidcConfiguration.tokenValidity` | Set by you | Deprecated and ignored. The browser now presents the identity provider's ID token, whose lifetime the provider sets. The server also now checks the token's issuer and audience |
+| `oidcConfiguration.endSessionWithProvider` | Set by you | Deprecated and ignored. Sessions always end with the provider's session |
+
+<Note>
+If you rely on the provider showing a sign-in or consent screen every time, set `OIDC_PROMPT_TYPE`
+explicitly. If you set a short `tokenValidity` to force a new sign-in, set the equivalent session lifetime in
+your identity provider instead.
+</Note>
+
+## Other Configuration Changes
+
+The following configuration changes apply in 2.1.
+
+### Configuration Source for Security and Email Settings
+
+<Note>
+**Behavioral.** A new `configSource` block controls whether `openmetadata.yaml` or the database (the
+Settings pages in the UI) takes precedence. It applies to security, email, server URL, System for Cross-domain Identity
+Management (SCIM), and Model Context Protocol (MCP) settings.
+</Note>
+
+| Mode | Behavior |
+| --- | --- |
+| `AUTO` (default for most settings) | A value you change in the file is applied on the next start, unless the same value was changed in the UI since. In that case the UI value is kept and a warning is logged |
+| `ENV` | The file is authoritative. Fields it defines are rewritten at every start and become read-only in the UI and API |
+| `DB` | The database is authoritative. The file only fills fields the database does not have |
+
+`app` defaults to `DB`. Use `./bootstrap/openmetadata-ops.sh remove-security-config` to reset stored
+security settings to the file. Switching to `ENV` refuses to replace a UI-configured identity provider
+with a different one unless `SECURITY_CONFIG_SOURCE_CONFIRM_PROVIDER_CHANGE=true`.
+
+### Defaults That Changed
+
+These defaults changed in 2.1.
+
+| Setting | 2.0 | 2.1 | Who is affected |
+| --- | --- | --- | --- |
+| `elasticsearch.maxConnTotal` | `30` | `100` | All deployments. OpenMetadata opens more connections to the search cluster |
+| `elasticsearch.maxConnPerRoute` | `10` | `50` | All deployments. OpenMetadata opens more connections to the search cluster |
+| `llmConfiguration.bedrock.modelId` | Claude Haiku 4.5 | Claude Haiku 5.5 | Deployments that rely on the default model |
+| `alerting.awaitEmailOutcome` | n/a | `true` | Alert emails are recorded as failed if the mail server rejects them, instead of counting as delivered once they are passed to the mail server |
+
+Set `ELASTICSEARCH_MAX_CONN_TOTAL` and `ELASTICSEARCH_MAX_CONN_PER_ROUTE` back to the old values if your
+search cluster limits connections.
+
+To keep the Haiku 4.5 model, set `LLM_BEDROCK_MODEL_ID` to `eu.anthropic.claude-haiku-4-5-20251001-v1:0`.
+
+#### The `temperature` Setting Is Ignored for Some Models
+
+Newer models reject the `temperature` setting, so OpenMetadata no longer sends it to them. If you set `temperature` for the Bedrock, Anthropic, or OpenAI provider, OpenMetadata ignores it when the model ID contains one of these names:
+
+- `opus-4-7`, `opus-4-8`, and `opus-5`
+- `sonnet-5`, `haiku-5`, `fable-5`, and `mythos-5`
+- `o1`, `o3`, and `o4-mini`
+- `gpt-5.6` and `gpt-6`
+
+Other models still receive it.
+
+OpenMetadata decides this from the model ID alone. If the ID doesn't name the model, such as a Bedrock application inference profile ARN or an Azure OpenAI deployment name, OpenMetadata still sends `temperature` and the call fails. Use a model ID that names the model instead: the foundation model or a system inference profile on Bedrock, or the underlying model name as `modelId` on Azure.
+
+### Deprecated: `enableSecureSocketConnection`
+
+<Note>
+**Deprecated.** The setting has no effect. Push-feed socket connections always require valid
+credentials.
+</Note>
+
+### Token Checks Use a Per-Server Cache
+
+<Note>
+**Behavioral.** Affects bot tokens and personal access tokens.
+</Note>
+
+Each server now checks bot and personal access tokens against a short-lived in-memory copy of the
+stored credentials (`credentialVerification`). Revoking or rotating a token takes effect within
+`maxStaleness` (5 seconds by default). If a server cannot confirm a token with the database within
+`loadTimeout` (2 seconds by default), the request is answered with `503` instead of being allowed.
+If you run several servers, keep these settings identical on all of them.
+
+### Startup Checks Skip Unchanged Data
+
+<Info>
+**Additive.** Affects how long the server takes to start and when bundled data is reloaded.
+</Info>
+
+A new `startupConfiguration` block controls how startup skips work when nothing changed. The following
+table lists its settings.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `seedDataGateEnabled` | `true` | Skips loading the bundled seed data when it is already current |
+| `forceSeedData` | `false` | Set to `true` to rerun every seed loader (environment variable `STARTUP_FORCE_SEED_DATA`) |
+| `searchTemplateGateEnabled` | `true` | Skips updating search templates when they are unchanged |
+| `searchInitParallelism` | `8` | Number of parallel tasks used to prepare search at startup |
+
+### Alert Scheduler Uses More Database Connections
+
+<Note>
+**Behavioral.** Affects database connection limits.
+</Note>
+
+The alert scheduler can now use up to 13 database connections per server at peak. In 2.0.4 it used up
+to five. If you run several servers against one database, check that the database connection limit still
+has room.
+
+### The Server URL Needs a Scheme
+
+<Note>
+**Behavioral.** Affects deployments that set `OPENMETADATA_SERVER_URL` without `http://` or `https://`.
+</Note>
+
+OpenMetadata validates `OPENMETADATA_SERVER_URL` on the first start. The value must be an absolute `http://` or `https://` URL that includes the host. A value without a scheme stops the server with `Operations configuration has an invalid 'openMetadataUrl'`. An empty value falls back to `http://localhost:8585`.
+
+### Operations Commands Ignore the Query Timeout
+
+<Note>
+**Behavioral.** Affects long-running `openmetadata-ops.sh` commands such as `migrate`.
+</Note>
+
+Operations commands no longer stop at `queryTimeoutSeconds`. That timeout now applies only to API requests, so a long migration statement is not cancelled part way.
+
+### Docker Images Are Distroless
+
+<Note>
+**Behavioral.** Affects custom images, scripts, and debugging steps that rely on tools inside the
+container.
+</Note>
+
+The OpenMetadata server image now runs on a distroless Debian base instead of Alpine. A small shell is
+still included. The start scripts, health checks, and `bash -c` commands in your deployment keep
+working. The following changes apply:
+
+- There is no package manager, so `apk add` no longer works in a derived image.
+- The container runs as the numeric user and group `65532:65532`. The `openmetadata` user no longer
+  exists, so `USER openmetadata` in a derived image fails.
+- Volumes that the server writes to, such as logs or custom mounts, must be writable by `65532`. In
+  Kubernetes, set `runAsUser` and `fsGroup` to `65532` if your volumes keep the old owner.
+- The Java runtime is a trimmed build that keeps `java`, `jcmd`, `jstack`, and `jmap`. Tools such as
+  `jshell` and `javac` are removed.
+
+If you build on top of this image, add your packages in an earlier build stage and copy the results in.
+
+### The Server Container Receives Stop Signals Directly
+
+<Note>
+**Behavioral.** Affects Docker and Kubernetes operators who tune shutdown.
+</Note>
+
+The server start script now runs the Java process with `exec`, so the process receives `docker stop` and
+pod termination signals itself. The server can run its normal shutdown steps instead of waiting to be
+killed at the end of the grace period. Shutdown timing and log output change, so check your
+`terminationGracePeriodSeconds` if you set it.
+
+### Classic Mode Is Deprecated
+
+<Note>
+**Deprecated.** Affects admins who set the default interface mode, and anyone who uses Classic mode.
+</Note>
+
+OpenMetadata now offers two interface modes, AI and Classic. Classic is deprecated. It stays fully supported
+until the release that removes it. In the places where you choose a mode, the interface marks Classic as
+**Deprecated**. The deprecation has the following effects:
+
+- For the default mode, `appConfiguration.defaultAppMode` (environment variable `APP_DEFAULT_MODE`) sets the
+  default for users who have not chosen a mode. The values are `ai` and `classic`, and the default is empty.
+  Admins can also change it at run time. A user's own choice and a persona's mode take precedence over it.
+- When Classic is removed, an organization default or a persona that is still set to Classic moves to AI mode.
+  A user who switches from Classic to AI keeps their settings.
+- In AI mode, settings open in a settings modal from the profile menu. The pages at `/settings/*`,
+  `/marketplace/*`, and `/bots/*` are not served in AI mode and show a not-found page. Update bookmarks and
+  links that point to them.
+
+<Note>
+Switch to AI mode now, and update documentation or runbooks that describe the Classic navigation.
+</Note>
+
+### Context Center No Longer Extracts Text From Images
+
+<Note>
+**Behavioral.** Affects deployments that set the Apache Tika or Tesseract settings for Context Center.
+</Note>
+
+OpenMetadata 2.1 removes Apache Tika and image optical character recognition (OCR) from Context Center. An uploaded image, archive, or other file type that isn't text-extractable is always marked **Unsupported** for text extraction.
+
+The following settings no longer have any effect. You can remove them from `openmetadata.yaml` and from your environment:
+
+| Setting | Environment variable |
+|---|---|
+| `collate.tika.tesseract.path` | `COLLATE_TIKA_TESSERACT_PATH` |
+| `collate.tika.tessdata.path` | `COLLATE_TIKA_TESSDATA_PATH` |
+| `collate.tesseract.command` | `COLLATE_TESSERACT_COMMAND` |
+
+### Other New Settings
+
+<Info>
+**Additive.** OpenMetadata 2.1 adds these settings:
+
+- `scimConfiguration`
+- `llmConfiguration.memoryExtractionEnabled`
+- The `alerting` tuning block
+- `eventMonitoringConfiguration.requestLatencyPercentileHistogram`
+
+The `alerting.awaitEmailOutcome` setting defaults to `true`. For more information, see
+[Defaults That Changed](#defaults-that-changed).
+
+The upgrade also adds Resource Description Framework (RDF) settings. For more information, see
+[Data Governance](/v2.1.x/deployment/upgrade/breaking-changes/data-governance).
+</Info>
+
+## The 2.1.0 Database Migration
+
+<Warning>
+**Plan a maintenance window and take a backup first.** The migration rewrites stored data, so rolling back means restoring that backup.
+</Warning>
+
+This section lists what the 2.1.0 database migration changes.
+
+### Steps That Need Planning
+
+These migration steps need planning.
+
+| Step | Effect |
+| --- | --- |
+| Delta Lake retirement | Retypes Delta Lake services to Custom Database and deletes their ingestion pipelines. For more information, see [Ingestion & Connectors](/v2.1.x/deployment/upgrade/breaking-changes/ingestion-and-connectors). |
+| Authentication secrets encrypted | The OIDC client secret, LDAP bind and trust store passwords, and the SAML private key and key store password are stored encrypted. This only happens if a Fernet key is configured. Otherwise, the values stay as they are |
+| User emails lowercased | For more information, see [Email Handling Changes in the Database Migration](#email-handling-changes-in-the-database-migration). |
+| PostgreSQL `isBot` column rebuilt | The migration drops and recreates the generated `isBot` column on `user_entity`. This rewrites the table and holds an exclusive lock, so sign-ins and user writes wait. Run it in a maintenance window if you have a very large `user_entity` |
+| MySQL collation change | Database default collation becomes `utf8mb4_0900_ai_ci`, and workflow-engine tables are converted |
+| Search reindex flagged | The **Search Indexing** application is set to cover all entities, and earlier success records for it and the RDF index are cleared. Run **Search Indexing** after the upgrade so new indexes and mappings are built |
+| Task, lineage, and alert data fixes | Task field paths are rewritten into one format. Lineage edges that point at non-pipeline entities are cleaned. Alerts get new internal destination IDs and encrypted webhook secrets |
+| Webhook secrets | Alert and profile webhook secrets are stored encrypted |
+| Ingestion pipeline `type` filled in | Stored ingestion pipelines get a missing `sourceConfig.config.type` filled in, because 2.1 now requires it. A pipeline the migration cannot resolve is only written to the server log. For more information, see [Ingestion & Connectors](/v2.1.x/deployment/upgrade/breaking-changes/ingestion-and-connectors). |
+| Dotted service names | This affects dashboards, charts, pipelines, topics, and machine learning (ML) models under a service whose name contains a dot. The stored fully qualified name is rewritten to quote the service name, for example from `my.service.child` to `"my.service".child`. This repairs rows created before 1.1.0. Update any saved link, script, or condition that holds the old name |
+| Tokens and grants of deleted users removed | Personal access tokens and MCP OAuth grants that belong to users that no longer exist are deleted, and deleting a user now ends its grants |
+| Placeholder table creation time removed | The placeholder `lifeCycle.created` value (year 0001) that earlier ingestion stored when the source gave no creation time is removed. Ingestion no longer writes it |
+| Backfills run in batches | The creation-audit and data quality dimension backfills run in batches of 500 entity IDs instead of one statement for each table, so the upgrade finishes on large installations |
+| MySQL guarded blocks run as one unit | On MySQL, a guarded block (`SET`, `PREPARE`, `EXECUTE`, and an optional `DEALLOCATE PREPARE`) runs on one connection and is recorded once, after its last statement. An interrupted migration can run again without cleanup. A migration file that cannot load stops `migrate`, `validate`, and server start with `Migration <version> cannot be loaded, so no migration was run` |
+
+### New Tables and Indexes
+
+New tables back incident grouping, metric groups, and the ontology features. The migration also adds a few
+new indexes, for example on `entity_usage` and the test case incident tables. Index builds on very large
+tables are the slowest part of the migration on PostgreSQL.
+
+<Note>
+Ontology and glossary data is rewritten by this migration, including glossary term attributes. For more
+information, see [Data Governance](/v2.1.x/deployment/upgrade/breaking-changes/data-governance).
+</Note>

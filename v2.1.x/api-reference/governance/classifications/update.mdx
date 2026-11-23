@@ -1,0 +1,165 @@
+---
+title: Update a Classification
+description: Create or update a classification with a full request body
+sidebarTitle: Update a Classification
+api: PUT /v1/classifications
+---
+
+# Update a Classification
+
+Create a classification or update it if it already exists, using `PUT /v1/classifications` with the full request body. Send the complete definition, not just the fields you want to change. To change only some fields, use `PATCH` with a JSON Patch array and the `application/json-patch+json` content type, as shown in the PATCH examples below.
+
+## Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the classification. Must be unique.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  Human-readable display name for the classification.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Description of the classification in Markdown format.
+</ParamField>
+
+<ParamField body="mutuallyExclusive" type="boolean" default="false">
+  If `true`, only one tag from this classification can be applied to an entity at a time.
+</ParamField>
+
+<ParamField body="owners" type="array">
+  Array of owner references (users or teams) to assign to the classification.
+
+  <Expandable title="properties">
+    <ParamField body="id" type="string">
+      UUID of the owner entity.
+    </ParamField>
+
+    <ParamField body="type" type="string">
+      Type of owner entity, for example `user`, `team`.
+    </ParamField>
+
+    <ParamField body="name" type="string">
+      Name of the owner entity.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="provider" type="string">
+  Provider of the classification: `user` (custom) or `system` (built-in).
+</ParamField>
+
+<RequestExample dropdown>
+```bash PUT /v1/classifications
+curl -X PUT "{base_url}/api/v1/classifications" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Certification",
+    "description": "Certifying Data Asset will provide the users with a clear idea of...",
+    "mutuallyExclusive": true,
+    "owners": []
+  }'
+```
+
+```python PATCH /v1/classifications/{id}
+from metadata.sdk import configure
+from metadata.sdk.entities import Classifications
+
+configure(
+    host="https://your-company.open-metadata.org/api",
+    jwt_token="your-jwt-token"
+)
+
+# Retrieve, modify, and update
+classification = Classifications.retrieve("06d90883-6be9-4f7e-9475-753f10a95e94")
+classification.description = "Updated: Classification for data asset certification levels"
+updated = Classifications.update(classification)
+
+print(f"Updated to version {updated.version.root}")
+```
+
+```java PATCH /v1/classifications/{id}
+// client is an initialized OpenMetadataClient.
+var classificationId = "06d90883-6be9-4f7e-9475-753f10a95e94";
+var classification = client.classifications().get(classificationId);
+classification.setDescription("Updated: Classification for data asset certification levels");
+
+var updated = client.classifications().update(classificationId, classification);
+```
+
+```bash PATCH /v1/classifications/{id}
+# Update by ID
+curl -X PATCH "{base_url}/api/v1/classifications/06d90883-6be9-4f7e-9475-753f10a95e94" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: Classification for data asset certification levels"}
+  ]'
+
+# Update by name
+curl -X PATCH "{base_url}/api/v1/classifications/name/Certification" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    {"op": "replace", "path": "/description", "value": "Updated: Classification for data asset certification levels"}
+  ]'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "id": "06d90883-6be9-4f7e-9475-753f10a95e94",
+  "name": "Certification",
+  "fullyQualifiedName": "Certification",
+  "description": "Updated: Classification for data asset certification levels",
+  "version": 0.2,
+  "updatedAt": 1769982619610,
+  "updatedBy": "admin",
+  "deleted": false,
+  "owners": [],
+  "provider": "system",
+  "mutuallyExclusive": true
+}
+```
+</ResponseExample>
+
+---
+
+## Returns
+
+Returns the updated classification object with the new version number.
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the classification (UUID format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Classification name.
+</ResponseField>
+
+<ResponseField name="fullyQualifiedName" type="string">
+  Fully qualified name of the classification.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Updated description.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  Incremented version number.
+</ResponseField>
+
+---
+
+## Error Handling
+
+| Code | Error Type | Description |
+|------|-----------|-------------|
+| `400` | `BAD_REQUEST` | Invalid or malformed request body |
+| `401` | `UNAUTHORIZED` | Invalid or missing authentication token |
+| `403` | `FORBIDDEN` | User lacks permission to update this classification |
+| `409` | `CONFLICT` | Concurrent modification detected |

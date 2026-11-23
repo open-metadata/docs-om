@@ -1,0 +1,57 @@
+---
+title: Docker Upgrade Troubleshooting
+description: Resolve common permission and configuration issues encountered when upgrading OpenMetadata on Docker deployments.
+sidebarTitle: Troubleshooting
+---
+
+# Docker Upgrade Troubleshooting
+
+## Permission Denied When Running `metadata openmetadata-imports-migration`
+
+If you get a `Permission Denied` error when you run `metadata openmetadata-imports-migration --change-config-file-path`, you might need to change the permissions on the `/opt/airflow/dags` folder.
+
+Open a shell in the ingestion container and check the permissions on the folder:
+
+```bash
+ls -l /opt/airflow
+ls -l /opt/airflow/dags
+```
+
+Both the `dags` folder and the files inside it should be owned by `airflow:root`. If they are not, run:
+
+```bash
+chown -R airflow:root /opt/airflow/dags
+```
+
+## Broken Directed Acyclic Graphs (DAGs) Can't Load the Config File: Permission Denied
+
+You might need to change the permissions on the `/opt/airflow/dag_generated_config` folder.
+
+Open a shell in the ingestion container and check the permissions on the folder:
+
+```bash
+ls -l /opt/airflow
+ls -l /opt/airflow/dag_generated_config
+```
+
+Both the `dag_generated_config` folder and the files inside it should be owned by `airflow:root`. If they are not, run:
+
+```bash
+chown -R airflow:root /opt/airflow/dag_generated_config
+```
+
+#### Migration Stops or Is Interrupted
+
+**Migration cannot be loaded**
+
+If a migration file can't be loaded, the migration stops with this error and applies no migrations, so the schema is never left half upgraded:
+
+```
+Migration <version> cannot be loaded, so no migration was run: <root cause>
+```
+
+Fix the cause that the message names, then run `./bootstrap/openmetadata-ops.sh migrate` again.
+
+**Interrupted migration on MySQL**
+
+If a `migrate` run is stopped part way, run `./bootstrap/openmetadata-ops.sh migrate` again. MySQL guarded blocks run and are recorded as one unit, so a block that didn't finish is run again from the start. You don't need to edit `SERVER_MIGRATION_SQL_LOGS`.

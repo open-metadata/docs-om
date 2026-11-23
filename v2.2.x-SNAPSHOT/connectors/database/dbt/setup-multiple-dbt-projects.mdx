@@ -1,0 +1,82 @@
+---
+title: Setup Multiple dbt Projects | Official Documentation
+description: Set up multiple dbt projects in ingestion workflows to orchestrate metadata extraction from distinct models and teams.
+slug: /connectors/database/dbt/setup-multiple-dbt-projects
+sidebarTitle: Setup Multiple dbt Projects
+canonical: "https://docs.open-metadata.org/v2.1.x/connectors/database/dbt/setup-multiple-dbt-projects"
+---
+
+# Setup Multiple dbt Projects
+
+You can set up the dbt workflow to ingest metadata from multiple dbt projects, each containing multiple manifest.json, catalog.json, and run_results.json files.
+
+<Tip>
+
+This functionality is supported for s3, GCS, and Azure configurations only.
+
+</Tip>
+
+To ensure the workflow operates smoothly, organize the dbt files for each project into separate directories and name the files `manifest.json`, `catalog.json`, and `run_results.json`.
+
+If your dbt tests are split across multiple run_results.json files, place these files in the same directory as their corresponding manifest.json file. Ensure that each file retains `run_results` in its name, and append a unique suffix as needed. For example: run_results_one.json, run_results_two.json, run_results_three.json
+
+The workflow will scan through the specified prefix path in the designated bucket, traversing each folder to locate these dbt files.
+
+## Resolve Metadata From Overlapping Projects
+
+More than one manifest can reference the same OpenMetadata table. OpenMetadata processes each manifest separately, and the result depends on the metadata field and the dbt ingestion configuration:
+
+| Metadata | Resolution Behavior |
+| --- | --- |
+| Lineage | With **Override Lineage** disabled, which is the default, OpenMetadata adds each manifest's dbt lineage edges to the existing edges. The resulting lineage is additive across manifests. Enabling **Override Lineage** allows a later ingestion to replace existing dbt lineage for the affected table, so do not enable it when you need the combined graph. |
+| dbt tab | A table stores one dbt data model. Each matching manifest updates that model, so the dbt tab shows the manifest processed most recently. Do not rely on folder names or artifact timestamps to control processing order. |
+| Descriptions | With **Update Descriptions** disabled, which is the default, a dbt description fills an empty table or column description but does not replace an existing one. When enabled, a non-empty description from the manifest processed most recently overwrites the current value. |
+| Owners | With **Update Owners** disabled, which is the default, a dbt owner can populate an empty table owner but does not replace an existing owner. When enabled, a non-empty owner from the manifest processed most recently overwrites the current owner. |
+| Tags | With **Include Tags** enabled, OpenMetadata merges table and column tags from each manifest with the tags already on the asset. Tags therefore accumulate across runs. For a mutually exclusive classification, an incoming tag replaces an existing tag from the same classification. |
+
+If overlapping projects define different descriptions, owners, or dbt model details for the same table, choose one project as the authority and prevent the other projects from matching that table. You can use the database, schema, and table filter patterns to keep project scopes distinct.
+
+Here's an example of setting up the dbt workflow for multiple dbt projects in an s3 configuration:
+
+### 1. Organizing the dbt Files in the S3 Bucket
+
+Place the dbt files (manifest.json, catalog.json, and run_results.json) in separate directories within the S3 bucket.
+
+For this example, let's explore a directory structure where we have set up three distinct dbt projects: dbt_project_one, dbt_project_two, and dbt_project_three. We will configure the dbt workflow to pickup the dbt files from each of these directories.
+
+Bucket name: `dbt_bucket`
+
+```
+bucket_home/
+├── dbt_files/
+    ├── dbt_project_one/
+    │   ├── manifest.json
+    │   ├── catalog.json
+    │   └── run_results.json
+    └── dbt_new_projects/
+        ├── dbt_project_two/
+        │   ├── manifest.json
+        │   ├── catalog.json
+        │   └── run_results_one.json
+        |   └── run_results_two.json
+        |   └── run_results_three.json
+        └── dbt_project_three/
+            ├── manifest.json
+            ├── catalog.json
+            └── run_results.json
+
+```
+
+### 2. Setup the configuration in OpenMetadata
+
+1. In the `dbt Bucket Name` field, enter the name of your bucket, which in this case is `dbt_bucket`.
+
+2. Specify the `dbt Object Prefix` path for the parent folder where your dbt projects are located. In this example, the prefix path should be set to `bucket_home/dbt_files/`.
+
+If you wish to scan the entire bucket, only enter the `dbt Bucket Name` and keep the `dbt Object Prefix` field empty.
+
+<img src="/public/images/features/ingestion/workflows/dbt/dbt-prefix-example.webp" alt="dbt-prefix-example" />
+
+### 3. Run the dbt Workflow
+
+After the dbt workflow runs, OpenMetadata ingests the dbt metadata from all three projects.

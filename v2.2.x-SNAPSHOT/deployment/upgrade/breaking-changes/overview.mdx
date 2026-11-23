@@ -1,0 +1,186 @@
+---
+title: Breaking Changes 2.0 to 2.1 | Official Documentation
+description: Component-level breakdown of the API, schema, ingestion, configuration, and UI breaking changes between OpenMetadata 2.0 and 2.1.
+sidebarTitle: Overview
+collate: false
+canonical: "https://docs.open-metadata.org/v2.1.x/deployment/upgrade/breaking-changes/overview"
+---
+
+# Breaking Changes: 2.0 to 2.1
+
+OpenMetadata 2.1 removes the old Feed API and retires the Delta Lake connector. It also moves user sign-in
+toward email-based identity and tightens permission checks on search and lineage. It adds an ontology and an
+approval-gated change model.
+
+This section documents every change that can break an existing client, script, deployment, or user
+workflow. The changes are broken out by component, so you only have to read the parts that apply to you.
+They are compared against OpenMetadata 2.0.9, the latest 2.0 release.
+
+<Warning>
+Take a full database backup before upgrading. The 2.1.0 migration makes the following changes:
+
+- Renames `thread_entity_legacy` to `thread_entity_archived`
+- Creates new tables
+- Rewrites task, lineage, alert, and application rows
+- Changes the MySQL default collation
+
+To roll back, restore the backup.
+</Warning>
+
+## How to Read This Section
+
+Every entry is classified so you can triage quickly.
+
+| Class | Meaning |
+| --- | --- |
+| **Breaking** | Existing callers or configurations fail outright. Action is required before or during the upgrade. |
+| **Behavioral** | Requests still succeed, but the result, ordering, permissions, or side effect differs. |
+| **Deprecated** | Still works in 2.1, scheduled for removal. Migrate at your convenience. |
+| **Additive** | New surface only. Listed where it replaces something you may currently be using. |
+
+Each entry states **what changed**, **who is affected**, and **what to do**.
+
+## The Changes Most Likely to Break You
+
+The table lists the changes with the highest impact.
+
+| # | Change | Component | Class |
+| --- | --- | --- | --- |
+| 1 | The `/v1/feed` API is removed. Use `/v1/conversations`, `/v1/tasks`, `/v1/activity`, and `/v1/announcements` | [Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration) | Breaking |
+| 2 | Task threads created through the feed API on 2.0.x are not migrated and stay in `thread_entity_archived` | [Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration) | Breaking |
+| 3 | Task and suggestion event types are removed from alerts | [Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration) | Breaking |
+| 4 | The Delta Lake connector is removed. Services become Custom Database and their ingestion pipelines are deleted | [Ingestion & Connectors](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 5 | Applications no longer create alerts from their definition. Existing definition-created alerts are disabled | [Applications & Automation](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation) | Breaking |
+| 6 | Lineage edges can only name a pipeline or stored procedure, and lineage reads check permissions | [Lineage](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/lineage) | Breaking |
+| 7 | The OpenLineage endpoint reports unresolved datasets and no longer auto-creates anything except tables | [Lineage](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/lineage) | Breaking |
+| 8 | `GET /v1/glossaryTerms/relationTypes/usage` returns a list instead of a map | [Data Governance](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance) | Breaking |
+| 9 | In-process Resource Description Framework (RDF) reasoning is removed. The old inference settings are ignored | [Data Governance](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance) | Breaking |
+| 10 | New test cases are checked against their test definition | [Data Quality & Observability](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality) | Breaking |
+| 11 | `sampleDataStorageConfig` is removed from connection and profiler schemas | [Data Quality & Observability](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality) | Breaking |
+| 12 | Schema files and Java classes are removed, including `WorkflowTriggerFields` | [API & Schema Contracts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema) | Breaking |
+| 13 | OpenID Connect (OIDC) sign-in now returns the provider's ID token to the browser instead of an OpenMetadata token | [Platform, Configuration & Security](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) | Behavioral |
+| 14 | Email-first identity (opt-in). User emails are lowercased on upgrade | [Platform, Configuration & Security](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) | Behavioral |
+| 15 | Search needs a reindex, and some search endpoints are now admin only | [Discovery & Search](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search) | Behavioral |
+| 16 | Ant Design is removed, which affects UI forks and plugins. Add Metric routes are gone | [UI, Personas & Customization](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ui-and-customization) | Breaking |
+| 17 | Ingestion pipelines created through the API must set `sourceConfig.config.type` | [Ingestion & Connectors](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 18 | Microsoft Fabric services move their client secret under a required `authType` | [Ingestion & Connectors](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors) | Breaking |
+| 19 | The bundled Fuseki RDF store uses a new image, new settings, and a new data volume | [Data Governance](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance) | Breaking |
+| 20 | Only admins can add roles or policies to a team, and creating an application with a bot needs an admin | [API & Schema Contracts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema), [Applications & Automation](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation) | Breaking |
+| 21 | The server image runs on a distroless Debian base as user `65532`, with no package manager | [Platform, Configuration & Security](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) | Behavioral |
+| 22 | The API only applies Approved glossary terms to assets | [Data Governance](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance) | Breaking |
+
+## Deprecation Notices
+
+<Note>
+Airflow as the internal orchestrator is deprecated and will be removed in a future release.
+The native Kubernetes Orchestrator is its replacement. New deployments should standardize on it.
+Existing Airflow-based deployments keep working in 2.1 but should plan a migration.
+</Note>
+
+<Note>
+Classic mode of the interface is deprecated and will be removed in a future release.
+AI mode is the replacement. Classic keeps working in 2.1, and the release notes will name the release that
+removes it. When it is removed, an organization default or a persona that is still set to Classic moves to AI
+mode. Users who switch keep their settings. For more information, see
+[Platform, Configuration & Security](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security#classic-mode-is-deprecated).
+</Note>
+
+Several authentication and authorizer settings are deprecated in favor of the email-first settings. The `/{alertType}/resources` alert endpoint is deprecated in favor of `POST /capabilities`.
+For more information, see
+[Platform, Configuration & Security](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security) and
+[Collaboration: Conversations, Tasks, Announcements, Activity, and Alerts](/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration).
+
+## Browse by Component
+
+<CardGroup cols={2}>
+  <Card title="API & Schema Contracts" icon="code" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/api-and-schema">
+    The removed Feed API, removed schema files, removed enum values, new request limits, authorization changes, changed defaults, and schema relocations.
+  </Card>
+  <Card title="Discovery & Search" icon="magnifying-glass" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/discovery-and-search">
+    Reindexing, search access rules, restricted endpoints, semantic search permissions, and hybrid weight defaults.
+  </Card>
+  <Card title="Collaboration" icon="users" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/collaboration">
+    Feed API removal, task and suggestion changes, announcements, activity changes, and alert changes.
+  </Card>
+  <Card title="Data Governance" icon="shield-halved" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-governance">
+    Default policy rules, approval-gated changes, glossary and ontology, domains, workflows, and data retention.
+  </Card>
+  <Card title="Data Quality & Observability" icon="circle-check" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/data-quality">
+    Managed dimensions, test case validation, test parameter handling, failure thresholds, and sampling settings.
+  </Card>
+  <Card title="Lineage" icon="diagram-project" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/lineage">
+    Edge rules, permission checks on reads, batch hydration limits, and the OpenLineage endpoint.
+  </Card>
+  <Card title="Ingestion & Connectors" icon="database" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ingestion-and-connectors">
+    Delta Lake removal, Oracle driver, Python dependencies, image contents, and new connectors.
+  </Card>
+  <Card title="Applications & Automation" icon="grid-2" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/applications-and-automation">
+    Application-created alerts, Search Indexing reset, Data Retention settings, and the new RDF Inference Materialization application.
+  </Card>
+  <Card title="Platform, Config & Security" icon="server" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/platform-and-security">
+    Email-first identity, OIDC changes, configuration defaults, and the 2.1.0 database migration.
+  </Card>
+  <Card title="UI, Personas & Customization" icon="palette" href="/v2.2.x-SNAPSHOT/deployment/upgrade/breaking-changes/ui-and-customization">
+    Ant Design removal, removed Metric pages, page sizes, and new routes.
+  </Card>
+</CardGroup>
+
+## Upgrade Checklist
+
+<Steps>
+  <Step title="Inventory Your API Clients">
+    Search your scripts, dashboards, Terraform files, and continuous integration (CI) jobs for these terms:
+
+    - `/v1/feed`
+    - `/v1/glossaryTerms/relationTypes/usage`
+    - `sampleDataStorageConfig`
+    - The task and suggestion alert event types
+  </Step>
+  <Step title="Resolve Open Feed Tasks">
+    Task threads created through the feed API on 2.0.x are not migrated. Resolve or close the ones you still
+    need before you upgrade.
+  </Step>
+  <Step title="Check for Delta Lake Services">
+    Delta Lake services are changed to the Custom Database type and their ingestion pipelines are deleted. Record the
+    connection settings you want to keep.
+  </Step>
+  <Step title="Review Alerts Created by Applications">
+    Alerts that came from an application definition are disabled by the migration. Recreate any you still need as
+    normal alerts.
+  </Step>
+  <Step title="Plan Your Sign-In Settings">
+    The email-first settings are opt-in. Before you set `emailClaim`, run `openmetadata-ops.sh list-synthesized-emails`
+    and fix any entries with `change-email`.
+  </Step>
+  <Step title="Plan the PostgreSQL Maintenance Window">
+    The PostgreSQL migration rebuilds the `isBot` column on `user_entity` under an exclusive lock. Run it in a
+    maintenance window if that table is very large.
+  </Step>
+  <Step title="Run Search Indexing">
+    After the upgrade, run the Search Indexing application so the new indexes and mappings are built.
+  </Step>
+  <Step title="Verify After Upgrade">
+    Check the following:
+
+    - Search access for non-admin users
+    - Lineage views for restricted users
+    - OpenLineage ingestion responses
+    - Any OIDC sign-in that relied on OpenMetadata-issued tokens
+  </Step>
+</Steps>
+
+## Version Scope
+
+The following table shows which versions this section compares.
+
+| | |
+| --- | --- |
+| **From** | OpenMetadata 2.0.9 (the latest 2.0 release) |
+| **To** | OpenMetadata 2.1 |
+| **Schema spec** | 217 new schema files, 909 modified files (mostly a one-line dialect change), and six removed files |
+| **REST surface** | The `/v1/feed` namespace (13 endpoints) is removed. Many new endpoint groups are added |
+
+<Note>
+A few entries reference capabilities that ship only in Collate. They are documented
+here because their schemas and REST namespaces are part of the 2.1 specification either way.
+</Note>

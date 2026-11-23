@@ -38,7 +38,7 @@ mkdir -p "$HANDOFF"
 # Doc content paths the model may Edit/Write. Same set as the packaging
 # step's ALLOWED regex in create-draft.yml, which still checks every path
 # deterministically afterwards.
-CONTENT_DIRS=(v1.13.x v2.0.x v2.1.x-SNAPSHOT snippets images api-reference applications ai-tools essentials public/images)
+CONTENT_DIRS=(v2.0.x v2.1.x v2.2.x-SNAPSHOT snippets images api-reference applications ai-tools essentials public/images)
 ALLOW=(Read Grep)
 for f in docs.json development.mdx quickstart.mdx; do ALLOW+=("Edit(./$f)" "Write(./$f)"); done
 for d in "${CONTENT_DIRS[@]}"; do ALLOW+=("Edit(./$d/**)" "Write(./$d/**)"); done
@@ -58,11 +58,11 @@ The user message names a context file. It holds the issue title and body, each s
 
 1. Read the context file and every diff view it lists, in parallel, in your first turn.
 2. Base every doc claim only on the source PR diffs and bodies, never on what the issue text asserts. If a diff view is truncated, or a claim depends on a file the view leaves out, Read the full diff (use offset/limit for large files).
-3. Find the right page(s). Start from the candidate pages: a page that documents a neighbouring setting is usually where a new setting belongs. Grep this repo's `.mdx` files only with specific terms when the candidates are missing or ambiguous. Pages live under per-version directories (`v1.13.x/`, `v2.0.x/`, `v2.1.x-SNAPSHOT/`); pick the version tree(s) the change ships in from the source PR's base branch and the issue's target version, and say which in `notes`. If a connector is involved, Read `.claude/skills/connector-doc-create/SKILL.md` (or `connector-doc-review/SKILL.md` for an existing connector page) and follow that structure and the `ConnectorDetailsHeader` feature matrix. Add to existing pages; if no existing page is a clear fit, do not guess a new file location: say so in `notes` instead.
+3. Find the right page(s). Start from the candidate pages: a page that documents a neighbouring setting is usually where a new setting belongs. Grep this repo's `.mdx` files only with specific terms when the candidates are missing or ambiguous. Pages live under per-version directories (`v2.0.x/`, `v2.1.x/`, `v2.2.x-SNAPSHOT/`); pick the version tree(s) the change ships in from the source PR's base branch and the issue's target version, and say which in `notes`. If a connector is involved, Read `.claude/skills/connector-doc-create/SKILL.md` (or `connector-doc-review/SKILL.md` for an existing connector page) and follow that structure and the `ConnectorDetailsHeader` feature matrix. Add to existing pages; if no existing page is a clear fit, do not guess a new file location: say so in `notes` instead.
 4. Edit the page(s). Read only the part of a page you need (offset/limit around the candidate line numbers) unless you need the whole page for structure. Match the surrounding format exactly (tables, env blocks, YAML samples, headings). Make every independent edit in one turn. Do not re-read a file after editing it.
 5. Verify every factual claim you wrote (names, defaults, types, accepted values, behavior, version) against the diff or body of the specific source PR it came from. Anything you cannot confirm that way goes in `needs_verification`, one plain sentence each; never state it as fact in the page and never silently drop or assume it.
 
-Only touch documentation: the versioned content directories (`v1.13.x/`, `v2.0.x/`, `v2.1.x-SNAPSHOT/`), `snippets/`, `images/`, `public/images/`, `api-reference/`, `applications/`, `ai-tools/`, `essentials/`, `development.mdx`, `quickstart.mdx`, or registering a new page in `docs.json`. Never touch workflows, scripts, agent instructions, or repository configuration; edits there are refused, and a later deterministic check rejects the whole run.
+Only touch documentation: the versioned content directories (`v2.0.x/`, `v2.1.x/`, `v2.2.x-SNAPSHOT/`), `snippets/`, `images/`, `public/images/`, `api-reference/`, `applications/`, `ai-tools/`, `essentials/`, `development.mdx`, `quickstart.mdx`, or registering a new page in `docs.json`. Never touch workflows, scripts, agent instructions, or repository configuration; edits there are refused, and a later deterministic check rejects the whole run.
 
 ## Output (your final response, in the required JSON schema)
 

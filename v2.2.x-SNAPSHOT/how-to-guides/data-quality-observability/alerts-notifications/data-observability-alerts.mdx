@@ -1,0 +1,131 @@
+---
+title: Data Observability Alerts | OpenMetadata
+description: Configure alerts for data quality failures, schema changes, and pipeline issues.
+sidebarTitle: Data Observability Alerts
+canonical: "https://docs.open-metadata.org/v2.1.x/how-to-guides/data-quality-observability/alerts-notifications/data-observability-alerts"
+---
+
+# Data Observability Alerts
+
+Monitor the health of your data systems by setting up alerts for pipeline failures, data quality issues, and schema changes.
+
+## Open the Alerts Page
+
+Navigate to the lateral menu **Observability > Alerts**.
+
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-navigate-collate.webp" alt="Navigate to Observability Alerts" />
+
+Click the **Add Alert** button.
+
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-add-alert.webp" alt="Add Alert Button" />
+
+## Name the Alert and Add Context
+
+Provide a unique, descriptive **Name** for your alert. You can also add an optional **Description** to provide further context and clarity regarding the alert's intent.
+
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-alert-name-description.webp" alt="Input fields for Alert Name and Description" />
+
+## Select Sources
+
+Choose one or more operational entities to monitor:
+
+* **Container** - Monitors schema changes for the container asset
+* **Data Contract** - Triggers an alert when a data contract status changes
+* **Ingestion Pipeline** - Monitors status changes to your OpenMetadata ingestion pipelines
+* **Pipeline** - Monitors updates to pipeline assets that you have ingested
+* **Table** - Monitors schema changes and table metrics changes
+* **Test Case** - Triggers an alert for the specific test case selected
+* **Test Suite** - Triggers an alert once for each completed run of the test suite, based on the summary of its test case results. This is a great way to group alerts and reduce notification fatigue
+* **Topic** - Monitors schema changes for the topic asset
+
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-source-collate.webp" alt="Select the Source Resource for Data Observability" />
+
+To watch several sources with one alert, select each source from the list. After the first one, the field reads **Add another…**. You can combine any of these sources. Changing the sources clears the filters and triggers you chose, and removing a source also clears the destinations.
+
+## Configure Filters (Optional)
+
+Filters allow you to refine the scope of the alert to focus only on relevant changes, significantly improving the signal-to-noise ratio. With several sources, the list offers only the filters that every chosen source supports. You can narrow down events based on a variety of criteria, including:
+
+* **Entity Specific Name:** Filter by the defined specific name of the entity.
+* **Owner Name:** Filter events based on the designated owner of the asset.
+* **Domain:** Filter events based on the Data Domain the entity belongs to.
+* **Filter By Updater Is Bot:** Filter to include or exclude changes made by automated ingestion or system processes.
+
+Use the **Include** toggle to define the logic for the filter condition:
+* **Include (Toggle ON):** If the event meets the filter condition, the alert is **sent**.
+* **Exclude (Toggle OFF):** If the event meets the filter condition, the alert is **silenced** (not sent).
+
+<Note>
+If you do not set any filter, the alert will apply to **all** relevant events over the selected source entity type, which may lead to excessive notifications.
+</Note>
+
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-filter-overview.webp" alt="Define Filters" />
+<img src="/public/images/how-to-guides/data-quality-observability/observability/alerts/data-observability-filter-options.webp" alt="Filter Options" />
+
+
+### Test Case and Data Contract Scope
+
+In OpenMetadata 2.0.3 and later, the test-case table filter matches the parent table’s exact fully qualified name (FQN), including for column-level tests. For example, a filter for `service.database.schema.orders` includes tests on `orders.id`. It does not match `orders_archive`.
+
+The data-contract entity filter matches the FQN of the asset covered by the contract. These scoping rules also apply to comments on test cases and contracts. An unrelated event or an event whose target cannot be resolved does not match an inclusion filter.
+
+These are alert filters. They do not change the query parameters of the test-case or data-contract list APIs.
+
+## Select Trigger Conditions (Optional)
+
+Define the specific conditions that will trigger the alert:
+
+* **Schema Changes** - Alert on added, deleted, or updated columns
+* **Test Case Status** - Trigger when a test result has a status you select: `Success`, `Failed`, `Aborted`, or `Queued`. The alert fires on every matching result, not only when the status changes
+* **Pipeline Status** - Alert when pipeline execution has a status you select: `Successful`, `Failed`, `Pending`, or `Skipped`
+* **Ingestion Pipeline Status** - Alert when an OpenMetadata ingestion run enters a selected state, including `failed` or `partialSuccess`
+* **Metric Updates** - Notify when table metrics are updated
+
+<Tip>
+You can select multiple trigger conditions to create comprehensive monitoring coverage.
+</Tip>
+
+With several sources, each trigger applies only to the sources named in brackets after it, for example **Get Pipeline Status Updates (Pipeline)**. Add a trigger for each source you want to hear about. If none of the chosen triggers applies to a source, the form warns that none of that source's events can match. You can still save the alert.
+
+<img src="/public/images/how-to-guides/admin-guide/trigger.webp" alt="Select Trigger Conditions" />
+
+## Native Pipeline Alert Boundaries
+
+Native pipeline alerts react to status events reported to OpenMetadata. They do not evaluate whether an expected event is missing or whether a run took longer than a threshold.
+
+| Monitoring scenario | Native alert support | Configuration |
+|---|---|---|
+| An OpenMetadata ingestion pipeline fails or partially succeeds | Yes | Select **Ingestion Pipeline**, use **Entity Specific Name** to scope an individual ingestion pipeline, and select `failed` and `partialSuccess` in **Ingestion Pipeline Status**. |
+| An ingested pipeline asset reports a failed run | Yes | Select **Pipeline** and **Failed** in **Pipeline Status**. |
+| A scheduled run does not start | No | Use an external check that compares the expected schedule with the latest reported run. |
+| A run exceeds a duration threshold or its normal duration | No | Use an external check that calculates run duration from the reported start and end times. |
+
+For an external check, query `GET /api/v1/services/ingestionPipelines/{fqn}/pipelineStatus`. Use `startTs` and `endTs` to select a time window. The response includes `pipelineState`, `startDate`, and `endDate` for each run. A monitoring script can compare these values with the expected schedule or duration threshold before sending a notification.
+
+Choose where to send your alerts. OpenMetadata supports both internal and external channels.
+
+**Internal Destinations:**
+* **Admins** - Notify all platform administrators
+* **Followers** - Notify users following the asset
+* **Owners** - Alert the asset owners
+* **Teams or Specific Users** - Target specific teams or individuals
+
+**External Destinations:**
+* **Email**
+* **Chat**: Slack, MS Teams, Google Chat
+* **Automation**: Generic Webhooks
+
+<img src="/public/images/how-to-guides/admin-guide/internal.webp" alt="Internal Destinations" />
+
+<img src="/public/images/how-to-guides/admin-guide/external.webp" alt="External Destinations" />
+
+For internal destinations, turn on **Notify Downstream** to also notify the stakeholders of assets downstream of the changed asset. See [Notify Downstream](/v2.2.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/notify-downstream).
+
+## Related Reference
+
+These pages cover alert behavior, webhook delivery, and the API.
+
+* [Alert Behavior Reference](/v2.2.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/alert-behavior-reference): every source, trigger, and filter, and exactly when each alert fires.
+* [Notify Downstream](/v2.2.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/notify-downstream): notify the owners of downstream assets through lineage.
+* [Webhook Payloads and Delivery](/v2.2.x-SNAPSHOT/how-to-guides/data-quality-observability/alerts-notifications/webhook-payloads-and-delivery): payloads, authentication, failures, and duplicates.
+* [Alerts API](/v2.2.x-SNAPSHOT/api-reference/alerts): create and manage alerts with the REST API and Python SDK.

@@ -1,0 +1,127 @@
+---
+title: Table Filter Patterns | Official Documentation
+description: Filter metadata patterns at the table level using YAML configuration to fine-tune what assets are ingested.
+sidebarTitle: Table
+---
+
+# Table Filter Patterns
+
+Table filter patterns are used to control whether or not to include tables as part of metadata ingestion.
+  - **Include**: Explicitly include tables by adding a list of comma-separated regular expressions to the Include field. OpenMetadata will include all tables with names matching one or more of the supplied regular expressions. All other tables will be excluded.
+  - **Exclude**: Explicitly exclude tables by adding a list of comma-separated regular expressions to the Exclude field. OpenMetadata will exclude all tables with names matching one or more of the supplied regular expressions. All other tables will be included.
+
+<Tip>
+
+In OpenMetadata v1.5.x, when both include and exclude filters are applied, the system first processes the include filter, followed by the exclude filter.
+
+</Tip>
+
+
+#### Example 1
+
+```yaml
+Snowflake_Prod # Snowflake Service Name
+│
+└─── SNOWFLAKE_SAMPLE_DATA # DB Name
+│   │
+│   └─── PUBLIC # Schema Name
+│   │   │
+│   │   └─── CUSTOMER # Table Name
+│   │   │
+│   │   └─── CUSTOMER_ADDRESS # Table Name
+│   │   │
+│   │   └─── CUSTOMER_DEMOGRAPHICS # Table Name
+│   │   │
+│   │   └─── CALL_CENTER # Table Name
+│   │
+│   └─── INFORMATION # Schema Name
+│       │
+│       └─── ORDERS # Table Name
+│       │
+│       └─── REGION # Table Name
+│       │
+│       └─── CUSTOMER # Table Name
+│
+└─── SNOWFLAKE # DB Name
+    │
+    └─── PUBLIC # Schema Name
+        │
+        └─── CUSTOMER # Table Name
+```
+
+In this example we want to ingest table with name `CUSTOMER` within any schema and database. In this case we need to apply include table filter pattern `^CUSTOMER$`. This will result in ingestion of tables `Snowflake_Prod.SNOWFLAKE_SAMPLE_DATA.PUBLIC.CUSTOMER`, `Snowflake_Prod.SNOWFLAKE_SAMPLE_DATA.INFORMATION.CUSTOMER` & `Snowflake_Prod.SNOWFLAKE.PUBLIC.CUSTOMER`
+
+### Configuring Filters via UI for Example 1
+
+<img src="/public/images/features/ingestion/workflows/metadata/filter-patterns/table-filter-example-1.webp" alt="Table Filter Pattern Example 1" />
+
+
+
+### Configuring Filters via CLI for Example 1
+
+```yaml
+sourceConfig:
+  config:
+    ...
+    useFqnForFiltering: true
+    tableFilterPattern:
+      includes:
+        - ^CUSTOMER$
+```
+
+
+#### Example 2
+
+In this example we want to ingest table with name `CUSTOMER` within `PUBLIC` schema of any database. In this case we need to apply include table filter pattern `.*\.PUBLIC\.CUSTOMER$` this will also require to set the `useFqnForFiltering` flag as true as we want to apply filter on FQN. This will result in ingestion of tables `Snowflake_Prod.SNOWFLAKE_SAMPLE_DATA.PUBLIC.CUSTOMER` & `Snowflake_Prod.SNOWFLAKE.PUBLIC.CUSTOMER`
+
+### Configuring Filters via UI for Example 2
+
+<img src="/public/images/features/ingestion/workflows/metadata/filter-patterns/table-filter-example-2.webp" alt="Table Filter Pattern Example 2" />
+
+
+
+### Configuring Filters via CLI for Example 2
+
+```yaml
+sourceConfig:
+  config:
+    ...
+    useFqnForFiltering: true
+    tableFilterPattern:
+      includes:
+        - .*\.PUBLIC\.CUSTOMER$
+```
+
+
+#### Example 3
+
+In this example, we aim to ingest a table named `_delta_log/file.json` within the `session` schema of any database. To achieve this, we need to configure the following filter patterns:
+- Include Table Filter Pattern: `.*_delta_log/file\.json$`
+- Schema Filter Pattern: `session`
+
+<Tip>
+
+The backslash `\` is used as an escape character for the dot (.) in the pattern
+
+</Tip>
+
+### Configuring Filters via UI for Example 3
+
+<img src="/public/images/features/ingestion/workflows/metadata/filter-patterns/table-filter-example-3.webp" alt="Table Filter Pattern Example 3" />
+
+
+
+### Configuring Filters via CLI for Example 3
+
+```yaml
+sourceConfig:
+  config:
+    ...
+    useFqnForFiltering: true
+    schemaFilterPattern:
+      includes:
+        - session
+    tableFilterPattern:
+      includes:
+        - .*_delta_log/file\.json$
+```

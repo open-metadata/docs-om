@@ -1,0 +1,296 @@
+---
+title: Data Contract Specification | OpenMetadata Data Contracts
+description: What an OpenMetadata data contract can define, which data assets support each section, what a contract run checks, and how statuses and data product and schema inheritance work.
+sidebarTitle: Data Contract Specification
+canonical: "https://docs.open-metadata.org/v2.1.x/how-to-guides/data-contracts/spec"
+---
+
+# Data Contract Specification
+
+A data contract formalizes what producers promise consumers about a data asset: its structure, business rules, quality, service levels, security, and terms of use. OpenMetadata stores each contract as a Data Contract entity attached to one data asset, and checks the parts it can check each time the contract runs.
+
+This page describes every section of a contract, which assets support it, and what OpenMetadata actually checks. The JSON Schema for the Data Contract entity is in the [OpenMetadata repository](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-spec/src/main/resources/json/schema/entity/data/dataContract.json).
+
+## Supported Assets
+
+Each asset has at most one contract of its own. Schema and quality sections depend on the asset type. Every supported asset type accepts semantics, security, SLA, and terms of use.
+
+| Asset type | Contract tab in the UI | Schema | Quality |
+|---|:-:|:-:|:-:|
+| Table | ✓ | ✓ | ✓ |
+| Topic | ✓ | ✓ | |
+| API Endpoint | ✓ | ✓ | |
+| Dashboard Data Model | ✓ | ✓ | |
+| Database, Database Schema, Stored Procedure | ✓ | | |
+| Dashboard, Chart, Pipeline | ✓ | | |
+| Container, Search Index, ML Model | ✓ | | |
+| API Collection, Directory, File, Spreadsheet, Worksheet | ✓ | | |
+| Data Product | ✓ | | |
+| API, API Service, Metric | API only | | |
+
+A contract that sets a section its asset type doesn't support is rejected with a `400` error that names the section. A second contract for an asset that already has one is also rejected.
+
+## Contract Sections
+
+The following table summarizes what each section holds and whether a contract run checks it:
+
+| Section | What it defines | Checked when the contract runs |
+|---|---|---|
+| [Contract details](#contract-details) | Name, description, owners, reviewers, status | No |
+| [Terms of Use](#terms-of-use) | How the data may be used | No |
+| [Schema](#schema) | Columns or fields the asset must have | Yes |
+| [Semantics](#semantics) | Metadata rules, such as "has an owner" | Yes |
+| [Security](#security) | Classification, access policies, identities, row filters | No |
+| [Quality](#quality) | Data quality test cases that must pass | Yes, tables only |
+| [SLA](#sla) | Refresh frequency, latency, availability time, retention | Yes, tables only. Retention isn't checked. |
+
+Sections that aren't checked document an expectation for consumers. OpenMetadata shows them on the contract, exports them, and passes them down from data products, but doesn't evaluate them.
+
+### Contract Details
+
+| Field | Description |
+|---|---|
+| `name` | Required. Shown as **Contract Title** in the UI. |
+| `displayName`, `description` | Optional. The description supports Markdown. |
+| `owners` | Users or teams who own the contract. |
+| `reviewers` | Users or teams who approve status changes. Set through the API. See [Status and Approval](#status-and-approval). |
+| `entityStatus` | Contract status, shown as **Status** in the UI. See [Status and Approval](#status-and-approval). |
+| `effectiveFrom`, `effectiveUntil` | Dates the contract applies between. Set through the API. They're informational, and runs don't check them. |
+| `sourceUrl` | Link to where the contract is maintained, such as a Git repository. |
+
+### Terms of Use
+
+The terms of use are Markdown text, shown as **Terms of Service** in the UI. Use them for allowed and disallowed uses, and for compliance requirements such as GDPR or HIPAA. The create API takes a Markdown string, and the stored contract returns it as `termsOfUse.content`.
+
+### Schema
+
+The schema lists the columns (for tables and dashboard data models) or fields (for topics and API endpoints) the asset must have. Each entry uses the column format: `name`, `dataType`, and optionally `dataLength`, `constraint`, and `description`. A contract usually lists a subset of the asset's columns.
+
+OpenMetadata checks the schema in two places:
+
+- **When you save the contract**: A column the asset doesn't have, or a column listed twice, rejects the save. If the asset later drops a column, remove it from the contract schema before saving other changes.
+- **When the contract runs**: Each missing or duplicate column counts as a failure. A type that differs from the asset's is reported but doesn't fail the run.
+
+Types match when they're in the same family:
+
+| Family | Types |
+|---|---|
+| Text | `STRING`, `VARCHAR`, `CHAR`, `TEXT`, `MEDIUMTEXT`, `NTEXT`, `CLOB` |
+| Integer | `INT`, `BIGINT`, `SMALLINT`, `TINYINT`, `BYTEINT`, `LONG` |
+| Decimal | `DECIMAL`, `NUMERIC`, `NUMBER`, `DOUBLE`, `FLOAT`, `MONEY` |
+| Boolean | `BOOLEAN` |
+| Date and time | `DATE`, `DATETIME`, `TIMESTAMP`, `TIMESTAMPZ`, `TIME` |
+| Binary | `BINARY`, `VARBINARY`, `BLOB`, `BYTEA`, `BYTES`, `LONGBLOB`, `MEDIUMBLOB` |
+| Complex | `ARRAY`, `MAP`, `STRUCT`, `JSON` |
+
+What the check compares depends on the asset:
+
+| Asset | Compared against | Type check |
+|---|---|---|
+| Table, Dashboard Data Model | Columns | Yes |
+| Topic | Message schema fields | No, names only |
+| API Endpoint | Request and response schema fields | No, names only |
+
+Only top-level contract entries are checked. A contract entry matches a nested column or field by its name alone. The UI lets you select top-level columns only.
+
+### Semantics
+
+Semantics rules check the asset's metadata, such as whether it has an owner, a description, or a tier. Each rule has these fields:
+
+| Field | Description |
+|---|---|
+| `name`, `description` | Required. The description is shown as the failure reason when the rule fails. |
+| `rule` | Required. A [JSON Logic](https://jsonlogic.com/) expression evaluated against the asset. The UI builds it for you. |
+| `enabled` | Defaults to `true`. Disabled rules are skipped. |
+| `entityType` | Optional. Applies the rule only to this asset type. |
+| `ignoredEntities` | Optional. Asset types the rule skips. |
+
+The UI rule builder offers these fields: **Owners**, **Display Name**, **Description**, **Domain**, **Data Product**, **Tags**, **Glossary Term**, **Tier**, **Updated on**, **Updated by**, **Version**, and **Status**. For **Updated by**, the **Is Owner** and **Is Reviewer** operators compare the last editor with the asset's owners or reviewers.
+
+A rule passes only when its expression returns `true`. Rules are evaluated only when the contract runs. They don't block edits to the asset. A skipped rule counts as passed.
+
+### Security
+
+The security section records who should access the data and how:
+
+| Field | Description |
+|---|---|
+| `dataClassification` | Free text, such as `PII, Confidential`. The UI shows comma-separated values as separate tags. |
+| `policies[].accessPolicy` | Name of the access policy consumers should use. |
+| `policies[].identities` | Consumer groups or users, such as Active Directory groups. |
+| `policies[].rowFilters` | Column and values pairs that describe which rows a consumer should see. The UI offers row filters for tables and dashboard data models. |
+
+OpenMetadata doesn't enforce the security section or check it against its own policies. It documents the agreement between producer and consumer.
+
+### Quality
+
+The quality section links data quality test cases to the contract. It's available only for tables. Select existing test cases on the table, or add a test from the contract form.
+
+When you save a contract with test cases, OpenMetadata creates a test suite for the contract and a pipeline that runs it. Each contract run triggers that pipeline. The run shows **Running** until the tests finish, then records how many passed. A test whose latest result is **Failed** or **Aborted** counts as a failure.
+
+To define quality rules in an ODCS file and have OpenMetadata create the test cases, see [ODCS Import and Export](/v2.2.x-SNAPSHOT/how-to-guides/data-contracts/odcs).
+
+### SLA
+
+| Field | Values |
+|---|---|
+| `refreshFrequency` | `interval` and `unit`: hour, day, week, month, or year |
+| `maxLatency` | `value` and `unit`: minute, hour, or day |
+| `availabilityTime` | Time of day the data should be available, such as `09:00` |
+| `timezone` | Timezone for the availability time. Defaults to `GMT+00:00 (Europe/London)`. |
+| `retention` | `period` and `unit`: day, week, month, or year |
+| `columnName` | Column that holds the data's refresh time |
+
+A contract run checks the SLA and reports each requirement as met, missed, or not evaluated:
+
+- **Refresh frequency**: Met when the data was last refreshed within the interval. Months and years follow the calendar in the SLA's time zone.
+- **Maximum latency**: Met when the newest value was no older than the allowed latency when the profiler read it. OpenMetadata evaluates it only from a profile of the SLA column.
+- **Availability time**: Met when the newest refresh recorded by the most recent deadline is from that deadline's day.
+- **Retention**: Not checked.
+
+OpenMetadata takes the last refresh time from the first of these sources that has one:
+
+1. The newest value of the SLA column in its latest profile.
+2. The table's latest recorded write in its system metrics.
+3. The last update in the table's life cycle.
+
+A missed requirement fails the run. A requirement that nothing can decide, such as one on a table with no recorded refresh or on an asset that isn't a table, is **Not Evaluated** and never fails the run. An inherited SLA is checked the same way. On the **Contract** tab, the SLA card shows the result of each requirement, when the data was last refreshed, and which source that time comes from.
+
+The check reads stored profiler results, so it can lag behind actual updates. For an hourly SLA, align the profiler schedule with your pipeline schedule.
+
+## Status and Approval
+
+A contract's `entityStatus` is one of `Draft`, `In Review`, `Approved`, `Rejected`, `Deprecated`, or `Archived`. The status is separate from the result of each run.
+
+- **Creating in the UI**: The **Contract Details** tab has a **Status** field with **Draft**, **In Review**, and **Approved**. New contracts default to **Draft**.
+- **Changing the status**: Edit the contract, or update `entityStatus` through the API. OpenMetadata has no built-in approval workflow for data contracts.
+- **Reviewers**: When a contract has reviewers, only a reviewer (or a member of a reviewer team) can move it from **In Review** to **Approved** or **Rejected**, or delete it while it's **In Review**.
+- **Data products**: An asset inherits a data product's contract only when that contract is **Approved**. See [Data Product Inheritance](#data-product-inheritance).
+- **Schemas**: A table inherits its database schema's contract only when that contract is **Approved**. See [Schema Inheritance](#schema-inheritance).
+
+## Running a Contract
+
+A contract run checks the schema, semantics, quality, and SLA sections and stores the result. Runs start in three ways:
+
+- **Run now**: On the asset's **Contract** tab, open the actions menu and select **Run now**.
+- **API**: `POST /v1/dataContracts/{id}/validate`, or `POST /v1/dataContracts/entity/validate` for an asset's effective contract. See [Validate & Results](/v2.2.x-SNAPSHOT/api-reference/data-contracts/validate).
+- **Schedule**: The **Data Contract Validation** application runs every contract daily at midnight by default. Change its schedule under **Settings** > **Applications**. The application validates each contract together with the contract it inherits, so a data product's rules apply on every run. It creates a contract for an asset with no contract of its own only when the data product's contract is **Approved**.
+
+A run ends with one of these statuses:
+
+| Status | Meaning |
+|---|---|
+| **Running** | The run started. A contract with test cases stays **Running** until the tests finish. |
+| **Success** | No schema, semantics, quality, or SLA check failed. |
+| **Failed** | At least one schema column, semantics rule, or test case failed, or an SLA requirement was missed. |
+| **Aborted** | The test cases couldn't be started, or a newer run replaced this one. |
+
+Semantics rules that are disabled, or that apply to another entity type, are counted as skipped, not passed.
+
+The **Contract** tab shows each section's result and an **Execution History** chart of past runs, 30 days by default. When the latest run is **Failed**, **Aborted**, or **Running**, the asset's header shows a button that opens the contract.
+
+## Data Product Inheritance
+
+A data product can have its own contract with semantics, security, SLA, and terms of use. Its assets inherit that contract when both of these are true:
+
+- The asset belongs to exactly one data product. An asset in several data products inherits nothing.
+- The data product's contract is **Approved**.
+
+What an asset gets depends on whether it has its own contract:
+
+| Asset | Result |
+|---|---|
+| No contract of its own | The asset shows the data product's contract as an inherited contract, without schema or quality. |
+| Its own contract | The asset's contract is used. Terms of use, security, and SLA come from the data product only where the asset's contract leaves them empty. The data product's semantics rules are added, except rules with the same name as one of the asset's rules. |
+
+Schema and quality are never inherited. Inherited sections and rules are marked **Inherited** in the UI, and aren't editable from the asset. Selecting **Edit** on an inherited contract creates a new contract for the asset. An inherited contract can't be deleted from the asset.
+
+Running an inherited contract creates a contract for the asset to store its results. The run uses the data product's rules.
+
+## Schema Inheritance
+
+A table inherits the contract of its database schema, so one contract on a schema can govern every table under it. From OpenMetadata 2.0.6, a table inherits the first of these that applies:
+
+1. The contract of the table's single data product, when that contract is **Approved**.
+2. The contract of the table's database schema, when that contract is **Approved**.
+
+OpenMetadata never combines the two. The table's own contract is combined with the inherited one in the same way as for [data product inheritance](#data-product-inheritance).
+
+- Only tables inherit from a schema. Other assets, such as stored procedures, don't.
+- A table with no contract of its own shows the inherited contract as a **Draft**.
+
+## Contract Activity
+
+Changes to a contract appear in the activity feed and the activity count of the asset it governs. They also appear in notifications. Links in contract tasks, notifications, and activity entries open the **Contract** tab of the asset that owns the contract.
+
+## Import and Export
+
+Contracts can move in and out of OpenMetadata in two formats:
+
+- **OpenMetadata YAML**: The contract's own format, shown in the contract's YAML view. Use **Export** and **Import** in the actions menu, or **Import OM** when the asset has no contract.
+- **ODCS**: The Open Data Contract Standard. Use **Export as ODCS** and **Import ODCS**. See [ODCS Import and Export](/v2.2.x-SNAPSHOT/how-to-guides/data-contracts/odcs) for what carries over.
+
+## Data Contract YAML Example
+
+This example is a contract for a table in the OpenMetadata YAML format. It's the format **Import** accepts and the `POST /v1/dataContracts` API takes as JSON.
+
+```yaml
+name: customers-contract
+entity:
+  id: 8beb4301-8302-4791-9944-2897e7614a1a
+  type: table
+entityStatus: Approved
+description: Customer records for the analytics team.
+owners:
+  - id: 3b6f1a0c-2c9e-4f1a-9a57-1f2d3c4b5a69
+    type: team
+termsOfUse: |
+  Internal analytics only. Don't share outside the company.
+schema:
+  - name: customer_id
+    dataType: INT
+    constraint: PRIMARY_KEY
+  - name: email
+    dataType: VARCHAR
+    dataLength: 255
+semantics:
+  - name: Owners is set
+    description: Every customer table needs an owner.
+    rule: '{"and":[{"some":[{"var":"owners"},{"!=":[{"var":"fullyQualifiedName"},null]}]}]}'
+    enabled: true
+qualityExpectations:
+  - id: 1efbda53-063d-4611-8f69-402f4490a503
+    type: testCase
+security:
+  dataClassification: PII
+  policies:
+    - accessPolicy: analytics-readers
+      identities:
+        - analytics-team
+      rowFilters:
+        - columnName: region
+          values:
+            - EMEA
+sla:
+  refreshFrequency:
+    interval: 1
+    unit: day
+  maxLatency:
+    value: 4
+    unit: hour
+  availabilityTime: "09:00"
+  timezone: GMT+00:00 (Europe/London)
+  retention:
+    period: 1
+    unit: year
+  columnName: updated_at
+```
+
+<CardGroup cols={2}>
+  <Card title="Creating Data Contracts" href="/v2.2.x-SNAPSHOT/how-to-guides/data-contracts/create">
+    Create data contracts in the OpenMetadata UI.
+  </Card>
+  <Card title="ODCS Import and Export" href="/v2.2.x-SNAPSHOT/how-to-guides/data-contracts/odcs">
+    Import and export contracts in the Open Data Contract Standard format.
+  </Card>
+</CardGroup>

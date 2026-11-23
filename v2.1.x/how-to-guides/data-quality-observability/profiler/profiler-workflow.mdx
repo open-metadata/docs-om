@@ -1,0 +1,366 @@
+---
+title: Profiler Workflow | OpenMetadata Profiling Workflow
+description: Use profiler workflows to extract row stats, distribution, null percentages, and data health.
+sidebarTitle: Profiler Workflow
+---
+
+# Profiler Workflow
+
+Learn how to configure and run the Profiler Workflow to extract Profiler data and execute the Data Quality.
+
+<Tip>
+
+For Datalake Profiling, we drop NaN (Not a Number) values from the DataFrame using the dropna() method to allow metric computation. However, we make an exception for null values, which are retained. This ensures that our computations are accurate while handling missing data
+
+</Tip>
+
+## UI configuration
+After the metadata ingestion has been done correctly, we can configure and deploy the Profiler Workflow.
+
+This Pipeline will be in charge of feeding the Profiler tab of the Table Entity, as well as running any tests configured in the Entity.
+
+### 1. Add a Profiler Agent
+Create and deploy a profiler agent on the database service:
+1. Navigate to **Connections** > **Databases**.
+2. Select the service.
+3. Click the **Agents** tab.
+
+    <img src="/public/images/v2.1.x/connectors/agents/agents-tab.png" alt="Select Agents Tab" />
+
+4. Click **Add Agent** and select **Profiler**.
+
+    <img src="/public/images/v2.1.x/connectors/agents/add-agent-profiler.png" alt="Add Agent menu with Profiler highlighted" />
+
+### 2. Configure the Profiler Agent
+In the **Configure Ingestion** step, enter a unique, descriptive **Name**. Then set up the options in the following sections.
+
+<img src="/public/images/features/ingestion/workflows/profiler/name-profiler.png" alt="Set profiler name" />
+
+#### Filter Patterns
+Filter patterns control which databases, schemas, and tables the profiler targets. Each pattern field accepts a regular expression (regex) with separate include and exclude lists.
+- **Database filter pattern** (Optional): Regex to include or exclude databases by name.
+- **Schema filter pattern** (Optional): Regex to include or exclude schemas by name.
+- **Table filter pattern** (Optional): Regex to include or exclude tables by name.
+- **Classification filter pattern** (Optional): Regex to target tables by classification, tag, tier, or glossary term. The profiler computes metrics only for tables whose classification matches the pattern.
+- **Use FQN For Filtering**: Regex patterns apply to the fully qualified name (FQN) instead of the raw asset name when enabled. For example, `service_name.db_name.schema_name.table_name`. Enable this when different schemas share the same table name across multiple databases.
+
+<img src="/public/images/features/ingestion/workflows/profiler/filter-patterns.png" alt="Profiler filter patterns" />
+
+#### Scope & Behaviour
+
+**Enable Debug Log** logs the profiler run at debug level. Check the logs in the **Agents** tab of the service.
+
+<img src="/public/images/features/ingestion/workflows/profiler/scope-behaviour.png" alt="Scope and Behaviour" />
+
+#### Advanced Config
+
+Profiler agents created in the UI default to **Dynamic** sampling instead of scanning all rows. This default has applied since OpenMetadata 1.13. Upgrading keeps your existing sample settings as **Static**, but turns **Randomized Sample** off and removes the deprecated Compute Metrics setting. The default **Metrics** list doesn't include `histogram`, `cardinalityDistribution`, or `system`, among others. Add them to **Metrics** if you use the column distribution charts or system data manipulation language (DML) metrics.
+
+Configure sampling, execution, and metrics with the following settings.
+
+##### Sampling Settings
+
+Use **Sample Config Type** to select **Dynamic** (the default) or **Static** sampling.
+
+With **Dynamic** sampling, **Smart Sampling** is enabled by default and scales the sample percentage based on table size:
+
+| Table row count | Sample percentage |
+| --- | --- |
+| Up to 100,000 | 100% |
+| More than 100,000, up to 1 million | 50% |
+| More than 1 million, up to 10 million | 10% |
+| More than 10 million, up to 100 million | 5% |
+| More than 100 million, up to 1 billion | 1% |
+| More than 1 billion | 0.1% |
+
+If you turn off **Smart Sampling**, use **Thresholds** to define your own row-count tiers instead of the built-in ones. Add one or more thresholds, each with:
+
+- **Row Count Threshold**: The minimum number of rows a table needs for the tier to apply. The value must be at least `1`.
+- **Profile Sample**: The sample size for tables in this tier.
+- **Profile Sample Type**: Select **Percentage** or **Rows**.
+- **Sampling Method Type**: The SQL sampling strategy, **BERNOULLI** or **SYSTEM**. It applies to percentage samples on Snowflake, Timescale, and ClickZetta only. Other databases ignore it.
+
+The profiler compares the table's row count to the tiers from the highest threshold to the lowest and uses the first tier the table reaches. A table with exactly as many rows as a threshold uses that tier. Tables below the lowest threshold are profiled in full, with no sampling. This also applies to all tables if you leave **Thresholds** empty. Each tier uses its own sample type, so you can mix **Percentage** and **Rows** tiers. For example, a threshold of `5000` rows with a `Percentage` sample of `10` profiles a 5,000-row table at 10% and a 4,999-row table at 100%. When **Smart Sampling** is on, any thresholds are ignored.
+
+With **Dynamic** sampling, the profiler reads the table's row count once per run to choose the sample size. Most databases return it from system catalogs or table statistics instead of scanning the table, so the value can be an estimate. For example, PostgreSQL uses `pg_class.reltuples`. When no statistic is available, the profiler runs a `COUNT(*)`. It always runs a `COUNT(*)` for tables with a partition filter.
+
+With **Static** sampling, configure these settings:
+
+- **Profile Sample**: Set a fixed sample size for each profiler run.
+- **Profile Sample Type**: Select **Percentage** for a fraction of the table or **Rows** for an absolute number of rows.
+- **Sampling Method Type**: This setting applies to percentage samples on Snowflake, Timescale, and ClickZetta only. Other databases, including PostgreSQL, ignore it. Select **BERNOULLI** to sample rows independently or **SYSTEM** to sample disk pages. Row sampling is more statistically uniform but slower. Page sampling is faster but less statistically uniform.
+
+Static sampling doesn't look up the row count to choose the sample size. The exception is a **Rows** sample with **Randomized Sample** enabled, which runs a `COUNT(*)` first. How the profiler reads the sample depends on the database. BigQuery, Snowflake, Timescale, ClickZetta, SQL Server, and Azure SQL use `TABLESAMPLE`. BigQuery uses it only for **Percentage** samples on tables, and a **Rows** sample still uses a `LIMIT`. SQL Server and Azure SQL don't use it for views. On other databases, including PostgreSQL, a percentage sample scans the table, assigns each row a random number, and keeps the rows within the percentage. On those databases, a **Rows** sample uses a `LIMIT`.
+
+Druid doesn't support **Profile Sample** because it lacks the required random sampling functions. Use partitioning or a sample query to limit the data scanned.
+
+**Randomized Sample** is off by default. When enabled, a **Rows** sample picks random rows instead of the first N rows. It has no effect on **Percentage** samples.
+
+##### Execution Settings
+
+Control concurrency, timeouts, and view inclusion with these settings:
+
+- **Thread Count**: Set the number of threads for parallel metric computation, from 1 to 20. For Snowflake, set this to 1 because of a known issue with `snowflake-connector-python`. If omitted, the profiler calculates it from the number of metrics.
+- **Timeout (in sec.)**: Set how long a profiling job waits before moving to the next table. The default is 43,200 seconds (12 hours). The profiler waits for the current query to finish before timing out. Set a query or connection timeout on the database engine to limit hanging queries.
+- **Include Views**: Enable profiling for views. Including views might reduce profiler performance.
+
+##### Metric Settings
+
+Select the metrics to compute and how to retrieve them:
+
+- **Metrics**: Add or deselect metrics to control what the profiler computes and reduce profiling time or cost.
+- **Compute Table Metrics**: Compute table-level metrics, such as row count and column count. Enabled by default.
+- **Compute Column Metrics**: Compute column-level metrics, such as null count, distinct count, and mean. Enabled by default.
+- **Use System Table Statistics**: Read available table metrics from system catalogs instead of scanning data. Keep database statistics up to date, for example by running `ANALYZE` on PostgreSQL. Metrics unavailable in system tables use the default scan method.
+- **Enable Auto Partition Detection** (`enableAutoPartitionDetection`, default `true`): When enabled, the profiler uses the partition metadata ingested for a table to scan only its recent partitions instead of the whole table. It applies only to tables that have no partition configuration. To profile full tables, turn the toggle off, or set `enableAutoPartitionDetection: false` in the YAML configuration. The toggle appears in the UI only for services that support it: BigQuery, PostgreSQL, Greenplum, CockroachDB, TimescaleDB, Doris, and StarRocks.
+
+  - **Time-unit partitions** on `DATE`, `DATETIME`, or `TIMESTAMP` columns profile a recent window, based on the partition unit:
+    - **Hourly**: The last 24 hours.
+    - **Daily**: The last 3 days.
+    - **Monthly**: The last 35 days.
+    - **Yearly**: The last 370 days.
+  - **Integer-range partitions** on numeric columns profile the range 1 to 10,000.
+  - **Column-value, list, and hash partitions**, and partition columns that aren't date or integer types, aren't affected.
+  - **Table-level metrics** such as row count and size still use the full table.
+  - **Precedence**: A table configuration in the workflow, or the table's own profiler partition configuration, takes precedence over auto partition detection.
+  - **Not affected**: This setting doesn't apply to test suites or Auto Classification. Those workflows keep their existing partition handling, which is limited to BigQuery.
+
+<img src="/public/images/features/ingestion/workflows/profiler/advanced-configuration.png" alt="Advanced profiler configuration" />
+
+### 3. Schedule and Deploy
+1. Click **Next** to open the scheduling step.
+2. Select how the profiler runs:
+    - **Schedule**: Set a recurring schedule to run the profiler automatically at a fixed interval.
+    - **On Demand**: Run the profiler manually whenever needed.
+3. Click **Deploy**.
+
+### 4. Updating Profiler setting at the table level
+Once you have created your profiler you can adjust some behavior at the table level by going to the table and clicking on the profiler tab
+
+<img src="/public/images/features/ingestion/workflows/profiler/accessing-table-profile-settings.png" alt="table profile settings" />
+
+<img src="/public/images/features/ingestion/workflows/profiler/table-profile-summary-view.png" alt="table profile settings" />
+
+
+#### Profiler Options
+**Profile Sample**
+Set the sample to be use by the profiler for the specific table.
+- `Percentage`: Value must be between 1 and 100. This will sample the table based on a percentage
+- `Row Count`: The table will be sampled based on a number of rows (i.e. `1,000`, `2,000`), etc.
+
+OpenMetadata doesn't accept a profile sample of `0`. In the table profiler settings, the percentage and the row count must be at least `1`.
+
+⚠️ This option is currently not support for Druid. Sampling leverage `RANDOM` functions in most database (some have specific sampling functions) and Druid provides neither of these option. We recommend using the partitioning or sample query option if you need to limit the amount of data scanned.
+
+**Enable Column Profile**
+This setting allows user to exclude or include specific columns and metrics from the profiler.
+
+*Note: for Google BigQuery tables partitioned on timestamp/datetime column type, month and year interval are not supported. You will need to set the `Interval Unit` to `DAY` or `HOUR`.*
+
+**Enable Partition**
+When enabled, the profiler will fetch the data based on your profiler settings. Note that if "profile sample" is set, this configuration will be used against the partitioned data and not the whole table.
+- `Column Name`: this is the name of the column that will be used as the partition field
+- `Interval Type`:
+  - `TIME-UNIT`: a business logic timestamp/date/datetime (e.g. order date, sign up datetime, etc.)
+  - `INGESTION-TIME`: a process logic timestamp/date/datetime (i.e. when was my data ingested in my table)
+  - `COLUMN-VALUE`: a value representing a chunk of data (e.g. Product Type A, B, C, etc.)
+  - `INTEGER-RANGE`: a range of integer that will be used as the partition (e.g. Customer ID between 1 and 10)
+
+Once you have picked the `Interval Type` you will need to define the configuration specific to your `Interval Type`.
+
+`INGESTION-TIME` or `INTEGER-RANGE`
+- `Interval`: the interval value (e.g. `1`, `2`, etc.)
+- `Interval Unit`:
+  - `HOUR`
+  - `DAY`
+  - `MONTH`
+  - `YEAR`
+
+`COLUMN-VALUE`
+- `Value`: a list of value to use for the partitioning logic
+
+`INTEGER-RANGE`
+- `Start Range`: the start of the range (inclusive)
+- `End Range`: the end of the range (inclusive)
+
+### 5. Updating Profiler setting at the platform level
+The behavior of the profiler can be configured at the platform level. Navigating to `Settings > Preferences > Profiler Configuration` you will find settings to adjust the behavior of the profiler.
+
+<img src="/public/images/features/ingestion/workflows/profiler/profiler-global-configuration.png" alt="table profile global settings" />
+
+**Disabling All Metric Computation for a Data Type**
+Select the data type you want to disable all metric for. Then toggle disable on. When running the profiler all metric computation will be skipped for the data type.
+
+<img src="/public/images/features/ingestion/workflows/profiler/disable-metric-computation.png" alt="table profile global settings" />
+
+**Disabling Specific Metric Computation for a Data Type**
+Select the data type you want to disable a metric for. Then in the `Metric Type` section select the metric you to compute (or unselect the ones you don't want to compute). When running the profiler the unselected metric will not be computed.
+
+<img src="/public/images/features/ingestion/workflows/profiler/disable-specific-metric-computation.png" alt="table profile global settings" />
+
+
+## YAML Configuration
+
+In the [connectors](/v2.1.x/connectors) section we showcase how to run the metadata ingestion from a JSON file using the Airflow SDK or the CLI via metadata ingest. Running a profiler workflow is also possible using a JSON configuration file.
+
+This is a good option if you which to execute your workflow via the Airflow SDK or using the CLI; if you use the CLI a profile workflow can be triggered with the command `metadata profile -c FILENAME.yaml`. The `serviceConnection` config will be specific to your connector (you can find more information in the [connectors](/v2.1.x/connectors) section), though the sourceConfig for the profiler will be similar across all connectors.
+
+This is a sample config for the profiler:
+
+<Steps>
+<Step title="computeTableMetrics">
+**computeTableMetrics**: Option to turn on/off computing table-level metrics. Turn both this and `computeColumnMetrics` off to run the profiler without computing metrics. To collect sample data, use Auto-Classification instead.
+</Step>
+<Step title="computeColumnMetrics">
+**computeColumnMetrics**: Option to turn on/off computing column-level metrics.
+</Step>
+<Step title="profileSampleConfig">
+**profileSampleConfig**: How much data the profiler and tests run on.
+
+`sampleConfigType` is either `DYNAMIC` (the default), which resolves the sample size at runtime from the table's row count, or `STATIC`, which uses a fixed size you set yourself. `config` holds the settings for the type you chose.
+</Step>
+<Step title="threadCount">
+**threadCount**: Number of threads to use during metric computations.
+</Step>
+<Step title="timeoutSeconds">
+**timeoutSeconds**: Profiler Timeout in Seconds
+</Step>
+<Step title="databaseFilterPattern">
+**databaseFilterPattern**: Regex to only fetch databases that matches the pattern.
+</Step>
+<Step title="schemaFilterPattern">
+**schemaFilterPattern**: Regex to only fetch tables or databases that matches the pattern.
+</Step>
+<Step title="tableFilterPattern">
+**tableFilterPattern**: Regex to only fetch tables or databases that matches the pattern.
+</Step>
+<Step title="Processor Configuration">
+#### Processor Configuration
+
+Choose the `orm-profiler`. Its config can also be updated to define tests from the YAML itself instead of the UI:
+
+**tableConfig**: `tableConfig` allows you to set up some configuration at the table level.
+</Step>
+<Step title="Sink Configuration">
+#### Sink Configuration
+
+To send the metadata to OpenMetadata, it needs to be specified as `type: metadata-rest`.
+</Step>
+<Step title="Workflow Configuration">
+#### Workflow Configuration
+
+The main property here is the `openMetadataServerConfig`, where you can define the host and security provider of your OpenMetadata installation.
+
+For a simple, local installation using our docker containers, this looks like:
+</Step>
+</Steps>
+
+```yaml
+source:
+  type: <connectorType (e.g. bigquery, redshift, etc.)>
+  serviceName: <serviceName (same as metadata ingestion service name)>
+  sourceConfig:
+    config:
+      type: Profiler
+      computeTableMetrics: true
+      computeColumnMetrics: true
+      # profileSampleConfig:
+      #   sampleConfigType: DYNAMIC
+      #   config:
+      #     smartSampling: true
+      # threadCount: 5
+      # timeoutSeconds: 43200
+      # databaseFilterPattern:
+      #   includes:
+      #     - database1
+      #     - database2
+      #   excludes:
+      #     - database3
+      #     - database4
+      # schemaFilterPattern:
+      #   includes:
+      #     - schema1
+      #     - schema2
+      #   excludes:
+      #     - schema3
+      #     - schema4
+      # tableFilterPattern:
+      #   includes:
+      #     - table1
+      #     - table2
+      #   excludes:
+      #     - table3
+      #     - table4
+processor:
+  type: orm-profiler
+  config: {}  # Remove braces if adding properties
+    # tableConfig:
+    #   - fullyQualifiedName: <table fqn>
+    #     profileSampleConfig:
+    #       sampleConfigType: STATIC  # omit entirely to inherit dynamic sampling
+    #       config:
+    #         profileSample: <number between 0 and 99>
+    #     columnConfig:
+    #       excludeColumns:
+    #         - <column name>
+    #       includeColumns:
+    #         - columnName: <column name>
+    #         - metrics:
+    #           - MEAN
+    #           - MEDIAN
+    #           - ...
+    #     partitionConfig:
+    #       enablePartitioning: <set to true to use partitioning>
+    #       partitionColumnName: <partition column name>
+    #       partitionIntervalType: <TIME-UNIT, INTEGER-RANGE, INGESTION-TIME, COLUMN-VALUE>
+    #       Pick one of the variation shown below
+    #       ----'TIME-UNIT' or 'INGESTION-TIME'-------
+    #       partitionInterval: <partition interval>
+    #       partitionIntervalUnit: <YEAR, MONTH, DAY, HOUR>
+    #       ------------'INTEGER-RANGE'---------------
+    #       partitionIntegerRangeStart: <integer>
+    #       partitionIntegerRangeEnd: <integer>
+    #       -----------'COLUMN-VALUE'----------------
+    #       partitionValues:
+    #         - <value>
+    #         - <value>
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  # loggerLevel: DEBUG  # DEBUG, INFO, WARN or ERROR
+  openMetadataServerConfig:
+    hostPort: <OpenMetadata host and port>
+    authProvider: <OpenMetadata auth provider>
+```
+
+### 2. Run with the CLI
+
+After saving the YAML config, we will run the command the same way we did for the metadata ingestion:
+
+```bash
+metadata profile -c <path-to-yaml>
+```
+
+Note now instead of running `ingest`, we are using the `profile` command to select the Profiler workflow.
+
+## Profiler Best Practices
+When setting a profiler workflow it is important to keep in mind that queries will be running against your database. Depending on your database engine, you may incur costs (e.g., Google BigQuery, Snowflake). Execution time will also vary depending on your database engine computing power, the size of the table, and the number of columns. Given these elements, there are a few best practices we recommend you follow.
+
+### 1. Profile what you Need
+Profiling all the tables in your data platform might not be the most optimized approach. Profiled tables give an indication of the structure of the table, which is most useful for tables where this information is valuable (e.g., tables used by analysts or data scientists, etc.).
+
+When setting up a profiler workflow, you have the possibility to filter out/in certain databases, schemas, or tables. Using this feature will greatly help you narrow down which table you want to profile.
+
+### 2. Sampling and Partitioning your Tables
+On a table asset, you have the possibility to add a sample percentage/rows and a partitioning logic. Doing so will significantly reduce the amount of data scanned and the computing power required to perform the different operations.
+
+For sampling, you can set a sampling percentage at the workflow level.
+
+### 3. Excluding/Including Specific Columns/Metrics
+By default, the profiler computes a standard set of metrics (see **Metrics** under Advanced Config) for all columns. This behavior can be fine-tuned only to include or exclude specific columns and specific metrics.
+
+For example, excluding `id` columns will reduce the number of columns against which the metrics are computed.
+
+### 4. Set Up Multiple Workflow
+If you have a large number of tables you would like to profile, setting up multiple workflows will help distribute the load. It is important though to monitor your instance CPU, and memory as having a large amount of workflow running simultaneously will require an adapted amount of resources.

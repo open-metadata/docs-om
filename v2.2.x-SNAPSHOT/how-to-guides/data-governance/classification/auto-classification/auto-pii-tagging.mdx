@@ -1,0 +1,121 @@
+---
+title: Auto Pii Tagging Guide | Official Documentation
+description: Automatically tag personally identifiable information (PII) in your datasets to support data classification, compliance, and privacy enforcement.
+sidebarTitle: Auto PII Tagging
+canonical: "https://docs.open-metadata.org/v2.1.x/how-to-guides/data-governance/classification/auto-classification/auto-pii-tagging"
+---
+
+# Auto PII Tagging
+
+Auto PII tagging for Sensitive/NonSensitive at the column level is performed based on the two approaches described below.
+
+## Tagging logic
+
+1. **Column Name Scanner**: We validate the column names of the table against a set of regex rules that help us identify
+    common English patterns to identify email addresses, SSN, bank accounts, etc.
+2. **Entity Recognition**: The workflow samples rows directly from the source and validates them against an Entity
+    Recognition engine that identifies sensitive information from a list of [supported entities](https://microsoft.github.io/presidio/supported_entities/).
+    The `confidence` parameter lets you tune the minimum score required to tag a column as `PII.Sensitive`.
+    Enabling **Store Sample Data** saves those rows in OpenMetadata, but is not required for classification to run.
+
+Note that if a column is already tagged as `PII`, we will ignore its execution.
+
+## Provision Models for Restricted or Air-Gapped Environments
+
+Auto Classification needs a spaCy model for each language it processes. By default, missing models are downloaded when the workflow runs. In restricted or air-gapped environments, install them ahead of time with the `metadata install-classification-models` command.
+
+### Install the Models with the CLI
+
+Follow these steps to install the models.
+
+1. Install `openmetadata-ingestion[pii-processor]` in the same Python environment and as the same user that runs the workflow.
+
+    ```bash
+    pip install "openmetadata-ingestion[pii-processor]"
+    ```
+
+2. Run the command with the languages you need:
+
+    ```bash
+    metadata install-classification-models --languages en,es
+    ```
+
+The command needs no workflow configuration, server, or Airflow.
+
+**`--languages`**: A nonempty, comma-separated list of lowercase language identifiers. Whitespace is allowed. Uppercase, unknown, and empty values are rejected before anything is installed.
+
+<Note>
+**Note**: The identifier `any` provisions the English model. For air-gapped runs that use `any` together with recognizers for specific languages, list every language, for example `any,es,ar`.
+</Note>
+
+### Behavior of Repeated Runs
+
+Running the command again behaves as follows.
+
+- A healthy model that matches the requested one is reused.
+- A model of a different version is replaced.
+- The command stops at the first failure. Models installed before the failure stay in place.
+- Models are downloaded from the exact upstream wheel URLs. A private pip index alone isn't enough. On disconnected hosts, preinstall the wheels.
+
+### Docker
+
+The ingestion and runner Docker builds accept an optional build argument, `AUTO_CLASSIFICATION_LANGUAGES`.
+
+- The default is empty, which installs nothing.
+- The selected `INGESTION_DEPENDENCY` must include `pii-processor`.
+
+To extend a published image, add the command to a derived Dockerfile. Build arguments don't change the published base image.
+
+```dockerfile
+RUN metadata install-classification-models --languages en,es
+```
+
+### External Airflow and Runners
+
+Provision the models where the workflow runs.
+
+- For an external Airflow, run the command as the Airflow task user.
+- If a separate ingestion runner launches the workflow, provision the runner image or environment instead.
+
+### Runtime Behavior
+
+At runtime, if a required model is missing, the workflow logs a warning and tries the spaCy download. If the model still can't load, the Auto Classification workflow fails.
+
+## Troubleshooting
+
+### Recognizer ran but tag was not applied
+
+If the auto-classification logs show a recognizer attempted to classify a column but no tag appears:
+
+- **Sampled values are masked or anonymized** — the content recognizer found no match above the confidence threshold. Switch the recognizer `Target` to **Column Name** to tag based on the column name alone, regardless of data content.
+- **Confidence score too low** — the recognizer ran but scored below the threshold. Lower the confidence threshold or add context to boost the score.
+- **Column already tagged as PII** — columns with an existing `PII` tag are skipped. Check the column's existing tags.
+
+### Custom Recognizer Is Skipped
+
+If a custom pattern recognizer never tags a column, check the auto-classification logs for a line that starts with `Skipping recognizer`, followed by the recognizer name and the reason.
+
+OpenMetadata checks each custom pattern recognizer before it runs. It skips a recognizer that cannot run, logs the error, and continues classifying the column with the other recognizers, so one faulty recognizer does not drop the other tags on the column. A recognizer is skipped when:
+
+- **Invalid pattern**: A regular expression is invalid, for example because it has an unclosed bracket.
+- **No patterns**: The recognizer has no patterns.
+- **Pattern too complex**: A pattern is nested too deeply to compile.
+
+To fix it, correct the pattern in the recognizer and run the auto-classification workflow again. Context words are matched literally, so special characters in a context word do not need escaping.
+
+### SSL: CERTIFICATE_VERIFY_FAILED
+
+If you see an error similar to:
+
+```
+Unexpected error while processing sample data for auto pii tagging - HTTPSConnectionPool(host='raw.githubusercontent.com', port=443):
+Max retries exceeded with url: /explosion/spacy-models/master/compatibility.json
+(Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to
+get local issuer certificate (_ssl.c:1129)')))
+```
+
+This is a scenario that we identified on some corporate Windows laptops. The bottom-line here is that the profiler
+is trying to download the Entity Recognition model but having certificate issues when trying the request.
+
+The solution is to install the model ahead of time. For more information, see [Provision Models for Restricted or Air-Gapped Environments](/v2.2.x-SNAPSHOT/how-to-guides/data-governance/classification/auto-classification/auto-pii-tagging#provision-models-for-restricted-or-air-gapped-environments).
+
