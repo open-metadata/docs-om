@@ -152,6 +152,32 @@ than guessing from the commit subject alone — several "looks internal"
 commits turned out to describe a real, if narrow, user-facing bug once
 the body was read.
 
+## 6a. Security-sensitive items (hold for sign-off)
+
+Wording about a security fix in a public changelog can disclose a
+weakness before it has been announced. Do not decide these on your own.
+
+Classify every candidate bullet before drafting:
+
+1. **Hold for sign-off.** Anything about sign-in or SSO flows, tokens,
+   credentials or secrets, certificates, who can see or change what,
+   data exposure, or a vulnerable dependency, runtime, or image.
+2. **Safe to publish.** Ordinary visible fixes and features, written as
+   the symptom a user would notice.
+3. **Check wording.** Any bullet that says something was exposed, leaked,
+   bypassed, unprotected, or vulnerable, even if the fix itself is
+   routine. Rewrite to describe the change, not the weakness, or hold it.
+
+For held items: do not add them to the file. Show the user the list with
+the PR numbers and why each was held, and ask. Never create a "Security"
+heading for them on your own. If the user explicitly asks for an item to
+be included, use neutral wording and keep the section out of the intro.
+
+If a held line was already published, remove it in a neutral cleanup
+commit titled like "Clean up X changelog", branched from the latest
+`origin/main` (not the old release branch, whose PR may already be
+merged). Tell the user the earlier text remains in git history.
+
 ## 7. Doc-review pass
 
 Each target repo may have its **own** `.ai/doc-review/` checklist —
