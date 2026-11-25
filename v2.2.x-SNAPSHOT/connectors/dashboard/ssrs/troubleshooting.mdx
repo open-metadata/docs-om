@@ -24,7 +24,17 @@ Ensure the SSRS REST API is enabled. The connector uses `/api/v2.0/` endpoints â
 
 ### Failed to connect to SSRS: Expecting value: line 1 column 1 (char 0)
 
-The Host and Port points at the Report Server endpoint (`/ReportServer`) instead of the web portal. `/ReportServer` is the SOAP/URL-access endpoint and returns HTML, so the connector cannot parse the REST response. Set Host and Port to the web portal base URL (default `/Reports`), for example `https://your-ssrs-server/Reports`.
+The connector builds its REST base URL from the **Host and Port** value and appends `/api/v2.0`. It supports both `http://` and `https://`. The `Expecting value: line 1 column 1 (char 0)` error means the response was not valid JSON. It does not show which endpoint or protocol is wrong. Use the following order to find the failing layer. Run each check from the ingestion runner, or from a diagnostic host with the same network access. A workstation can reach hosts that the runner cannot.
+
+1. **DNS** (Domain Name System): Confirm the hostname resolves. A successful lookup does not prove that the server accepts connections.
+2. **TCP** (Transmission Control Protocol): Confirm the port accepts a connection. A timeout here is a network problem, not an SSRS or credentials problem. Common causes are a firewall, security group, or wrong port.
+3. **TLS** (Transport Layer Security): For `https://`, a certificate or handshake error points to the server certificate. For more information, see [SSL Certificate Errors](#ssl-certificate-errors).
+4. **HTTP response**: Request `<host-and-port>/api/v2.0/Reports?$top=1` and note the status code. Do not include credentials in commands you share. A `401 Unauthorized` confirms the server is reachable over HTTP. Continue with [NTLM Authentication Failure](#ntlm-authentication-failure) and [Reports Not Appearing](#reports-not-appearing).
+5. **JSON parsing**: Check the following:
+    - **Endpoint**: Set Host and Port to the web portal base URL, which normally ends in `/Reports`, for example `https://your-ssrs-server/Reports`. The `/ReportServer` endpoint is a different endpoint that returns HTML, and it is one possible cause of this error.
+    - **Protocol**: A redirect, login page, or proxy error page also returns HTML. Confirm that the configured protocol is the one the server answers on.
+
+If the configured `https://` endpoint times out and the same server answers on `http://`, use the protocol that works for that installation, or configure HTTPS on the SSRS server. HTTP is not a requirement for every installation.
 
 ### SSL Certificate Errors
 
@@ -36,5 +46,6 @@ If you see SSL verification errors, either:
 
 If reports are missing after ingestion:
 - Confirm the service account has **Browser** role access on the folder containing those reports
+- If you rely on group-based role assignments and they do not take effect, test with a direct **Browser** role assignment for the ingestion account on the required folders
 - Check whether `dashboardFilterPattern` or `projectFilterPattern` is inadvertently excluding them
 - Hidden reports are automatically skipped by the connector
