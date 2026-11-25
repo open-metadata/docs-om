@@ -114,6 +114,14 @@ see `references/process.md` §11 for the full incident behind each one:
 - **Bold the symptom, not the fix** — every bullet title states the
   problem a user or admin would recognize; the sentence after the colon
   states what changed and, where it isn't obvious, why it matters.
+- **Hold security-sensitive items for sign-off; never publish them on
+  your own.** Before drafting, mark every candidate that touches sign-in,
+  tokens or credentials, secrets handling, certificates, who can see or
+  change what (permissions, access scoping), data exposure, or a
+  vulnerable dependency/runtime/image as **"needs security sign-off"**.
+  List them for the user and leave them out of the file (and out of any
+  "Security" heading) until the user confirms the security team has
+  agreed the wording and timing. See `references/process.md` §6a.
 
 ## Output discipline
 
