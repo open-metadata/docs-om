@@ -77,6 +77,58 @@ The application deletes a run, with all its stages, only when all of these are t
 - The run started before the retention cutoff. OpenMetadata keeps every run inside the retention period.
 - A newer run of the same workflow exists for the same entity. Each entity keeps its latest run of each workflow, however old it is. Runs that have no entity are grouped per workflow, so the newest of those is kept too.
 
+## Soft-Deleted Assets
+
+When you set up a metadata agent, the **Scope & Behaviour** step has **Mark Deleted** toggles, such as **Mark Deleted Tables**, **Mark Deleted Schemas**, and **Mark Deleted Databases**. When a toggle is on, the agent soft deletes that kind of asset if it no longer exists in the source. Related items, such as test suites and lineage, are also deleted. For more information on the metadata agent options, see [How to Ingest Metadata](/v2.1.x/how-to-guides/admin-guide/how-to-ingest-metadata).
+
+A soft-deleted asset is hidden from normal views and shows a **Deleted** badge. It is not removed. You can restore it, and its history is kept.
+
+The Data Retention application does not permanently delete soft-deleted assets, and it has no retention period for them. No metadata agent setting turns a soft delete into a permanent delete. To remove a soft-deleted asset for good, delete it permanently yourself.
+
+### Permanently Delete a Soft-Deleted Table in the UI
+
+1. Open the schema that contains the table. On the **Tables** tab, turn on the **Deleted** toggle. Soft-deleted tables then appear in the list.
+
+   <img src="/public/images/how-to-guides/admin-guide/data-retention/schema-tables-show-deleted.png" alt="Tables tab of a database schema with the Deleted toggle highlighted" />
+
+2. Open the table.
+3. Click the **⋮** icon and select **Delete**.
+4. Click **Delete**.
+
+<Warning>
+A permanent delete can't be undone.
+</Warning>
+
+To permanently delete a soft-deleted schema or database, turn on the **Deleted** toggle on its parent page, open it, and delete it the same way. For a service, see the next section.
+
+### Permanently Delete a Soft-Deleted Service in the UI
+
+1. Select **Connections** in the left navigation bar and turn on the **Deleted** toggle. Soft-deleted services then appear in the list.
+
+   <img src="/public/images/how-to-guides/admin-guide/data-retention/connections-show-deleted.png" alt="Connections page with the Deleted toggle turned on and highlighted" />
+
+2. Open the service. A **Deleted** badge appears next to its name.
+3. Click **Settings** > **Delete**.
+
+   <img src="/public/images/how-to-guides/admin-guide/data-retention/deleted-service-settings-menu.png" alt="Soft-deleted service with the Settings menu open and Delete highlighted" />
+
+4. In the dialog, **Permanently Delete** is selected. Click **Delete** to confirm.
+
+   <img src="/public/images/how-to-guides/admin-guide/data-retention/permanently-delete-dialog.png" alt="Delete dialog for a soft-deleted service with Permanently Delete selected" />
+
+<Warning>
+A permanent delete can't be undone.
+</Warning>
+
+### Permanently Delete a Table with the API or SDK
+
+Use either method to permanently delete a table.
+
+- **API**: Send `DELETE /api/v1/tables/{id}?hardDelete=true`.
+- **Python SDK**: Call `metadata.delete(entity=Table, entity_id=<id>, hard_delete=True)`.
+
+Other asset types, such as schemas, databases, and services, use the same `hardDelete=true` option on their own endpoints.
+
 ## Related Retention Settings
 
-The same application configures retention for other record types. It covers change events and activity records. It also covers test results, profile data, and audit logs. Each field is measured in days. Review every value before you run the application in a production environment.
+The same application configures retention for other record types. It covers change events and activity records. It also covers test results, profile data, and audit logs. Each field is measured in days. It doesn't cover soft-deleted assets. Review every value before you run the application in a production environment.
