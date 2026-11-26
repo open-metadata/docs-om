@@ -348,33 +348,12 @@ extraEnvs:
 
 After the upgrade, the server log shows `Log storage initialized successfully: type=s3`. If it doesn't, look for an error about the bucket in the server log.
 
-### 3. Enable Log Storage for Each Pipeline
+### 3. Deploy the Pipelines
 
-A pipeline sends its logs to the bucket only when its `enableStreamableLogs` property is `true`. The property is `false` by default and the UI has no setting for it, so set it with the API. Then redeploy the pipeline so that the change reaches Kubernetes:
-
-```bash
-OM=https://<openmetadata-host>/api/v1
-TOKEN=<jwt-token>   # for example, an admin's personal access token
-
-# Find the pipeline id from its fully qualified name, such as "mysql_prod.mysql_prod_metadata"
-ID=$(curl -s "$OM/services/ingestionPipelines/name/<pipeline-fqn>" \
-  -H "Authorization: Bearer $TOKEN" | jq -r .id)
-
-# Enable log storage for the pipeline
-curl -X PATCH "$OM/services/ingestionPipelines/$ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json-patch+json" \
-  -d '[{"op": "add", "path": "/enableStreamableLogs", "value": true}]'
-
-# Redeploy the pipeline
-curl -X POST "$OM/services/ingestionPipelines/deploy/$ID" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Repeat this for every pipeline whose logs you want to keep. Editing the pipeline later in the UI keeps the setting.
+When the server stores logs in S3, every pipeline deploy turns on the pipeline's `enableStreamableLogs` property, so you do not set it for each pipeline. A pipeline that was deployed before you configured S3 starts storing its logs after its next deploy, for example when you edit it in the UI or redeploy it.
 
 <Note>
-The `PIPELINE_SERVICE_CLIENT_LOG_ENABLED` server setting doesn't enable log storage for your pipelines. Set `enableStreamableLogs` on each pipeline as shown above.
+The `PIPELINE_SERVICE_CLIENT_LOG_ENABLED` server setting is deprecated and ignored. It stays in the schema so that existing configuration files keep loading. Use `PIPELINE_SERVICE_CLIENT_LOG_TYPE` to choose where logs are stored.
 </Note>
 
 From then on, the logs of every new run of these pipelines stay visible in the UI after the pods are deleted. The logs of each run are stored in their own `logs.txt` file, in a folder per pipeline and run, so the logs of earlier runs stay in the bucket too. The UI shows the logs of the latest run. Runs that finished before the change are not copied to the bucket.
