@@ -129,6 +129,18 @@ Click **Create & Deploy** to deploy the agent and start the first metadata inges
 
 To monitor ingestion progress or view the service you just added, go to **Connections** and select your service.
 
+## Lineage
+
+The connector creates lineage from warehouse tables to the dashboards, charts, and datasets that it ingests. The following rules decide which objects get lineage.
+
+- **Reports built on an Intelligent Cube**: A report that a dossier dataset uses takes the lineage of the cube it is built on, including tables and columns. The connector reads the cube from the report's definition, which needs read access only. A report built on a Data Import cube is matched on names, as the cube is.
+- **Metrics of schema cubes**: Each metric of a schema-based cube gets column lineage. The connector links a metric through the SQL column named after its column alias, or after its name when no alias is set. For example, the metric `Revenue Rank` is linked to the column `REVENUERANK`. Otherwise, it follows the metrics and facts that the metric's definition is built from.
+- **Alias matching**: A column alias belongs to a metric only when no other object in the dataset claims it. The connector never matches generated aliases such as `WJXBFSn` by position. A metric that is derived in a dossier, or that the connector cannot read, gets no column link.
+- **Metric permission**: Reading a metric's definition needs Architect read permission. Without it, metrics keep table lineage but get no column lineage.
+- **No lineage**: A report built on warehouse tables, called a prompted report when it has prompts, and a Live Intelligent Cube have no lineage. MicroStrategy writes their SQL only when it queries the warehouse. The connector logs a warning that names the reason.
+
+Each metric of a schema cube costs one extra request to MicroStrategy per run, and one more for each metric and fact it is built from. The connector caches these requests by object ID.
+
 ## Configure Metadata Agent and Schedule Ingestion
 
 <MetadataAgentDashboard />
