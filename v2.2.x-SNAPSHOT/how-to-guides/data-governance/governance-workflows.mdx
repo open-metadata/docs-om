@@ -129,6 +129,40 @@ When the requester is one of two eligible approvers, a two-approval rule becomes
 - **After you vote**: Once you vote, the **Approve** and **Reject** actions are hidden, and the task shows "Your vote is recorded. Waiting for the other approvers." until the threshold is reached. Other actions, such as reassigning the task, stay available.
 - **Where it applies**: These rules apply on the asset's task tab, in the review panel in the inbox and the glossary, and in the activity feed card.
 
+### Who Decided an Approval
+
+Each workflow run records how its approval steps were decided, and the UI shows it.
+
+- **Run history**: Under each run's status, the run shows who decided the step: "Approved by …", "Rejected by …", "Partially approved by …", or "Published without review by …" for an administrator who published without review. It also shows when the workflow decided: "Auto-approved: no one to assign" or "Auto-approved: submitter is a reviewer".
+- **Status badge**: Hover over the status badge of an entity, such as **Approved** on a glossary term, to see how its current status was set. The tooltip names the person or the workflow that set it, for example "Set to Approved by Glossary Approval Workflow". It also says what led to it, such as "After …'s change" or "On its schedule", and how long ago.
+
+    <img src="/public/images/how-to-guides/governance/workflows/entity-status-badge-tooltip.png" alt="Approved status badge on a glossary term with its tooltip showing who set the status" />
+
+- **Glossary terms**: The **Workflow History** card of a glossary term shows the decision under its approval step.
+
+Workflows that already exist record decisions after you upgrade. You don't need to change them.
+
+### Assignees When an Asset Has No Owner
+
+A **User Approval** task goes to the reviewers or owners that the node selects. When none of them resolve for an asset, set `cascadeOwners` to `true` in the node's `assignees` configuration. OpenMetadata then looks for assignees in this order and uses the first level that resolves to anyone:
+
+1. The owners of the asset's service.
+2. The owners of the asset's domains.
+3. The administrators, except the person who made the request. This step applies when `emptyAssigneeStrategy` is `assignAdmins`.
+
+```json
+{
+  "assignees": {
+    "addReviewers": true,
+    "addOwners": true,
+    "cascadeOwners": true,
+    "emptyAssigneeStrategy": "assignAdmins"
+  }
+}
+```
+
+The default `SuggestionTaskWorkflow` uses these settings from OpenMetadata 2.1.1, so a suggestion task on an asset with no owner goes to the service owners, then the domain owners, then the administrators.
+
 ## Naming Rules
 
 OpenMetadata uses some names you enter to build the variables that the workflow runs on, so they accept only letters, digits, and underscores (`_`):
